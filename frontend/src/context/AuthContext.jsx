@@ -19,8 +19,12 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUser = async () => {
     try {
-      const res = await api.get('/auth/me'); // Optional endpoint to get current user info
-      setUser(res.data.data);
+      const res = await api.get('/auth/me');
+      const userData = res.data.user;
+      setUser({
+        ...userData,
+        allowedPages: userData.allowedPages || []
+      });
     } catch (err) {
       console.error('Failed to fetch user', err);
       logout();
@@ -33,7 +37,10 @@ export const AuthProvider = ({ children }) => {
     const res = await api.post('/auth/login', { email, password });
     const { token, user: userData } = res.data;
     localStorage.setItem('token', token);
-    setUser(userData);
+    setUser({
+      ...userData,
+      allowedPages: userData.allowedPages || []
+    });
     return userData;
   };
 

@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const logger = require('../utils/logger');
 
 // Register User
 exports.register = async (req, res) => {
@@ -24,6 +25,9 @@ exports.register = async (req, res) => {
     );
 
     const user = newUserResult.rows[0];
+
+    // Log the registration
+    await logger.logAction(req, user.id, 'REGISTER', 'User', user.id, { email: user.email });
 
     // Generate JWT
     const payload = { user: { id: user.id, role: user.role } };
@@ -59,7 +63,24 @@ exports.login = async (req, res) => {
     const payload = { user: { id: user.id, role: user.role } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
 
-    res.json({ status: 'success', token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    // Log the login
+    await logger.logAction(req, user.id, 'LOGIN', 'User', user.id, { email: user.email });
+
+    // Fetch allowed pages
+    const permissions = await db.query('SELECT page_path FROM user_access WHERE user_id = $1 AND can_access = true', [user.id]);
+    const allowedPages = permissions.rows.map(p => p.page_path);
+
+    res.json({ 
+      status: 'success', 
+      token, 
+      user: { 
+        id: user.id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role,
+        allowedPages
+      } 
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
@@ -70,7 +91,19 @@ exports.login = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const userResult = await db.query('SELECT id, name, email, role, created_at FROM users WHERE id = $1', [req.user.id]);
-    res.json({ status: 'success', user: userResult.rows[0] });
+    const user = userResult.rows[0];
+    
+    // Fetch allowed pages
+    const permissions = await db.query('SELECT page_path FROM user_access WHERE user_id = $1 AND can_access = true', [user.id]);
+    const allowedPages = permissions.rows.map(p => p.page_path);
+
+    res.json({ 
+      status: 'success', 
+      user: {
+        ...user,
+        allowedPages
+      } 
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });

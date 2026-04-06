@@ -53,3 +53,43 @@ exports.getUsersByDepartment = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
+
+// @desc    Get user permissions
+// @route   GET /api/users/:id/permissions
+// @access  Private (Admin)
+exports.getUserPermissions = async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT page_path FROM user_access WHERE user_id = $1 AND can_access = true',
+      [req.params.id]
+    );
+    res.json({ status: 'success', data: result.rows });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// @desc    Update user permissions (Bulk)
+// @route   POST /api/users/:id/permissions
+// @access  Private (Admin)
+exports.updateUserPermissions = async (req, res) => {
+  const { allowedPages } = req.body;
+  const userId = req.params.id;
+
+  try {
+    // 1. Reset
+    await db.query('DELETE FROM user_access WHERE user_id = $1', [userId]);
+
+    // 2. Insert
+    if (allowedPages && allowedPages.length > 0) {
+      const values = allowedPages.map(path => `(${userId}, '${path}', true)`).join(',');
+      await db.query(`INSERT INTO user_access (user_id, page_path, can_access) VALUES ${values}`);
+    }
+
+    res.json({ status: 'success', message: 'Permissions updated successfully' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};

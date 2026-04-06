@@ -5,8 +5,11 @@ import {
   Handshake, CheckSquare, Wallet, 
   Users2, FileText, BarChart3, ChevronLeft, ChevronRight 
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
+  const { user } = useAuth();
+  
   const navItems = [
     { name: 'Dashboard', icon: <LayoutDashboard />, path: '/' },
     { name: 'Customers', icon: <Users />, path: '/customers' },
@@ -18,6 +21,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Files', icon: <FileText />, path: '/files' },
     { name: 'Reports', icon: <BarChart3 />, path: '/reports' },
   ];
+
+  // Filter items based on permissions
+  const filteredItems = navItems.filter(item => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    
+    const checkPath = item.path === '/' ? '/dashboard' : item.path;
+    return user.allowedPages && user.allowedPages.includes(checkPath);
+  });
 
   return (
     <div className={`sidebar ${isOpen ? 'open' : 'closed'}`}>
@@ -131,7 +143,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       </div>
 
       <nav className="sidebar-nav">
-        {navItems.map((item) => (
+        {filteredItems.map((item) => (
           <NavLink 
             key={item.name} 
             to={item.path} 

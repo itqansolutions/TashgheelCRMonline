@@ -22,4 +22,14 @@ router.put('/:id/role', authorize(['admin']), usersController.updateUserRole);
 // @access  Private (Admin, Manager)
 router.get('/department/:deptId', authorize(['admin', 'manager']), usersController.getUsersByDepartment);
 
+// @route   GET api/users/:id/permissions
+// @desc    Get user permissions
+// @access  Private (Admin)
+router.get('/:id/permissions', authorize(['admin']), usersController.getUserPermissions);
+
+// @route   POST api/users/:id/permissions
+// @desc    Update user permissions
+// @access  Private (Admin)
+router.post('/:id/permissions', authorize(['admin']), usersController.updateUserPermissions);
+
 module.exports = router;
