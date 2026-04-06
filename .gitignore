@@ -1,0 +1,24 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.env
+.env.local
+
+# Frontend Build
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.eslintcache
+
+# Logs
+logs
+*.log
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Uploads (Optional, depends on if you want to push user data)
+uploads/
