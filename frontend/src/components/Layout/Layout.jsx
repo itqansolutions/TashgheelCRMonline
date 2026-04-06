@@ -17,31 +17,33 @@ const Layout = () => {
           display: flex;
           min-height: 100vh;
           background-color: var(--bg-main);
+          overflow-x: hidden;
         }
         .main-container {
           flex: 1;
           display: flex;
           flex-direction: column;
-          margin-left: ${isSidebarOpen ? 'var(--sidebar-w)' : '80px'};
-          transition: margin-left 0.3s ease;
-          min-width: 0; /* Prevent flex box from expanding beyond viewport */
+          margin-left: ${isSidebarOpen ? 'var(--sidebar-w)' : '90px'};
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          min-width: 0;
         }
         .content-area {
           flex: 1;
-          padding: 24px;
+          padding: 32px;
           overflow-y: auto;
           overflow-x: hidden;
+          animation: fadeIn 0.5s ease-out;
         }
-        @media (max-width: 768px) {
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @media (max-width: 1024px) {
           .main-container {
             margin-left: 0 !important;
           }
-          .sidebar {
-            left: -100%;
-          }
-          .sidebar.open {
-            left: 0;
-            width: 100%;
+          .content-area {
+            padding: 20px;
           }
         }
       `}</style>

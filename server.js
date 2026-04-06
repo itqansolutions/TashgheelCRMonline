@@ -34,6 +34,11 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const logRoutes = require('./routes/logRoutes');
 
+// Serve Static Assets in Production
+const frontendPath = path.join(__dirname, 'frontend', 'dist');
+app.use(express.static(frontendPath));
+
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);
@@ -50,9 +55,10 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/logs', logRoutes);
 
-// Main Routes Placeholder
-app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to Tashgheel CRM API' });
+// Catch-all route for React SPA
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api')) return res.status(404).json({ message: 'API Route not found' });
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // Error handling middleware

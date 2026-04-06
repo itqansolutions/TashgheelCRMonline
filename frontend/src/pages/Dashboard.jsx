@@ -37,8 +37,10 @@ const KPICard = ({ title, value, icon, color, trend, trendValue }) => (
     <div className="kpi-header">
       <div className={`kpi-icon icon-${color}`}>{icon}</div>
       <div className={`kpi-trend ${trend === 'up' ? 'trend-up' : 'trend-down'}`}>
-        {trend === 'up' ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-        {trendValue}
+        <div className="trend-badge">
+          {trend === 'up' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+          {trendValue}
+        </div>
       </div>
     </div>
     <div className="kpi-body">
@@ -79,10 +81,12 @@ const Dashboard = () => {
       {
         label: 'Revenue',
         data: revenueData.map(r => parseFloat(r.revenue)),
-        borderColor: '#1e40af',
-        backgroundColor: 'rgba(30, 64, 175, 0.1)',
+        borderColor: '#4f46e5',
+        backgroundColor: 'rgba(79, 70, 229, 0.1)',
         fill: true,
         tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6,
       },
       {
         label: 'Expenses',
@@ -91,6 +95,8 @@ const Dashboard = () => {
         backgroundColor: 'rgba(245, 158, 11, 0.1)',
         fill: true,
         tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 6,
       },
     ],
   };
@@ -124,58 +130,68 @@ const Dashboard = () => {
           gap: 20px;
         }
         .kpi-card {
-          background: white;
-          padding: 16px;
-          border-radius: 12px;
-          border: 1px solid var(--border);
+          background: var(--bg-card);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          padding: 24px;
+          border-radius: var(--radius);
+          border: 1px solid var(--glass-border);
+          box-shadow: var(--shadow-md);
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 16px;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .kpi-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
+        .kpi-card:hover {
+          transform: translateY(-5px);
+          box-shadow: var(--shadow-xl);
+          border-color: var(--primary);
         }
         .kpi-icon {
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
+          width: 48px;
+          height: 48px;
+          border-radius: 14px;
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
+          box-shadow: 0 8px 16px rgba(0,0,0,0.1);
         }
-        .icon-blue { background-color: var(--primary); }
-        .icon-green { background-color: var(--success); }
-        .icon-yellow { background-color: var(--warning); }
-        .icon-red { background-color: var(--danger); }
-        .icon-purple { background-color: #8b5cf6; }
+        .icon-blue { background: linear-gradient(135deg, #4f46e5, #6366f1); }
+        .icon-green { background: linear-gradient(135deg, #10b981, #34d399); }
+        .icon-yellow { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+        .icon-red { background: linear-gradient(135deg, #ef4444, #f87171); }
+        .icon-purple { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
 
-        .kpi-trend {
+        .trend-badge {
           display: flex;
           align-items: center;
-          font-size: 13px;
-          font-weight: 600;
+          padding: 4px 8px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 700;
           gap: 4px;
+          background: rgba(0, 0, 0, 0.05);
         }
-        .trend-up { color: var(--success); }
-        .trend-down { color: var(--danger); }
+        .trend-up .trend-badge { color: #059669; background: rgba(16, 185, 129, 0.1); }
+        .trend-down .trend-badge { color: #dc2626; background: rgba(239, 68, 68, 0.1); }
 
         .kpi-body {
           display: flex;
           flex-direction: column;
         }
         .kpi-title {
-          font-size: 13px;
+          font-size: 14px;
           color: var(--text-muted);
-          font-weight: 500;
+          font-weight: 600;
+          letter-spacing: 0.02em;
         }
         .kpi-value {
-          font-size: 20px;
-          font-weight: 700;
+          font-size: 24px;
+          font-weight: 800;
           color: var(--text-main);
           margin-top: 4px;
+          letter-spacing: -0.02em;
         }
 
         .charts-row {
@@ -184,16 +200,21 @@ const Dashboard = () => {
           gap: 20px;
         }
         .chart-card {
-          background: white;
-          padding: 24px;
-          border-radius: 12px;
-          border: 1px solid var(--border);
-          min-height: 380px;
+          background: var(--bg-card);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          padding: 32px;
+          border-radius: var(--radius);
+          border: 1px solid var(--glass-border);
+          box-shadow: var(--shadow-lg);
+          min-height: 420px;
         }
         .chart-card h3 {
-          font-size: 16px;
-          font-weight: 600;
-          margin-bottom: 20px;
+          font-size: 18px;
+          font-weight: 800;
+          margin-bottom: 24px;
+          letter-spacing: -0.01em;
+          color: var(--primary);
         }
         .chart-container {
           height: 300px;

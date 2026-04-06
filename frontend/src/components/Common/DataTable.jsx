@@ -44,11 +44,15 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading }) => {
     <div className="table-card">
       <style>{`
         .table-card {
-          background: white;
-          border-radius: 12px;
-          border: 1px solid var(--border);
+          background: var(--bg-card);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          border-radius: var(--radius);
+          border: 1px solid var(--glass-border);
+          box-shadow: var(--shadow-lg);
           overflow: hidden;
-          margin-top: 20px;
+          margin-top: 24px;
+          transition: transform 0.3s;
         }
         .table-header {
           padding: 20px;
@@ -60,9 +64,10 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading }) => {
           gap: 15px;
         }
         .table-title {
-          font-size: 18px;
-          font-weight: 700;
+          font-size: 20px;
+          font-weight: 800;
           color: var(--text-main);
+          letter-spacing: -0.02em;
         }
         .table-search {
           display: flex;
@@ -87,30 +92,32 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading }) => {
           text-align: left;
         }
         .data-table th {
-          background: var(--bg-main);
-          padding: 12px 20px;
-          font-size: 13px;
-          font-weight: 600;
+          background: rgba(0, 0, 0, 0.02);
+          padding: 16px 20px;
+          font-size: 12px;
+          font-weight: 700;
           color: var(--text-muted);
           text-transform: uppercase;
-          letter-spacing: 0.05em;
+          letter-spacing: 0.1em;
           border-bottom: 1px solid var(--border);
           cursor: pointer;
+          transition: all 0.2s;
         }
         .data-table th:hover {
           color: var(--primary);
+          background: rgba(79, 70, 229, 0.05);
         }
         .data-table td {
           padding: 16px 20px;
           font-size: 14px;
+          font-weight: 500;
           border-bottom: 1px solid var(--border);
           color: var(--text-main);
+          transition: all 0.2s;
         }
-        .data-table tr:last-child td {
-          border-bottom: none;
-        }
-        .data-table tr:hover {
-          background-color: #f8fafc;
+        .data-table tr:hover td {
+          background-color: rgba(79, 70, 229, 0.02);
+          color: var(--primary);
         }
         .action-btns {
           display: flex;
@@ -143,16 +150,24 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading }) => {
           gap: 8px;
         }
         .page-btn {
-          padding: 6px 12px;
+          padding: 8px 14px;
           border: 1px solid var(--border);
-          border-radius: 6px;
+          border-radius: 8px;
           background: white;
-          font-weight: 500;
+          font-weight: 600;
+          transition: all 0.2s;
+          color: var(--text-main);
+        }
+        .page-btn:hover:not(:disabled) {
+          border-color: var(--primary);
+          color: var(--primary);
+          background: rgba(79, 70, 229, 0.05);
         }
         .page-btn:disabled {
-          background: var(--bg-main);
+          background: transparent;
           color: #cbd5e1;
           cursor: not-allowed;
+          opacity: 0.5;
         }
         .status-badge {
           padding: 4px 10px;

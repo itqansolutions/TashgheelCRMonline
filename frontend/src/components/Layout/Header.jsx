@@ -24,15 +24,18 @@ const Header = ({ toggleSidebar }) => {
       <style>{`
         .header {
           height: var(--header-h);
-          background-color: var(--bg-card);
-          border-bottom: 1px solid var(--border);
+          background: var(--glass-bg);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-bottom: 1px solid var(--glass-border);
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0 24px;
+          padding: 0 32px;
           position: sticky;
           top: 0;
-          z-index: 900;
+          z-index: 1000;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
         }
         .header-left {
           display: flex;
@@ -42,17 +45,25 @@ const Header = ({ toggleSidebar }) => {
         .search-bar {
           display: flex;
           align-items: center;
-          background-color: var(--bg-main);
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          padding: 8px 12px;
-          width: 300px;
-          gap: 10px;
+          background: rgba(0, 0, 0, 0.03);
+          border: 1px solid transparent;
+          border-radius: 12px;
+          padding: 10px 16px;
+          width: 320px;
+          gap: 12px;
+          transition: all 0.3s;
+        }
+        .search-bar:focus-within {
+          background: white;
+          border-color: var(--primary);
+          box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+          width: 400px;
         }
         .search-bar input {
           border: none;
           background: transparent;
           font-size: 14px;
+          font-weight: 500;
           color: var(--text-main);
           width: 100%;
           outline: none;
@@ -99,16 +110,17 @@ const Header = ({ toggleSidebar }) => {
           background-color: var(--bg-main);
         }
         .user-avatar {
-          width: 36px;
-          height: 36px;
-          background-color: var(--primary);
+          width: 40px;
+          height: 40px;
+          background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
           color: white;
-          border-radius: 50%;
+          border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-weight: 700;
-          font-size: 14px;
+          font-weight: 800;
+          font-size: 16px;
+          box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2);
         }
         .user-info {
           display: flex;

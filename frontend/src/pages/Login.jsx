@@ -32,31 +32,53 @@ const Login = () => {
           justify-content: center;
           align-items: center;
           min-height: 100vh;
-          background-color: var(--bg-main);
-          padding: 20px;
+          background: radial-gradient(circle at top right, #4f46e5 0%, #1e1b4b 100%);
+          padding: 24px;
+          position: relative;
+          overflow: hidden;
+        }
+        .login-container::before {
+          content: "";
+          position: absolute;
+          width: 500px;
+          height: 500px;
+          background: rgba(99, 102, 241, 0.2);
+          filter: blur(100px);
+          top: -100px;
+          left: -100px;
+          border-radius: 50%;
         }
         .login-card {
-          background: var(--bg-card);
-          padding: 40px;
-          border-radius: 12px;
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+          background: rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          padding: 48px;
+          border-radius: 24px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
           width: 100%;
-          max-width: 400px;
-          border: 1px solid var(--border);
+          max-width: 440px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          animation: slideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(30px); }
+          to { opacity: 1; transform: translateY(0); }
         }
         .login-header {
           text-align: center;
           margin-bottom: 30px;
         }
         .login-header h1 {
-          color: var(--primary);
-          font-size: 24px;
-          font-weight: 700;
-          margin-bottom: 8px;
+          color: white;
+          font-size: 32px;
+          font-weight: 800;
+          letter-spacing: -0.04em;
+          margin-bottom: 12px;
         }
         .login-header p {
-          color: var(--text-muted);
-          font-size: 14px;
+          color: rgba(255, 255, 255, 0.6);
+          font-size: 15px;
+          font-weight: 500;
         }
         .form-group {
           margin-bottom: 20px;
@@ -64,53 +86,66 @@ const Login = () => {
         }
         .form-group label {
           display: block;
-          margin-bottom: 8px;
+          margin-bottom: 10px;
           font-size: 14px;
-          font-weight: 500;
-          color: var(--text-main);
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.9);
+          letter-spacing: 0.02em;
         }
         .input-wrapper {
           position: relative;
         }
         .input-wrapper svg {
           position: absolute;
-          left: 12px;
+          left: 16px;
           top: 50%;
           transform: translateY(-50%);
-          color: var(--text-muted);
+          color: rgba(255, 255, 255, 0.4);
           width: 18px;
+          transition: all 0.3s;
         }
         .form-group input {
           width: 100%;
-          padding: 12px 12px 12px 40px;
-          border: 1px solid var(--border);
-          border-radius: 8px;
-          font-size: 14px;
-          transition: border-color 0.2s;
-          background-color: var(--bg-main);
-          color: var(--text-main);
+          padding: 14px 14px 14px 48px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          font-size: 15px;
+          font-weight: 500;
+          transition: all 0.3s;
+          background: rgba(255, 255, 255, 0.05);
+          color: white;
         }
         .form-group input:focus {
-          border-color: var(--primary);
+          background: rgba(255, 255, 255, 0.1);
+          border-color: var(--secondary);
+          box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
           outline: none;
+        }
+        .form-group input:focus + svg {
+          color: white;
         }
         .btn-login {
           width: 100%;
-          padding: 12px;
-          background-color: var(--primary);
+          padding: 14px;
+          background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
           color: white;
-          border-radius: 8px;
-          font-weight: 600;
+          border-radius: 12px;
+          font-weight: 700;
           font-size: 16px;
           display: flex;
           justify-content: center;
           align-items: center;
-          gap: 8px;
-          transition: background-color 0.2s;
-          margin-top: 10px;
+          gap: 12px;
+          transition: all 0.3s;
+          margin-top: 16px;
+          box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.4);
         }
         .btn-login:hover {
-          background-color: var(--primary-hover);
+          transform: translateY(-2px);
+          box-shadow: 0 15px 30px -5px rgba(79, 70, 229, 0.6);
+        }
+        .btn-login:active {
+          transform: translateY(0);
         }
         .error-message {
           background-color: #fee2e2;
@@ -128,8 +163,12 @@ const Login = () => {
         }
         .forgot-password a {
           font-size: 13px;
-          color: var(--primary);
-          font-weight: 500;
+          color: rgba(255, 255, 255, 0.5);
+          font-weight: 600;
+          transition: color 0.2s;
+        }
+        .forgot-password a:hover {
+          color: white;
         }
       `}</style>
       

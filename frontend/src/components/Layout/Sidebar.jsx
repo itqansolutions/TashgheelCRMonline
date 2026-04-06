@@ -37,87 +37,99 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       <style>{`
         .sidebar {
           height: 100vh;
-          background-color: var(--primary);
-          color: white;
+          background: var(--glass-bg);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          color: var(--text-main);
           width: var(--sidebar-w);
           position: fixed;
           left: 0;
           top: 0;
-          transition: width 0.3s ease;
-          z-index: 1000;
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: 1001;
           display: flex;
           flex-direction: column;
-          box-shadow: 4px 0 10px rgba(0, 0, 0, 0.1);
+          border-right: 1px solid var(--glass-border);
+          box-shadow: 10px 0 30px rgba(0, 0, 0, 0.03);
         }
         .sidebar.closed {
-          width: 80px;
+          width: 90px;
         }
         .sidebar-header {
           height: var(--header-h);
           display: flex;
           align-items: center;
-          padding: 0 20px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          padding: 0 24px;
+          border-bottom: 1px solid var(--glass-border);
           justify-content: space-between;
         }
         .sidebar-header h2 {
-          font-size: 18px;
-          font-weight: 700;
+          font-size: 20px;
+          font-weight: 800;
+          letter-spacing: -0.02em;
           white-space: nowrap;
           overflow: hidden;
           transition: opacity 0.2s;
-          color: white;
+          color: var(--primary);
         }
         .sidebar.closed .sidebar-header h2 {
           opacity: 0;
           pointer-events: none;
         }
         .toggle-btn {
-          background: rgba(255, 255, 255, 0.1);
-          color: white;
-          border-radius: 4px;
+          background: rgba(79, 70, 229, 0.05);
+          color: var(--primary);
+          border-radius: 8px;
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 4px;
-          transition: background 0.2s;
+          padding: 6px;
+          transition: all 0.2s;
         }
         .toggle-btn:hover {
-          background: rgba(255, 255, 255, 0.2);
+          background: rgba(79, 70, 229, 0.1);
+          transform: scale(1.05);
         }
         .sidebar-nav {
           flex: 1;
-          padding: 20px 0;
+          padding: 24px 12px;
           overflow-y: auto;
           overflow-x: hidden;
         }
         .sidebar-nav a {
           display: flex;
           align-items: center;
-          padding: 12px 20px;
-          color: rgba(255, 255, 255, 0.7);
-          transition: all 0.2s;
+          padding: 14px 16px;
+          color: var(--text-muted);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           gap: 16px;
-          border-left: 4px solid transparent;
+          border-radius: 12px;
+          margin-bottom: 6px;
+          position: relative;
         }
         .sidebar-nav a:hover {
-          background-color: rgba(255, 255, 255, 0.05);
-          color: white;
+          background-color: rgba(79, 70, 229, 0.05);
+          color: var(--primary);
+          transform: translateX(4px);
         }
         .sidebar-nav a.active {
-          background-color: rgba(255, 255, 255, 0.1);
+          background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
           color: white;
-          border-left-color: #fbbf24;
+          box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
         }
         .sidebar-nav a svg {
           min-width: 20px;
           width: 20px;
           height: 20px;
+          transition: transform 0.3s;
+        }
+        .sidebar-nav a.active svg {
+          transform: scale(1.1);
         }
         .sidebar-nav a span {
           white-space: nowrap;
-          font-weight: 500;
-          font-size: 14px;
+          font-weight: 600;
+          font-size: 15px;
           transition: opacity 0.2s;
         }
         .sidebar.closed .sidebar-nav a span {
@@ -125,11 +137,14 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           pointer-events: none;
         }
         .sidebar-footer {
-          padding: 20px;
-          font-size: 12px;
-          color: rgba(255, 255, 255, 0.5);
+          padding: 24px;
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text-muted);
           text-align: center;
-          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          border-top: 1px solid var(--glass-border);
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
         }
         .sidebar.closed .sidebar-footer {
           display: none;

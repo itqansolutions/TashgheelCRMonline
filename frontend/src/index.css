@@ -1,30 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  --primary: #1e40af;
-  --primary-hover: #1e3a8a;
-  --secondary: #2563eb;
-  --success: #16a34a;
+  /* Premium Palette */
+  --primary: #4f46e5; /* Indigo */
+  --primary-hover: #4338ca;
+  --secondary: #6366f1;
+  --accent: #f59e0b; /* Amber */
+  --success: #10b981;
   --warning: #f59e0b;
-  --danger: #dc2626;
-  --bg-main: #f8fafc;
-  --bg-card: #ffffff;
-  --text-main: #1e293b;
+  --danger: #ef4444;
+  
+  /* Glassmorphism & Layout */
+  --bg-main: #f1f5f9;
+  --bg-card: rgba(255, 255, 255, 0.8);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.3);
+  
+  --text-main: #0f172a;
   --text-muted: #64748b;
   --border: #e2e8f0;
-  --sidebar-w: 260px;
-  --header-h: 64px;
+  --sidebar-w: 280px;
+  --header-h: 72px;
+  
+  /* Premium Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --radius: 12px;
 }
 
 [data-theme='dark'] {
-  --bg-main: #0f172a;
-  --bg-card: #1e293b;
-  --text-main: #f8fafc;
+  --bg-main: #020617;
+  --bg-card: rgba(30, 41, 59, 0.8);
+  --glass-bg: rgba(15, 23, 42, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --text-main: #f1f5f9;
   --text-muted: #94a3b8;
-  --border: #334155;
-  --primary: #3b82f6;
-  --primary-hover: #1d4ed8;
-  --secondary: #60a5fa;
+  --border: #1e293b;
+  --primary: #6366f1;
 }
 
 * {
@@ -34,11 +48,12 @@
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   background-color: var(--bg-main);
   color: var(--text-main);
-  line-height: 1.5;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
 }
 
 a {
