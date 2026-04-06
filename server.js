@@ -56,7 +56,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/logs', logRoutes);
 
 // Catch-all route for React SPA
-app.get('/*', (req, res) => {
+app.get('*all', (req, res) => {
   if (req.path.startsWith('/api')) return res.status(404).json({ message: 'API Route not found' });
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
