@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const logger = require('../utils/logger');
 
 // @desc    Get all deals
 // @route   GET /api/deals
@@ -39,6 +40,10 @@ exports.createDeal = async (req, res) => {
       'INSERT INTO deals (title, value, pipeline_stage, client_id, project_id, assigned_to) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [title, value || 0, pipeline_stage || 'discovery', client_id, project_id, assigned_to || req.user.id]
     );
+
+    // Log the creation
+    await logger.logAction(req, null, 'CREATE', 'Deal', result.rows[0].id, result.rows[0]);
+
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error(err.message);
@@ -52,13 +57,26 @@ exports.createDeal = async (req, res) => {
 exports.updateDealStatus = async (req, res) => {
   const { pipeline_stage } = req.body;
   try {
+    // 1. Get old status
+    const oldResult = await db.query('SELECT pipeline_stage FROM deals WHERE id = $1', [req.params.id]);
+    if (oldResult.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Deal not found' });
+    }
+    const oldStage = oldResult.rows[0].pipeline_stage;
+
+    // 2. Update status
     const result = await db.query(
       'UPDATE deals SET pipeline_stage = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
       [pipeline_stage, req.params.id]
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: 'Deal not found' });
+
+    // 3. Log the change
+    if (oldStage !== pipeline_stage) {
+      await logger.logAction(req, null, 'UPDATE', 'Deal', req.params.id, { 
+        pipeline_stage: { old: oldStage, new: pipeline_stage } 
+      });
     }
+
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error(err.message);
@@ -75,6 +93,10 @@ exports.deleteDeal = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found' });
     }
+
+    // Log the deletion
+    await logger.logAction(req, null, 'DELETE', 'Deal', req.params.id, { title: result.rows[0].title });
+
     res.json({ status: 'success', message: 'Deal deleted' });
   } catch (err) {
     console.error(err.message);

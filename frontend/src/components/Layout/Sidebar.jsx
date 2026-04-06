@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, ShoppingBag, 
   Handshake, CheckSquare, Wallet, 
-  Users2, FileText, BarChart3, ChevronLeft, ChevronRight 
+  Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -20,6 +20,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Employees', icon: <Users2 />, path: '/employees' },
     { name: 'Files', icon: <FileText />, path: '/files' },
     { name: 'Reports', icon: <BarChart3 />, path: '/reports' },
+    { name: 'System Logs', icon: <History />, path: '/logs' },
   ];
 
   // Filter items based on permissions

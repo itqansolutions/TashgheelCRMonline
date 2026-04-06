@@ -32,6 +32,7 @@ const departmentRoutes = require('./routes/departmentRoutes');
 const fileRoutes = require('./routes/fileRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const logRoutes = require('./routes/logRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/customers', customerRoutes);
@@ -47,6 +48,7 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/logs', logRoutes);
 
 // Main Routes Placeholder
 app.get('/', (req, res) => {

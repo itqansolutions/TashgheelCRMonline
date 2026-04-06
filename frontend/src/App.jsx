@@ -15,6 +15,7 @@ import Invoices from './pages/Invoices';
 import Files from './pages/Files';
 import Reports from './pages/Reports';
 import Employees from './pages/Employees';
+import Logs from './pages/Logs';
 
 // Placeholder components for other modules
 const Placeholder = ({ name }) => (
@@ -59,6 +60,14 @@ function App() {
               />
               <Route path="files" element={<Files />} />
               <Route path="reports" element={<Reports />} />
+              <Route 
+                path="logs" 
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <Logs />
+                  </ProtectedRoute>
+                } 
+              />
             </Route>
 
             {/* Fallback */}

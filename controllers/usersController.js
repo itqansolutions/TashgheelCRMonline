@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const logger = require('../utils/logger');
 
 // @desc    Get all users (Employees)
 // @route   GET /api/users
@@ -31,6 +32,13 @@ exports.updateUserRole = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'User not found' });
     }
+
+    // Log the change
+    await logger.logAction(req, null, 'UPDATE', 'User', req.params.id, { 
+      role, 
+      department_id 
+    });
+
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error(err.message);
@@ -86,6 +94,11 @@ exports.updateUserPermissions = async (req, res) => {
       const values = allowedPages.map(path => `(${userId}, '${path}', true)`).join(',');
       await db.query(`INSERT INTO user_access (user_id, page_path, can_access) VALUES ${values}`);
     }
+
+    // 3. Log the change
+    await logger.logAction(req, null, 'PERMISSION_CHANGE', 'User', userId, { 
+      allowedPages 
+    });
 
     res.json({ status: 'success', message: 'Permissions updated successfully' });
   } catch (err) {
