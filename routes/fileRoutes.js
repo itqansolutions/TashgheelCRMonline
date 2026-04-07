@@ -37,6 +37,11 @@ const upload = multer({
 // Apply authMiddleware to all routes
 router.use(authMiddleware);
 
+// @route   GET api/files
+// @desc    Get all system files
+// @access  Private
+router.get('/', filesController.getFiles);
+
 // @route   POST api/files/upload
 // @desc    Upload file and link to entity
 // @access  Private

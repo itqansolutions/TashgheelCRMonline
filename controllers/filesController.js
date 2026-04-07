@@ -82,3 +82,16 @@ exports.deleteAttachment = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
+
+// @desc    Get all system files
+// @route   GET /api/files
+// @access  Private
+exports.getFiles = async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM attachments ORDER BY created_at DESC');
+    res.json({ status: 'success', data: result.rows });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};

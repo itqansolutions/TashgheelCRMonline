@@ -16,7 +16,7 @@ const Logs = () => {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/api/logs');
+      const res = await api.get('/logs');
       setLogs(res.data.data);
       setTotal(res.data.total);
     } catch (err) {

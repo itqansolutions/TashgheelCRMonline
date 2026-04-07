@@ -6,7 +6,7 @@ const db = require('../config/db');
 exports.getTopProducts = async (req, res) => {
     try {
         const result = await db.query(`
-            SELECT p.name, p.category, SUM(ii.quantity) as total_sold, SUM(ii.total_price) as total_revenue
+            SELECT p.name, p.category, SUM(ii.quantity) as total_sold, SUM(ii.subtotal) as total_revenue
             FROM invoice_items ii
             JOIN products p ON ii.product_id = p.id
             GROUP BY p.id, p.name, p.category
