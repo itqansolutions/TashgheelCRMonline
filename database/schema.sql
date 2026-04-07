@@ -2,7 +2,7 @@
 -- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- 1. Users Table (Authentication & Roles)
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE users (
 );
 
 -- 1.1 Departments Table
-CREATE TABLE departments (
+CREATE TABLE IF NOT EXISTS departments (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL,
     description TEXT,
@@ -25,7 +25,7 @@ CREATE TABLE departments (
 ALTER TABLE users ADD CONSTRAINT fk_user_department FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL;
 
 -- 2. Customers Table (Leads & Clients)
-CREATE TABLE customers (
+CREATE TABLE IF NOT EXISTS customers (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     company_name VARCHAR(255),
@@ -40,7 +40,7 @@ CREATE TABLE customers (
 );
 
 -- 3. Products Table
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     sku VARCHAR(100) UNIQUE,
@@ -53,7 +53,7 @@ CREATE TABLE products (
 );
 
 -- 4. Projects Table
-CREATE TABLE projects (
+CREATE TABLE IF NOT EXISTS projects (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -66,7 +66,7 @@ CREATE TABLE projects (
 );
 
 -- 5. Deals (Sales Pipeline)
-CREATE TABLE deals (
+CREATE TABLE IF NOT EXISTS deals (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     value DECIMAL(15, 2) DEFAULT 0.00,
@@ -79,7 +79,7 @@ CREATE TABLE deals (
 );
 
 -- 6. Quotations Table
-CREATE TABLE quotations (
+CREATE TABLE IF NOT EXISTS quotations (
     id SERIAL PRIMARY KEY,
     deal_id INTEGER REFERENCES deals(id) ON DELETE CASCADE,
     total_amount DECIMAL(15, 2) DEFAULT 0.00,
@@ -92,7 +92,7 @@ CREATE TABLE quotations (
 );
 
 -- 7. Invoices Table
-CREATE TABLE invoices (
+CREATE TABLE IF NOT EXISTS invoices (
     id SERIAL PRIMARY KEY,
     quotation_id INTEGER REFERENCES quotations(id) ON DELETE SET NULL,
     invoice_number VARCHAR(100) UNIQUE NOT NULL,
@@ -104,7 +104,7 @@ CREATE TABLE invoices (
 );
 
 -- 8. Invoice Items (Many-to-Many between Invoices and Products)
-CREATE TABLE invoice_items (
+CREATE TABLE IF NOT EXISTS invoice_items (
     id SERIAL PRIMARY KEY,
     invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
     product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
@@ -115,7 +115,7 @@ CREATE TABLE invoice_items (
 );
 
 -- 9. Expenses Table
-CREATE TABLE expenses (
+CREATE TABLE IF NOT EXISTS expenses (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     amount DECIMAL(15, 2) NOT NULL,
@@ -128,7 +128,7 @@ CREATE TABLE expenses (
 );
 
 -- 10. Tasks Table
-CREATE TABLE tasks (
+CREATE TABLE IF NOT EXISTS tasks (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     description TEXT,
@@ -143,7 +143,7 @@ CREATE TABLE tasks (
 );
 
 -- 11. Tenders Table
-CREATE TABLE tenders (
+CREATE TABLE IF NOT EXISTS tenders (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     client_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
@@ -156,7 +156,7 @@ CREATE TABLE tenders (
 );
 
 -- 12. Payments Table
-CREATE TABLE payments (
+CREATE TABLE IF NOT EXISTS payments (
     id SERIAL PRIMARY KEY,
     invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
     amount DECIMAL(15, 2) NOT NULL,
@@ -167,7 +167,7 @@ CREATE TABLE payments (
 );
 
 -- 13. Attachments Table
-CREATE TABLE attachments (
+CREATE TABLE IF NOT EXISTS attachments (
     id SERIAL PRIMARY KEY,
     filename VARCHAR(255) NOT NULL,
     original_name VARCHAR(255) NOT NULL,
@@ -180,7 +180,7 @@ CREATE TABLE attachments (
 );
 
 -- Add some default indexes for speed
-CREATE INDEX idx_customers_email ON customers(email);
-CREATE INDEX idx_deals_stage ON deals(pipeline_stage);
-CREATE INDEX idx_tasks_status ON tasks(status);
-CREATE INDEX idx_invoices_number ON invoices(invoice_number);
+CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
+CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals(pipeline_stage);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number);

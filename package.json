@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node scripts/init-db.js && node scripts/create-logs-table.js && node scripts/initialize-rbac.js && node server.js",
     "dev": "nodemon server.js",
     "build": "cd frontend && npm install && npm run build",
     "heroku-postbuild": "npm run build"
