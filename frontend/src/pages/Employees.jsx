@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { User, Shield, Briefcase, Plus, Save, X, Lock, CheckCircle } from 'lucide-react';
+import { User, Shield, Briefcase, Plus, Save, X, Lock, CheckCircle, Trash2 } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 
