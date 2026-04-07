@@ -186,7 +186,7 @@ const Login = () => {
             <div className="input-wrapper">
               <Mail />
               <input 
-                type="email" 
+                type="text" 
                 placeholder="yours@example.com" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
