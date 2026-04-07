@@ -23,12 +23,38 @@ const Employees = () => {
   const [loading, setLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isPermModalOpen, setIsPermModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [userPermissions, setUserPermissions] = useState([]);
+  
+  // New User Form State
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'employee',
+    department_id: ''
+  });
 
   useEffect(() => {
     fetchUsers();
     fetchDepartments();
   }, []);
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await api.post('/users', formData);
+      toast.success('Employee created successfully');
+      setIsAddModalOpen(false);
+      setFormData({ name: '', email: '', password: '', role: 'employee', department_id: '' });
+      fetchUsers(false);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create employee');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openPermissions = async (user) => {
     setSelectedUser(user);
@@ -109,11 +135,25 @@ const Employees = () => {
         .perm-item:hover { border-color: var(--primary); background: #f8fafc; }
         .perm-item.active { border-color: var(--primary); background: #eff6ff; color: var(--primary); }
         .role-admin { font-weight: 700; }
+        
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .btn-add { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+        
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 500; }
+        .form-group i, .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
+        .form-group input:focus { border-color: var(--primary); }
       `}</style>
 
-      <div className="page-header" style={{ marginBottom: '24px' }}>
-        <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Team Management</h2>
-        <p style={{ color: 'var(--text-muted)' }}>Manage user roles, departments, and granular module access.</p>
+      <div className="page-header">
+        <div>
+          <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Team Management</h2>
+          <p style={{ color: 'var(--text-muted)' }}>Manage user roles, departments, and granular module access.</p>
+        </div>
+        <button label="add user button" className="btn-add" onClick={() => setIsAddModalOpen(true)}>
+          <Plus size={18} />
+          Add Employee
+        </button>
       </div>
 
       <DataTable 
@@ -125,6 +165,78 @@ const Employees = () => {
         onDelete={() => toast.error('User deletion restricted for security')}
       />
 
+      {/* Add Employee Modal */}
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        title="Register New Employee"
+        footer={
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button label="cancel creation" className="btn-secondary" onClick={() => setIsAddModalOpen(false)}>Cancel</button>
+            <button label="save creation" className="btn-primary" onClick={handleCreateUser} style={{ background: 'var(--primary)', color: 'white', padding: '10px 20px', borderRadius: '8px' }}>Create Account</button>
+          </div>
+        }
+      >
+        <form className="user-form">
+          <div className="form-group">
+            <label>Full Name</label>
+            <input 
+              type="text" 
+              placeholder="e.g. John Doe"
+              value={formData.name}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Email Address</label>
+            <input 
+              type="email" 
+              placeholder="email@tashgheel.com"
+              value={formData.email}
+              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Initial Password</label>
+            <input 
+              type="password" 
+              placeholder="••••••••"
+              value={formData.password}
+              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              required
+            />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div className="form-group">
+              <label>Role</label>
+              <select 
+                value={formData.role}
+                onChange={(e) => setFormData({...formData, role: e.target.value})}
+              >
+                <option value="employee">Employee</option>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Department</label>
+              <select 
+                value={formData.department_id}
+                onChange={(e) => setFormData({...formData, department_id: e.target.value})}
+              >
+                <option value="">None</option>
+                {departments && departments.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Permissions Modal */}
       <Modal 
         isOpen={isPermModalOpen} 
         onClose={() => setIsPermModalOpen(false)}

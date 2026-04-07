@@ -106,3 +106,43 @@ exports.updateUserPermissions = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
+
+// @desc    Create a new user (Admin only)
+// @route   POST /api/users
+// @access  Private (Admin)
+exports.createUser = async (req, res) => {
+  const { name, email, password, role, department_id } = req.body;
+  const bcrypt = require('bcrypt');
+
+  try {
+    // Check if user already exists
+    const userExists = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (userExists.rows.length > 0) {
+      return res.status(400).json({ status: 'error', message: 'User already exists' });
+    }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const password_hash = await bcrypt.hash(password, salt);
+
+    // Insert user
+    const result = await db.query(
+      'INSERT INTO users (name, email, password_hash, role, department_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role, department_id',
+      [name, email, password_hash, role || 'employee', department_id]
+    );
+
+    const newUser = result.rows[0];
+
+    // Log action
+    await logger.logAction(req, null, 'CREATE', 'User', newUser.id, { 
+      name, 
+      email, 
+      role 
+    });
+
+    res.status(201).json({ status: 'success', data: newUser });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};

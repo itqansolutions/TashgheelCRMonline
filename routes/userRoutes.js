@@ -11,6 +11,7 @@ router.use(authMiddleware);
 // @desc    Get all users (Employees)
 // @access  Private (Admin, Manager)
 router.get('/', authorize(['admin', 'manager']), usersController.getUsers);
+router.post('/', authorize(['admin']), usersController.createUser);
 
 // @route   PUT api/users/:id/role
 // @desc    Update user role or department
