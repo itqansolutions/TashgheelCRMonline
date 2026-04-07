@@ -26,7 +26,9 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   // PBAC: Check granular path access
   const currentPath = location.pathname;
-  if (user.allowedPages && !user.allowedPages.includes(currentPath)) {
+  const checkPath = currentPath === '/' ? '/dashboard' : currentPath;
+  
+  if (user.allowedPages && !user.allowedPages.includes(checkPath)) {
     // If not allowed, redirect to dashboard or home
     return <Navigate to="/" replace />;
   }

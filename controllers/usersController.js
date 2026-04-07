@@ -138,6 +138,12 @@ exports.createUser = async (req, res) => {
 
     const newUser = result.rows[0];
 
+    // Grant default access to Dashboard
+    await db.query(
+      'INSERT INTO user_access (user_id, page_path, can_access) VALUES ($1, $2, $3)',
+      [newUser.id, '/dashboard', true]
+    );
+
     // Log action
     await logger.logAction(req, null, 'CREATE', 'User', newUser.id, { 
       name, 
