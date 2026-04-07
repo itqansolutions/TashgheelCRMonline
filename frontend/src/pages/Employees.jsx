@@ -24,6 +24,7 @@ const Employees = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [isPermModalOpen, setIsPermModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isDeptModalOpen, setIsDeptModalOpen] = useState(false);
   const [userPermissions, setUserPermissions] = useState([]);
   
   // New User Form State
@@ -35,6 +36,9 @@ const Employees = () => {
     department_id: ''
   });
 
+  // Department Table State
+  const [newDeptName, setNewDeptName] = useState('');
+
   useEffect(() => {
     fetchUsers();
     fetchDepartments();
@@ -43,8 +47,15 @@ const Employees = () => {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     setLoading(true);
+    
+    // Cleanup data
+    const submissionData = { ...formData };
+    if (!submissionData.department_id || submissionData.department_id === '') {
+      submissionData.department_id = null;
+    }
+
     try {
-      await api.post('/users', formData);
+      await api.post('/users', submissionData);
       toast.success('Employee created successfully');
       setIsAddModalOpen(false);
       setFormData({ name: '', email: '', password: '', role: 'employee', department_id: '' });
@@ -53,6 +64,32 @@ const Employees = () => {
       toast.error(err.response?.data?.message || 'Failed to create employee');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateDept = async () => {
+    if (!newDeptName) return;
+    setLoading(true);
+    try {
+      await api.post('/departments', { name: newDeptName });
+      toast.success('Department created');
+      setNewDeptName('');
+      fetchDepartments();
+    } catch (err) {
+      toast.error('Failed to create department');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteDept = async (id) => {
+    if (!window.confirm('Are you sure? This might affect employees assigned to this department.')) return;
+    try {
+      await api.delete(`/departments/${id}`);
+      toast.success('Department removed');
+      fetchDepartments();
+    } catch (err) {
+      toast.error('Failed to delete department (might be in use)');
     }
   };
 
@@ -137,12 +174,18 @@ const Employees = () => {
         .role-admin { font-weight: 700; }
         
         .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .header-actions { display: flex; gap: 12px; }
         .btn-add { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+        .btn-dept { background: white; border: 1px solid var(--border); color: var(--text-main); padding: 10px 20px; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; }
         
         .form-group { margin-bottom: 16px; }
         .form-group label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 500; }
-        .form-group i, .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; outline: none; }
         .form-group input:focus { border-color: var(--primary); }
+
+        .dept-list { margin-top: 16px; }
+        .dept-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid var(--border); }
+        .dept-row:last-child { border-bottom: none; }
       `}</style>
 
       <div className="page-header">
@@ -150,10 +193,16 @@ const Employees = () => {
           <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Team Management</h2>
           <p style={{ color: 'var(--text-muted)' }}>Manage user roles, departments, and granular module access.</p>
         </div>
-        <button label="add user button" className="btn-add" onClick={() => setIsAddModalOpen(true)}>
-          <Plus size={18} />
-          Add Employee
-        </button>
+        <div className="header-actions">
+          <button label="manage departments" className="btn-dept" onClick={() => setIsDeptModalOpen(true)}>
+            <Briefcase size={18} />
+            Manage Departments
+          </button>
+          <button label="add user button" className="btn-add" onClick={() => setIsAddModalOpen(true)}>
+            <Plus size={18} />
+            Add Employee
+          </button>
+        </div>
       </div>
 
       <DataTable 
@@ -161,9 +210,40 @@ const Employees = () => {
         columns={columns}
         data={users}
         loading={loading}
-        onEdit={openPermissions} // Using Edit for Permissions in this module
+        onEdit={openPermissions} 
+        editIcon={<Shield size={16} />}
+        editLabel="Manage Access"
         onDelete={() => toast.error('User deletion restricted for security')}
       />
+
+      {/* Departments Modal */}
+      <Modal
+        isOpen={isDeptModalOpen}
+        onClose={() => setIsDeptModalOpen(false)}
+        title="Organization Departments"
+      >
+        <div className="dept-manager">
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+            <input 
+              type="text" 
+              placeholder="New Department Name" 
+              value={newDeptName}
+              onChange={(e) => setNewDeptName(e.target.value)}
+              style={{ flex: 1, padding: '10px', border: '1px solid var(--border)', borderRadius: '8px' }}
+            />
+            <button label="add department" className="btn-primary" onClick={handleCreateDept} style={{ background: 'var(--primary)', color: 'white', padding: '0 20px', borderRadius: '8px' }}>Add</button>
+          </div>
+          
+          <div className="dept-list" style={{ border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
+            {departments && departments.length > 0 ? departments.map(dept => (
+              <div key={dept.id} className="dept-row">
+                <span style={{ fontWeight: '600' }}>{dept.name}</span>
+                <button label="delete department" onClick={() => handleDeleteDept(dept.id)} style={{ color: '#ef4444', padding: '6px' }}><Trash2 size={16} /></button>
+              </div>
+            )) : <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No departments yet.</div>}
+          </div>
+        </div>
+      </Modal>
 
       {/* Add Employee Modal */}
       <Modal
@@ -226,7 +306,7 @@ const Employees = () => {
                 value={formData.department_id}
                 onChange={(e) => setFormData({...formData, department_id: e.target.value})}
               >
-                <option value="">None</option>
+                <option value="">None / External</option>
                 {departments && departments.map(d => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}

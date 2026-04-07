@@ -111,8 +111,13 @@ exports.updateUserPermissions = async (req, res) => {
 // @route   POST /api/users
 // @access  Private (Admin)
 exports.createUser = async (req, res) => {
-  const { name, email, password, role, department_id } = req.body;
+  let { name, email, password, role, department_id } = req.body;
   const bcrypt = require('bcrypt');
+
+  // Sanitize department_id for integer column
+  if (department_id === '' || department_id === 'null' || !department_id) {
+    department_id = null;
+  }
 
   try {
     // Check if user already exists

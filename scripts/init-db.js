@@ -23,11 +23,13 @@ const initDb = async () => {
             try {
                 await db.query(queries[i]);
             } catch (queryErr) {
-                console.warn(`⚠️ Warning in statement ${i + 1}: ${queryErr.message}`);
                 // Continue if it's "already exists" but stop for other errors
-                if (!queryErr.message.includes('already exists')) {
-                    throw queryErr;
+                if (queryErr.message.includes('already exists')) {
+                    // Silent skip for existing tables/constraints to keep logs clean
+                    continue;
                 }
+                console.warn(`⚠️ Warning in statement ${i + 1}: ${queryErr.message}`);
+                throw queryErr;
             }
         }
 
