@@ -6,7 +6,19 @@ const logger = require('../utils/logger');
 // @access  Private
 exports.getDeals = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM deals ORDER BY created_at DESC');
+    const result = await db.query(`
+      SELECT 
+        d.*, 
+        c.name as client_name, 
+        c.company_name as client_company,
+        p.name as product_name,
+        u.name as assigned_to_name
+      FROM deals d
+      LEFT JOIN customers c ON d.client_id = c.id
+      LEFT JOIN products p ON d.product_id = p.id
+      LEFT JOIN users u ON d.assigned_to = u.id
+      ORDER BY d.created_at DESC
+    `);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error(err.message);
@@ -19,7 +31,13 @@ exports.getDeals = async (req, res) => {
 // @access  Private
 exports.getDealById = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM deals WHERE id = $1', [req.params.id]);
+    const result = await db.query(`
+      SELECT d.*, p.name as product_name 
+      FROM deals d 
+      LEFT JOIN products p ON d.product_id = p.id 
+      WHERE d.id = $1
+    `, [req.params.id]);
+    
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found' });
     }
@@ -34,11 +52,11 @@ exports.getDealById = async (req, res) => {
 // @route   POST /api/deals
 // @access  Private
 exports.createDeal = async (req, res) => {
-  const { title, value, pipeline_stage, client_id, project_id, assigned_to } = req.body;
+  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to } = req.body;
   try {
     const result = await db.query(
-      'INSERT INTO deals (title, value, pipeline_stage, client_id, project_id, assigned_to) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [title, value || 0, pipeline_stage || 'discovery', client_id, project_id, assigned_to || req.user.id]
+      'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [title, value || 0, pipeline_stage || 'discovery', client_id, product_id, project_id, assigned_to || req.user.id]
     );
 
     // Log the creation
@@ -50,6 +68,43 @@ exports.createDeal = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
+
+// @desc    Update deal
+// @route   PUT /api/deals/:id
+// @access  Private
+exports.updateDeal = async (req, res) => {
+  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to } = req.body;
+  try {
+    // 1. Get old version for logging
+    const oldResult = await db.query('SELECT * FROM deals WHERE id = $1', [req.params.id]);
+    if (oldResult.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Deal not found' });
+    }
+    const oldData = oldResult.rows[0];
+
+    // 2. Perform Update
+    const result = await db.query(
+      `UPDATE deals 
+       SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $8 RETURNING *`,
+      [title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, req.params.id]
+    );
+
+    // 3. Log the change
+    await logger.logAction(req, null, 'UPDATE', 'Deal', req.params.id, { 
+      changes: 'General update', 
+      before: oldData, 
+      after: result.rows[0] 
+    });
+
+    res.json({ status: 'success', data: result.rows[0] });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// @desc    Update deal status
 
 // @desc    Update deal status
 // @route   PATCH /api/deals/:id/status

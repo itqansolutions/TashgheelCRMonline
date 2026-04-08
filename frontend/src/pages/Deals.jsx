@@ -7,7 +7,7 @@ import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 
 const Deals = () => {
-  const { deals, fetchDeals, customers, fetchCustomers, loading } = useData();
+  const { deals, fetchDeals, customers, fetchCustomers, products, fetchProducts, loading } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState(null);
   
@@ -16,12 +16,14 @@ const Deals = () => {
     value: 0,
     pipeline_stage: 'discovery',
     client_id: '',
+    product_id: '',
     assigned_to: ''
   });
 
   useEffect(() => {
     fetchDeals();
     if (customers.length === 0) fetchCustomers();
+    if (products.length === 0) fetchProducts();
   }, []);
 
   const handleOpenModal = (deal = null) => {
@@ -32,13 +34,23 @@ const Deals = () => {
         value: deal.value || 0,
         pipeline_stage: deal.pipeline_stage || 'discovery',
         client_id: deal.client_id || '',
+        product_id: deal.product_id || '',
         assigned_to: deal.assigned_to || ''
       });
     } else {
       setEditingDeal(null);
-      setFormData({ title: '', value: 0, pipeline_stage: 'discovery', client_id: '', assigned_to: '' });
+      setFormData({ title: '', value: 0, pipeline_stage: 'discovery', client_id: '', product_id: '', assigned_to: '' });
     }
     setIsModalOpen(true);
+  };
+
+  const handleProductChange = (productId) => {
+    const product = products.find(p => p.id === parseInt(productId));
+    setFormData({
+      ...formData,
+      product_id: productId,
+      value: product ? product.selling_price : formData.value
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -84,6 +96,11 @@ const Deals = () => {
           <span style={{ fontWeight: '600' }}>{val}</span>
         </div>
       )
+    },
+    { 
+      key: 'product_name', 
+      label: 'Product',
+      render: (val) => val || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>General Service</span>
     },
     { 
       key: 'value', 
@@ -180,8 +197,20 @@ const Deals = () => {
               required
             />
           </div>
+          <div className="form-group full">
+            <label>Select Product (Optional)</label>
+            <select 
+              value={formData.product_id}
+              onChange={(e) => handleProductChange(e.target.value)}
+            >
+              <option value="">-- No Specific Product --</option>
+              {products.map(p => (
+                <option key={p.id} value={p.id}>{p.name} ({p.selling_price} EGP)</option>
+              ))}
+            </select>
+          </div>
           <div className="form-group">
-            <label>Select Customer</label>
+            <label>Link to Customer</label>
             <select 
               value={formData.client_id}
               onChange={(e) => setFormData({...formData, client_id: e.target.value})}
@@ -220,9 +249,8 @@ const Deals = () => {
               value={formData.assigned_to}
               onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
             >
-              <option value="">Unassigned</option>
+              <option value="">Me (Default)</option>
               {/* This would ideally map to a users list fetched via DataContext */}
-              <option value="1">Me (Current User)</option>
             </select>
           </div>
         </form>

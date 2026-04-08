@@ -34,6 +34,16 @@ const initDb = async () => {
         }
 
         console.log('✅ Database schema applied successfully.');
+        
+        // --- Custom Migrations ---
+        console.log('Running migrations...');
+        try {
+            await db.query('ALTER TABLE deals ADD COLUMN IF NOT EXISTS product_id INTEGER REFERENCES products(id) ON DELETE SET NULL');
+            console.log('✅ Migration: product_id added to deals (if missing)');
+        } catch (migErr) {
+            console.warn('⚠️ Migration Warning:', migErr.message);
+        }
+
         process.exit(0);
     } catch (err) {
         console.error('❌ Critical Error during DB initialization:', err.stack);

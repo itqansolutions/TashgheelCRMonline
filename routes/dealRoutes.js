@@ -21,6 +21,11 @@ router.get('/:id', dealsController.getDealById);
 // @access  Private
 router.post('/', dealsController.createDeal);
 
+// @route   PUT api/deals/:id
+// @desc    Update deal
+// @access  Private
+router.put('/:id', dealsController.updateDeal);
+
 // @route   PATCH api/deals/:id/status
 // @desc    Update deal status
 // @access  Private

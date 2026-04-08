@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS deals (
     value DECIMAL(15, 2) DEFAULT 0.00,
     pipeline_stage VARCHAR(100) DEFAULT 'discovery', -- 'discovery', 'proposal', 'negotiation', 'won', 'lost'
     client_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
     project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
     assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
