@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, ShoppingBag, 
   Handshake, CheckSquare, Wallet, 
-  Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, Settings as SettingsIcon
+  Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, Settings as AdminSettingsIcon
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -21,7 +21,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Files', icon: <FileText />, path: '/files' },
     { name: 'Reports', icon: <BarChart3 />, path: '/reports' },
     { name: 'System Logs', icon: <History />, path: '/logs' },
-    { name: 'Admin Settings', icon: <SettingsIcon />, path: '/settings' },
+    { name: 'Admin Settings', icon: <AdminSettingsIcon />, path: '/settings' },
   ];
 
   // Filter items based on permissions

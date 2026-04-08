@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Settings as SettingsIcon, Plus, Trash2, Edit2, Save, X, Megaphone } from 'lucide-react';
+import { Settings as AdminSettingsIcon, Plus, Trash2, Edit2, Save, X, Megaphone } from 'lucide-react';
 
 const Settings = () => {
   const [sources, setSources] = useState([]);
@@ -94,7 +94,7 @@ const Settings = () => {
 
       <div className="page-header" style={{ marginBottom: '32px' }}>
         <h2 style={{ fontSize: '28px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <SettingsIcon size={32} className="text-primary" />
+          <AdminSettingsIcon size={32} className="text-primary" />
           System Settings
         </h2>
         <p style={{ color: 'var(--text-muted)' }}>Configure global system defaults and modules.</p>
@@ -168,7 +168,7 @@ const Settings = () => {
         {/* Placeholder for future sections */}
         <div className="settings-card" style={{ opacity: 0.6 }}>
           <div className="card-header">
-            <SettingsIcon size={20} />
+            <AdminSettingsIcon size={20} />
             <h3>General Settings</h3>
           </div>
           <div className="card-content">
