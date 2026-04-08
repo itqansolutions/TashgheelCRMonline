@@ -188,7 +188,7 @@ const Settings = () => {
               <div className="logo-upload-container">
                 <div className="logo-preview">
                   {branding.company_logo ? (
-                    <img src={`/api/files/view?path=${branding.company_logo}`} alt="Logo Preview" />
+                    <img src={`/${branding.company_logo}`} alt="Logo Preview" />
                   ) : (
                     <ImageIcon size={32} style={{ color: '#cbd5e1' }} />
                   )}

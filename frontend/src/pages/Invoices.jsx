@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { FileText, DollarSign, Calendar, Filter, Eye, Plus, Receipt, Handshake } from 'lucide-react';
+import { FileText, DollarSign, Calendar, Filter, Eye, Plus, Receipt, Handshake, Printer } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
+import InvoicePreview from '../components/Features/InvoicePreview';
 
 const Invoices = () => {
-  const { customers, fetchCustomers, deals, fetchDeals, quotations, fetchQuotations } = useData();
+  const { customers, fetchCustomers, deals, fetchDeals, quotations, fetchQuotations, settings, fetchSettings } = useData();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -31,7 +32,16 @@ const Invoices = () => {
     fetchCustomers(false);
     fetchDeals(false);
     fetchQuotations(false);
+    fetchSettings();
   }, []);
+
+  const handlePrint = () => {
+    const printContent = document.getElementById('printable-invoice');
+    const originalContent = document.body.innerHTML;
+    
+    // Simple window.print works well with @media print CSS we added
+    window.print();
+  };
 
   const handleGenerateInvoice = async (type, id) => {
     try {
@@ -96,9 +106,16 @@ const Invoices = () => {
         .gen-info h4 { margin: 0; font-size: 14px; font-weight: 700; }
         .gen-info p { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); }
         .btn-gen { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+        .btn-print { background: #1e293b; color: white; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 700; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: 0.2s; }
+        .btn-print:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+        @media print {
+          .no-print { display: none !important; }
+        }
       `}</style>
 
-      <div className="page-header">
+      <div className="page-header no-print">
         <div>
           <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Invoices & Billing</h2>
           <p style={{ color: 'var(--text-muted)' }}>Monitor payments and financial documents.</p>
@@ -109,29 +126,45 @@ const Invoices = () => {
         </button>
       </div>
 
-      <DataTable 
-        title="Recent Invoices"
-        columns={columns}
-        data={invoices}
-        loading={loading}
-        onEdit={(inv) => {
-          setActiveInvoice(inv);
-          setIsModalOpen(true);
-        }}
-        onDelete={async (id) => {
-          if (window.confirm('Cancel this invoice?')) {
-            await api.delete(`/invoices/${id}`);
-            fetchInvoices(false);
-            toast.success('Invoice cancelled');
-          }
-        }}
-      />
+      <div className="no-print">
+        <DataTable 
+          title="Recent Invoices"
+          columns={columns}
+          data={invoices}
+          loading={loading}
+          actions={(inv) => (
+            <button 
+              label="view print preview"
+              className="btn-icon" 
+              onClick={() => {
+                setActiveInvoice(inv);
+                setIsModalOpen(true);
+              }}
+              title="Print / View Preview"
+            >
+              <Printer size={16} />
+            </button>
+          )}
+          onEdit={(inv) => {
+            setActiveInvoice(inv);
+            setIsModalOpen(true);
+          }}
+          onDelete={async (id) => {
+            if (window.confirm('Cancel this invoice?')) {
+              await api.delete(`/invoices/${id}`);
+              fetchInvoices(false);
+              toast.success('Invoice cancelled');
+            }
+          }}
+        />
+      </div>
 
       {/* Invoice Generator Modal */}
       <Modal
         isOpen={isGeneratorOpen}
         onClose={() => setIsGeneratorOpen(false)}
         title="Generate Invoice from Source"
+        className="no-print"
         footer={<button className="btn-cancel" onClick={() => setIsGeneratorOpen(false)}>Cancel</button>}
       >
         <div style={{ marginBottom: '20px' }}>
@@ -173,20 +206,25 @@ const Invoices = () => {
         </div>
       </Modal>
 
-      {/* View Details Modal */}
+      {/* Invoice Details & Print Preview Modal */}
       <Modal 
           isOpen={isModalOpen} 
           onClose={() => setIsModalOpen(false)}
-          title={`Invoice ${activeInvoice?.invoice_number}`}
-          footer={<button label="close modal" className="btn-cancel" onClick={() => setIsModalOpen(false)}>Close</button>}
+          title={`Invoice Preview: ${activeInvoice?.invoice_number}`}
+          width="900px"
+          footer={
+            <div style={{ display: 'flex', gap: '12px' }} className="no-print">
+              <button className="btn-print" onClick={handlePrint}>
+                <Printer size={20} />
+                Print Invoice
+              </button>
+              <button label="close modal" className="btn-cancel" onClick={() => setIsModalOpen(false)}>Close Preview</button>
+            </div>
+          }
       >
           {activeInvoice && (
-              <div className="invoice-details">
-                  <div className="detail-row"><label>Customer</label><span>{activeInvoice.client_name}</span></div>
-                  <div className="detail-row"><label>Amount</label><span>{activeInvoice.total_amount} EGP</span></div>
-                  <div className="detail-row"><label>Status</label><span className="status-badge">{activeInvoice.status}</span></div>
-                  <div className="detail-row"><label>Due Date</label><span>{new Date(activeInvoice.due_date).toLocaleDateString()}</span></div>
-                  <div className="detail-row"><label>Notes</label><span>{activeInvoice.notes || 'None'}</span></div>
+              <div id="printable-invoice">
+                  <InvoicePreview invoice={activeInvoice} />
               </div>
           )}
       </Modal>

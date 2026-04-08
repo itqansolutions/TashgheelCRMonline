@@ -12,9 +12,18 @@ export const DataProvider = ({ children }) => {
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [leadSources, setLeadSources] = useState([]);
+  const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(false);
 
   // Core Data Fetchers
+  const fetchSettings = async () => {
+    try {
+      const res = await api.get('/settings');
+      setSettings(res.data.data);
+    } catch (err) {
+      console.error('Failed to load settings');
+    }
+  };
   const fetchCustomers = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
@@ -108,6 +117,7 @@ export const DataProvider = ({ children }) => {
     users, fetchUsers,
     departments, fetchDepartments,
     leadSources, fetchLeadSources,
+    settings, fetchSettings,
     loading
   };
 
