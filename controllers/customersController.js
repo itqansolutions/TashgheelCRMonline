@@ -20,8 +20,12 @@ exports.getCustomers = async (req, res) => {
     `);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    console.error('CRITICAL: getCustomers failed:', err.message);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Failed to retrieve customers. This may be due to a database migration mismatch.',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 

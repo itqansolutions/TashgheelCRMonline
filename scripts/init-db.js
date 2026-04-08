@@ -52,9 +52,10 @@ const initDb = async () => {
             console.log('✅ Migration: lead_sources table ensured');
 
             // Customers Table Updates
+            console.log('Migrating customers table columns...');
             await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS source_id INTEGER REFERENCES lead_sources(id) ON DELETE SET NULL');
             await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS manager_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
-            console.log('✅ Migration: source_id and manager_id added to customers');
+            console.log('✅ Migration: source_id and manager_id confirmed for customers');
 
             // Tasks Updates
             await db.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS director_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
