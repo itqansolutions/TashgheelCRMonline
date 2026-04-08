@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, ShoppingBag, 
   Handshake, CheckSquare, Wallet, 
-  Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History
+  Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, Settings as SettingsIcon
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
