@@ -7,7 +7,7 @@ import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 
 const Deals = () => {
-  const { deals, fetchDeals, customers, fetchCustomers, products, fetchProducts, loading } = useData();
+  const { deals, fetchDeals, customers, fetchCustomers, products, fetchProducts, users, fetchUsers, loading } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState(null);
   
