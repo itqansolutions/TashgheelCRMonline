@@ -11,7 +11,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { user } = useAuth();
   
   const navItems = [
-    { name: 'Dashboard', icon: <LayoutDashboard />, path: '/' },
+    { name: 'Dashboard', icon: <LayoutDashboard />, path: '/dashboard' },
     { name: 'Customers', icon: <Users />, path: '/customers' },
     { name: 'Products', icon: <ShoppingBag />, path: '/products' },
     { name: 'Deals', icon: <Handshake />, path: '/deals' },
@@ -29,7 +29,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     
-    const checkPath = item.path === '/' ? '/dashboard' : item.path;
+    const checkPath = item.path;
     return user.allowedPages && user.allowedPages.includes(checkPath);
   });
 
