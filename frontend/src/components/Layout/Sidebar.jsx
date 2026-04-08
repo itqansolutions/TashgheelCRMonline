@@ -173,7 +173,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       </nav>
 
       <div className="sidebar-footer">
-        © 2024 Tashgheel V1.0
+        © {new Date().getFullYear()} Tashgheel CRM by itqan
       </div>
     </div>
   );
