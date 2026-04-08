@@ -7,7 +7,7 @@ import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 
 const Tasks = () => {
-  const { customers, deals, fetchCustomers, fetchDeals } = useData();
+  const { customers, deals, users, fetchCustomers, fetchDeals, fetchUsers } = useData();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -19,6 +19,9 @@ const Tasks = () => {
     priority: 'medium',
     status: 'todo',
     due_date: '',
+    assigned_to: '',
+    director_id: '',
+    follower_ids: [],
     parent_type: 'customer',
     parent_id: ''
   });
@@ -37,8 +40,9 @@ const Tasks = () => {
 
   useEffect(() => {
     fetchTasks();
-    fetchCustomers(false);
-    fetchDeals(false);
+    if (customers.length === 0) fetchCustomers(false);
+    if (deals.length === 0) fetchDeals(false);
+    if (users.length === 0) fetchUsers(false);
   }, []);
 
   const handleOpenModal = (task = null) => {
@@ -50,12 +54,19 @@ const Tasks = () => {
         priority: task.priority || 'medium',
         status: task.status || 'todo',
         due_date: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
+        assigned_to: task.assigned_to || '',
+        director_id: task.director_id || '',
+        follower_ids: task.followers ? task.followers.map(f => f.user_id) : [],
         parent_type: task.parent_type || 'customer',
         parent_id: task.parent_id || ''
       });
     } else {
       setEditingTask(null);
-      setFormData({ title: '', description: '', priority: 'medium', status: 'todo', due_date: '', parent_type: 'customer', parent_id: '' });
+      setFormData({ 
+        title: '', description: '', priority: 'medium', status: 'todo', due_date: '', 
+        assigned_to: '', director_id: '', follower_ids: [], 
+        parent_type: 'customer', parent_id: '' 
+      });
     }
     setIsModalOpen(true);
   };
@@ -87,6 +98,21 @@ const Tasks = () => {
           <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{item.description?.substring(0, 30)}...</span>
         </div>
       )
+    },
+    { 
+      key: 'in_charge_name', 
+      label: 'Lead',
+      render: (val) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px' }}>
+          <User size={14} style={{ opacity: 0.6 }} />
+          <span>{val || 'Unassigned'}</span>
+        </div>
+      )
+    },
+    { 
+      key: 'director_name', 
+      label: 'Director',
+      render: (val) => val || '-'
     },
     { 
       key: 'priority', 
@@ -124,6 +150,7 @@ const Tasks = () => {
         .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; background: var(--bg-main); }
         .btn-cancel { background: #f1f5f9; color: var(--text-muted); padding: 10px 20px; border-radius: 8px; font-weight: 600; }
         .btn-save { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; }
+        .followers-select { height: 100px !important; }
       `}</style>
 
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -175,6 +202,20 @@ const Tasks = () => {
             />
           </div>
           <div className="form-group">
+            <label>Lead (In Charge)</label>
+            <select value={formData.assigned_to} onChange={(e)=>setFormData({...formData, assigned_to: e.target.value})}>
+              <option value="">-- Select Employee --</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Director/Manager</label>
+            <select value={formData.director_id} onChange={(e)=>setFormData({...formData, director_id: e.target.value})}>
+              <option value="">-- Select Director --</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
             <label>Priority</label>
             <select value={formData.priority} onChange={(e)=>setFormData({...formData, priority: e.target.value})}>
               <option value="low">Low</option>
@@ -190,6 +231,21 @@ const Tasks = () => {
               value={formData.due_date}
               onChange={(e) => setFormData({...formData, due_date: e.target.value})}
             />
+          </div>
+          <div className="form-group full">
+            <label>Followers (Help/Assist)</label>
+            <select 
+              multiple 
+              className="followers-select"
+              value={formData.follower_ids} 
+              onChange={(e) => {
+                const values = Array.from(e.target.selectedOptions, option => parseInt(option.value));
+                setFormData({...formData, follower_ids: values});
+              }}
+            >
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Hold Ctrl/Cmd to select multiple people.</span>
           </div>
           <div className="form-group">
             <label>Link to Type</label>

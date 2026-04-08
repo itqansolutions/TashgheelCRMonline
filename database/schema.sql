@@ -144,12 +144,21 @@ CREATE TABLE IF NOT EXISTS tasks (
     description TEXT,
     priority VARCHAR(50) DEFAULT 'medium', -- 'low', 'medium', 'high', 'urgent'
     status VARCHAR(50) DEFAULT 'todo', -- 'todo', 'in_progress', 'done', 'blocked'
-    assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL, -- Person In Charge
+    director_id INTEGER REFERENCES users(id) ON DELETE SET NULL, -- Overseeing Manager
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL, -- Task Creator
     parent_type VARCHAR(50), -- 'customer', 'deal', 'project' (Polymorphic-style association)
     parent_id INTEGER,
     due_date TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 10.1 Task Followers (Many-to-Many)
+CREATE TABLE IF NOT EXISTS task_followers (
+    task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (task_id, user_id)
 );
 
 -- 11. Tenders Table

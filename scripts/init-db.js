@@ -56,6 +56,18 @@ const initDb = async () => {
             await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS manager_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
             console.log('✅ Migration: source_id and manager_id added to customers');
 
+            // Tasks Updates
+            await db.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS director_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+            await db.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS task_followers (
+                    task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+                    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                    PRIMARY KEY (task_id, user_id)
+                )
+            `);
+            console.log('✅ Migration: tasks updated and followers table ensured');
+
         } catch (migErr) {
             console.warn('⚠️ Migration Warning:', migErr.message);
         }
