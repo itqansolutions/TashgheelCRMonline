@@ -68,6 +68,22 @@ const initDb = async () => {
             `);
             console.log('✅ Migration: tasks updated and followers table ensured');
 
+            // Global Settings Table
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS settings (
+                    key VARCHAR(100) PRIMARY KEY,
+                    value TEXT,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            
+            // Seed initial branding keys if not exist
+            const initialKeys = ['company_name', 'company_logo', 'invoice_footer', 'invoice_terms'];
+            for (const key of initialKeys) {
+                await db.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [key, '']);
+            }
+            console.log('✅ Migration: global settings table ensured');
+
         } catch (migErr) {
             console.warn('⚠️ Migration Warning:', migErr.message);
         }

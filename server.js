@@ -36,6 +36,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const logRoutes = require('./routes/logRoutes');
 const leadSourceRoutes = require('./routes/leadSourceRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 
 // Serve Static Assets in Production
 const frontendPath = path.join(__dirname, 'frontend', 'dist');
@@ -58,6 +59,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/lead-sources', leadSourceRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Catch-all route for React SPA
 app.get('*all', (req, res) => {
