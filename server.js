@@ -3,6 +3,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
