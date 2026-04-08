@@ -2,15 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { FileText, DollarSign, Calendar, Filter, Eye, Plus } from 'lucide-react';
+import { FileText, DollarSign, Calendar, Filter, Eye, Plus, Receipt, Handshake } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 
 const Invoices = () => {
-  const { customers, fetchCustomers } = useData();
+  const { customers, fetchCustomers, deals, fetchDeals, quotations, fetchQuotations } = useData();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [activeInvoice, setActiveInvoice] = useState(null);
 
   const fetchInvoices = async (showLoading = true) => {
@@ -28,7 +29,21 @@ const Invoices = () => {
   useEffect(() => {
     fetchInvoices();
     fetchCustomers(false);
+    fetchDeals(false);
+    fetchQuotations(false);
   }, []);
+
+  const handleGenerateInvoice = async (type, id) => {
+    try {
+      const endpoint = type === 'deal' ? `/invoices/from-deal/${id}` : `/invoices/from-quotation/${id}`;
+      await api.post(endpoint);
+      toast.success('Invoice generated successfully');
+      setIsGeneratorOpen(false);
+      fetchInvoices(false);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to generate invoice');
+    }
+  };
 
   const columns = [
     { 
@@ -75,6 +90,12 @@ const Invoices = () => {
         .invoice-details { display: grid; gap: 20px; }
         .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
         .detail-row label { font-weight: 600; color: var(--text-muted); }
+        
+        .gen-list { display: grid; gap: 12px; max-height: 400px; overflow-y: auto; padding: 10px; }
+        .gen-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; }
+        .gen-info h4 { margin: 0; font-size: 14px; font-weight: 700; }
+        .gen-info p { margin: 4px 0 0; font-size: 12px; color: var(--text-muted); }
+        .btn-gen { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
       `}</style>
 
       <div className="page-header">
@@ -82,7 +103,7 @@ const Invoices = () => {
           <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Invoices & Billing</h2>
           <p style={{ color: 'var(--text-muted)' }}>Monitor payments and financial documents.</p>
         </div>
-        <button label="create invoice control" className="btn-add" onClick={() => toast.error('Invoices should be generated from Deals/Quotations')}>
+        <button label="create invoice control" className="btn-add" onClick={() => setIsGeneratorOpen(true)}>
           <Plus size={20} />
           Create Invoice
         </button>
@@ -106,6 +127,53 @@ const Invoices = () => {
         }}
       />
 
+      {/* Invoice Generator Modal */}
+      <Modal
+        isOpen={isGeneratorOpen}
+        onClose={() => setIsGeneratorOpen(false)}
+        title="Generate Invoice from Source"
+        footer={<button className="btn-cancel" onClick={() => setIsGeneratorOpen(false)}>Cancel</button>}
+      >
+        <div style={{ marginBottom: '20px' }}>
+          <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '15px' }}>
+            Select a successful deal or an approved quotation to generate a formal invoice.
+          </p>
+          
+          <h3 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Handshake size={18} /> Active Deals
+          </h3>
+          <div className="gen-list">
+            {deals.filter(d => d.pipeline_stage !== 'lost').map(deal => (
+              <div key={`deal-${deal.id}`} className="gen-item">
+                <div className="gen-info">
+                  <h4>{deal.title}</h4>
+                  <p>{deal.client_name || 'Generic Customer'} • {deal.value} EGP</p>
+                </div>
+                <button className="btn-gen" onClick={() => handleGenerateInvoice('deal', deal.id)}>Generate</button>
+              </div>
+            ))}
+            {deals.length === 0 && <p style={{ textAlign: 'center', py: 20 }}>No active deals found.</p>}
+          </div>
+
+          <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '20px 0 10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FileText size={18} /> Approved Quotations
+          </h3>
+          <div className="gen-list">
+            {quotations.filter(q => q.status === 'approved').map(quote => (
+              <div key={`quote-${quote.id}`} className="gen-item">
+                <div className="gen-info">
+                  <h4>Quotation #{quote.id}</h4>
+                  <p>{quote.total_amount} EGP • Valid until: {new Date(quote.valid_until).toLocaleDateString()}</p>
+                </div>
+                <button className="btn-gen" onClick={() => handleGenerateInvoice('quote', quote.id)}>Generate</button>
+              </div>
+            ))}
+            {quotations.filter(q => q.status === 'approved').length === 0 && <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>No approved quotations pending.</p>}
+          </div>
+        </div>
+      </Modal>
+
+      {/* View Details Modal */}
       <Modal 
           isOpen={isModalOpen} 
           onClose={() => setIsModalOpen(false)}

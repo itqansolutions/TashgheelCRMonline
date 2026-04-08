@@ -8,6 +8,7 @@ export const DataProvider = ({ children }) => {
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
   const [deals, setDeals] = useState([]);
+  const [quotations, setQuotations] = useState([]);
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [leadSources, setLeadSources] = useState([]);
@@ -45,6 +46,18 @@ export const DataProvider = ({ children }) => {
       setDeals(res.data.data);
     } catch (err) {
       toast.error('Failed to load deals');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchQuotations = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      const res = await api.get('/quotations');
+      setQuotations(res.data.data);
+    } catch (err) {
+      toast.error('Failed to load quotations');
     } finally {
       setLoading(false);
     }
@@ -91,6 +104,7 @@ export const DataProvider = ({ children }) => {
     customers, fetchCustomers,
     products, fetchProducts,
     deals, fetchDeals,
+    quotations, fetchQuotations,
     users, fetchUsers,
     departments, fetchDepartments,
     leadSources, fetchLeadSources,

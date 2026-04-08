@@ -43,6 +43,19 @@ exports.createInvoiceFromQuotation = async (req, res) => {
   }
 };
 
+// @desc    Create invoice from deal
+// @route   POST /api/invoices/from-deal/:dealId
+// @access  Private
+exports.createInvoiceFromDeal = async (req, res) => {
+  try {
+    const invoice = await salesService.convertDealToInvoice(req.params.dealId);
+    res.status(201).json({ status: 'success', data: invoice });
+  } catch (err) {
+    console.error(err.message);
+    res.status(400).json({ status: 'error', message: err.message });
+  }
+};
+
 // @desc    Add Payment to Invoice
 // @route   POST /api/invoices/:id/payments
 // @access  Private

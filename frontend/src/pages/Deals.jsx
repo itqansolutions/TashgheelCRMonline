@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Handshake, DollarSign, Calendar, Target, User } from 'lucide-react';
+import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRight } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 
 const Deals = () => {
   const { deals, fetchDeals, customers, fetchCustomers, products, fetchProducts, users, fetchUsers, loading } = useData();
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState(null);
   
@@ -81,6 +83,18 @@ const Deals = () => {
         fetchDeals(false);
       } catch (err) {
         toast.error('Failed to delete');
+      }
+    }
+  };
+
+  const handleGenerateInvoice = async (dealId) => {
+    if (window.confirm('Generate an invoice for this deal? This will mark the deal as Won.')) {
+      try {
+        const res = await api.post(`/invoices/from-deal/${dealId}`);
+        toast.success('Invoice generated successfully');
+        navigate('/invoices');
+      } catch (err) {
+        toast.error('Failed to generate invoice');
       }
     }
   };
@@ -182,6 +196,26 @@ const Deals = () => {
         loading={loading}
         onEdit={handleOpenModal}
         onDelete={handleDelete}
+        actions={(row) => (
+          <button 
+            title="Generate Invoice" 
+            onClick={() => handleGenerateInvoice(row.id)}
+            style={{ 
+              padding: '6px', 
+              borderRadius: '6px', 
+              background: '#f0fdf4', 
+              color: '#16a34a',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <Receipt size={16} />
+            <span style={{ fontSize: '12px', fontWeight: '600' }}>Bill</span>
+          </button>
+        )}
       />
 
       <Modal 

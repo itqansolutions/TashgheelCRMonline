@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Edit2, Trash2, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 
-const DataTable = ({ columns, data, onEdit, onDelete, title, loading }) => {
+const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [currentPage, setCurrentPage] = useState(1);
@@ -217,6 +217,7 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading }) => {
                   ))}
                   <td>
                     <div className="action-btns">
+                      {actions && actions(item)}
                       <button label="table edit control" className="btn-icon btn-edit" onClick={() => onEdit(item)}>
                         <Edit2 size={16} />
                       </button>
