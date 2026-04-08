@@ -10,6 +10,7 @@ export const DataProvider = ({ children }) => {
   const [deals, setDeals] = useState([]);
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [leadSources, setLeadSources] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // Core Data Fetchers
@@ -73,6 +74,18 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const fetchLeadSources = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      const res = await api.get('/lead-sources');
+      setLeadSources(res.data.data);
+    } catch (err) {
+      toast.error('Failed to load lead sources');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Shared state and actions
   const value = {
     customers, fetchCustomers,
@@ -80,6 +93,7 @@ export const DataProvider = ({ children }) => {
     deals, fetchDeals,
     users, fetchUsers,
     departments, fetchDepartments,
+    leadSources, fetchLeadSources,
     loading
   };
 

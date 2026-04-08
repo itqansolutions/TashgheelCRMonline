@@ -8,7 +8,7 @@ import Modal from '../components/Common/Modal';
 import FileUploader from '../components/Common/FileUploader';
 
 const Customers = () => {
-  const { customers, fetchCustomers, loading } = useData();
+  const { customers, fetchCustomers, users, fetchUsers, leadSources, fetchLeadSources, loading } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   
@@ -19,11 +19,15 @@ const Customers = () => {
     email: '',
     phone: '',
     address: '',
-    status: 'lead'
+    status: 'lead',
+    source_id: '',
+    manager_id: ''
   });
 
   useEffect(() => {
     fetchCustomers();
+    if (users.length === 0) fetchUsers();
+    if (leadSources.length === 0) fetchLeadSources();
   }, []);
 
   const handleOpenModal = (customer = null) => {
@@ -35,11 +39,13 @@ const Customers = () => {
         email: customer.email || '',
         phone: customer.phone || '',
         address: customer.address || '',
-        status: customer.status || 'lead'
+        status: customer.status || 'lead',
+        source_id: customer.source_id || '',
+        manager_id: customer.manager_id || ''
       });
     } else {
       setEditingCustomer(null);
-      setFormData({ name: '', company_name: '', email: '', phone: '', address: '', status: 'lead' });
+      setFormData({ name: '', company_name: '', email: '', phone: '', address: '', status: 'lead', source_id: '', manager_id: '' });
     }
     setIsModalOpen(true);
   };
@@ -87,8 +93,16 @@ const Customers = () => {
       )
     },
     { key: 'company_name', label: 'Company' },
-    { key: 'email', label: 'Email' },
-    { key: 'phone', label: 'Phone' },
+    { 
+      key: 'source_name', 
+      label: 'Source',
+      render: (val) => val || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Direct/Other</span>
+    },
+    { 
+      key: 'manager_name', 
+      label: 'Director/Manager',
+      render: (val) => val || 'Not Assigned'
+    },
     { 
       key: 'status', 
       label: 'Status',
@@ -234,7 +248,31 @@ const Customers = () => {
             />
           </div>
           <div className="form-group">
-            <label>Status</label>
+            <label>Director/Manager</label>
+            <select 
+              value={formData.manager_id}
+              onChange={(e) => setFormData({...formData, manager_id: e.target.value})}
+            >
+              <option value="">-- None --</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Lead Source</label>
+            <select 
+              value={formData.source_id}
+              onChange={(e) => setFormData({...formData, source_id: e.target.value})}
+            >
+              <option value="">-- No Source --</option>
+              {leadSources.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Lead Status</label>
             <select 
               value={formData.status}
               onChange={(e) => setFormData({...formData, status: e.target.value})}

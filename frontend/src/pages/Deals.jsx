@@ -24,6 +24,7 @@ const Deals = () => {
     fetchDeals();
     if (customers.length === 0) fetchCustomers();
     if (products.length === 0) fetchProducts();
+    if (users.length === 0) fetchUsers();
   }, []);
 
   const handleOpenModal = (deal = null) => {
@@ -136,6 +137,16 @@ const Deals = () => {
       key: 'client_name', 
       label: 'Customer',
       render: (val, item) => item.client_name || 'Unassigned'
+    },
+    { 
+      key: 'assigned_to_name', 
+      label: 'Deal Owner',
+      render: (val) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <User size={14} style={{ opacity: 0.6 }} />
+          <span>{val || 'Unassigned'}</span>
+        </div>
+      )
     }
   ];
 
@@ -250,7 +261,9 @@ const Deals = () => {
               onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
             >
               <option value="">Me (Default)</option>
-              {/* This would ideally map to a users list fetched via DataContext */}
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+              ))}
             </select>
           </div>
         </form>

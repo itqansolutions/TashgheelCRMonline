@@ -21,6 +21,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Files', icon: <FileText />, path: '/files' },
     { name: 'Reports', icon: <BarChart3 />, path: '/reports' },
     { name: 'System Logs', icon: <History />, path: '/logs' },
+    { name: 'Admin Settings', icon: <SettingsIcon />, path: '/settings' },
   ];
 
   // Filter items based on permissions

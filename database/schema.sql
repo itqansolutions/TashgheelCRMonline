@@ -21,6 +21,13 @@ CREATE TABLE IF NOT EXISTS departments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 1.2 Lead Sources Table
+CREATE TABLE IF NOT EXISTS lead_sources (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Add Foreign Key for department_id in users
 ALTER TABLE users ADD CONSTRAINT fk_user_department FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL;
 
@@ -32,8 +39,10 @@ CREATE TABLE IF NOT EXISTS customers (
     email VARCHAR(255),
     phone VARCHAR(50),
     address TEXT,
-    source VARCHAR(100), -- 'link', 'referral', 'ads', etc.
-    assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    source VARCHAR(100), -- Legacy text source
+    source_id INTEGER REFERENCES lead_sources(id) ON DELETE SET NULL, -- Managed source
+    assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL, -- Employee level
+    manager_id INTEGER REFERENCES users(id) ON DELETE SET NULL, -- Director/Manager level
     status VARCHAR(50) DEFAULT 'lead', -- 'lead', 'active', 'inactive'
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

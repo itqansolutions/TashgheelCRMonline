@@ -39,7 +39,23 @@ const initDb = async () => {
         console.log('Running migrations...');
         try {
             await db.query('ALTER TABLE deals ADD COLUMN IF NOT EXISTS product_id INTEGER REFERENCES products(id) ON DELETE SET NULL');
-            console.log('✅ Migration: product_id added to deals (if missing)');
+            console.log('✅ Migration: product_id added to deals');
+
+            // Lead Sources Table
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS lead_sources (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) UNIQUE NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            console.log('✅ Migration: lead_sources table ensured');
+
+            // Customers Table Updates
+            await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS source_id INTEGER REFERENCES lead_sources(id) ON DELETE SET NULL');
+            await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS manager_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+            console.log('✅ Migration: source_id and manager_id added to customers');
+
         } catch (migErr) {
             console.warn('⚠️ Migration Warning:', migErr.message);
         }

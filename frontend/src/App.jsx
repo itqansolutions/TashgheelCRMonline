@@ -16,6 +16,7 @@ import Files from './pages/Files';
 import Reports from './pages/Reports';
 import Employees from './pages/Employees';
 import Logs from './pages/Logs';
+import Settings from './pages/Settings';
 
 // Placeholder components for other modules
 const Placeholder = ({ name }) => (
@@ -65,6 +66,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <Logs />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="settings" 
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <Settings />
                   </ProtectedRoute>
                 } 
               />
