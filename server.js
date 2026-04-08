@@ -17,7 +17,12 @@ app.use(morgan('dev'));
 app.use(express.json());
 
 // Serve static files from uploads folder
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+  console.log('✅ Created placeholder uploads directory');
+}
+app.use('/uploads', express.static(uploadsDir));
 
 // Routes
 const authRoutes = require('./routes/auth');

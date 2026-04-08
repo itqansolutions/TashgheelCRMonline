@@ -57,6 +57,12 @@ const initDb = async () => {
             await db.query('ALTER TABLE customers ADD COLUMN IF NOT EXISTS manager_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
             console.log('✅ Migration: source_id and manager_id confirmed for customers');
 
+            // Invoices Table Updates
+            console.log('Migrating invoices table columns...');
+            await db.query('ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES customers(id) ON DELETE SET NULL');
+            await db.query('ALTER TABLE invoices ADD COLUMN IF NOT EXISTS notes TEXT');
+            console.log('✅ Migration: client_id and notes confirmed for invoices');
+
             // Tasks Updates
             await db.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS director_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
             await db.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL');

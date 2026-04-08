@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Edit2, Trash2, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 
 const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions }) => {
@@ -6,6 +6,11 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Reset to Page 1 on search
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   // Sorting Logic
   const handleSort = (key) => {
