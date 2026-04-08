@@ -16,8 +16,8 @@ exports.convertQuotationToInvoice = async (quotationId) => {
   // 2. Create Invoice
   const invoiceNumber = `INV-${Date.now()}`;
   const invoiceResult = await db.query(
-    'INSERT INTO invoices (quotation_id, invoice_number, total_amount, due_date, status) VALUES ($1, $2, $3, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\') RETURNING *',
-    [quotationId, invoiceNumber, quotation.total_amount]
+    'INSERT INTO invoices (quotation_id, client_id, invoice_number, total_amount, due_date, status) VALUES ($1, $2, $3, $4, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\') RETURNING *',
+    [quotationId, quotation.client_id, invoiceNumber, quotation.total_amount]
   );
   
   const invoice = invoiceResult.rows[0];

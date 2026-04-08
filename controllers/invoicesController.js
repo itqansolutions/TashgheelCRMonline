@@ -6,7 +6,12 @@ const salesService = require('../services/salesService');
 // @access  Private
 exports.getInvoices = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM invoices ORDER BY created_at DESC');
+    const result = await db.query(`
+      SELECT i.*, c.name as client_name 
+      FROM invoices i
+      LEFT JOIN customers c ON i.client_id = c.id
+      ORDER BY i.created_at DESC
+    `);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error(err.message);
@@ -19,7 +24,12 @@ exports.getInvoices = async (req, res) => {
 // @access  Private
 exports.getInvoiceById = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM invoices WHERE id = $1', [req.params.id]);
+    const result = await db.query(`
+      SELECT i.*, c.name as client_name 
+      FROM invoices i
+      LEFT JOIN customers c ON i.client_id = c.id
+      WHERE i.id = $1
+    `, [req.params.id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Invoice not found' });
     }
