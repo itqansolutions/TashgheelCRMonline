@@ -229,6 +229,15 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 15. RBAC (User Access Control)
+CREATE TABLE IF NOT EXISTS user_access (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    page_path VARCHAR(255) NOT NULL,
+    can_access BOOLEAN DEFAULT FALSE,
+    UNIQUE(user_id, page_path)
+);
+
 -- Default indexes for speed (Existing columns only)
 CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
 CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals(pipeline_stage);

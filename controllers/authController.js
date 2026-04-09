@@ -110,6 +110,11 @@ exports.login = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const userResult = await db.query('SELECT id, name, email, role, tenant_id, created_at FROM users WHERE id = $1', [req.user.id]);
+    
+    if (userResult.rows.length === 0) {
+        return res.status(404).json({ status: 'error', message: 'User record not found. Please re-login.' });
+    }
+    
     const user = userResult.rows[0];
     
     // Fetch allowed pages
