@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
+const db = require('../config/db');
 
-module.exports = (req, res, next) => {
+module.exports = async (req, res, next) => {
   const token = req.header('Authorization');
 
   if (!token) {
@@ -11,9 +12,20 @@ module.exports = (req, res, next) => {
     const decoded = jwt.verify(token.replace('Bearer ', ''), process.env.JWT_SECRET);
     req.user = decoded.user;
     
-    // Ensure tenant context is always available
+    // 🔥 EMERGENCY: Session Auto-Hydration
+    // If user has an old token (lack tenant_id), fetch it from DB and attach it
     if (!req.user.tenant_id) {
-       console.warn(`User ${req.user.id} accessed system without tenant_id context.`);
+       try {
+           const userResult = await db.query('SELECT tenant_id FROM users WHERE id = $1', [req.user.id]);
+           if (userResult.rows.length > 0 && userResult.rows[0].tenant_id) {
+               req.user.tenant_id = userResult.rows[0].tenant_id;
+           } else {
+               // If user truly has no tenant (e.g. system user or error), we might need to handle it.
+               // For now, let it proceed to controllers which will handle missing tenant_id with 403.
+           }
+       } catch (dbErr) {
+           console.error('Auth Middleware: Failed to hydrate tenant context', dbErr.message);
+       }
     }
     
     next();

@@ -109,7 +109,7 @@ exports.login = async (req, res) => {
 // Get User Detail
 exports.getMe = async (req, res) => {
   try {
-    const userResult = await db.query('SELECT id, name, email, role, created_at FROM users WHERE id = $1', [req.user.id]);
+    const userResult = await db.query('SELECT id, name, email, role, tenant_id, created_at FROM users WHERE id = $1', [req.user.id]);
     const user = userResult.rows[0];
     
     // Fetch allowed pages
