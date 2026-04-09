@@ -228,12 +228,8 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_users_tenant ON users(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_deals_tenant ON deals(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_tenant ON tasks(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_logs_tenant ON system_logs(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_notify_tenant ON notifications(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_notify_user ON notifications(user_id);
+-- Default indexes for speed (Existing columns only)
+CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
+CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals(pipeline_stage);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number);

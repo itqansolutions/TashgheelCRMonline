@@ -76,7 +76,9 @@ const initDb = async () => {
                 await db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) DEFAULT $1`, [defaultTenant]);
                 // Ensure all existing rows have the default tenant assigned
                 await db.query(`UPDATE ${table} SET tenant_id = $1 WHERE tenant_id IS NULL`, [defaultTenant]);
-                console.log(`✅ Table isolation enabled: ${table}`);
+                // Create Index safely
+                await db.query(`CREATE INDEX IF NOT EXISTS idx_${table}_tenant ON ${table}(tenant_id)`);
+                console.log(`✅ Table isolation & indexing enabled: ${table}`);
             }
 
             // 4. Enhance System Logs with Context
