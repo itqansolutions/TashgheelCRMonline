@@ -52,9 +52,12 @@ const initDb = async () => {
                     slug VARCHAR(100) UNIQUE NOT NULL,
                     plan VARCHAR(50) DEFAULT 'basic',
                     status VARCHAR(50) DEFAULT 'active',
+                    subscription_end TIMESTAMP WITH TIME ZONE,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 )
             `);
+            // Migration for existing table
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_end TIMESTAMP WITH TIME ZONE');
 
             const defaultTenant = '00000000-0000-0000-0000-000000000000';
 

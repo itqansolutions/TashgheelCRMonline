@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, ShoppingBag, 
   Handshake, CheckSquare, Wallet, 
-  Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, Settings as AdminSettingsIcon
+  Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, Settings as AdminSettingsIcon, ShieldAlert
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -32,6 +32,16 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     const checkPath = item.path;
     return user.allowedPages && user.allowedPages.includes(checkPath);
   });
+
+  // Add Super Admin link if user is from System Default Tenant
+  const SYSTEM_DEFAULT_TENANT = '00000000-0000-0000-0000-000000000000';
+  if (user && user.tenant_id === SYSTEM_DEFAULT_TENANT && user.role === 'admin') {
+     filteredItems.push({ 
+       name: 'Platform Hub', 
+       icon: <ShieldAlert className="text-amber-500" />, 
+       path: '/super-admin' 
+     });
+  }
 
   return (
     <div className={`sidebar ${isOpen ? 'open' : 'closed'}`}>

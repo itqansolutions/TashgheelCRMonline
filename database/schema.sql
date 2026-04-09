@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS tenants (
     slug VARCHAR(100) UNIQUE NOT NULL,
     plan VARCHAR(50) DEFAULT 'basic',
     status VARCHAR(50) DEFAULT 'active',
+    subscription_end TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

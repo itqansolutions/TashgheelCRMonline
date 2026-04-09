@@ -217,8 +217,32 @@ const Login = () => {
           <div className="forgot-password">
             <a href="#">Forgot Password?</a>
           </div>
+
+          <div className="register-link">
+            Don't have a workspace? <a href="/register">Create one now</a>
+          </div>
         </form>
       </div>
+
+      <style>{`
+        .register-link {
+          margin-top: 24px;
+          padding-top: 24px;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          text-align: center;
+          font-size: 14px;
+          color: rgba(255, 255, 255, 0.5);
+        }
+        .register-link a {
+          color: white;
+          font-weight: 700;
+          text-decoration: none;
+          margin-left: 4px;
+        }
+        .register-link a:hover {
+          text-decoration: underline;
+        }
+      `}</style>
     </div>
   );
 };
