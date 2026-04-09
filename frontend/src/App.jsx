@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import Products from './pages/Products';
@@ -17,6 +18,7 @@ import Reports from './pages/Reports';
 import Employees from './pages/Employees';
 import Logs from './pages/Logs';
 import Settings from './pages/Settings';
+import CompanySettings from './pages/Settings/CompanySettings';
 
 // Placeholder components for other modules
 const Placeholder = ({ name }) => (
@@ -35,6 +37,7 @@ function App() {
           <Routes>
             {/* Public Routes */}
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
 
             {/* Protected Dashboard Routes */}
             <Route 
@@ -75,6 +78,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <Settings />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="settings/company" 
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <CompanySettings />
                   </ProtectedRoute>
                 } 
               />

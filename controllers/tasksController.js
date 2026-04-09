@@ -1,9 +1,11 @@
 const db = require('../config/db');
+const { sendNotification } = require('../services/notificationService');
 
 // @desc    Get all tasks
 // @route   GET /api/tasks
 // @access  Private
 exports.getTasks = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
   try {
     const userId = req.user.id;
     const isAdmin = req.user.role === 'admin';
@@ -23,16 +25,18 @@ exports.getTasks = async (req, res) => {
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.director_id = u2.id
       LEFT JOIN users u3 ON t.created_by = u3.id
+      WHERE t.tenant_id = $1
     `;
 
-    const queryParams = [];
+    const queryParams = [tenant_id];
+    
     if (!isAdmin) {
-      // User sees tasks they are In Charge of, Director of, Creator of, or following
+      // User sees tasks they are In Charge of, Director of, Creator of, or following within their tenant
       query += ` 
-        WHERE t.assigned_to = $1 
-           OR t.director_id = $1 
-           OR t.created_by = $1 
-           OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id = t.id AND tf.user_id = $1)
+        AND (t.assigned_to = $2 
+             OR t.director_id = $2 
+             OR t.created_by = $2 
+             OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id = t.id AND tf.user_id = $2))
       `;
       queryParams.push(userId);
     }
@@ -51,6 +55,7 @@ exports.getTasks = async (req, res) => {
 // @route   GET /api/tasks/:id
 // @access  Private
 exports.getTaskById = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
   try {
     const result = await db.query(`
       SELECT t.*, 
@@ -67,11 +72,11 @@ exports.getTaskById = async (req, res) => {
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.director_id = u2.id
       LEFT JOIN users u3 ON t.created_by = u3.id
-      WHERE t.id = $1
-    `, [req.params.id]);
+      WHERE t.id = $1 AND t.tenant_id = $2
+    `, [req.params.id, tenant_id]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: 'Task not found' });
+      return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
     }
 
     res.json({ status: 'success', data: result.rows[0] });
@@ -86,13 +91,14 @@ exports.getTaskById = async (req, res) => {
 // @access  Private
 exports.createTask = async (req, res) => {
   const { title, description, priority, status, assigned_to, director_id, follower_ids, parent_type, parent_id, due_date } = req.body;
+  const tenant_id = req.user.tenant_id;
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
     
     const result = await client.query(
-      'INSERT INTO tasks (title, description, priority, status, assigned_to, director_id, created_by, parent_type, parent_id, due_date) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
-      [title, description, priority || 'medium', status || 'todo', assigned_to || null, director_id || null, req.user.id, parent_type, parent_id, due_date || null]
+      'INSERT INTO tasks (title, description, priority, status, assigned_to, director_id, created_by, parent_type, parent_id, due_date, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
+      [title, description, priority || 'medium', status || 'todo', assigned_to || null, director_id || null, req.user.id, parent_type, parent_id, due_date || null, tenant_id]
     );
 
     const taskId = result.rows[0].id;
@@ -104,6 +110,19 @@ exports.createTask = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // Trigger Notification for Assignee
+    if (assigned_to && assigned_to !== req.user.id) {
+        sendNotification({
+            userId: assigned_to,
+            tenantId: tenant_id,
+            type: 'info',
+            title: 'New Task Assigned',
+            message: `You have been assigned a new task: ${title}`,
+            link: '/tasks'
+        });
+    }
+
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -119,19 +138,22 @@ exports.createTask = async (req, res) => {
 // @access  Private
 exports.updateTask = async (req, res) => {
   const { title, description, priority, status, assigned_to, director_id, follower_ids, parent_type, parent_id, due_date } = req.body;
+  const tenant_id = req.user.tenant_id;
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
 
-    const result = await client.query(
-      'UPDATE tasks SET title = $1, description = $2, priority = $3, status = $4, assigned_to = $5, director_id = $6, parent_type = $7, parent_id = $8, due_date = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 RETURNING *',
-      [title, description, priority, status, assigned_to || null, director_id || null, parent_type, parent_id, due_date || null, req.params.id]
-    );
-
-    if (result.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ status: 'error', message: 'Task not found' });
+    // Verify task belongs to tenant
+    const verifyResult = await client.query('SELECT id FROM tasks WHERE id = $1 AND tenant_id = $2', [req.params.id, tenant_id]);
+    if (verifyResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
     }
+
+    const result = await client.query(
+      'UPDATE tasks SET title = $1, description = $2, priority = $3, status = $4, assigned_to = $5, director_id = $6, parent_type = $7, parent_id = $8, due_date = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 AND tenant_id = $11 RETURNING *',
+      [title, description, priority, status, assigned_to || null, director_id || null, parent_type, parent_id, due_date || null, req.params.id, tenant_id]
+    );
 
     // Update followers: Delete then Insert (simple sync)
     await client.query('DELETE FROM task_followers WHERE task_id = $1', [req.params.id]);
@@ -156,10 +178,11 @@ exports.updateTask = async (req, res) => {
 // @route   DELETE /api/tasks/:id
 // @access  Private
 exports.deleteTask = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
   try {
-    const result = await db.query('DELETE FROM tasks WHERE id = $1 RETURNING *', [req.params.id]);
+    const result = await db.query('DELETE FROM tasks WHERE id = $1 AND tenant_id = $2 RETURNING *', [req.params.id, tenant_id]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: 'Task not found' });
+      return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
     }
     res.json({ status: 'success', message: 'Task deleted' });
   } catch (err) {

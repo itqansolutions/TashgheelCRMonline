@@ -3,31 +3,28 @@ const db = require('../config/db');
 /**
  * Converts a Quotation into an Invoice
  * @param {number} quotationId 
+ * @param {string} tenant_id 
  * @returns {Promise<object>} The new invoice
  */
-exports.convertQuotationToInvoice = async (quotationId) => {
-  // 1. Get quotation details
-  const quoteResult = await db.query('SELECT * FROM quotations WHERE id = $1', [quotationId]);
-  if (quoteResult.rows.length === 0) throw new Error('Quotation not found');
+exports.convertQuotationToInvoice = async (quotationId, tenant_id) => {
+  // 1. Get quotation details with isolation check
+  const quoteResult = await db.query('SELECT * FROM quotations WHERE id = $1 AND tenant_id = $2', [quotationId, tenant_id]);
+  if (quoteResult.rows.length === 0) throw new Error('Quotation not found or unauthorized');
   
   const quotation = quoteResult.rows[0];
   if (quotation.status !== 'approved') throw new Error('Quotation must be approved before invoicing');
 
-  // 2. Create Invoice
+  // 2. Create Invoice with tenant context
   const invoiceNumber = `INV-${Date.now()}`;
   const invoiceResult = await db.query(
-    'INSERT INTO invoices (quotation_id, client_id, invoice_number, total_amount, due_date, status) VALUES ($1, $2, $3, $4, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\') RETURNING *',
-    [quotationId, quotation.client_id, invoiceNumber, quotation.total_amount]
+    'INSERT INTO invoices (quotation_id, client_id, invoice_number, total_amount, due_date, status, tenant_id) VALUES ($1, $2, $3, $4, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\', $5) RETURNING *',
+    [quotationId, quotation.client_id, invoiceNumber, quotation.total_amount, tenant_id]
   );
   
   const invoice = invoiceResult.rows[0];
 
-  // 3. (Optional) Copy items - assuming invoice_items is where we track specific product entries
-  // For now, let's assume the quotation itself has its own item listing logic or we link via the quoteId.
-  // In a full implementation, we'd loop through quote items and insert into invoice_items.
-
-  // 4. Update Quotation Status
-  await db.query('UPDATE quotations SET status = $1 WHERE id = $2', ['invoiced', quotationId]);
+  // 3. Update Quotation Status with isolation
+  await db.query('UPDATE quotations SET status = $1 WHERE id = $2 AND tenant_id = $3', ['invoiced', quotationId, tenant_id]);
 
   return invoice;
 };
@@ -35,41 +32,49 @@ exports.convertQuotationToInvoice = async (quotationId) => {
 /**
  * Converts a Deal into an Invoice
  * @param {number} dealId 
+ * @param {string} tenant_id
  * @returns {Promise<object>} The new invoice
  */
-exports.convertDealToInvoice = async (dealId) => {
-  // 1. Get deal details
+exports.convertDealToInvoice = async (dealId, tenant_id) => {
+  // 1. Get deal details with isolation check
   const dealResult = await db.query(`
     SELECT d.*, c.name as client_name 
     FROM deals d
     JOIN customers c ON d.client_id = c.id
-    WHERE d.id = $1
-  `, [dealId]);
+    WHERE d.id = $1 AND d.tenant_id = $2
+  `, [dealId, tenant_id]);
   
-  if (dealResult.rows.length === 0) throw new Error('Deal not found');
+  if (dealResult.rows.length === 0) throw new Error('Deal not found or unauthorized');
   const deal = dealResult.rows[0];
 
-  // 2. Create Invoice
+  // 2. Create Invoice with tenant context
   const invoiceNumber = `INV-${Date.now()}`;
   const invoiceResult = await db.query(
-    'INSERT INTO invoices (invoice_number, client_id, total_amount, due_date, status, notes) VALUES ($1, $2, $3, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\', $4) RETURNING *',
-    [invoiceNumber, deal.client_id, deal.value, `Generated from Deal: ${deal.title}`]
+    'INSERT INTO invoices (invoice_number, client_id, total_amount, due_date, status, notes, tenant_id) VALUES ($1, $2, $3, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\', $4, $5) RETURNING *',
+    [invoiceNumber, deal.client_id, deal.value, `Generated from Deal: ${deal.title}`, tenant_id]
   );
   
   const invoice = invoiceResult.rows[0];
 
-  // 3. Update Deal Stage (optional, set to won if helpful)
-  await db.query("UPDATE deals SET pipeline_stage = 'won' WHERE id = $1", [dealId]);
+  // 3. Update Deal Stage with isolation
+  await db.query("UPDATE deals SET pipeline_stage = 'won' WHERE id = $1 AND tenant_id = $2", [dealId, tenant_id]);
 
   return invoice;
 };
 
 /**
- * Checks for expired quotations and updates their status
+ * Checks for expired quotations and updates their status per tenant (if triggered)
+ * @param {string} tenant_id Optional
  */
-exports.checkExpiredQuotations = async () => {
-  const result = await db.query(
-    "UPDATE quotations SET status = 'expired' WHERE status IN ('draft', 'sent') AND expiry_date < CURRENT_TIMESTAMP RETURNING id"
-  );
+exports.checkExpiredQuotations = async (tenant_id = null) => {
+  let query = "UPDATE quotations SET status = 'expired' WHERE status IN ('draft', 'sent') AND expiry_date < CURRENT_TIMESTAMP";
+  const params = [];
+
+  if (tenant_id) {
+    query += " AND tenant_id = $1";
+    params.push(tenant_id);
+  }
+
+  const result = await db.query(query + " RETURNING id", params);
   return result.rows;
 };

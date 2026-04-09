@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Settings as AdminSettingsIcon, Plus, Trash2, Edit2, Save, X, Megaphone, Building, Image as ImageIcon, FileText, Upload } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Settings as AdminSettingsIcon, Plus, Trash2, Edit2, Save, X, Megaphone, Building2, Image as ImageIcon, FileText, Upload } from 'lucide-react';
 
 const Settings = () => {
+  const navigate = useNavigate();
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(false);
   const [newSourceName, setNewSourceName] = useState('');
@@ -166,10 +168,20 @@ const Settings = () => {
       </div>
 
       <div className="settings-container">
+        {/* SaaS Company Link */}
+        <div className="settings-card" onClick={() => navigate('/settings/company')} style={{ cursor: 'pointer', border: '1px solid #3b82f633', background: '#3b82f605', marginBottom: '24px' }}>
+          <div className="card-header" style={{ borderBottom: 'none' }}>
+            <Building2 size={24} style={{ color: '#3b82f6' }} />
+            <div>
+              <h3 style={{ margin: 0 }}>Company Workspace</h3>
+              <p style={{ margin: 0, fontSize: '13px', color: '#64748b', fontWeight: 'normal' }}>Identity, Plans & Multi-Tenant Branding</p>
+            </div>
+          </div>
+        </div>
         {/* Company Branding Section */}
         <div className="settings-card">
           <div className="card-header">
-            <Building size={20} style={{ color: 'var(--primary)' }} />
+            <Building2 size={20} style={{ color: 'var(--primary)' }} />
             <h3>Company Branding</h3>
           </div>
           <div className="card-content">

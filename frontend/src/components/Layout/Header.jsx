@@ -3,12 +3,66 @@ import { useAuth } from '../../context/AuthContext';
 import { Bell, Search, User, LogOut, ChevronDown, Menu, Moon, Sun, Clock, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
+
 const Header = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState('');
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await api.get('/notifications');
+      setNotifications(res.data.data);
+      setUnreadCount(res.data.unreadCount);
+    } catch (err) {
+      console.error('Failed to fetch notifications');
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    // Simple polling for "real-time" experience
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMarkAllRead = async () => {
+    try {
+      await api.patch('/notifications/read-all');
+      fetchNotifications();
+    } catch (err) {
+      toast.error('Failed to update notifications');
+    }
+  };
+
+  const handleNotificationClick = async (notif) => {
+    try {
+      if (!notif.is_read) {
+        await api.patch(`/notifications/${notif.id}/read`);
+      }
+      setIsNotificationsOpen(false);
+      if (notif.link) navigate(notif.link);
+      fetchNotifications();
+    } catch (err) {
+      console.error('Error handling notification click');
+    }
+  };
+
+  const getNotifIcon = (type) => {
+    switch(type) {
+      case 'success': return <Check size={16} color="#16a34a" />;
+      case 'warning': return <Clock size={16} color="#f59e0b" />;
+      case 'danger': return <AlertCircle size={16} color="#ef4444" />;
+      default: return <Clock size={16} color="var(--primary)" />;
+    }
+  };
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
@@ -22,12 +76,6 @@ const Header = ({ toggleSidebar }) => {
       toast.success(`Searching for: ${globalSearch}...`);
     }
   };
-
-  const notifications = [
-    { id: 1, text: 'New lead assigned to you', time: '2 mins ago', type: 'lead' },
-    { id: 2, text: 'Task "Client Quote" is overdue', time: '1 hour ago', type: 'task' },
-    { id: 3, text: 'Deal reached negotiation stage', time: '4 hours ago', type: 'deal' }
-  ];
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -106,27 +154,46 @@ const Header = ({ toggleSidebar }) => {
             onClick={() => { setIsNotificationsOpen(!isNotificationsOpen); setIsDropdownOpen(false); }}
           >
             <Bell size={20} />
-            <span className="badge">3</span>
+            {unreadCount > 0 && <span className="badge">{unreadCount}</span>}
           </button>
 
           {isNotificationsOpen && (
             <div className="notification-dropdown">
               <div className="notif-header">
                 <span style={{ fontWeight: '800', fontSize: '15px' }}>Notifications</span>
-                <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: '600', cursor: 'pointer' }}>Mark all read</span>
+                <span 
+                  style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: '600', cursor: 'pointer' }}
+                  onClick={handleMarkAllRead}
+                >
+                  Mark all read
+                </span>
               </div>
               <div className="notif-list">
-                {notifications.map(n => (
-                  <div key={n.id} className="notif-item">
-                    <div className="icon"><Clock size={16} /></div>
-                    <div className="notif-content">
-                      <p>{n.text}</p>
-                      <span className="notif-time">
-                        <Clock size={10} /> {n.time}
-                      </span>
-                    </div>
+                {notifications.length === 0 ? (
+                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                    No notifications yet.
                   </div>
-                ))}
+                ) : (
+                  notifications.map(n => (
+                    <div 
+                      key={n.id} 
+                      className="notif-item" 
+                      onClick={() => handleNotificationClick(n)}
+                      style={{ opacity: n.is_read ? 0.6 : 1 }}
+                    >
+                      <div className="icon">
+                        {getNotifIcon(n.type)}
+                      </div>
+                      <div className="notif-content">
+                        <p style={{ color: n.is_read ? 'var(--text-muted)' : 'var(--text-main)' }}>{n.title}</p>
+                        <span className="notif-time">
+                          <Clock size={10} /> {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      {!n.is_read && <div style={{ width: '8px', height: '8px', background: 'var(--primary)', borderRadius: '50%', marginLeft: 'auto', marginTop: '4px' }}></div>}
+                    </div>
+                  ))
+                )}
               </div>
               <div style={{ padding: '12px', textAlign: 'center', background: '#f8fafc', borderTop: '1px solid var(--border)', fontSize: '12px', fontWeight: '600', color: 'var(--primary)', cursor: 'pointer' }}>
                 View All Notifications

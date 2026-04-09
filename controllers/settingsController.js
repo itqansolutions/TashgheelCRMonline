@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { logAction, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 
 // @desc    Get all global settings
 // @route   GET /api/settings
@@ -36,6 +37,16 @@ exports.updateSettings = async (req, res) => {
         [key, value]
       );
     }
+
+    // Log the branding change
+    logAction({ 
+      req, 
+      action: ACTIONS.BRANDING_UPDATE, 
+      entityType: 'Settings', 
+      details: { updatedKeys: Object.keys(settings) },
+      level: LOG_LEVELS.WARNING 
+    });
+
     res.json({ status: 'success', message: 'Settings updated successfully' });
   } catch (err) {
     console.error(err.message);

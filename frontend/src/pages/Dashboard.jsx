@@ -235,35 +235,35 @@ const Dashboard = () => {
         }
       `}</style>
       
-      <div className="section-header">
-        <h2 style={{ fontSize: '22px', fontWeight: '700' }}>Dashboard Overview</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Welcome back! Here's what's happening today.</p>
+      <div className="section-header" style={{ marginBottom: '8px' }}>
+        <h2 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.02em' }}>Analytics Dashboard</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>Strategic insights and real-time performance metrics.</p>
       </div>
 
       <div className="kpi-grid">
         <KPICard 
           title="Total Revenue" 
-          value={`${stats?.finance?.total_income || 0} EGP`}
+          value={`${stats?.finance?.total_income?.toLocaleString() || 0} EGP`}
           icon={<ShoppingBag size={20} />}
           color="blue"
           trend="up"
-          trendValue="12%"
+          trendValue="12.5%"
         />
         <KPICard 
-          title="Expenses" 
-          value={`${stats?.finance?.total_expenses || 0} EGP`}
-          icon={<CreditCard size={20} />}
-          color="yellow"
-          trend="down"
-          trendValue="3%"
-        />
-        <KPICard 
-          title="Net Profit" 
-          value={`${stats?.finance?.net_profit || 0} EGP`}
-          icon={<Wallet size={20} />}
-          color="green"
+          title="Pipeline Value" 
+          value={`${stats?.pipeline_value?.toLocaleString() || 0} EGP`}
+          icon={<TrendingUp size={20} />}
+          color="purple"
           trend="up"
-          trendValue="8%"
+          trendValue="Live"
+        />
+        <KPICard 
+          title="Win Rate" 
+          value={`${stats?.win_rate || 0}%`}
+          icon={<Handshake size={20} />}
+          color="green"
+          trend={stats?.win_rate > 50 ? 'up' : 'down'}
+          trendValue="Benchmark"
         />
         <KPICard 
           title="Customers" 
@@ -271,39 +271,61 @@ const Dashboard = () => {
           icon={<Users size={20} />}
           color="purple"
           trend="up"
-          trendValue="5%"
+          trendValue="+5"
         />
         <KPICard 
-          title="Pending Tasks" 
-          value={stats?.pending_tasks || 0}
-          icon={<CheckSquare size={20} />}
-          color="red"
-          trend="down"
-          trendValue="10%"
+          title="Profit Margin" 
+          value={`${stats?.finance?.total_income > 0 ? ((stats.finance.net_profit / stats.finance.total_income) * 100).toFixed(1) : 0}%`}
+          icon={<Wallet size={20} />}
+          color="green"
+          trend="up"
+          trendValue="Healthy"
         />
       </div>
 
       <div className="charts-row">
         <div className="chart-card">
-          <h3>Revenue vs Expenses Trend</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h3 style={{ margin: 0 }}>Financial Trajectory</h3>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>Last 6 Months</div>
+          </div>
           <div className="chart-container">
-            <Line data={chartData} options={chartOptions} />
+            {revenueData.length === 0 ? (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                    No financial data available for this period.
+                </div>
+            ) : (
+                <Line data={chartData} options={chartOptions} />
+            )}
           </div>
         </div>
         <div className="chart-card">
-          <h3>Pipeline Distribution</h3>
+          <h3>Deal Pipeline</h3>
           <div className="chart-container">
-            <Doughnut 
-              data={{
-                labels: stats?.deals_pipeline?.map(d => d.pipeline_stage) || ['Discovery', 'Won', 'Lost'],
-                datasets: [{
-                  data: stats?.deals_pipeline?.map(d => parseInt(d.count)) || [5, 12, 3],
-                  backgroundColor: ['#2563eb', '#16a34a', '#dc2626', '#f59e0b'],
-                  borderWidth: 0
-                }]
-              }}
-              options={{ maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }} 
-            />
+            {stats?.deals_pipeline?.length === 0 ? (
+                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                    No active deals to analyze.
+                </div>
+            ) : (
+                <Doughnut 
+                  data={{
+                    labels: stats?.deals_pipeline?.map(d => d.pipeline_stage) || [],
+                    datasets: [{
+                      data: stats?.deals_pipeline?.map(d => parseInt(d.count)) || [],
+                      backgroundColor: ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
+                      borderWidth: 0,
+                      hoverOffset: 15
+                    }]
+                  }}
+                  options={{ 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } } 
+                    },
+                    cutout: '70%'
+                  }} 
+                />
+            )}
           </div>
         </div>
       </div>
