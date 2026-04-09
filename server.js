@@ -77,12 +77,50 @@ app.get('*all', (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
+const db = require('./config/db');
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ status: 'error', message: err.message });
 });
 
-app.listen(PORT, () => {
+// ---------------------------------------------------------
+// SaaS SuperAdmin Auto-Promotion (Cloud Native)
+// ---------------------------------------------------------
+const promoteOnStartup = async () => {
+  const emailToPromote = process.env.PROMOTE_USER_EMAIL;
+  if (emailToPromote) {
+    try {
+      const SYSTEM_DEFAULT_TENANT = '00000000-0000-0000-0000-000000000000';
+      console.log(`🚀 [SaaS OS] Attempting Cloud-Promotion for: ${emailToPromote}`);
+      
+      // Ensure System Tenant exists
+      await db.query(`
+        INSERT INTO tenants (id, name, slug, plan, status)
+        VALUES ($1, 'System Default', 'system-default', 'enterprise', 'active')
+        ON CONFLICT (id) DO NOTHING
+      `, [SYSTEM_DEFAULT_TENANT]);
+
+      // Promote User
+      const result = await db.query(
+        'UPDATE users SET tenant_id = $1, role = $2, updated_at = CURRENT_TIMESTAMP WHERE email = $3 RETURNING name',
+        [SYSTEM_DEFAULT_TENANT, 'admin', emailToPromote]
+      );
+
+      if (result.rows.length > 0) {
+        console.log(`✅ [SaaS OS] Success! ${result.rows[0].name} promoted to SuperAdmin.`);
+      } else {
+        console.warn(`⚠️ [SaaS OS] Promotion failed: User ${emailToPromote} not found in database.`);
+      }
+    } catch (err) {
+      console.error('❌ [SaaS OS] Cloud-Promotion Error:', err.message);
+    }
+  }
+};
+
+app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
+  // Execute SaaS Auto-Activation
+  await promoteOnStartup();
 });
