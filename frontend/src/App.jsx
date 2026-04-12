@@ -6,6 +6,7 @@ import { DataProvider } from './context/DataContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { Toaster } from 'react-hot-toast';
 import ErrorBoundary from './components/ErrorBoundary';
+import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
