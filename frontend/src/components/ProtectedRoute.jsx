@@ -2,6 +2,8 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+import { safeArray } from '../utils/dataUtils';
+
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, isAuthenticated, loading } = useAuth();
   const location = useLocation();
@@ -17,10 +19,10 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   // Admin always has access to everything
-  if (user.role === 'admin') return children;
+  if (user?.role === 'admin') return children;
 
   // RBAC: Check role
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && !allowedRoles.includes(user?.role)) {
     return <Navigate to="/" replace />;
   }
 
@@ -28,7 +30,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   const currentPath = location.pathname;
   const checkPath = currentPath === '/' ? '/dashboard' : currentPath;
   
-  if (user.allowedPages && !user.allowedPages.includes(checkPath)) {
+  if (!safeArray(user?.allowedPages).includes(checkPath)) {
     // If not allowed, redirect to dashboard or home
     return <Navigate to="/" replace />;
   }
