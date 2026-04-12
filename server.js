@@ -59,6 +59,7 @@ const hrRoutes = require('./routes/hrRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const workflowRoutes = require('./routes/workflowRoutes');
 const rulesRoutes = require('./routes/rulesRoutes');
+const superAdminRoutes = require('./routes/superAdminRoutes');
 
 // SaaS Middleware
 const authMiddleware = require('./middleware/auth');
@@ -122,6 +123,7 @@ app.use('/api/lead-sources', leadSourceRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
+app.use('/api/super-admin', superAdminRoutes);
 
 
 const db = require('./config/db');

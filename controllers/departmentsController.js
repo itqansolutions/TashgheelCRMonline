@@ -5,7 +5,7 @@ const db = require('../config/db');
 // @access  Private (Admin, Manager)
 exports.getDepartments = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM departments ORDER BY name ASC');
+    const result = await db.query('SELECT * FROM departments WHERE tenant_id = $1 ORDER BY name ASC', [req.user.tenant_id]);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error(err.message);
@@ -20,8 +20,8 @@ exports.createDepartment = async (req, res) => {
   const { name, description } = req.body;
   try {
     const result = await db.query(
-      'INSERT INTO departments (name, description) VALUES ($1, $2) RETURNING *',
-      [name, description]
+      'INSERT INTO departments (name, description, tenant_id) VALUES ($1, $2, $3) RETURNING *',
+      [name, description, req.user.tenant_id]
     );
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
@@ -37,8 +37,8 @@ exports.updateDepartment = async (req, res) => {
   const { name, description } = req.body;
   try {
     const result = await db.query(
-      'UPDATE departments SET name = $1, description = $2 WHERE id = $3 RETURNING *',
-      [name, description, req.params.id]
+      'UPDATE departments SET name = $1, description = $2 WHERE id = $3 AND tenant_id = $4 RETURNING *',
+      [name, description, req.params.id, req.user.tenant_id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Department not found' });
@@ -55,7 +55,7 @@ exports.updateDepartment = async (req, res) => {
 // @access  Private (Admin)
 exports.deleteDepartment = async (req, res) => {
   try {
-    const result = await db.query('DELETE FROM departments WHERE id = $1 RETURNING *', [req.params.id]);
+    const result = await db.query('DELETE FROM departments WHERE id = $1 AND tenant_id = $2 RETURNING *', [req.params.id, req.user.tenant_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Department not found' });
     }

@@ -5,7 +5,7 @@ const db = require('../config/db');
 // @access  Private
 exports.getSources = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM lead_sources ORDER BY name ASC');
+    const result = await db.query('SELECT * FROM lead_sources WHERE tenant_id = $1 ORDER BY name ASC', [req.user.tenant_id]);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error(err.message);
@@ -20,8 +20,8 @@ exports.createSource = async (req, res) => {
   const { name } = req.body;
   try {
     const result = await db.query(
-      'INSERT INTO lead_sources (name) VALUES ($1) RETURNING *',
-      [name]
+      'INSERT INTO lead_sources (name, tenant_id) VALUES ($1, $2) RETURNING *',
+      [name, req.user.tenant_id]
     );
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
@@ -37,8 +37,8 @@ exports.updateSource = async (req, res) => {
   const { name } = req.body;
   try {
     const result = await db.query(
-      'UPDATE lead_sources SET name = $1 WHERE id = $2 RETURNING *',
-      [name, req.params.id]
+      'UPDATE lead_sources SET name = $1 WHERE id = $2 AND tenant_id = $3 RETURNING *',
+      [name, req.params.id, req.user.tenant_id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Source not found' });
@@ -55,7 +55,7 @@ exports.updateSource = async (req, res) => {
 // @access  Private (Admin)
 exports.deleteSource = async (req, res) => {
   try {
-    const result = await db.query('DELETE FROM lead_sources WHERE id = $1 RETURNING *', [req.params.id]);
+    const result = await db.query('DELETE FROM lead_sources WHERE id = $1 AND tenant_id = $2 RETURNING *', [req.params.id, req.user.tenant_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Source not found' });
     }

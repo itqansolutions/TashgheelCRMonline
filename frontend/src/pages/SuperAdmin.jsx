@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { safeArray } from '../utils/dataUtils';
+import InsightsPanel from './SuperAdmin/InsightsPanel';
 
 const SuperAdmin = () => {
   const [tenants, setTenants] = useState([]);
@@ -24,7 +26,7 @@ const SuperAdmin = () => {
     try {
       setLoading(true);
       const res = await api.get('/tenants');
-      setTenants(res.data.data);
+      setTenants(safeArray(res.data.data));
     } catch (err) {
       toast.error('Failed to fetch global tenant list');
     } finally {
@@ -55,9 +57,9 @@ const SuperAdmin = () => {
     }
   };
 
-  const filteredTenants = tenants.filter(t => 
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    t.slug.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredTenants = safeArray(tenants).filter(t => 
+    (t.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+    (t.slug?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   if (loading) return <div className="flex items-center justify-center min-h-[400px]"><RefreshCw className="animate-spin text-indigo-500" /></div>;
@@ -91,47 +93,9 @@ const SuperAdmin = () => {
           </button>
         </div>
       </div>
-
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl">
-              <Building2 className="text-indigo-600 w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Total Workspaces</p>
-              <h3 className="text-2xl font-bold dark:text-white">{tenants.length}</h3>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
-              <CheckCircle2 className="text-emerald-600 w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Active Subscriptions</p>
-              <h3 className="text-2xl font-bold dark:text-white">
-                {tenants.filter(t => t.status === 'active').length}
-              </h3>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
-              <AlertCircle className="text-amber-600 w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Expiring Soon</p>
-              <h3 className="text-2xl font-bold dark:text-white">
-                {tenants.filter(t => t.subscription_end && new Date(t.subscription_end) < new Date(Date.now() + 7*24*60*60*1000)).length}
-              </h3>
-            </div>
-          </div>
-        </div>
-      </div>
+      
+      {/* SaaS STRATEGIC INTELLIGENCE ENGINE */}
+      <InsightsPanel />
 
       {/* Tenant Table */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
