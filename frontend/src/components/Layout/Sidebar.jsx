@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
+import { safeArray } from '../../utils/dataUtils';
 
 // Module key mapping: path → module name
 const MODULE_MAP = {

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, X, Zap, ArrowRight, Shield, Clock, Star } from 'lucide-react';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
 import { useLanguage } from '../../context/LanguageContext';
+import { safeArray } from '../../utils/dataUtils';
 import toast from 'react-hot-toast';
 
 const PLAN_FEATURES = {
@@ -322,9 +324,9 @@ const Pricing = () => {
                                         className="plan-cta primary"
                                         style={{ background: meta.gradient }}
                                         onClick={() => handleUpgrade(plan.name)}
-                                        disabled={upgrading === planName}
+                                        disabled={upgrading === plan.name}
                                     >
-                                        {upgrading === planName
+                                        {upgrading === plan.name
                                             ? t.upgrading
                                             : <>
                                                 <Zap size={16}/>

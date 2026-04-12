@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { safeArray, safeObject } from '../../utils/dataUtils';
 
 const InsightsPanel = () => {
     const [insights, setInsights] = useState(null);
