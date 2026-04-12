@@ -21,7 +21,7 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
     setSortConfig({ key, direction });
   };
 
-  const sortedData = [...data].sort((a, b) => {
+  const sortedData = [...(data || [])].sort((a, b) => {
     if (!sortConfig.key) return 0;
     const aValue = a[sortConfig.key];
     const bValue = b[sortConfig.key];
@@ -32,7 +32,7 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
 
   // Filtering Logic
   const filteredData = sortedData.filter(item => 
-    Object.values(item).some(val => 
+    Object.values(item || {}).some(val => 
       String(val).toLowerCase().includes(searchTerm.toLowerCase())
     )
   );
@@ -235,8 +235,16 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length + 1} style={{ textAlign: 'center', padding: '40px' }}>
-                  No data found.
+                <td colSpan={columns.length + 1} style={{ textAlign: 'center', padding: '64px 24px' }}>
+                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>📂</div>
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>
+                        {localStorage.getItem('lang') === 'ar' ? 'لا توجد بيانات متاحة' : 'No entries found'}
+                    </div>
+                    <div style={{ fontSize: '14px', color: 'var(--text-muted)', maxWidth: '300px', margin: '0 auto' }}>
+                        {localStorage.getItem('lang') === 'ar' 
+                            ? 'ابدأ بإضافة أول عنصر لعرضه هنا في الجدول.' 
+                            : 'Start by adding your first record to see it appear here in the table.'}
+                    </div>
                 </td>
               </tr>
             )}

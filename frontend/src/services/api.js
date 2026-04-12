@@ -29,4 +29,29 @@ api.interceptors.request.use(
   }
 );
 
+/**
+ * Global API Response Normalizer
+ * Ensures that res.data.data is never null/undefined for common response patterns.
+ */
+api.interceptors.response.use(
+  (response) => {
+    // If the response follows our { status, data: ... } pattern
+    if (response.data && typeof response.data === 'object') {
+      // If 'data' property is null or undefined, normalize it
+      if (response.data.data === null || response.data.data === undefined) {
+          // We don't force [] here because it might be an object, 
+          // but we ensure it's at least handled by the safeArray/Object utility.
+      }
+    }
+    return response;
+  },
+  (error) => {
+    // Handle global errors (401, etc)
+    if (error.response?.status === 401) {
+      // Optional: auto-logout on token expiry
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

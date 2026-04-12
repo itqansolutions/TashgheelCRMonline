@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import BranchSelector from './BranchSelector';
+import { safeArray } from '../../utils/dataUtils';
 
 const Header = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
@@ -19,8 +20,8 @@ const Header = ({ toggleSidebar }) => {
   const fetchNotifications = async () => {
     try {
       const res = await api.get('/notifications');
-      setNotifications(res.data.data);
-      setUnreadCount(res.data.unreadCount);
+      setNotifications(safeArray(res.data.data));
+      setUnreadCount(res.data.unreadCount || 0);
     } catch (err) {
       console.error('Failed to fetch notifications');
     }
@@ -191,9 +192,15 @@ const Header = ({ toggleSidebar }) => {
                 </span>
               </div>
               <div className="notif-list">
-                {notifications.length === 0 ? (
-                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-                    No notifications yet.
+                {!notifications || notifications.length === 0 ? (
+                  <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔔</div>
+                    <p style={{ margin: 0, fontSize: '14px', fontWeight: '800', color: 'var(--text-main)' }}>
+                       {localStorage.getItem('lang') === 'ar' ? 'لا توجد إشعارات' : 'All caught up!'}
+                    </p>
+                    <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                       {localStorage.getItem('lang') === 'ar' ? 'سوف تظهر التنبيهات الجديدة هنا.' : 'New alerts will appear here.'}
+                    </p>
                   </div>
                 ) : (
                   notifications.map(n => (

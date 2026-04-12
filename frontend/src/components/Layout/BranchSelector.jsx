@@ -7,9 +7,9 @@ import { useAuth } from '../../context/AuthContext';
 const BranchSelector = () => {
   const { currentBranch, branches, selectBranch } = useBranch();
   const { user } = useAuth();
-  const [isOpen, setIsOpen] = React.useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
-  if (branches.length === 0) return null;
+  if (!branches || branches.length === 0) return null;
 
   return (
     <div className="branch-selector-wrapper">

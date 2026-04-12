@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import api from '../services/api';
+import { safeArray } from '../utils/dataUtils';
 
 const AuthContext = createContext();
 
@@ -24,7 +25,8 @@ export const AuthProvider = ({ children }) => {
       const userData = res.data.user;
       setUser({
         ...userData,
-        allowedPages: userData.allowedPages || []
+        allowedPages: safeArray(userData.allowedPages),
+        branches: safeArray(userData.branches)
       });
 
       // Load subscription (cached or fresh)
@@ -53,7 +55,8 @@ export const AuthProvider = ({ children }) => {
     setUser({
       ...userData,
       isDemo: userData.isDemo || false,
-      allowedPages: userData.allowedPages || []
+      allowedPages: safeArray(userData.allowedPages),
+      branches: safeArray(userData.branches)
     });
 
     // Fetch subscription on login

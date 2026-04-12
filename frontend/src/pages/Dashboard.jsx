@@ -160,7 +160,7 @@ const Dashboard = () => {
       <div className="bi-header">
         <div className="section-header">
           <h2 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.02em' }}>Intelligence Engine</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>Strategic insights for {viewMode === 'ALL' ? 'Organization-wide Performance' : `${currentBranch?.name} Performance`}.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>Strategic insights for {viewMode === 'ALL' ? 'Organization-wide Performance' : `${currentBranch?.name || 'Current Branch'} Performance`}.</p>
         </div>
 
         {/* Global Filters */}
@@ -194,7 +194,7 @@ const Dashboard = () => {
       ) : (
         <>
             {/* INSIGHT ENGINE MODULE */}
-            {stats?.insights && stats.insights.length > 0 && (
+            {stats?.insights?.length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
                     {stats.insights.map((insight, idx) => (
                         <div key={idx} className={`insight-box insight-${insight.type}`}>
@@ -210,7 +210,7 @@ const Dashboard = () => {
             <div className="kpi-grid">
                 <KPICard 
                 title="Total Revenue" 
-                value={`${stats?.revenue?.toLocaleString() || 0} EGP`}
+                value={`${stats?.revenue?.toLocaleString() ?? 0} EGP`}
                 icon={<ShoppingBag size={20} />}
                 color="blue"
                 trend="up"
@@ -218,7 +218,7 @@ const Dashboard = () => {
                 />
                 <KPICard 
                 title="Total Expenses" 
-                value={`${stats?.expenses?.toLocaleString() || 0} EGP`}
+                value={`${stats?.expenses?.toLocaleString() ?? 0} EGP`}
                 icon={<TrendingDown size={20} />}
                 color="red"
                 trend="down"
@@ -226,65 +226,71 @@ const Dashboard = () => {
                 />
                 <KPICard 
                 title="Net Profit" 
-                value={`${stats?.profit?.toLocaleString() || 0} EGP`}
+                value={`${stats?.profit?.toLocaleString() ?? 0} EGP`}
                 icon={<Wallet size={20} />}
-                color={stats?.profit >= 0 ? "green" : "red"}
-                trend={stats?.profit >= 0 ? "up" : "down"}
+                color={(stats?.profit ?? 0) >= 0 ? "green" : "red"}
+                trend={(stats?.profit ?? 0) >= 0 ? "up" : "down"}
                 trendValue="YTD"
-                subtitle={`Margin: ${stats?.profitMargin}%`}
+                subtitle={`Margin: ${stats?.profitMargin ?? 0}%`}
                 />
                 <KPICard 
                 title="Deals Win Rate" 
-                value={`${stats?.winRate || 0}%`}
+                value={`${stats?.winRate ?? 0}%`}
                 icon={<Handshake size={20} />}
-                color="purple"
-                trend={stats?.winRate > 40 ? 'up' : 'down'}
+                color={(stats?.winRate ?? 0) > 40 ? 'purple' : 'red'}
+                trend={(stats?.winRate ?? 0) > 40 ? 'up' : 'down'}
                 trendValue="Avg"
-                subtitle={`${stats?.wonDeals} Won / ${stats?.totalDeals} Total`}
+                subtitle={`${stats?.wonDeals ?? 0} Won / ${stats?.totalDeals ?? 0} Total`}
                 />
                 <KPICard 
                 title="Task Completion" 
-                value={`${stats?.taskCompletion || 0}%`}
+                value={`${stats?.taskCompletion ?? 0}%`}
                 icon={<CheckSquare size={20} />}
                 color="yellow"
                 trend="up"
                 trendValue="YTD"
-                subtitle={`${stats?.completedTasks} Done`}
+                subtitle={`${stats?.completedTasks ?? 0} Done`}
                 />
             </div>
 
             {/* Intelligence Comparison Module (Phase 2) */}
-            {viewMode === 'ALL' && comparisonData.length > 0 && (
+            {viewMode === 'ALL' && (
               <div className="charts-row" style={{ marginTop: '24px' }}>
                   <div className="chart-card" style={{ display: 'block', padding: '24px' }}>
                       <h3 style={{ margin: '0 0 24px 0', color: 'var(--text-main)' }}>Cross-Branch Financial Setup</h3>
-                      <div style={{ height: '300px' }}>
-                          <Bar 
-                            data={{
-                              labels: comparisonData.map(d => d.branch_name),
-                              datasets: [
-                                {
-                                  label: 'Revenue',
-                                  data: comparisonData.map(d => d.revenue),
-                                  backgroundColor: 'rgba(79, 70, 229, 0.8)',
-                                  borderRadius: 4
-                                },
-                                {
-                                  label: 'Expenses',
-                                  data: comparisonData.map(d => d.expenses),
-                                  backgroundColor: 'rgba(245, 158, 11, 0.8)',
-                                  borderRadius: 4
-                                }
-                              ]
-                            }}
-                            options={{
-                              responsive: true,
-                              maintainAspectRatio: false,
-                              plugins: { legend: { position: 'bottom' } },
-                              scales: { y: { beginAtZero: true, grid: { borderDash: [5, 5] } }, x: { grid: { display: false } } }
-                            }}
-                          />
-                      </div>
+                      {comparisonData?.length > 0 ? (
+                        <div style={{ height: '300px' }}>
+                            <Bar 
+                                data={{
+                                labels: comparisonData.map(d => d.branch_name),
+                                datasets: [
+                                    {
+                                    label: 'Revenue',
+                                    data: comparisonData.map(d => d.revenue),
+                                    backgroundColor: 'rgba(79, 70, 229, 0.8)',
+                                    borderRadius: 4
+                                    },
+                                    {
+                                    label: 'Expenses',
+                                    data: comparisonData.map(d => d.expenses),
+                                    backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                                    borderRadius: 4
+                                    }
+                                ]
+                                }}
+                                options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { position: 'bottom' } },
+                                scales: { y: { beginAtZero: true, grid: { borderDash: [5, 5] } }, x: { grid: { display: false } } }
+                                }}
+                            />
+                        </div>
+                      ) : (
+                        <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                           No comparison data available. Add more branches to view insights.
+                        </div>
+                      )}
                   </div>
                   
                   <div className="chart-card leaderboard-card" style={{ display: 'block', padding: '24px', overflowY: 'auto' }}>
@@ -302,7 +308,7 @@ const Dashboard = () => {
                           .lb-score { font-size: 16px; font-weight: 800; color: var(--primary); }
                       `}</style>
                       <h3>Smart Leaderboard</h3>
-                      {comparisonData.map((branch, idx) => (
+                      {comparisonData?.length > 0 ? comparisonData.map((branch, idx) => (
                           <div className="lb-item" key={branch.branch_id}>
                               <div className={`lb-rank ${idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : ''}`}>
                                   {idx + 1}
@@ -313,7 +319,11 @@ const Dashboard = () => {
                               </div>
                               <div className="lb-score">{branch.score}</div>
                           </div>
-                      ))}
+                      )) : (
+                        <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', marginTop: '40px' }}>
+                            Register business activity to start ranking branches.
+                        </div>
+                      )}
                   </div>
               </div>
             )}

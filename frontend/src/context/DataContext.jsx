@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { safeArray, safeObject } from '../utils/dataUtils';
 
 const DataContext = createContext();
 
@@ -19,7 +20,7 @@ export const DataProvider = ({ children }) => {
   const fetchSettings = async () => {
     try {
       const res = await api.get('/settings');
-      setSettings(res.data.data);
+      setSettings(safeObject(res.data.data));
     } catch (err) {
       console.error('Failed to load settings');
     }
@@ -28,7 +29,7 @@ export const DataProvider = ({ children }) => {
     if (showLoading) setLoading(true);
     try {
       const res = await api.get('/customers');
-      setCustomers(res.data.data);
+      setCustomers(safeArray(res.data.data));
     } catch (err) {
       toast.error('Failed to load customers');
     } finally {
@@ -40,7 +41,7 @@ export const DataProvider = ({ children }) => {
     if (showLoading) setLoading(true);
     try {
       const res = await api.get('/products');
-      setProducts(res.data.data);
+      setProducts(safeArray(res.data.data));
     } catch (err) {
       toast.error('Failed to load products');
     } finally {
@@ -52,7 +53,7 @@ export const DataProvider = ({ children }) => {
     if (showLoading) setLoading(true);
     try {
       const res = await api.get('/deals');
-      setDeals(res.data.data);
+      setDeals(safeArray(res.data.data));
     } catch (err) {
       toast.error('Failed to load deals');
     } finally {
@@ -64,7 +65,7 @@ export const DataProvider = ({ children }) => {
     if (showLoading) setLoading(true);
     try {
       const res = await api.get('/quotations');
-      setQuotations(res.data.data);
+      setQuotations(safeArray(res.data.data));
     } catch (err) {
       toast.error('Failed to load quotations');
     } finally {
@@ -76,7 +77,7 @@ export const DataProvider = ({ children }) => {
     if (showLoading) setLoading(true);
     try {
       const res = await api.get('/users');
-      setUsers(res.data.data);
+      setUsers(safeArray(res.data.data));
     } catch (err) {
       toast.error('Failed to load users');
     } finally {
@@ -88,7 +89,7 @@ export const DataProvider = ({ children }) => {
     if (showLoading) setLoading(true);
     try {
       const res = await api.get('/departments');
-      setDepartments(res.data.data);
+      setDepartments(safeArray(res.data.data));
     } catch (err) {
       toast.error('Failed to load departments');
     } finally {
@@ -100,7 +101,7 @@ export const DataProvider = ({ children }) => {
     if (showLoading) setLoading(true);
     try {
       const res = await api.get('/lead-sources');
-      setLeadSources(res.data.data);
+      setLeadSources(safeArray(res.data.data));
     } catch (err) {
       toast.error('Failed to load lead sources');
     } finally {

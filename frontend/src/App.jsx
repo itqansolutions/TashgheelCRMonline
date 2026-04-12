@@ -5,7 +5,7 @@ import { BranchProvider } from './context/BranchContext';
 import { DataProvider } from './context/DataContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { Toaster } from 'react-hot-toast';
-import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -56,169 +56,171 @@ const Placeholder = ({ name }) => (
 
 function App() {
   return (
-    <AuthProvider>
-      <BranchProvider>
-        <DataProvider>
-          <Router>
-            <Toaster position="top-right" reverseOrder={false} />
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/pricing" element={<Pricing />} />
+    <ErrorBoundary>
+      <AuthProvider>
+        <BranchProvider>
+          <DataProvider>
+            <Router>
+              <Toaster position="top-right" reverseOrder={false} />
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/pricing" element={<Pricing />} />
 
-              {/* Corporate "Sales Machine" Layer */}
-              <Route path="/" element={<CorporateLayout />}>
-                <Route index element={<CorporateHome />} />
-                <Route path="retail" element={<ProductRetail />} />
-                <Route path="restaurants" element={<ProductRestaurant />} />
-                <Route path="services" element={<BusinessServices />} />
-                <Route path="solutions" element={<Placeholder name="Solutions" />} />
-                <Route path="about" element={<Placeholder name="About Us" />} />
-                <Route path="portfolio" element={<Placeholder name="Portfolio" />} />
-                <Route path="contact" element={<Placeholder name="Contact" />} />
-                <Route path="demo" element={<DemoAccess />} />
-              </Route>
+                {/* Corporate "Sales Machine" Layer */}
+                <Route path="/" element={<CorporateLayout />}>
+                  <Route index element={<CorporateHome />} />
+                  <Route path="retail" element={<ProductRetail />} />
+                  <Route path="restaurants" element={<ProductRestaurant />} />
+                  <Route path="services" element={<BusinessServices />} />
+                  <Route path="solutions" element={<Placeholder name="Solutions" />} />
+                  <Route path="about" element={<Placeholder name="About Us" />} />
+                  <Route path="portfolio" element={<Placeholder name="Portfolio" />} />
+                  <Route path="contact" element={<Placeholder name="Contact" />} />
+                  <Route path="demo" element={<DemoAccess />} />
+                </Route>
 
-              {/* Protected Dashboard Routes */}
-              <Route 
-                path="/" 
-                element={
-                  <ProtectedRoute>
-                    <Layout />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<Navigate to="/tasks" replace />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="pricing" element={<Pricing />} />
-                <Route path="billing" element={<Billing />} />
-                <Route path="customers" element={<Customers />} />
-                <Route path="products" element={<Products />} />
-                <Route path="deals" element={<Deals />} />
-                <Route path="tasks" element={<Tasks />} />
-                <Route path="finance" element={<Invoices />} />
-                <Route path="finance/invoice-preview/:id" element={<InvoicePreview />} />
-                <Route path="accounting" element={<Navigate to="/finance" replace />} />
+                {/* Protected Dashboard Routes */}
                 <Route 
-                  path="employees" 
+                  path="/" 
                   element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <Employees />
+                    <ProtectedRoute>
+                      <Layout />
                     </ProtectedRoute>
-                  } 
-                />
-                <Route path="hr/my-attendance" element={<Attendance />} />
-                <Route path="hr/my-requests" element={<MyRequests />} />
-                <Route 
-                  path="hr/dashboard" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                      <AttendanceAdmin />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="hr/approvals" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                      <ApprovalCenter />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="hr/payroll" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                      <PayrollEngine />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="inventory/movements" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                      <InventoryControl />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="automation" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                      <AutomationControl />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="automation/rules" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                      <RuleBuilder />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route path="files" element={<Files />} />
-                <Route path="reports" element={<Reports />} />
-                <Route 
-                  path="logs" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <Logs />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="settings" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <Settings />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="settings/company" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <CompanySettings />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="super-admin" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <SuperAdmin />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="admin/plans" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <AdminPlans />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="admin/upgrade-requests" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <AdminUpgradeRequests />
-                    </ProtectedRoute>
-                  } 
-                />
-              </Route>
+                  }
+                >
+                  <Route index element={<Navigate to="/tasks" replace />} />
+                  <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="pricing" element={<Pricing />} />
+                  <Route path="billing" element={<Billing />} />
+                  <Route path="customers" element={<Customers />} />
+                  <Route path="products" element={<Products />} />
+                  <Route path="deals" element={<Deals />} />
+                  <Route path="tasks" element={<Tasks />} />
+                  <Route path="finance" element={<Invoices />} />
+                  <Route path="finance/invoice-preview/:id" element={<InvoicePreview />} />
+                  <Route path="accounting" element={<Navigate to="/finance" replace />} />
+                  <Route 
+                    path="employees" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <Employees />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route path="hr/my-attendance" element={<Attendance />} />
+                  <Route path="hr/my-requests" element={<MyRequests />} />
+                  <Route 
+                    path="hr/dashboard" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <AttendanceAdmin />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="hr/approvals" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <ApprovalCenter />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="hr/payroll" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <PayrollEngine />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="inventory/movements" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <InventoryControl />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="automation" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <AutomationControl />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="automation/rules" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <RuleBuilder />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route path="files" element={<Files />} />
+                  <Route path="reports" element={<Reports />} />
+                  <Route 
+                    path="logs" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <Logs />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="settings" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <Settings />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="settings/company" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <CompanySettings />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="super-admin" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <SuperAdmin />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="admin/plans" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <AdminPlans />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="admin/upgrade-requests" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <AdminUpgradeRequests />
+                      </ProtectedRoute>
+                    } 
+                  />
+                </Route>
 
-              {/* Fallback */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Router>
-        </DataProvider>
-      </BranchProvider>
-    </AuthProvider>
+                {/* Fallback */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Router>
+          </DataProvider>
+        </BranchProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

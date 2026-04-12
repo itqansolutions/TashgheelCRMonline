@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import toast from 'react-hot-toast';
 import api from '../services/api';
+import { safeArray } from '../utils/dataUtils';
 
 const BranchContext = createContext();
 
@@ -12,12 +13,14 @@ export const BranchProvider = ({ children }) => {
 
   // Sync branches from user profile on login
   useEffect(() => {
-    if (user?.branches) {
-      setBranches(user.branches);
+    const userBranches = safeArray(user?.branches);
+    
+    if (userBranches.length > 0) {
+      setBranches(userBranches);
       
       // Auto-select first branch if none selected
       const savedBranchId = localStorage.getItem('branch_id');
-      const branchToSelect = user.branches.find(b => b.id === savedBranchId) || user.branches[0];
+      const branchToSelect = userBranches.find(b => b.id === savedBranchId) || userBranches[0];
       
       if (branchToSelect) {
         selectBranch(branchToSelect);
