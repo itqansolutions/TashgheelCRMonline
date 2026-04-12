@@ -45,6 +45,22 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const leadSourceRoutes = require('./routes/leadSourceRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const tenantRoutes = require('./routes/tenantRoutes');
+const branchRoutes = require('./routes/branchRoutes');
+const financeRoutes = require('./routes/financeRoutes');
+const hrRoutes = require('./routes/hrRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const workflowRoutes = require('./routes/workflowRoutes');
+const rulesRoutes = require('./routes/rulesRoutes');
+
+// SaaS Middleware
+const authMiddleware = require('./middleware/auth');
+const subscriptionGuard = require('./middleware/subscriptionGuard');
+const moduleGuard = require('./middleware/moduleGuard');
+const usageLimits = require('./middleware/usageLimits');
+const plansController = require('./controllers/plansController');
+const adminPlanRoutes = require('./routes/adminPlanRoutes');
+const billingRoutes = require('./routes/billingRoutes');
 
 // Serve Static Assets in Production
 const frontendPath = path.join(__dirname, 'frontend', 'dist');
@@ -52,11 +68,34 @@ app.use(express.static(frontendPath));
 
 // API Routes
 app.use('/api/auth', authRoutes);
+
+// Public SaaS endpoints (no auth required)
+app.get('/api/plans', plansController.getPlans);
+
+// Protected SaaS subscription endpoint
+app.get('/api/me/subscription', authMiddleware, subscriptionGuard, plansController.getMySubscription);
+
+// Admin Pricing Engine (Super Admin only — bypasses subscription guard)
+app.use('/api/admin', adminPlanRoutes);
+
+// Global Subscription Guard (all protected routes below this point)
+app.use(authMiddleware, subscriptionGuard);
+
 app.use('/api/customers', customerRoutes);
+app.use('/api/billing', billingRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/quotations', quotationRoutes);
+app.use('/api/finance', financeRoutes);
+
+// Module-Guarded Routes (require specific plan modules)
+app.use('/api/hr',        moduleGuard('hr'),        hrRoutes);
+app.use('/api/inventory', moduleGuard('inventory'), inventoryRoutes);
+app.use('/api/workflows', moduleGuard('automation'), workflowRoutes);
+app.use('/api/rules',     moduleGuard('automation'), rulesRoutes);
+
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/accounting', accountingRoutes);
@@ -70,6 +109,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/lead-sources', leadSourceRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/tenants', tenantRoutes);
+app.use('/api/branches', branchRoutes);
 
 // Catch-all route for React SPA
 app.get('*all', (req, res) => {

@@ -3,6 +3,7 @@ const router = express.Router();
 const usersController = require('../controllers/usersController');
 const authMiddleware = require('../middleware/auth');
 const { authorize } = require('../middleware/roleMiddleware');
+const usageLimits = require('../middleware/usageLimits');
 
 // Apply authMiddleware to all routes in this file
 router.use(authMiddleware);
@@ -11,7 +12,7 @@ router.use(authMiddleware);
 // @desc    Get all users (Employees)
 // @access  Private (Admin, Manager)
 router.get('/', authorize(['admin', 'manager']), usersController.getUsers);
-router.post('/', authorize(['admin']), usersController.createUser);
+router.post('/', authorize(['admin']), usageLimits('users'), usersController.createUser);
 
 // @route   PUT api/users/:id/role
 // @desc    Update user role or department

@@ -67,14 +67,40 @@ exports.updateTenant = async (req, res) => {
     }
     const oldData = oldResult.rows[0];
 
-    // 2. Perform Update (Super Admin can update plan/status/date, Tenant Admin only name)
+    // 2. Perform Update (Super Admin can update plan/status/date, Tenant Admin only identity/financials)
     let query, params;
     if (tenant_id === SYSTEM_DEFAULT_TENANT) {
-        query = 'UPDATE tenants SET name = $1, plan = $2, status = $3, subscription_end = $4 WHERE id = $5 RETURNING *';
+        query = `
+          UPDATE tenants 
+          SET name = $1, plan = $2, status = $3, subscription_end = $4 
+          WHERE id = $5 RETURNING *`;
         params = [name || oldData.name, plan || oldData.plan, status || oldData.status, subscription_end || oldData.subscription_end, id];
     } else {
-        query = 'UPDATE tenants SET name = $1 WHERE id = $2 RETURNING *';
-        params = [name, id];
+        const { 
+          address, phone, tax_no, reg_no, logo_url, 
+          currency, tax_rate, invoice_prefix, invoice_footer, terms 
+        } = req.body;
+
+        query = `
+          UPDATE tenants 
+          SET name = $1, address = $2, phone = $3, tax_no = $4, reg_no = $5, logo_url = $6,
+              currency = $7, tax_rate = $8, invoice_prefix = $9, invoice_footer = $10, terms = $11
+          WHERE id = $12 RETURNING *`;
+        
+        params = [
+          name || oldData.name,
+          address !== undefined ? address : oldData.address,
+          phone !== undefined ? phone : oldData.phone,
+          tax_no !== undefined ? tax_no : oldData.tax_no,
+          reg_no !== undefined ? reg_no : oldData.reg_no,
+          logo_url !== undefined ? logo_url : oldData.logo_url,
+          currency !== undefined ? currency : oldData.currency,
+          tax_rate !== undefined ? tax_rate : oldData.tax_rate,
+          invoice_prefix !== undefined ? invoice_prefix : oldData.invoice_prefix,
+          invoice_footer !== undefined ? invoice_footer : oldData.invoice_footer,
+          terms !== undefined ? terms : oldData.terms,
+          id
+        ];
     }
 
     const result = await db.query(query, params);

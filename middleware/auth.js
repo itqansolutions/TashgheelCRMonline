@@ -11,6 +11,7 @@ module.exports = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token.replace('Bearer ', ''), process.env.JWT_SECRET);
     req.user = decoded.user;
+    req.tenantId = decoded.user.tenant_id; // 🔥 NEW: Direct Tenant Awareness
     
     // 🔥 EMERGENCY: Session Auto-Hydration
     // If user has an old token (lack tenant_id), fetch it from DB and attach it

@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { sendNotification } = require('../services/notificationService');
+const notificationService = require('../services/notificationService');
 const { logAction, logCreate, logUpdate, logDelete, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 
 // @desc    Get all deals
@@ -64,10 +64,39 @@ exports.createDeal = async (req, res) => {
       [title, value || 0, pipeline_stage || 'discovery', client_id, product_id, project_id, assigned_to || req.user.id, tenant_id]
     );
 
-    // Audit Logging
-    logCreate(req, 'Deal', result.rows[0].id, result.rows[0]);
+    const newDeal = result.rows[0];
 
-    res.status(201).json({ status: 'success', data: result.rows[0] });
+    // Audit Logging
+    logCreate(req, 'Deal', newDeal.id, newDeal);
+
+    // Phase 7 Workflow Engine: Auto-Assign if no explicit assignee was given
+    if (!assigned_to) {
+        const workflowEngine = require('../services/workflowEngine');
+        const branch_id = req.branchId || null;
+        workflowEngine.onDealCreated({
+            deal_id: newDeal.id,
+            deal_title: newDeal.title,
+            tenant_id,
+            branch_id
+        }).catch(e => console.error('[Workflow] onDealCreated error:', e.message));
+
+        // Phase 3: DB-driven rules for DEAL_CREATED
+        const { runRules } = require('../services/ruleEngine');
+        runRules('DEAL_CREATED', {
+            tenant_id,
+            branch_id,
+            deal_id: newDeal.id,
+            deal_title: newDeal.title,
+            pipeline_stage: newDeal.pipeline_stage,
+            value: newDeal.value,
+            _entity_type: 'deals',
+            _entity_id: newDeal.id,
+            _summary: `New deal "${newDeal.title}" created.`,
+            _link: '/deals'
+        }).catch(e => console.error('[RuleEngine] DEAL_CREATED error:', e.message));
+    }
+
+    res.status(201).json({ status: 'success', data: newDeal });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
@@ -139,14 +168,15 @@ exports.updateDealStatus = async (req, res) => {
 
       // Trigger Notification for Assignee
       if (assigned_to && assigned_to !== req.user.id) {
-          sendNotification({
-              userId: assigned_to,
-              tenantId: tenant_id,
-              type: pipeline_stage === 'won' ? 'success' : 'info',
+          notificationService.notify({
+              type: pipeline_stage === 'won' ? 'INVOICE_PAID' : 'SYSTEM_ALERT',
               title: 'Deal Stage Updated',
               message: `Deal "${title}" moved from ${oldStage} to ${pipeline_stage}`,
+              tenant_id,
+              branch_id: null,
+              user_id: assigned_to,
               link: '/deals'
-          });
+          }).catch(e => console.error('Deal notify error:', e));
       }
     }
 

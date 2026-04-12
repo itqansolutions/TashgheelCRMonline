@@ -90,9 +90,9 @@ const Deals = () => {
   const handleGenerateInvoice = async (dealId) => {
     if (window.confirm('Generate an invoice for this deal? This will mark the deal as Won.')) {
       try {
-        const res = await api.post(`/invoices/from-deal/${dealId}`);
+        await api.post(`/finance/invoices/from-deal/${dealId}`);
         toast.success('Invoice generated successfully');
-        navigate('/invoices');
+        navigate('/finance');
       } catch (err) {
         toast.error('Failed to generate invoice');
       }

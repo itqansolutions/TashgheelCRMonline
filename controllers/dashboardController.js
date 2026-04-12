@@ -1,94 +1,286 @@
 const db = require('../config/db');
 
-// @desc    Get Dashboard Statistics (KPIs)
-// @route   GET /api/dashboard/stats
-// @access  Private
-exports.getStats = async (req, res) => {
-  const userId = req.user.id;
-  const role = req.user.role;
-  const tenant_id = req.user.tenant_id;
+// In-Memory Cache for BI Dashboard (TTL: 5 Minutes)
+const dashboardCache = new Map();
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
-  try {
-    // 1. Total Customers (Lead/Client)
-    const customerQuery = role === 'admin' 
-        ? 'SELECT COUNT(*) FROM customers WHERE tenant_id = $1' 
-        : 'SELECT COUNT(*) FROM customers WHERE assigned_to = $1 AND tenant_id = $2';
-    const customerParams = role === 'admin' ? [tenant_id] : [userId, tenant_id];
-    const customerRes = await db.query(customerQuery, customerParams);
-
-    // 2. Total Deals (By Pipeline Stage)
-    const dealsQuery = role === 'admin'
-        ? 'SELECT pipeline_stage, COUNT(*) FROM deals WHERE tenant_id = $1 GROUP BY pipeline_stage'
-        : 'SELECT pipeline_stage, COUNT(*) FROM deals WHERE assigned_to = $1 AND tenant_id = $2 GROUP BY pipeline_stage';
-    const dealsParams = role === 'admin' ? [tenant_id] : [userId, tenant_id];
-    const dealsRes = await db.query(dealsQuery, dealsParams);
-
-    // 3. Pending Tasks
-    const taskQuery = role === 'admin'
-        ? "SELECT COUNT(*) FROM tasks WHERE status != 'completed' AND tenant_id = $1"
-        : "SELECT COUNT(*) FROM tasks WHERE assigned_to = $1 AND status != 'completed' AND tenant_id = $2";
-    const taskParams = role === 'admin' ? [tenant_id] : [userId, tenant_id];
-    const taskRes = await db.query(taskQuery, taskParams);
-
-    // 4. Financial Summary (Total Income - Cash Basis)
-    const incomeRes = await db.query('SELECT SUM(amount) as total FROM payments WHERE tenant_id = $1', [tenant_id]);
-    const expensesRes = await db.query('SELECT SUM(amount) as total FROM expenses WHERE tenant_id = $1', [tenant_id]);
-
-    // 5. Win Rate Calculation
-    const winRateRes = await db.query(`
-        SELECT 
-            COUNT(*) FILTER (WHERE pipeline_stage = 'won') as won,
-            COUNT(*) FILTER (WHERE pipeline_stage IN ('won', 'lost')) as total_closed
-        FROM deals 
-        WHERE tenant_id = $1`, [tenant_id]);
-    
-    const { won, total_closed } = winRateRes.rows[0];
-    const winRate = total_closed > 0 ? (parseInt(won) / parseInt(total_closed) * 100).toFixed(1) : 0;
-
-    // 6. Pipeline Value (Open Deals)
-    const pipelineValueRes = await db.query(`
-        SELECT SUM(value) as total_value 
-        FROM deals 
-        WHERE pipeline_stage NOT IN ('won', 'lost') AND tenant_id = $1`, [tenant_id]);
-
-    res.json({
-      status: 'success',
-      data: {
-        customers_count: parseInt(customerRes.rows[0].count),
-        pending_tasks: parseInt(taskRes.rows[0].count),
-        deals_pipeline: dealsRes.rows,
-        win_rate: winRate,
-        pipeline_value: parseFloat(pipelineValueRes.rows[0].total_value || 0),
-        finance: {
-            total_income: parseFloat(incomeRes.rows[0].total || 0),
-            total_expenses: parseFloat(expensesRes.rows[0].total || 0),
-            net_profit: parseFloat(incomeRes.rows[0].total || 0) - parseFloat(expensesRes.rows[0].total || 0)
-        }
-      }
-    });
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
-  }
+// Helper to generate a consistent cache key
+const generateCacheKey = (tenantId, branchId, viewMode, role) => {
+    return `dashboard:${tenantId}:${branchId || 'ALL'}:${viewMode}:${role}`;
 };
 
-// @desc    Get Deal Distribution per User (Admin only)
-// @route   GET /api/dashboard/team-performance
-// @access  Private (Admin)
-exports.getTeamPerformance = async (req, res) => {
+/**
+ * BI Intelligence Engine: Get Branch Summary (Revenue, Expenses, Profit, WinRate, Tasks)
+ * Handles both "Global Mode" and "Single Branch Mode" with Role restrictions.
+ */
+// @desc    Get Branch Summary Analytics
+// @route   GET /api/dashboard/branch-summary
+// @access  Private
+exports.getBranchSummary = async (req, res) => {
     const tenant_id = req.user.tenant_id;
+    const role = req.user.role;
+    
+    // View Mode parameters from Frontend Query
+    let { viewMode = 'SINGLE', targetBranchId = req.branchId, timeFilter = 'YTD' } = req.query;
+
+    // --- Role Protection Enforcement ---
+    if (role === 'employee') {
+        // Employees are strictly locked to their single context branch
+        viewMode = 'SINGLE';
+        targetBranchId = req.branchId; 
+    }
+
+    const cacheKey = generateCacheKey(`${tenant_id}:${timeFilter}`, targetBranchId, viewMode, role);
+    
+    // 1. Check Cache
+    const cachedData = dashboardCache.get(cacheKey);
+    if (cachedData && cachedData.expiresAt > Date.now()) {
+        console.log('[BI-CACHE HIT]', cacheKey);
+        return res.json({ status: 'success', data: cachedData.data, cached: true });
+    }
+
     try {
-        const result = await db.query(`
-            SELECT u.name, COUNT(d.id) as total_deals, SUM(d.value) as total_value
-            FROM users u
-            LEFT JOIN deals d ON u.id = d.assigned_to
-            WHERE u.tenant_id = $1
-            GROUP BY u.id, u.name
-            ORDER BY total_value DESC
-        `, [tenant_id]);
-        res.json({ status: 'success', data: result.rows });
+        console.log(`[BI-ENGINE] Running Aggregations | Mode: ${viewMode} | Target: ${targetBranchId} | Time: ${timeFilter}`);
+        
+        // Define filters based on time filter
+        const timeFilterLogic = (col) => {
+            if (timeFilter === 'THIS_MONTH') {
+                return `${col} >= date_trunc('month', CURRENT_DATE)`;
+            } else if (timeFilter === 'LAST_MONTH') {
+                return `${col} >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month') AND ${col} < date_trunc('month', CURRENT_DATE)`;
+            }
+            // YTD Default
+            return `${col} > NOW() - INTERVAL '1 year'`;
+        };
+
+        let queryParams = [tenant_id];
+        let branchFilter = '';
+        
+        if (viewMode === 'SINGLE') {
+            branchFilter = `AND branch_id = $2`;
+            queryParams.push(targetBranchId);
+        } // If ALL, no branch filter, aggregates everything for the tenant
+
+        // --- Execute Optimized Queries ---
+        
+        // 1. Revenue
+        const revRes = await db.query(`
+            SELECT COALESCE(SUM(amount), 0) as total 
+            FROM payments 
+            WHERE tenant_id = $1 ${branchFilter}
+            AND ${timeFilterLogic('payment_date')}
+        `, queryParams);
+        const revenue = parseFloat(revRes.rows[0].total);
+
+        // 2. Expenses
+        const expRes = await db.query(`
+            SELECT COALESCE(SUM(amount), 0) as total 
+            FROM expenses 
+            WHERE tenant_id = $1 ${branchFilter}
+            AND ${timeFilterLogic('expense_date')}
+        `, queryParams);
+        const expenses = parseFloat(expRes.rows[0].total);
+
+        // 3. Deals (Win Rate & Total Pipeline)
+        const dealsRes = await db.query(`
+            SELECT 
+                COUNT(*) FILTER (WHERE pipeline_stage = 'won') as won_count,
+                COUNT(*) as total_count
+            FROM deals 
+            WHERE tenant_id = $1 ${branchFilter}
+            AND ${timeFilterLogic('created_at')}
+        `, queryParams);
+        
+        const wonDeals = parseInt(dealsRes.rows[0].won_count);
+        const totalDeals = parseInt(dealsRes.rows[0].total_count);
+        const winRate = totalDeals > 0 ? ((wonDeals / totalDeals) * 100).toFixed(1) : 0;
+
+        // 4. Tasks (Completion Rate)
+        const tasksRes = await db.query(`
+            SELECT 
+                COUNT(*) FILTER (WHERE status = 'completed') as completed_count,
+                COUNT(*) as total_count
+            FROM tasks
+            WHERE tenant_id = $1 ${branchFilter}
+            AND ${timeFilterLogic('created_at')}
+        `, queryParams);
+        
+        const completedTasks = parseInt(tasksRes.rows[0].completed_count);
+        const totalTasks = parseInt(tasksRes.rows[0].total_count);
+        const taskCompletion = totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(1) : 0;
+
+        // --- BI Insight Engine (Previous Period calculation) ---
+        const prevTimeFilterLogic = (col) => {
+            if (timeFilter === 'THIS_MONTH') {
+                return `${col} >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month') AND ${col} < date_trunc('month', CURRENT_DATE)`;
+            } else if (timeFilter === 'LAST_MONTH') {
+                return `${col} >= date_trunc('month', CURRENT_DATE - INTERVAL '2 month') AND ${col} < date_trunc('month', CURRENT_DATE - INTERVAL '1 month')`;
+            }
+            // YTD Previous
+            return `${col} > NOW() - INTERVAL '2 year' AND ${col} <= NOW() - INTERVAL '1 year'`;
+        };
+
+        const prevRevRes = await db.query(`SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id = $1 ${branchFilter} AND ${prevTimeFilterLogic('payment_date')}`, queryParams);
+        const prevExpRes = await db.query(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE tenant_id = $1 ${branchFilter} AND ${prevTimeFilterLogic('expense_date')}`, queryParams);
+        
+        const prevRevenue = parseFloat(prevRevRes.rows[0].total);
+        const prevExpenses = parseFloat(prevExpRes.rows[0].total);
+        const prevProfit = prevRevenue - prevExpenses;
+
+        // -- Rule Processing
+        const insights = [];
+        
+        // Rule 1: Revenue increased > 15%
+        if (prevRevenue > 0) {
+            const revGrowth = ((revenue - prevRevenue) / prevRevenue) * 100;
+            if (revGrowth > 15) {
+                insights.push({ type: 'success', message: `Outstanding! Revenue increased by ${revGrowth.toFixed(1)}% compared to the previous period.` });
+            }
+        } else if (revenue > 0 && prevRevenue === 0) {
+             insights.push({ type: 'success', message: `Outstanding! Revenue jumped to ${revenue.toLocaleString()} EGP from 0 in the previous period.` });
+        }
+
+        // Rule 2: Expenses increased > 20%
+        if (prevExpenses > 0) {
+            const expGrowth = ((expenses - prevExpenses) / prevExpenses) * 100;
+            if (expGrowth > 20) {
+                insights.push({ type: 'warning', message: `Warning: Expenses surged by ${expGrowth.toFixed(1)}% compared to the previous period.` });
+            }
+        }
+
+        // Rule 3: Profit decreased
+        if (profit < prevProfit) {
+            insights.push({ type: 'critical', message: `Critical Alert: Net Profit is lower than the previous period (${profit.toLocaleString()} vs ${prevProfit.toLocaleString()} EGP). Action required.` });
+        }
+
+        const payload = {
+            revenue,
+            expenses,
+            profit,
+            profitMargin,
+            winRate,
+            wonDeals,
+            totalDeals,
+            taskCompletion,
+            completedTasks,
+            totalTasks,
+            viewMode,
+            insights,
+            branchContext: viewMode === 'SINGLE' ? targetBranchId : 'ALL'
+        };
+
+        // 5. Update Cache
+        dashboardCache.set(cacheKey, {
+            data: payload,
+            expiresAt: Date.now() + CACHE_TTL_MS
+        });
+
+        res.json({
+            status: 'success',
+            data: payload,
+            cached: false
+        });
+
     } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ status: 'error', message: 'Server error' });
+        console.error('CRITICAL BI ENGINE ERROR:', err.message);
+        res.status(500).json({ status: 'error', message: 'Intelligence aggregation failed.' });
+    }
+};
+
+// @desc    Get Branch Comparison & Leaderboard (BI Engine)
+// @route   GET /api/dashboard/branch-comparison
+// @access  Private (Admin/Manager)
+exports.getComparison = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    const { timeFilter = 'YTD' } = req.query;
+    
+    const cacheKey = `dashboard:comparison:${tenant_id}:${timeFilter}`;
+
+    // 1. Check Cache
+    const cachedData = dashboardCache.get(cacheKey);
+    if (cachedData && cachedData.expiresAt > Date.now()) {
+        console.log('[BI-CACHE HIT] Comparison');
+        return res.json({ status: 'success', data: cachedData.data, cached: true });
+    }
+
+    try {
+        console.log(`[BI-ENGINE] Running Branch Comparison/Leaderboard Query | Time: ${timeFilter}`);
+        
+        // Define filters based on time filter
+        const timeFilterLogic = (col) => {
+            if (timeFilter === 'THIS_MONTH') {
+                return `${col} >= date_trunc('month', CURRENT_DATE)`;
+            } else if (timeFilter === 'LAST_MONTH') {
+                return `${col} >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month') AND ${col} < date_trunc('month', CURRENT_DATE)`;
+            }
+            return `${col} > NOW() - INTERVAL '1 year'`;
+        };
+
+        // CTEs to calculate branch-level aggregations safely
+        const query = `
+            WITH branch_metrics AS (
+                SELECT 
+                    b.id as branch_id,
+                    b.name as branch_name,
+                    COALESCE((SELECT SUM(amount) FROM payments p WHERE p.branch_id = b.id AND p.tenant_id = b.tenant_id AND ${timeFilterLogic('p.payment_date')}), 0) as revenue,
+                    COALESCE((SELECT SUM(amount) FROM expenses e WHERE e.branch_id = b.id AND e.tenant_id = b.tenant_id AND ${timeFilterLogic('e.expense_date')}), 0) as expenses,
+                    
+                    COALESCE((SELECT COUNT(*) FROM deals d WHERE d.branch_id = b.id AND d.tenant_id = b.tenant_id AND d.pipeline_stage = 'won' AND ${timeFilterLogic('d.created_at')}), 0) as won_deals,
+                    COALESCE((SELECT COUNT(*) FROM deals d WHERE d.branch_id = b.id AND d.tenant_id = b.tenant_id AND ${timeFilterLogic('d.created_at')}), 0) as total_deals,
+                    
+                    COALESCE((SELECT COUNT(*) FROM tasks t WHERE t.branch_id = b.id AND t.tenant_id = b.tenant_id AND t.status = 'completed' AND ${timeFilterLogic('t.created_at')}), 0) as completed_tasks,
+                    COALESCE((SELECT COUNT(*) FROM tasks t WHERE t.branch_id = b.id AND t.tenant_id = b.tenant_id AND ${timeFilterLogic('t.created_at')}), 0) as total_tasks
+                FROM branches b
+                WHERE b.tenant_id = $1
+            )
+            SELECT 
+                branch_id,
+                branch_name,
+                revenue,
+                expenses,
+                (revenue - expenses) as profit,
+                CASE WHEN total_deals > 0 THEN (won_deals::float / total_deals::float * 100) ELSE 0 END as win_rate,
+                CASE WHEN total_tasks > 0 THEN (completed_tasks::float / total_tasks::float * 100) ELSE 0 END as task_completion
+            FROM branch_metrics
+        `;
+
+        const result = await db.query(query, [tenant_id]);
+
+        // 3. Process Smart Score in Memory
+        // Normalize profit so it can be combined reasonably with percentages (WinRate 0-100, Task 0-100)
+        let maxProfit = Math.max(...result.rows.map(r => parseFloat(r.profit)), 1);
+
+        const leaderboard = result.rows.map(row => {
+            const profit = parseFloat(row.profit);
+            const winRate = parseFloat(row.win_rate);
+            const taskCompletion = parseFloat(row.task_completion);
+            
+            // Profit ratio relative to highest performing branch
+            const normalizedProfit = maxProfit > 0 ? (profit / maxProfit) * 100 : 0;
+
+            // Score definition: (Profit * 0.6) + (WinRate * 0.2) + (TaskCompletion * 0.2)
+            const score = (normalizedProfit * 0.6) + (winRate * 0.2) + (taskCompletion * 0.2);
+
+            return {
+                ...row,
+                revenue: parseFloat(row.revenue),
+                expenses: parseFloat(row.expenses),
+                profit,
+                winRate: parseFloat(winRate.toFixed(1)),
+                taskCompletion: parseFloat(taskCompletion.toFixed(1)),
+                score: parseFloat(score.toFixed(2))
+            };
+        }).sort((a, b) => b.score - a.score); // Order by Score DESC
+
+        dashboardCache.set(cacheKey, {
+            data: leaderboard,
+            expiresAt: Date.now() + CACHE_TTL_MS
+        });
+
+        res.json({ status: 'success', data: leaderboard, cached: false });
+
+    } catch (err) {
+        console.error('CRITICAL BI ENGINE COMPARISON ERROR:', err.message);
+        res.status(500).json({ status: 'error', message: 'Intelligence Dashboard Comparison failed.' });
     }
 };

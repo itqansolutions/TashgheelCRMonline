@@ -17,9 +17,9 @@ exports.getCustomers = async (req, res) => {
       LEFT JOIN users u ON c.assigned_to = u.id
       LEFT JOIN users m ON c.manager_id = m.id
       LEFT JOIN lead_sources ls ON c.source_id = ls.id
-      WHERE c.tenant_id = $1
+      WHERE c.tenant_id = $1 AND c.branch_id = $2
       ORDER BY c.created_at DESC
-    `, [tenant_id]);
+    `, [tenant_id, req.branchId]);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error('CRITICAL: getCustomers failed:', err.message);
@@ -43,8 +43,8 @@ exports.getCustomerById = async (req, res) => {
       LEFT JOIN users u ON c.assigned_to = u.id
       LEFT JOIN users m ON c.manager_id = m.id
       LEFT JOIN lead_sources ls ON c.source_id = ls.id
-      WHERE c.id = $1 AND c.tenant_id = $2
-    `, [req.params.id, tenant_id]);
+      WHERE c.id = $1 AND c.tenant_id = $2 AND c.branch_id = $3
+    `, [req.params.id, tenant_id, req.branchId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized' });
@@ -63,9 +63,12 @@ exports.createCustomer = async (req, res) => {
   const { name, company_name, email, phone, address, source, source_id, assigned_to, manager_id, status } = req.body;
   const tenant_id = req.user.tenant_id;
   try {
+    // Triple Isolation: Inject branch_id
+    const branch_id = req.branchId;
+
     const result = await db.query(
-      'INSERT INTO customers (name, company_name, email, phone, address, source, source_id, assigned_to, manager_id, status, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
-      [name, company_name, email, phone, address, source, source_id, assigned_to || req.user.id, manager_id, status || 'lead', tenant_id]
+      'INSERT INTO customers (name, company_name, email, phone, address, source_id, assigned_to, manager_id, status, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
+      [name, company_name, email, phone, address, source_id, assigned_to || req.user.id, manager_id, status || 'lead', tenant_id, branch_id]
     );
 
     // NEW Audit Logging (Async)
@@ -84,18 +87,19 @@ exports.createCustomer = async (req, res) => {
 exports.updateCustomer = async (req, res) => {
   const { name, company_name, email, phone, address, source, source_id, assigned_to, manager_id, status } = req.body;
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId;
   try {
-    // 1. Get old data for diffing & security check
-    const oldResult = await db.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2', [req.params.id, tenant_id]);
+    // 1. Get old data for diffing & security check (Triple Isolation)
+    const oldResult = await db.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2 AND branch_id = $3', [req.params.id, tenant_id, branch_id]);
     if (oldResult.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized' });
+      return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized for this branch' });
     }
     const oldData = oldResult.rows[0];
 
     // 2. Perform update
     const result = await db.query(
-      'UPDATE customers SET name = $1, company_name = $2, email = $3, phone = $4, address = $5, source = $6, source_id = $7, assigned_to = $8, manager_id = $9, status = $10, updated_at = CURRENT_TIMESTAMP WHERE id = $11 AND tenant_id = $12 RETURNING *',
-      [name, company_name, email, phone, address, source, source_id, assigned_to, manager_id, status, req.params.id, tenant_id]
+      'UPDATE customers SET name = $1, company_name = $2, email = $3, phone = $4, address = $5, source_id = $6, assigned_to = $7, manager_id = $8, status = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 AND tenant_id = $11 AND branch_id = $12 RETURNING *',
+      [name, company_name, email, phone, address, source_id, assigned_to, manager_id, status, req.params.id, tenant_id, branch_id]
     );
 
     // NEW Audit Logging with automated Diff Calculation
@@ -113,10 +117,11 @@ exports.updateCustomer = async (req, res) => {
 // @access  Private
 exports.deleteCustomer = async (req, res) => {
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId;
   try {
-    const result = await db.query('DELETE FROM customers WHERE id = $1 AND tenant_id = $2 RETURNING *', [req.params.id, tenant_id]);
+    const result = await db.query('DELETE FROM customers WHERE id = $1 AND tenant_id = $2 AND branch_id = $3 RETURNING *', [req.params.id, tenant_id, branch_id]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized' });
+      return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized for this branch' });
     }
 
     // NEW Audit Logging

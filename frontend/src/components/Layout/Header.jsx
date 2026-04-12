@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Bell, Search, User, LogOut, ChevronDown, Menu, Moon, Sun, Clock, Check } from 'lucide-react';
+import { Bell, Search, User, LogOut, ChevronDown, Menu, Moon, Sun, Clock, Check, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
+import BranchSelector from './BranchSelector';
 
 const Header = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
@@ -57,10 +57,12 @@ const Header = ({ toggleSidebar }) => {
 
   const getNotifIcon = (type) => {
     switch(type) {
-      case 'success': return <Check size={16} color="#16a34a" />;
-      case 'warning': return <Clock size={16} color="#f59e0b" />;
-      case 'danger': return <AlertCircle size={16} color="#ef4444" />;
-      default: return <Clock size={16} color="var(--primary)" />;
+      case 'INVOICE_PAID': return <Check size={16} color="#16a34a" />;
+      case 'MOVEMENT_CREATED': return <Clock size={16} color="#3b82f6" />;
+      case 'EMPLOYEE_LATE': return <User size={16} color="#f59e0b" />;
+      case 'LOW_STOCK': return <AlertCircle size={16} color="#ef4444" />;
+      case 'SYSTEM_ALERT': return <AlertCircle size={16} color="#ef4444" />;
+      default: return <Bell size={16} color="var(--primary)" />;
     }
   };
 
@@ -143,6 +145,8 @@ const Header = ({ toggleSidebar }) => {
       </div>
 
       <div className="header-right">
+        <BranchSelector />
+        
         <button label="toggle control" className="icon-btn" onClick={toggleTheme} title="Toggle Dark/Light Mode">
           {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
         </button>
