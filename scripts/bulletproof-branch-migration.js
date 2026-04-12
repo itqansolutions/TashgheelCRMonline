@@ -62,12 +62,12 @@ const migrate = async () => {
             
             // Backfill: Match every existing row in the table to the tenant's Main Branch
             await db.query(`
-                UPDATE ${table} t
+                UPDATE ${table}
                 SET branch_id = b.id
                 FROM branches b
-                WHERE t.tenant_id = b.tenant_id 
+                WHERE ${table}.tenant_id = b.tenant_id 
                 AND b.is_main = true
-                AND t.branch_id IS NULL;
+                AND ${table}.branch_id IS NULL;
             `);
 
             // Step 4: Constraints & Indexing (Performance Boost)

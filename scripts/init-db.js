@@ -71,7 +71,7 @@ const initDb = async () => {
             const tablesToTenantize = [
                 'users', 'customers', 'deals', 'quotations', 'invoices', 
                 'tasks', 'attachments', 'products', 'lead_sources', 'system_logs',
-                'projects', 'expenses'
+                'projects', 'expenses', 'payments'
             ];
 
             for (const table of tablesToTenantize) {
