@@ -126,8 +126,8 @@ exports.register = async (req, res) => {
     });
     res.status(500).json({ 
       status: 'error', 
-      message: 'Server error during registration: ' + err.message,
-      detail: err.stack
+      message: 'Server error during registration',
+      detail: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
