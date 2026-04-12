@@ -45,7 +45,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     const checkPath = item.path;
-    return user.allowedPages && user.allowedPages.includes(checkPath);
+    const allowed = safeArray(user.allowedPages);
+    return allowed.includes(checkPath);
   });
 
   const SYSTEM_DEFAULT_TENANT = '00000000-0000-0000-0000-000000000000';

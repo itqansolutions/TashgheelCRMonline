@@ -12,6 +12,7 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 import { AlertTriangle, TrendingUp as SuccessIcon, XCircle } from 'lucide-react';
+import { safeArray } from '../utils/dataUtils';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -57,7 +58,7 @@ const Dashboard = () => {
 
       if (mode === 'ALL') {
         const compRes = await api.get(`/dashboard/branch-comparison?timeFilter=${time}`);
-        setComparisonData(compRes.data.data);
+        setComparisonData(safeArray(compRes.data.data));
       } else {
         setComparisonData([]);
       }
@@ -194,9 +195,9 @@ const Dashboard = () => {
       ) : (
         <>
             {/* INSIGHT ENGINE MODULE */}
-            {stats?.insights?.length > 0 && (
+            {safeArray(stats?.insights).length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
-                    {stats.insights.map((insight, idx) => (
+                    {safeArray(stats.insights).map((insight, idx) => (
                         <div key={idx} className={`insight-box insight-${insight.type}`}>
                             {insight.type === 'success' && <SuccessIcon size={18} />}
                             {insight.type === 'warning' && <AlertTriangle size={18} />}
@@ -258,21 +259,21 @@ const Dashboard = () => {
               <div className="charts-row" style={{ marginTop: '24px' }}>
                   <div className="chart-card" style={{ display: 'block', padding: '24px' }}>
                       <h3 style={{ margin: '0 0 24px 0', color: 'var(--text-main)' }}>Cross-Branch Financial Setup</h3>
-                      {comparisonData?.length > 0 ? (
+                      {safeArray(comparisonData).length > 0 ? (
                         <div style={{ height: '300px' }}>
                             <Bar 
                                 data={{
-                                labels: comparisonData.map(d => d.branch_name),
+                                labels: safeArray(comparisonData).map(d => d.branch_name),
                                 datasets: [
                                     {
                                     label: 'Revenue',
-                                    data: comparisonData.map(d => d.revenue),
+                                    data: safeArray(comparisonData).map(d => d.revenue),
                                     backgroundColor: 'rgba(79, 70, 229, 0.8)',
                                     borderRadius: 4
                                     },
                                     {
                                     label: 'Expenses',
-                                    data: comparisonData.map(d => d.expenses),
+                                    data: safeArray(comparisonData).map(d => d.expenses),
                                     backgroundColor: 'rgba(245, 158, 11, 0.8)',
                                     borderRadius: 4
                                     }
@@ -308,8 +309,8 @@ const Dashboard = () => {
                           .lb-score { font-size: 16px; font-weight: 800; color: var(--primary); }
                       `}</style>
                       <h3>Smart Leaderboard</h3>
-                      {comparisonData?.length > 0 ? comparisonData.map((branch, idx) => (
-                          <div className="lb-item" key={branch.branch_id}>
+                      {safeArray(comparisonData).length > 0 ? safeArray(comparisonData).map((branch, idx) => (
+                          <div className="lb-item" key={branch.branch_id || idx}>
                               <div className={`lb-rank ${idx === 0 ? 'gold' : idx === 1 ? 'silver' : idx === 2 ? 'bronze' : ''}`}>
                                   {idx + 1}
                               </div>

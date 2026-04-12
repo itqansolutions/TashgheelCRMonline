@@ -276,7 +276,7 @@ const Pricing = () => {
                 <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>{t.loading}</div>
             ) : (
                 <div className="plans-grid">
-                    {plans.map(plan => {
+                    {safeArray(plans).map(plan => {
                         const meta = PLAN_FEATURES[plan.name] || PLAN_FEATURES.basic;
                         const isCurrent = currentPlan === plan.name;
                         const isHighlight = meta.highlight;
