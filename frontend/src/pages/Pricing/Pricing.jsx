@@ -321,7 +321,7 @@ const Pricing = () => {
                                     <button
                                         className="plan-cta primary"
                                         style={{ background: meta.gradient }}
-                                        onClick={() => handleUpgrade(planName)}
+                                        onClick={() => handleUpgrade(plan.name)}
                                         disabled={upgrading === planName}
                                     >
                                         {upgrading === planName

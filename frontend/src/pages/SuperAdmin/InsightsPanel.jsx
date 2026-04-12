@@ -40,9 +40,8 @@ const InsightsPanel = () => {
         </div>
     );
 
-    if (!insights) return null;
-
-    const { metrics, alerts, topPlans } = insights;
+    if (!insights || !insights.metrics) return null;
+    const { metrics = {}, alerts = [], topPlans = [] } = insights;
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-1000">
@@ -155,11 +154,11 @@ const InsightsPanel = () => {
             {/* Unit Economics & Momentum Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <MetricBlock 
-                    title="Estimated MRR" 
-                    value={`$${metrics.mrr.toLocaleString()}`}
-                    subtitle="Monthly Recurring Revenue"
-                    icon={<CreditCard size={20} className="text-emerald-400" />}
-                    trend="+12%"
+                    title="Platform Health" 
+                    value={`${((metrics.activeTenants || 0) / (metrics.totalTenants || 1) * 100).toFixed(0)}%`}
+                    subtitle="Uptime & Usage"
+                    icon={<CheckCircle size={20} className="text-emerald-500" />}
+                    trend="up"
                 />
                 <MetricBlock 
                     title="Conversion" 
@@ -198,16 +197,16 @@ const InsightsPanel = () => {
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
-                    {topPlans?.map(p => (
-                        <div key={p.plan}>
+                    {topPlans?.map(plan => (
+                        <div key={plan.plan}>
                             <div className="flex items-end justify-between mb-2">
-                                <span className="text-xs font-black text-white uppercase">{p.plan}</span>
-                                <span className="text-xs font-bold text-slate-500">{p.count} Workspaces</span>
+                                <span className="text-xs font-black text-white uppercase">{plan.plan}</span>
+                                <span className="text-xs font-bold text-slate-500">{plan.count} Workspaces</span>
                             </div>
-                            <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div className="mt-2 h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                                 <div 
-                                    className={`h-full transition-all duration-1000 ${p.plan === 'enterprise' ? 'bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.5)]' : p.plan === 'pro' ? 'bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'bg-slate-500'}`}
-                                    style={{ width: `${(p.count / metrics.totalTenants * 100)}%` }}
+                                    className={`h-full ${plan.plan === 'enterprise' ? 'bg-indigo-500' : plan.plan === 'pro' ? 'bg-amber-500' : 'bg-slate-500'}`}
+                                    style={{ width: `${(plan.count / (metrics.totalTenants || 1) * 100)}%` }}
                                 ></div>
                             </div>
                         </div>
