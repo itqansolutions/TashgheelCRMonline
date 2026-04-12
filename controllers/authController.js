@@ -61,7 +61,11 @@ exports.register = async (req, res) => {
     // Seed Lead Sources
     const leadSources = ['Facebook', 'Google', 'Referral', 'Direct'];
     for (const src of leadSources) {
-      await db.query('INSERT INTO lead_sources (name, tenant_id) VALUES ($1, $2)', [src, tenantId]);
+      await db.query(`
+        INSERT INTO lead_sources (name, tenant_id) 
+        VALUES ($1, $2) 
+        ON CONFLICT (name, tenant_id) DO NOTHING
+      `, [src, tenantId]);
     }
 
     // 🔥 Seed First Branch (The "Main Branch")
@@ -115,8 +119,16 @@ exports.register = async (req, res) => {
       subscription: { status: 'trial', plan: planName, modules, trial_ends_at: trialEnd }
     });
   } catch (err) {
-    console.error('SaaS Registration Error:', err.message);
-    res.status(500).json({ status: 'error', message: 'Server error during registration' });
+    console.error('🔥 SaaS Registration Error Details:', {
+      message: err.message,
+      stack: err.stack,
+      body: { ...req.body, password: '***' }
+    });
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Server error during registration',
+      detail: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 
@@ -162,6 +174,48 @@ exports.login = async (req, res) => {
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+/**
+ * ⚡ Lightning-Fast Demo Login
+ * Bypasses password for the official static demo account.
+ * frictionless = zero
+ */
+exports.demoLogin = async (req, res) => {
+  const DEMO_EMAIL = 'demo@tashgheel.com';
+
+  try {
+    const userResult = await db.query('SELECT * FROM users WHERE email = $1', [DEMO_EMAIL]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ 
+        status: 'error', 
+        message: 'Demo account not found. Please run the seeding script.' 
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    // Generate JWT
+    const payload = { user: { id: user.id, role: user.role, tenant_id: user.tenant_id } };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '2h' }); // Short-lived demo token
+
+    res.json({ 
+      status: 'success', 
+      token, 
+      user: { 
+        id: user.id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role,
+        tenant_id: user.tenant_id,
+        isDemo: true // Indicator for UI
+      } 
+    });
+  } catch (err) {
+    console.error('Demo Login Error:', err.message);
+    res.status(500).json({ status: 'error', message: 'Failed to initiate demo' });
   }
 };
 

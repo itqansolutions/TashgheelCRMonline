@@ -14,6 +14,11 @@ router.post('/register', authController.register);
 // @access  Public
 router.post('/login', loginRateLimiter, authController.login);
 
+// @route   POST api/auth/demo-login
+// @desc    Login as demo user
+// @access  Public
+router.post('/demo-login', authController.demoLogin);
+
 // @route   POST api/auth/forgot-password
 // @desc    Request password reset link
 // @access  Public

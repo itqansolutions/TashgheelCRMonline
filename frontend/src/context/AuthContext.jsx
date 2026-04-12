@@ -52,6 +52,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('token', token);
     setUser({
       ...userData,
+      isDemo: userData.isDemo || false,
       allowedPages: userData.allowedPages || []
     });
 

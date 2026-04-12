@@ -43,7 +43,8 @@ import CorporateLayout from './pages/Corporate/CorporateLayout';
 import CorporateHome from './pages/Corporate/Home';
 import ProductRetail from './pages/Corporate/ProductRetail';
 import ProductRestaurant from './pages/Corporate/ProductRestaurant';
-import ProductServices from './pages/Corporate/ProductServices';
+import BusinessServices from './pages/Corporate/ProductServices';
+import DemoAccess from './pages/Corporate/DemoAccess';
 
 // Placeholder components for other modules
 const Placeholder = ({ name }) => (
@@ -73,12 +74,12 @@ function App() {
                 <Route index element={<CorporateHome />} />
                 <Route path="retail" element={<ProductRetail />} />
                 <Route path="restaurants" element={<ProductRestaurant />} />
-                <Route path="services" element={<ProductServices />} />
+                <Route path="services" element={<BusinessServices />} />
                 <Route path="solutions" element={<Placeholder name="Solutions" />} />
                 <Route path="about" element={<Placeholder name="About Us" />} />
                 <Route path="portfolio" element={<Placeholder name="Portfolio" />} />
                 <Route path="contact" element={<Placeholder name="Contact" />} />
-                <Route path="demo" element={<Placeholder name="Demo Access" />} />
+                <Route path="demo" element={<DemoAccess />} />
               </Route>
 
               {/* Protected Dashboard Routes */}

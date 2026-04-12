@@ -145,6 +145,24 @@ const Header = ({ toggleSidebar }) => {
       </div>
 
       <div className="header-right">
+        {user?.isDemo && (
+          <div style={{ 
+            background: 'var(--warning-light)', 
+            color: 'var(--warning-dark)', 
+            padding: '8px 16px', 
+            borderRadius: '100px', 
+            fontSize: '13px', 
+            fontWeight: '800',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            border: '1px solid var(--warning)',
+            boxShadow: '0 4px 6px rgba(245, 158, 11, 0.1)'
+          }}>
+            <AlertCircle size={16} />
+            {localStorage.getItem('lang') === 'ar' ? 'وضع التجربة (Demo Mode)' : 'Demo Mode Active'}
+          </div>
+        )}
         <BranchSelector />
         
         <button label="toggle control" className="icon-btn" onClick={toggleTheme} title="Toggle Dark/Light Mode">
