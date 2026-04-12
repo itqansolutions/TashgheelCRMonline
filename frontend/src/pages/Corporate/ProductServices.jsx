@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { Briefcase, Calendar, MessageSquare, Star, CheckCircle2, ArrowRight, HeartHandshake } from 'lucide-react';
 import { Link } from 'react-router-dom';
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { Utensils, Zap, Clock, Users, CheckCircle2, ArrowRight, Monitor } from 'lucide-react';
 import { Link } from 'react-router-dom';
 

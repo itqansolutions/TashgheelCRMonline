@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { useLanguage } from '../../context/LanguageContext';
-import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
+import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, ShoppingCart, Utensils, Briefcase, Zap, ShieldCheck, BarChart3 } from 'lucide-react';
 import { Link } from 'react-router-dom';
