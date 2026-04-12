@@ -69,11 +69,8 @@ const plansController = require('./controllers/plansController');
 const adminPlanRoutes = require('./routes/adminPlanRoutes');
 const billingRoutes = require('./routes/billingRoutes');
 
-// Serve Static Assets in Production
+// API Routes — must be registered BEFORE static file serving
 const frontendPath = path.join(__dirname, 'frontend', 'dist');
-app.use(express.static(frontendPath));
-
-// API Routes
 app.use('/api/auth', authRoutes);
 
 // Public SaaS endpoints (no auth required)
@@ -117,6 +114,9 @@ app.use('/api/lead-sources', leadSourceRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
+
+// Serve Static Assets AFTER all API routes
+app.use(express.static(frontendPath));
 
 // Catch-all route for React SPA
 app.get(/.*/, (req, res) => {
