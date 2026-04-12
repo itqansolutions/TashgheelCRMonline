@@ -41,6 +41,7 @@ const migrate = async () => {
                 branch_id UUID REFERENCES branches(id) ON DELETE CASCADE,
                 
                 check_in TIMESTAMP WITH TIME ZONE,
+                attendance_date DATE, -- Dedicated column for immutable indexing
                 check_out TIMESTAMP WITH TIME ZONE,
                 
                 work_hours DECIMAL(5, 2),
@@ -64,11 +65,10 @@ const migrate = async () => {
         await db.query(`CREATE INDEX IF NOT EXISTS idx_hr_profiles_isolation ON hr_profiles (tenant_id, branch_id);`);
         
         // Protect against duplicate day entries (The user_id MUST only have one check-in base per day)
-        // Note: We use TIME ZONE cast for isolated safety across timezones, but DATE() handles defaults.
         await db.query(`
             CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_daily_attendance 
-            ON hr_attendance (user_id, DATE(check_in)) 
-            WHERE check_in IS NOT NULL;
+            ON hr_attendance (user_id, attendance_date) 
+            WHERE attendance_date IS NOT NULL;
         `);
 
         await db.query('COMMIT');
