@@ -64,7 +64,7 @@ exports.register = async (req, res) => {
       await db.query(`
         INSERT INTO lead_sources (name, tenant_id) 
         VALUES ($1, $2) 
-        ON CONFLICT (name, tenant_id) DO NOTHING
+        ON CONFLICT DO NOTHING
       `, [src, tenantId]);
     }
 
@@ -126,8 +126,8 @@ exports.register = async (req, res) => {
     });
     res.status(500).json({ 
       status: 'error', 
-      message: 'Server error during registration',
-      detail: process.env.NODE_ENV === 'development' ? err.message : undefined
+      message: 'Server error during registration: ' + err.message,
+      detail: err.stack
     });
   }
 };
