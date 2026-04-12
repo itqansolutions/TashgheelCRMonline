@@ -2,6 +2,7 @@ import React from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import api from '@/services/api';
 import { Rocket, ShoppingCart, Utensils, LayoutGrid, ArrowRight, Zap, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 const DemoAccess = () => {
@@ -13,19 +14,18 @@ const DemoAccess = () => {
     const handleDemoLogin = async () => {
         setLoading(true);
         try {
-            // We use the new demo-login endpoint
-            const res = await fetch('/api/auth/demo-login', { method: 'POST' });
-            const data = await res.json();
+            const res = await api.post('/auth/demo-login');
             
-            if (data.status === 'success') {
-                localStorage.setItem('token', data.token);
-                // Trigger page reload or context update
-                window.location.href = '/dashboard';
+            if (res.data.status === 'success') {
+                localStorage.setItem('token', res.data.token);
+                localStorage.setItem('user', JSON.stringify(res.data.user)); // Also save user context
+                navigate('/dashboard');
             } else {
                 alert(lang === 'en' ? 'Demo account is being refreshed. Try again in 1 minute.' : 'جاري تحديث حساب الديمو، يرجى المحاولة بعد دقيقة.');
             }
         } catch (err) {
             console.error('Demo Login Error:', err);
+            alert(lang === 'en' ? 'Transient network error. Please try again.' : 'خطأ مؤقت في الاتصال، يرجى المحاولة مرة أخرى.');
         } finally {
             setLoading(false);
         }

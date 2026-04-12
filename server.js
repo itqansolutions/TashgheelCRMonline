@@ -13,7 +13,10 @@ const PORT = process.env.PORT || 5000;
 app.use(helmet({
   contentSecurityPolicy: false, // Disabling CSP for smoother Railway deployment
 }));
-app.use(cors());
+app.use(cors({
+  origin: '*', // Adjust to specific domain for extra security later
+  credentials: true
+}));
 app.use(morgan('dev'));
 app.use(express.json());
 
@@ -24,6 +27,11 @@ if (!fs.existsSync(uploadsDir)) {
   console.log('✅ Created placeholder uploads directory');
 }
 app.use('/uploads', express.static(uploadsDir));
+
+// Health check for Railway monitoring
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -111,17 +119,22 @@ app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
 
 // Catch-all route for React SPA
-app.get('*all', (req, res) => {
-  if (req.path.startsWith('/api')) return res.status(404).json({ message: 'API Route not found' });
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ status: 'error', message: 'API Route not found' });
+  }
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 const db = require('./config/db');
 
-// Error handling middleware
+// Error handling middleware (Production grade)
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ status: 'error', message: err.message });
+  console.error('🔥 [Internal Server Error]:', err.stack);
+  res.status(err.status || 500).json({ 
+    status: 'error', 
+    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
+  });
 });
 
 // ---------------------------------------------------------
