@@ -49,7 +49,6 @@ const branchRoutes = require('./routes/branchRoutes');
 const financeRoutes = require('./routes/financeRoutes');
 const hrRoutes = require('./routes/hrRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
 const workflowRoutes = require('./routes/workflowRoutes');
 const rulesRoutes = require('./routes/rulesRoutes');
 
