@@ -55,9 +55,8 @@ const migrate = async () => {
 
         // Step 3: Progressive Migration (Columns + Backfill)
         for (const table of operationalTables) {
-            console.log(`🔨 Hardening scope for table: ${table}...`);
-            
-            // Add column (nullable initially)
+            // ENSURE columns exist (Safety first)
+            await db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) DEFAULT '00000000-0000-0000-0000-000000000000';`);
             await db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;`);
             
             // Backfill: Match every existing row in the table to the tenant's Main Branch

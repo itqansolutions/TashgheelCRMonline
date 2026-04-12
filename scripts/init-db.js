@@ -76,9 +76,9 @@ const initDb = async () => {
 
             for (const table of tablesToTenantize) {
                 // Add column if it doesn't exist
-                await db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) DEFAULT $1`, [defaultTenant]);
-                // Ensure all existing rows have the default tenant assigned
-                await db.query(`UPDATE ${table} SET tenant_id = $1 WHERE tenant_id IS NULL`, [defaultTenant]);
+                await db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) DEFAULT '00000000-0000-0000-0000-000000000000'`);
+                // Ensure all existing rows have the default tenant assigned (covers case where column existed but was NULL)
+                await db.query(`UPDATE ${table} SET tenant_id = '00000000-0000-0000-0000-000000000000' WHERE tenant_id IS NULL`);
                 // Create Index safely
                 await db.query(`CREATE INDEX IF NOT EXISTS idx_${table}_tenant ON ${table}(tenant_id)`);
                 console.log(`✅ Table isolation & indexing enabled: ${table}`);
@@ -166,7 +166,8 @@ const initDb = async () => {
             console.log('✅ Migration: all legacy migrations and SaaS foundation ensured');
 
         } catch (migErr) {
-            console.warn('⚠️ Migration Warning:', migErr.message);
+            console.error('💣 Migration Error in SaaS Foundation:', migErr.stack);
+            throw migErr; // Fail the whole init process if SaaS core is broken
         }
 
         process.exit(0);
