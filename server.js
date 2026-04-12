@@ -82,8 +82,19 @@ app.get('/api/me/subscription', authMiddleware, subscriptionGuard, plansControll
 // Admin Pricing Engine (Super Admin only — bypasses subscription guard)
 app.use('/api/admin', adminPlanRoutes);
 
-// Global Subscription Guard (all protected routes below this point)
-app.use(authMiddleware, subscriptionGuard);
+// Serve Static Assets (PUBLIC — must be before auth guard)
+app.use(express.static(frontendPath));
+
+// SPA Catch-all (PUBLIC — serves index.html for all non-API routes)
+app.get(/.*/, (req, res) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ status: 'error', message: 'API Route not found' });
+  }
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
+// Global Subscription Guard (applies only to /api routes below)
+app.use('/api', authMiddleware, subscriptionGuard);
 
 app.use('/api/customers', customerRoutes);
 app.use('/api/billing', billingRoutes);
@@ -115,16 +126,6 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
 
-// Serve Static Assets AFTER all API routes
-app.use(express.static(frontendPath));
-
-// Catch-all route for React SPA
-app.get(/.*/, (req, res) => {
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ status: 'error', message: 'API Route not found' });
-  }
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
 
 const db = require('./config/db');
 
