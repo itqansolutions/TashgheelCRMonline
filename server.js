@@ -119,7 +119,7 @@ app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
 
 // Catch-all route for React SPA
-app.get('*', (req, res) => {
+app.get(/.*/, (req, res) => {
   if (req.path.startsWith('/api')) {
     return res.status(404).json({ status: 'error', message: 'API Route not found' });
   }
