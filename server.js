@@ -85,11 +85,8 @@ app.use('/api/admin', adminPlanRoutes);
 // Serve Static Assets (PUBLIC — must be before auth guard)
 app.use(express.static(frontendPath));
 
-// SPA Catch-all (PUBLIC — serves index.html for all non-API routes)
+// SPA Catch-all (PUBLIC — serves index.html for all frontend routes)
 app.get(/.*/, (req, res) => {
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ status: 'error', message: 'API Route not found' });
-  }
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
@@ -174,6 +171,57 @@ const promoteOnStartup = async () => {
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
-  // Execute SaaS Auto-Activation
   await promoteOnStartup();
+  await seedDemoAccount();
 });
+
+// ---------------------------------------------------------
+// Auto-Seed Demo Account on Startup (Idempotent)
+// ---------------------------------------------------------
+const seedDemoAccount = async () => {
+  try {
+    const bcrypt = require('bcrypt');
+
+    // 1. Ensure Demo Tenant exists
+    await db.query(`
+      INSERT INTO tenants (name, slug, plan, status)
+      VALUES ('Itqan Demo Corp', 'demo-corp', 'enterprise', 'active')
+      ON CONFLICT (slug) DO NOTHING
+    `);
+    const tResult = await db.query(`SELECT id FROM tenants WHERE slug = 'demo-corp'`);
+    const tenantId = tResult.rows[0].id;
+
+    // 2. Ensure Demo User exists
+    const existing = await db.query(`SELECT id FROM users WHERE email = 'demo@tashgheel.com'`);
+    if (existing.rows.length === 0) {
+      const passwordHash = await bcrypt.hash('Demo@1234', 10);
+      await db.query(`
+        INSERT INTO users (name, email, password_hash, role, tenant_id)
+        VALUES ('Demo Manager', 'demo@tashgheel.com', $1, 'admin', $2)
+        ON CONFLICT (email) DO NOTHING
+      `, [passwordHash, tenantId]);
+
+      // 3. Ensure Main Branch exists for demo tenant
+      const bResult = await db.query(`
+        INSERT INTO branches (name, address, tenant_id)
+        VALUES ('Cairo HQ', 'New Cairo, Egypt', $1)
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      `, [tenantId]);
+
+      if (bResult.rows.length > 0) {
+        const branchId = bResult.rows[0].id;
+        const uResult = await db.query(`SELECT id FROM users WHERE email = 'demo@tashgheel.com'`);
+        const userId = uResult.rows[0].id;
+        await db.query(`INSERT INTO user_branches (user_id, branch_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [userId, branchId]);
+        await db.query(`UPDATE users SET branch_id = $1 WHERE id = $2`, [branchId, userId]);
+      }
+
+      console.log('✅ [Demo] Demo account seeded: demo@tashgheel.com');
+    } else {
+      console.log('✅ [Demo] Demo account already exists.');
+    }
+  } catch (err) {
+    console.error('⚠️ [Demo] Auto-seed warning (non-fatal):', err.message);
+  }
+};
