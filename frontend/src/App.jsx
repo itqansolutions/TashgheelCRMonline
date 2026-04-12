@@ -1,8 +1,9 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { BranchProvider } from './context/BranchContext';
 import { DataProvider } from './context/DataContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { Toaster } from 'react-hot-toast';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout/Layout';
@@ -37,6 +38,13 @@ import AdminPlans from './pages/Admin/AdminPlans';
 import AdminUpgradeRequests from './pages/Admin/AdminUpgradeRequests';
 import Billing from './pages/Billing/Billing';
 
+// Corporate Pages
+import CorporateLayout from './pages/Corporate/CorporateLayout';
+import CorporateHome from './pages/Corporate/Home';
+import ProductRetail from './pages/Corporate/ProductRetail';
+import ProductRestaurant from './pages/Corporate/ProductRestaurant';
+import ProductServices from './pages/Corporate/ProductServices';
+
 // Placeholder components for other modules
 const Placeholder = ({ name }) => (
   <div style={{ padding: '24px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid var(--border)' }}>
@@ -59,6 +67,19 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/pricing" element={<Pricing />} />
+
+              {/* Corporate "Sales Machine" Layer */}
+              <Route path="/" element={<CorporateLayout />}>
+                <Route index element={<CorporateHome />} />
+                <Route path="retail" element={<ProductRetail />} />
+                <Route path="restaurants" element={<ProductRestaurant />} />
+                <Route path="services" element={<ProductServices />} />
+                <Route path="solutions" element={<Placeholder name="Solutions" />} />
+                <Route path="about" element={<Placeholder name="About Us" />} />
+                <Route path="portfolio" element={<Placeholder name="Portfolio" />} />
+                <Route path="contact" element={<Placeholder name="Contact" />} />
+                <Route path="demo" element={<Placeholder name="Demo Access" />} />
+              </Route>
 
               {/* Protected Dashboard Routes */}
               <Route 
@@ -200,4 +221,10 @@ function App() {
   );
 }
 
-export default App;
+const AppWrapper = () => (
+  <LanguageProvider>
+    <App />
+  </LanguageProvider>
+);
+
+export default AppWrapper;

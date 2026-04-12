@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Check, X, Zap, ArrowRight, Shield, Clock, Star } from 'lucide-react';
 import api from '../../services/api';
 import { useModule } from '../../hooks/useModule';
+import { useLanguage } from '../../context/LanguageContext';
 import toast from 'react-hot-toast';
 
 const PLAN_FEATURES = {
@@ -63,11 +64,105 @@ const PLAN_FEATURES = {
 };
 
 const Pricing = () => {
+    const { lang } = useLanguage();
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [upgrading, setUpgrading] = useState(null);
     const { planName: currentPlan, trialDaysLeft, status } = useModule();
     const navigate = useNavigate();
+
+    const t = {
+        en: {
+            headline: "Simple, Transparent Pricing",
+            sub: "Choose the plan that fits your business. Upgrade or downgrade anytime.",
+            trialLeft: (days) => `⏳ ${days} day${days !== 1 ? 's' : ''} left in your free trial — Upgrade anytime`,
+            trialExpired: '⚠️ Your trial has expired. Upgrade to restore access.',
+            billedMonthly: "per month · billed monthly",
+            currentPlan: "Current Plan",
+            startPlan: "Start with this Plan",
+            upgradeTo: (name) => `Upgrade to ${name}`,
+            upgrading: "Upgrading...",
+            trust: [
+                "No credit card required",
+                "14-day free trial",
+                "Cancel anytime",
+                "All plans include free onboarding"
+            ],
+            loading: "Loading plans...",
+            features: {
+                users: (n) => `Up to ${n} users`,
+                unlimitedUsers: "Unlimited users",
+                branches: (n) => `${n} ${n === 1 ? 'branch' : 'branches'}`,
+                unlimitedBranches: "Unlimited branches",
+                crm: "CRM & Lead Management",
+                finance: "Finance & Invoicing",
+                tasks: "Tasks & Projects",
+                hr: "HR & Attendance",
+                inventory: "Inventory Management",
+                automation: "Workflow Automation",
+                multibranch: "Multi-branch Support",
+                reports: "Advanced Reports",
+                support: "Dedicated Support"
+            }
+        },
+        ar: {
+            headline: "أسعار بسيطة وشفافة",
+            sub: "اختر الخطة التي تناسب عملك. يمكنك الترقية أو التخفيض في أي وقت.",
+            trialLeft: (days) => `⏳ متبقى ${days} ${days > 10 ? 'يوم' : 'أيام'} في فترتك التجريبية — رقّي حسابك في أي وقت`,
+            trialExpired: '⚠️ انتهت فترتك التجريبية. قم بالترقية لاستعادة الوصول.',
+            billedMonthly: "شهرياً · يتم الدفع شهرياً",
+            currentPlan: "خطتك الحالية",
+            startPlan: "ابدأ بهذه الخطة",
+            upgradeTo: (name) => `الترقية إلى ${name}`,
+            upgrading: "جاري الترقية...",
+            trust: [
+                "لا يتطلب بطاقة ائتمان",
+                "تجربة مجانية لمدة 14 يوماً",
+                "إلغاء في أي وقت",
+                "جميع الخطط تشمل تدريباً مجانياً"
+            ],
+            loading: "جاري تحميل الخطط...",
+            features: {
+                users: (n) => `حتى ${n} مستخدم`,
+                unlimitedUsers: "مستخدمين غير محدودين",
+                branches: (n) => `${n} ${n === 1 ? 'فرع' : 'فروع'}`,
+                unlimitedBranches: "فروع غير محدودة",
+                crm: "إدارة العملاء والفرص",
+                finance: "المالية والفواتير",
+                tasks: "المهام والمشاريع",
+                hr: "الموارد البشرية والحضور",
+                inventory: "إدارة المخزون",
+                automation: "أتمتة سير العمل",
+                multibranch: "دعم الفروع المتعددة",
+                reports: "تقارير متقدمة",
+                support: "دعم فني مخصص"
+            }
+        }
+    }[lang];
+
+    // Map dynamic labels to translations
+    const translateFeature = (label) => {
+        if (label.includes('user')) {
+            const n = label.match(/\d+/);
+            return n ? t.features.users(n[0]) : t.features.unlimitedUsers;
+        }
+        if (label.includes('branch')) {
+            const n = label.match(/\d+/);
+            return n ? t.features.branches(n[0]) : t.features.unlimitedBranches;
+        }
+        const mapping = {
+            'CRM & Lead Management': t.features.crm,
+            'Finance & Invoicing': t.features.finance,
+            'Tasks & Projects': t.features.tasks,
+            'HR & Attendance': t.features.hr,
+            'Inventory Management': t.features.inventory,
+            'Workflow Automation': t.features.automation,
+            'Multi-branch Support': t.features.multibranch,
+            'Advanced Reports': t.features.reports,
+            'Dedicated Support': t.features.support
+        };
+        return mapping[label] || label;
+    };
 
     useEffect(() => {
         api.get('/plans').then(res => {
@@ -161,17 +256,16 @@ const Pricing = () => {
                 .trust-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-muted); font-weight: 600; }
             `}</style>
 
-            {/* Hero */}
             <div className="pricing-hero">
-                <h1>Simple, Transparent Pricing</h1>
-                <p>Choose the plan that fits your business. Upgrade or downgrade anytime.</p>
+                <h1>{t.headline}</h1>
+                <p>{t.sub}</p>
 
                 {trialDaysLeft !== null && (
                     <div className="trial-notice" style={{ background: `${urgencyColor}18`, color: urgencyColor, border: `1px solid ${urgencyColor}40` }}>
                         <Clock size={16}/>
                         {trialDaysLeft > 0
-                            ? `⏳ ${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} left in your free trial — Upgrade anytime`
-                            : '⚠️ Your trial has expired. Upgrade to restore access.'
+                            ? t.trialLeft(trialDaysLeft)
+                            : t.trialExpired
                         }
                     </div>
                 )}
@@ -179,7 +273,7 @@ const Pricing = () => {
 
             {/* Plans Grid */}
             {loading ? (
-                <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>Loading plans...</div>
+                <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)' }}>{t.loading}</div>
             ) : (
                 <div className="plans-grid">
                     {plans.map(plan => {
@@ -212,7 +306,7 @@ const Pricing = () => {
                                                 ? <Check size={16} className="feat-yes" style={{ color: meta.color }}/>
                                                 : <X size={16} className="feat-no"/>
                                             }
-                                            <span className={f.included ? '' : 'feat-text-no'}>{f.label}</span>
+                                            <span className={f.included ? '' : 'feat-text-no'}>{translateFeature(f.label)}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -221,20 +315,20 @@ const Pricing = () => {
 
                                 {isCurrent ? (
                                     <button className="plan-cta current-btn">
-                                        <Check size={16}/> Current Plan
+                                        <Check size={16}/> {t.currentPlan}
                                     </button>
                                 ) : (
                                     <button
                                         className="plan-cta primary"
                                         style={{ background: meta.gradient }}
-                                        onClick={() => handleUpgrade(plan.name)}
-                                        disabled={upgrading === plan.name}
+                                        onClick={() => handleUpgrade(planName)}
+                                        disabled={upgrading === planName}
                                     >
-                                        {upgrading === plan.name
-                                            ? 'Upgrading...'
+                                        {upgrading === planName
+                                            ? t.upgrading
                                             : <>
                                                 <Zap size={16}/>
-                                                {status === 'trial' ? 'Start with this Plan' : `Upgrade to ${plan.display_name}`}
+                                                {status === 'trial' ? t.startPlan : t.upgradeTo(plan.display_name)}
                                                 <ArrowRight size={16}/>
                                               </>
                                         }
@@ -248,10 +342,10 @@ const Pricing = () => {
 
             {/* Trust Bar */}
             <div className="trust-bar">
-                <div className="trust-item"><Shield size={16}/> No credit card required</div>
-                <div className="trust-item"><Clock size={16}/> 14-day free trial</div>
-                <div className="trust-item"><Star size={16}/> Cancel anytime</div>
-                <div className="trust-item"><Check size={16}/> All plans include free onboarding</div>
+                <div className="trust-item"><Shield size={16}/> {t.trust[0]}</div>
+                <div className="trust-item"><Clock size={16}/> {t.trust[1]}</div>
+                <div className="trust-item"><Star size={16}/> {t.trust[2]}</div>
+                <div className="trust-item"><Check size={16}/> {t.trust[3]}</div>
             </div>
         </div>
     );
