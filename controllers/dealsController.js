@@ -1,6 +1,8 @@
 const db = require('../config/db');
 const notificationService = require('../services/notificationService');
 const { logAction, logCreate, logUpdate, logDelete, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
+const { getTenantTemplate } = require('../services/templateService');
+const templateAutomationService = require('../services/templateAutomationService');
 
 // @desc    Get all deals
 // @route   GET /api/deals
@@ -22,7 +24,14 @@ exports.getDeals = async (req, res) => {
       WHERE d.tenant_id = $1
       ORDER BY d.created_at DESC
     `, [tenant_id]);
-    res.json({ status: 'success', data: result.rows });
+
+    const templateConfig = await getTenantTemplate(tenant_id);
+
+    res.json({ 
+      status: 'success', 
+      data: result.rows,
+      template_config: templateConfig 
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
@@ -56,12 +65,12 @@ exports.getDealById = async (req, res) => {
 // @route   POST /api/deals
 // @access  Private
 exports.createDeal = async (req, res) => {
-  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to } = req.body;
+  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields } = req.body;
   const tenant_id = req.user.tenant_id;
   try {
     const result = await db.query(
-      'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [title, value || 0, pipeline_stage || 'discovery', client_id, product_id, project_id, assigned_to || req.user.id, tenant_id]
+      'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, custom_fields) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [title, value || 0, pipeline_stage || 'discovery', client_id, product_id, project_id, assigned_to || req.user.id, tenant_id, custom_fields || {}]
     );
 
     const newDeal = result.rows[0];
@@ -107,7 +116,7 @@ exports.createDeal = async (req, res) => {
 // @route   PUT /api/deals/:id
 // @access  Private
 exports.updateDeal = async (req, res) => {
-  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to } = req.body;
+  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields } = req.body;
   const tenant_id = req.user.tenant_id;
   try {
     // 1. Get old version for logging & security check
@@ -120,13 +129,27 @@ exports.updateDeal = async (req, res) => {
     // 2. Perform Update
     const result = await db.query(
       `UPDATE deals 
-       SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $8 AND tenant_id = $9 RETURNING *`,
-      [title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, req.params.id, tenant_id]
+       SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $9 AND tenant_id = $10 RETURNING *`,
+      [title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields || oldData.custom_fields, req.params.id, tenant_id]
     );
 
     // Audit Logging
     logUpdate(req, 'Deal', req.params.id, oldData, result.rows[0]);
+
+    // Trigger Template Automation if stage changed (Step 3)
+    if (oldData.pipeline_stage !== pipeline_stage) {
+      await templateAutomationService.runTemplateAutomation({
+          tenantId: tenant_id,
+          event: 'stage_change',
+          payload: {
+              stage: pipeline_stage,
+              deal_id: req.params.id,
+              title: title,
+              assigned_to: assigned_to
+          }
+      });
+    }
 
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
@@ -164,6 +187,18 @@ exports.updateDealStatus = async (req, res) => {
         entityId: req.params.id, 
         details: { before: { pipeline_stage: oldStage }, after: { pipeline_stage } },
         level: LOG_LEVELS.INFO
+      });
+
+      // Trigger Template Automation (Step 3)
+      await templateAutomationService.runTemplateAutomation({
+          tenantId: tenant_id,
+          event: 'stage_change',
+          payload: {
+              stage: pipeline_stage,
+              deal_id: req.params.id,
+              title: title,
+              assigned_to: assigned_to
+          }
       });
 
       // Trigger Notification for Assignee

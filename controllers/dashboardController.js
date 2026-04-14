@@ -153,6 +153,37 @@ exports.getBranchSummary = async (req, res) => {
             insights.push({ type: 'critical', message: `Critical Alert: Net Profit is lower than the previous period (${profit.toLocaleString()} vs ${prevProfit.toLocaleString()} EGP). Action required.` });
         }
 
+        // --- Industry Specific Analytics (Step 4 Polish) ---
+        let industrySpecific = {};
+        const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id = $1', [tenant_id]);
+        const templateName = tenantRes.rows[0]?.template_name;
+
+        if (templateName === 'real_estate') {
+            // 1. Total Portfolio Value (Sum of price in custom_fields)
+            // Note: custom_fields->>'price' extraction, then cast to numeric
+            const portfolioRes = await db.query(`
+                SELECT SUM(COALESCE((custom_fields->>'price')::numeric, 0)) as total_value
+                FROM deals 
+                WHERE tenant_id = $1 ${branchFilter}
+                AND ${timeFilterLogic('created_at')}
+            `, queryParams);
+            
+            // 2. Active Site Visits
+            const siteVisitsRes = await db.query(`
+                SELECT COUNT(*) as count
+                FROM deals 
+                WHERE tenant_id = $1 ${branchFilter}
+                AND pipeline_stage = 'Site Visit'
+                AND ${timeFilterLogic('created_at')}
+            `, queryParams);
+
+            industrySpecific = {
+                template: 'real_estate',
+                portfolioValue: parseFloat(portfolioRes.rows[0].total_value || 0),
+                activeSiteVisits: parseInt(siteVisitsRes.rows[0].count || 0)
+            };
+        }
+
         const payload = {
             revenue,
             expenses,
@@ -166,6 +197,7 @@ exports.getBranchSummary = async (req, res) => {
             totalTasks,
             viewMode,
             insights,
+            industrySpecific,
             branchContext: viewMode === 'SINGLE' ? targetBranchId : 'ALL'
         };
 

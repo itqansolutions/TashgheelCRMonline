@@ -7,10 +7,18 @@ const emailService = require('../services/emailService');
 
 // Register User & Create Tenant (SaaS Flow)
 exports.register = async (req, res) => {
-  const { name, email, password, companyName, selectedPlan } = req.body;
+  const { name, email, password, companyName, selectedPlan, templateName = 'general' } = req.body;
 
   if (!companyName) {
     return res.status(400).json({ status: 'error', message: 'Company Name is required for SaaS registration' });
+  }
+
+  // Plan-based Template Validation
+  if (templateName === 'real_estate' && (selectedPlan === 'basic' || !selectedPlan)) {
+    return res.status(403).json({ 
+      status: 'error', 
+      message: 'The Real Estate template is a Pro feature. Please upgrade your plan to continue.' 
+    });
   }
 
   // Password Strength Check
@@ -32,8 +40,8 @@ exports.register = async (req, res) => {
     // 2. Create Tenant
     const slug = companyName.toLowerCase().replace(/[^a-z0-9]/g, '-');
     const tenantResult = await db.query(
-      'INSERT INTO tenants (name, slug, plan, status) VALUES ($1, $2, $3, $4) RETURNING id',
-      [companyName, `${slug}-${Date.now().toString().slice(-4)}`, selectedPlan || 'basic', 'active']
+      'INSERT INTO tenants (name, slug, plan, status, template_name) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [companyName, `${slug}-${Date.now().toString().slice(-4)}`, selectedPlan || 'basic', 'active', templateName]
     );
     const tenantId = tenantResult.rows[0].id;
 

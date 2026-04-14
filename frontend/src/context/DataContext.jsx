@@ -14,6 +14,7 @@ export const DataProvider = ({ children }) => {
   const [departments, setDepartments] = useState([]);
   const [leadSources, setLeadSources] = useState([]);
   const [settings, setSettings] = useState({});
+  const [templateConfig, setTemplateConfig] = useState({});
   const [loading, setLoading] = useState(false);
 
   // Core Data Fetchers
@@ -54,6 +55,9 @@ export const DataProvider = ({ children }) => {
     try {
       const res = await api.get('/deals');
       setDeals(safeArray(res.data.data));
+      if (res.data.template_config) {
+        setTemplateConfig(res.data.template_config);
+      }
     } catch (err) {
       toast.error('Failed to load deals');
     } finally {
@@ -119,6 +123,7 @@ export const DataProvider = ({ children }) => {
     departments, fetchDepartments,
     leadSources, fetchLeadSources,
     settings, fetchSettings,
+    templateConfig,
     loading
   };
 

@@ -209,6 +209,30 @@ const Dashboard = () => {
             )}
 
             <div className="kpi-grid">
+                {/* REAL ESTATE SPECIALIZED METRICS (Polish Sprint) */}
+                {stats?.industrySpecific?.template === 'real_estate' && (
+                  <>
+                    <KPICard 
+                      title="Portfolio Value" 
+                      value={`${stats.industrySpecific.portfolioValue?.toLocaleString() ?? 0} EGP`}
+                      icon={<Coins size={20} />}
+                      color="purple"
+                      trend="up"
+                      trendValue="Active"
+                      subtitle="Est. Property Value"
+                    />
+                    <KPICard 
+                      title="Active Site Visits" 
+                      value={stats.industrySpecific.activeSiteVisits ?? 0}
+                      icon={<MapPin size={20} />}
+                      color="green"
+                      trend="up"
+                      trendValue="LIVE"
+                      subtitle="Pending visits"
+                    />
+                  </>
+                )}
+
                 <KPICard 
                 title="Total Revenue" 
                 value={`${stats?.revenue?.toLocaleString() ?? 0} EGP`}

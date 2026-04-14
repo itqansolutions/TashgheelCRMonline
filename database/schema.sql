@@ -1,13 +1,22 @@
 -- Enable UUID extension (Required for SaaS)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 0. Tenants Table (SaaS Identity)
+-- 0. Business Templates (Industry Specific Configs)
+CREATE TABLE IF NOT EXISTS business_templates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) UNIQUE NOT NULL, -- 'general', 'real_estate'
+    config JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 0.1 Tenants Table (SaaS Identity)
 CREATE TABLE IF NOT EXISTS tenants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(100) UNIQUE NOT NULL,
     plan VARCHAR(50) DEFAULT 'basic',
     status VARCHAR(50) DEFAULT 'active',
+    template_name VARCHAR(100) DEFAULT 'general' REFERENCES business_templates(name),
     subscription_end TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -99,6 +108,7 @@ CREATE TABLE IF NOT EXISTS deals (
     product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
     project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
     assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    custom_fields JSONB DEFAULT '{}',
     tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

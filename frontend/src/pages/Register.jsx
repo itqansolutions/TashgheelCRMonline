@@ -52,6 +52,7 @@ const LOADING_STEPS = [
 const Register = () => {
     const [step, setStep] = useState(1); // 1: Account Info, 2: Plan Selection, 3: Loading
     const [formData, setFormData] = useState({ name: '', email: '', password: '', companyName: '' });
+    const [templateName, setTemplateName] = useState('general');
     const [selectedPlan, setSelectedPlan] = useState('pro'); // Pro highlighted by default
     const [loading, setLoading] = useState(false);
     const [loadingStep, setLoadingStep] = useState(0);
@@ -81,7 +82,13 @@ const Register = () => {
     };
 
     const handleNext = () => {
-        if (validateStep1()) setStep(2);
+        if (validateStep1()) {
+            // Auto-adjust plan if Real Estate is selected
+            if (templateName === 'real_estate' && selectedPlan === 'basic') {
+                setSelectedPlan('pro');
+            }
+            setStep(2);
+        }
     };
 
     const handleSubmit = async () => {
@@ -91,7 +98,7 @@ const Register = () => {
         setError('');
 
         try {
-            const res = await api.post('/auth/register', { ...formData, selectedPlan });
+            const res = await api.post('/auth/register', { ...formData, selectedPlan, templateName });
             if (res.data.token) {
                 localStorage.setItem('token', res.data.token);
                 localStorage.setItem('user', JSON.stringify(res.data.user));
@@ -225,6 +232,36 @@ const Register = () => {
                                 </div>
                             </div>
                         ))}
+
+                        {/* Industry Selection */}
+                        <div style={{ marginBottom: 24 }}>
+                            <label className="reg-label">Industry Focus</label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div 
+                                    onClick={() => setTemplateName('general')}
+                                    style={{ 
+                                        padding: '12px', border: `2px solid ${templateName === 'general' ? '#6366f1' : 'rgba(255,255,255,0.1)'}`, 
+                                        borderRadius: 12, background: templateName === 'general' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)', 
+                                        cursor: 'pointer', transition: 'all 0.3s', textAlign: 'center' 
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 700, color: 'white', fontSize: 13 }}>General CRM</div>
+                                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Standard features</div>
+                                </div>
+                                <div 
+                                    onClick={() => setTemplateName('real_estate')}
+                                    style={{ 
+                                        padding: '12px', border: `2px solid ${templateName === 'real_estate' ? '#6366f1' : 'rgba(255,255,255,0.1)'}`, 
+                                        borderRadius: 12, background: templateName === 'real_estate' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)', 
+                                        cursor: 'pointer', transition: 'all 0.3s', textAlign: 'center', position: 'relative' 
+                                    }}
+                                >
+                                    <div style={{ position: 'absolute', top: -8, right: -4, background: '#4f46e5', color: 'white', fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 900 }}>PRO</div>
+                                    <div style={{ fontWeight: 700, color: 'white', fontSize: 13 }}>Real Estate</div>
+                                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Units & Tracking</div>
+                                </div>
+                            </div>
+                        </div>
                         <button className="reg-btn" onClick={handleNext}>
                             Continue <ArrowRight size={18}/>
                         </button>
