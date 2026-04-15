@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Building2, Users, Calendar, AlertCircle, 
   CheckCircle2, XCircle, Search, RefreshCw, 
-  ShieldAlert, Settings, FileSearch, Save
+  ShieldAlert, Settings, FileSearch, Save,
+  Lock, Phone, Mail
 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -104,9 +105,10 @@ const SuperAdmin = () => {
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700">
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Company</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Person</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contact Info</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Plan</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Expires On</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
@@ -125,6 +127,23 @@ const SuperAdmin = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-slate-900 dark:text-white">{tenant.admin_name || 'N/A'}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                        <Mail size={12} className="text-slate-400" />
+                        {tenant.admin_email || 'No email'}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                        <Phone size={12} className="text-slate-400" />
+                        {tenant.admin_phone || 'No phone'}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
                       tenant.plan === 'enterprise' ? 'bg-indigo-100 text-indigo-700' : 
                       tenant.plan === 'basic' ? 'bg-slate-100 text-slate-700' : 'bg-amber-100 text-amber-700'
@@ -136,12 +155,6 @@ const SuperAdmin = () => {
                     <div className="flex items-center gap-2">
                        <div className={`w-2 h-2 rounded-full ${tenant.status === 'active' ? 'bg-emerald-500' : 'bg-red-500'}`} />
                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">{tenant.status}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {tenant.subscription_end ? new Date(tenant.subscription_end).toLocaleDateString() : 'Lifetime'}
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">

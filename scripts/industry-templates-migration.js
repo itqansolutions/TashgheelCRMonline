@@ -22,12 +22,15 @@ async function runMigration() {
         `);
         console.log('✅ [Migration] business_templates table verified.');
 
-        // 2. Add template_name to tenants
+        // 2. Add contact info to tenants
         await client.query(`
             ALTER TABLE tenants 
+            ADD COLUMN IF NOT EXISTS admin_name VARCHAR(255),
+            ADD COLUMN IF NOT EXISTS admin_email VARCHAR(255),
+            ADD COLUMN IF NOT EXISTS admin_phone VARCHAR(50),
             ADD COLUMN IF NOT EXISTS template_name VARCHAR(100) DEFAULT 'general'
         `);
-        console.log('✅ [Migration] tenants.template_name column verified.');
+        console.log('✅ [Migration] tenants contact columns verified.');
 
         // 3. Add custom_fields to deals
         await client.query(`

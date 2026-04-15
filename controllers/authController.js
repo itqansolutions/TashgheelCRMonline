@@ -40,8 +40,8 @@ exports.register = async (req, res) => {
     // 2. Create Tenant
     const slug = companyName.toLowerCase().replace(/[^a-z0-9]/g, '-');
     const tenantResult = await db.query(
-      'INSERT INTO tenants (name, slug, plan, status, template_name) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [companyName, `${slug}-${Date.now().toString().slice(-4)}`, selectedPlan || 'basic', 'active', templateName]
+      'INSERT INTO tenants (name, slug, plan, status, template_name, admin_name, admin_email, admin_phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+      [companyName, `${slug}-${Date.now().toString().slice(-4)}`, selectedPlan || 'basic', 'active', templateName, name, email, phone]
     );
     const tenantId = tenantResult.rows[0].id;
 

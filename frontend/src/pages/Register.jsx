@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock, User, Building2, ArrowRight, ArrowLeft, Check, Zap, Loader2, Star } from 'lucide-react';
+import { Mail, Lock, User, Building2, ArrowRight, ArrowLeft, Check, Zap, Loader2, Star, Phone } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 
@@ -98,7 +98,11 @@ const Register = () => {
         setError('');
 
         try {
-            const res = await api.post('/auth/register', { ...formData, selectedPlan, templateName });
+            const res = await api.post('/auth/register', { 
+                ...formData, 
+                selectedPlan, 
+                templateName 
+            });
             if (res.data.token) {
                 localStorage.setItem('token', res.data.token);
                 localStorage.setItem('user', JSON.stringify(res.data.user));
@@ -222,6 +226,7 @@ const Register = () => {
                             { name: 'companyName', label: 'Organization Name', placeholder: 'e.g. Acme Corp', type: 'text', Icon: Building2 },
                             { name: 'name', label: 'Your Full Name', placeholder: 'John Doe', type: 'text', Icon: User },
                             { name: 'email', label: 'Work Email', placeholder: 'john@company.com', type: 'email', Icon: Mail },
+                            { name: 'phone', label: 'Phone Number', placeholder: '+201...', type: 'text', Icon: Phone },
                             { name: 'password', label: 'Password', placeholder: 'Min 8 chars, 1 upper, 1 number', type: 'password', Icon: Lock },
                         ].map(({ name, label, placeholder, type, Icon }) => (
                             <div key={name} style={{ marginBottom: 20 }}>
