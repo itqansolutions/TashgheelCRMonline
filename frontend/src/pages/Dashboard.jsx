@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, TrendingDown, Users, 
   ShoppingBag, CheckSquare, Handshake, 
-  Wallet, ArrowUpRight, ArrowDownRight, Globe, MapPin
+  Wallet, ArrowUpRight, ArrowDownRight, Globe, MapPin, Coins
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';

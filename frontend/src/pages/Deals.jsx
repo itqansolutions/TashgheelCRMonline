@@ -155,8 +155,8 @@ const Deals = () => {
           {/* VISUAL CARDS FOR CUSTOM FIELDS (Polish Sprint) */}
           {item.custom_fields && Object.keys(item.custom_fields).length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px', marginLeft: '30px' }}>
-              {templateConfig?.deal_fields?.map(field => (
-                item.custom_fields[field.key] && (
+              {(templateConfig?.deal_fields || []).map(field => (
+                item.custom_fields?.[field.key] && (
                   <div key={field.key} style={{ 
                     display: 'flex', alignItems: 'center', gap: '6px', 
                     fontSize: '11px', color: '#475569', background: '#f8fafc',
@@ -195,10 +195,10 @@ const Deals = () => {
           discovery: '#2563eb', proposal: '#a21caf', negotiation: '#d97706', won: '#16a34a', lost: '#dc2626',
           lead: '#2563eb', interested: '#a21caf', 'site visit': '#7c3aed', closed: '#16a34a'
         };
-        const normalizedVal = val.toLowerCase();
+        const normalizedVal = (val || '').toLowerCase();
         return (
           <span className="status-badge" style={{ background: colors[normalizedVal] || '#f1f5f9', color: textColors[normalizedVal] || '#475569' }}>
-            {val}
+            {val || 'Unknown'}
           </span>
         );
       }
@@ -305,7 +305,7 @@ const Deals = () => {
           </div>
 
           {/* DYNAMIC TEMPLATE FIELDS (Polish Sprint) */}
-          {templateConfig?.deal_fields?.map(field => (
+          {(templateConfig?.deal_fields || []).map(field => (
             <div key={field.key} className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {getFieldIcon(field.icon)}
@@ -314,7 +314,7 @@ const Deals = () => {
               <input 
                 type={field.type || 'text'}
                 placeholder={`Enter ${field.label || field.key.replace('_', ' ')}`}
-                value={formData.custom_fields[field.key] || ''}
+                value={formData.custom_fields?.[field.key] || ''}
                 onChange={(e) => handleCustomFieldChange(field.key, e.target.value)}
               />
             </div>

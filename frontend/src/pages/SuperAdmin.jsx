@@ -118,11 +118,11 @@ const SuperAdmin = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300">
-                        {tenant.name[0]}
+                        {tenant.name?.[0] || '?'}
                       </div>
                       <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">{tenant.name}</p>
-                        <p className="text-xs text-slate-400">/{tenant.slug}</p>
+                        <p className="font-semibold text-slate-900 dark:text-white">{tenant.name || 'Unnamed Company'}</p>
+                        <p className="text-xs text-slate-400">/{tenant.slug || 'no-slug'}</p>
                       </div>
                     </div>
                   </td>
