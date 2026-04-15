@@ -327,7 +327,7 @@ const Deals = () => {
               onChange={(e) => handleProductChange(e.target.value)}
             >
               <option value="">-- No Specific Product --</option>
-              {products.map(p => (
+              {(products || []).map(p => (
                 <option key={p.id} value={p.id}>{p.name} ({p.selling_price} EGP)</option>
               ))}
             </select>
@@ -340,7 +340,7 @@ const Deals = () => {
               required
             >
               <option value="">-- Select Customer --</option>
-              {customers.map(c => (
+              {(customers || []).map(c => (
                 <option key={c.id} value={c.id}>{c.name} {c.company_name ? `(${c.company_name})` : ''}</option>
               ))}
             </select>
@@ -359,7 +359,7 @@ const Deals = () => {
               value={formData.pipeline_stage}
               onChange={(e) => setFormData({...formData, pipeline_stage: e.target.value})}
             >
-              {templateConfig?.pipeline?.map(stage => (
+              {(templateConfig?.pipeline || []).map(stage => (
                 <option key={stage} value={stage}>{stage}</option>
               )) || (
                 <>
@@ -376,7 +376,7 @@ const Deals = () => {
               onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
             >
               <option value="">Me (Default)</option>
-              {users.map(u => (
+              {(users || []).map(u => (
                 <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
               ))}
             </select>

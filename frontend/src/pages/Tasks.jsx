@@ -205,14 +205,14 @@ const Tasks = () => {
             <label>Lead (In Charge)</label>
             <select value={formData.assigned_to} onChange={(e)=>setFormData({...formData, assigned_to: e.target.value})}>
               <option value="">-- Select Employee --</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label>Director/Manager</label>
             <select value={formData.director_id} onChange={(e)=>setFormData({...formData, director_id: e.target.value})}>
               <option value="">-- Select Director --</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
           </div>
           <div className="form-group">
@@ -243,7 +243,7 @@ const Tasks = () => {
                 setFormData({...formData, follower_ids: values});
               }}
             >
-              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
             <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Hold Ctrl/Cmd to select multiple people.</span>
           </div>
@@ -259,8 +259,8 @@ const Tasks = () => {
             <select value={formData.parent_id} onChange={(e)=>setFormData({...formData, parent_id: e.target.value})}>
               <option value="">None</option>
               {formData.parent_type === 'customer' ? 
-                customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>) :
-                deals.map(d => <option key={d.id} value={d.id}>{d.title}</option>)
+                (customers || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>) :
+                (deals || []).map(d => <option key={d.id} value={d.id}>{d.title}</option>)
               }
             </select>
           </div>

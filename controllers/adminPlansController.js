@@ -120,6 +120,7 @@ exports.getAdminTenants = async (req, res) => {
         const result = await db.query(`
             SELECT 
                 t.id, t.name, t.slug, t.status, t.created_at,
+                t.admin_name, t.admin_email, t.admin_phone,
                 s.status as sub_status, s.trial_ends_at, s.expires_at,
                 p.id as plan_id, p.name as plan_name, p.display_name,
                 p.price_monthly,

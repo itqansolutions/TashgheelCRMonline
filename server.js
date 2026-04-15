@@ -63,6 +63,7 @@ const superAdminRoutes = require('./routes/superAdminRoutes');
 
 // SaaS Middleware
 const authMiddleware = require('./middleware/auth');
+const branchScope = require('./middleware/branchScope');
 const subscriptionGuard = require('./middleware/subscriptionGuard');
 const moduleGuard = require('./middleware/moduleGuard');
 const usageLimits = require('./middleware/usageLimits');
@@ -91,8 +92,8 @@ app.get(/.*/, (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-// Global Subscription Guard (applies only to /api routes below)
-app.use('/api', authMiddleware, subscriptionGuard);
+// Global Subscription & Branch Guard (applies only to /api routes below)
+app.use('/api', authMiddleware, branchScope, subscriptionGuard);
 
 app.use('/api/customers', customerRoutes);
 app.use('/api/billing', billingRoutes);

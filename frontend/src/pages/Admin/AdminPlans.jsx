@@ -359,7 +359,14 @@ const AdminPlans = () => {
                 <div className="ap-card">
                     <table className="plan-table">
                         <thead>
-                            <tr><th>Tenant</th><th>Plan</th><th>Status</th><th>Users</th><th>Override</th><th>Actions</th></tr>
+                            <tr>
+                                <th>Tenant</th>
+                                <th>Admin Contact</th>
+                                <th>Plan</th>
+                                <th>Status</th>
+                                <th>Users</th>
+                                <th>Actions</th>
+                            </tr>
                         </thead>
                         <tbody>
                             {tenants.map(t => (
@@ -367,6 +374,11 @@ const AdminPlans = () => {
                                     <td>
                                         <div style={{ fontWeight: 800 }}>{t.name}</div>
                                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.slug}</div>
+                                    </td>
+                                    <td>
+                                        <div style={{ fontWeight: 700, fontSize: 13 }}>{t.admin_name || '—'}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.admin_email}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.admin_phone}</div>
                                     </td>
                                     <td style={{ fontWeight: 700 }}>
                                         {t.display_name || t.plan_name || '—'}
@@ -378,9 +390,6 @@ const AdminPlans = () => {
                                         </span>
                                     </td>
                                     <td style={{ fontWeight: 700 }}>{t.user_count}</td>
-                                    <td>
-                                        {t.has_override && <span style={{ fontSize: 11, background: 'rgba(245,158,11,0.1)', color: '#f59e0b', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>⚡ Override</span>}
-                                    </td>
                                     <td><button style={{ fontSize: 12, background: 'rgba(79,70,229,0.08)', color: 'var(--primary)', border: 'none', padding: '5px 12px', borderRadius: 6, fontWeight: 700, cursor: 'pointer' }}>Manage →</button></td>
                                 </tr>
                             ))}

@@ -254,7 +254,7 @@ const Customers = () => {
               onChange={(e) => setFormData({...formData, manager_id: e.target.value})}
             >
               <option value="">-- None --</option>
-              {users.map(u => (
+              {(users || []).map(u => (
                 <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
               ))}
             </select>
@@ -266,7 +266,7 @@ const Customers = () => {
               onChange={(e) => setFormData({...formData, source_id: e.target.value})}
             >
               <option value="">-- No Source --</option>
-              {leadSources.map(s => (
+              {(leadSources || []).map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
