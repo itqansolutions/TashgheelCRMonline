@@ -176,7 +176,7 @@ const Invoices = () => {
             <Handshake size={18} /> Active Deals
           </h3>
           <div className="gen-list">
-            {deals.filter(d => d.pipeline_stage !== 'lost').map(deal => (
+            {(deals || []).filter(d => d.pipeline_stage !== 'lost').map(deal => (
               <div key={`deal-${deal.id}`} className="gen-item">
                 <div className="gen-info">
                   <h4>{deal.title}</h4>
@@ -185,14 +185,14 @@ const Invoices = () => {
                 <button className="btn-gen" onClick={() => handleGenerateInvoice('deal', deal.id)}>Generate</button>
               </div>
             ))}
-            {deals.length === 0 && <p style={{ textAlign: 'center', py: 20 }}>No active deals found.</p>}
+            {(deals || []).length === 0 && <p style={{ textAlign: 'center', padding: '20px' }}>No active deals found.</p>}
           </div>
 
           <h3 style={{ fontSize: '16px', fontWeight: '700', margin: '20px 0 10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FileText size={18} /> Approved Quotations
           </h3>
           <div className="gen-list">
-            {quotations.filter(q => q.status === 'approved').map(quote => (
+            {(quotations || []).filter(q => q.status === 'approved').map(quote => (
               <div key={`quote-${quote.id}`} className="gen-item">
                 <div className="gen-info">
                   <h4>Quotation #{quote.id}</h4>
@@ -201,7 +201,7 @@ const Invoices = () => {
                 <button className="btn-gen" onClick={() => handleGenerateInvoice('quote', quote.id)}>Generate</button>
               </div>
             ))}
-            {quotations.filter(q => q.status === 'approved').length === 0 && <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>No approved quotations pending.</p>}
+            {(quotations || []).filter(q => q.status === 'approved').length === 0 && <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>No approved quotations pending.</p>}
           </div>
         </div>
       </Modal>

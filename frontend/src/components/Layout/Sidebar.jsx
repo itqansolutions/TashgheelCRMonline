@@ -32,7 +32,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Employees',       icon: <Users2 />,          path: '/employees' },
     // Module-gated items
     { name: 'HR & Attendance', icon: <Users2 />,          path: '/hr',        module: 'hr' },
-    { name: 'Inventory',       icon: <Package />,         path: '/inventory', module: 'inventory' },
+    { name: 'Inventory',       icon: <Package />,         path: '/inventory/movements', module: 'inventory' },
     { name: 'Automation',      icon: <Zap />,             path: '/automation',module: 'automation' },
     // Always visible
     { name: 'Files',           icon: <FileText />,        path: '/files' },
@@ -42,11 +42,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Billing',         icon: <CreditCard />,        path: '/billing' },
   ];
 
-  const filteredItems = navItems.filter(item => {
+  const filteredItems = (navItems || []).filter(item => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     const checkPath = item.path;
-    const allowed = safeArray(user.allowedPages);
+    const allowed = safeArray(user?.allowedPages);
     return allowed.includes(checkPath);
   });
 
