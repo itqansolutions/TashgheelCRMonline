@@ -114,6 +114,7 @@ function App() {
                     } 
                   />
                   <Route path="hr/my-attendance" element={<Attendance />} />
+                  <Route path="hr" element={<Navigate to="/hr/dashboard" replace />} />
                   <Route path="hr/my-requests" element={<MyRequests />} />
                   <Route 
                     path="hr/dashboard" 

@@ -214,8 +214,8 @@ const Logs = () => {
     }
   ];
 
-  const todayLogs = logs.filter(l => new Date(l.created_at).toDateString() === new Date().toDateString());
-  const criticalCount = total > 0 ? logs.filter(l => l.level === 'CRITICAL').length : 0;
+  const todayLogs = (logs || []).filter(l => l.created_at && new Date(l.created_at).toDateString() === new Date().toDateString());
+  const criticalCount = total > 0 ? (logs || []).filter(l => l.level === 'CRITICAL').length : 0;
 
   return (
     <div className="logs-page">
@@ -275,7 +275,7 @@ const Logs = () => {
             <label>Operator</label>
             <select name="user_id" value={filters.user_id} onChange={handleFilterChange}>
               <option value="">All Operators</option>
-              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
           </div>
           <div className="filter-group">

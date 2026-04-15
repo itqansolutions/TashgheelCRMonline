@@ -113,16 +113,16 @@ const FinanceDashboard = () => {
         <tbody>
           {loading ? (
             <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px' }}>Loading Financial Data...</td></tr>
-          ) : invoices.length === 0 ? (
+          ) : (invoices || []).length === 0 ? (
             <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No invoices found in this branch.</td></tr>
-          ) : invoices.map(inv => (
+          ) : (invoices || []).map(inv => (
             <tr key={inv.id}>
               <td style={{ fontWeight: 700 }}>{inv.invoice_number}</td>
               <td>{inv.customer_name || 'N/A'}</td>
-              <td>{new Date(inv.created_at).toLocaleDateString()}</td>
-              <td style={{ fontWeight: 700 }}>{parseFloat(inv.total_amount).toLocaleString()}</td>
-              <td style={{ fontWeight: 700, color: inv.remaining_balance > 0 ? '#ef4444' : '#10b981' }}>
-                {parseFloat(inv.remaining_balance).toLocaleString()}
+              <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'N/A'}</td>
+              <td style={{ fontWeight: 700 }}>{parseFloat(inv.total_amount || 0).toLocaleString()}</td>
+              <td style={{ fontWeight: 700, color: (inv.remaining_balance || 0) > 0 ? '#ef4444' : '#10b981' }}>
+                {parseFloat(inv.remaining_balance || 0).toLocaleString()}
               </td>
               <td>{getStatusBadge(inv.status)}</td>
               <td>

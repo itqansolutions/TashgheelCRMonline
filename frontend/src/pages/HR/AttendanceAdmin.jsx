@@ -16,10 +16,10 @@ const AttendanceAdmin = () => {
             
             // Apply local Date filter
             if (dateFilter) {
-                data = data.filter(log => log.check_in.startsWith(dateFilter));
+                data = (data || []).filter(log => log.check_in && log.check_in.startsWith(dateFilter));
             }
             
-            setLogs(data);
+            setLogs(data || []);
         } catch (err) {
             console.error(err);
             toast.error('Failed to load HR attendance summary.');
@@ -70,20 +70,20 @@ const AttendanceAdmin = () => {
             <div className="kpi-row">
                 <div className="hr-kpi">
                     <span className="kpi-label">Active Sign-ins Today</span>
-                    <span className="kpi-val" style={{ color: '#10b981' }}>{logs.filter(l => !l.check_out).length}</span>
+                    <span className="kpi-val" style={{ color: '#10b981' }}>{(logs || []).filter(l => !l.check_out).length}</span>
                 </div>
                 <div className="hr-kpi">
                     <span className="kpi-label">Completed Shifts</span>
-                    <span className="kpi-val">{logs.filter(l => l.check_out).length}</span>
+                    <span className="kpi-val">{(logs || []).filter(l => l.check_out).length}</span>
                 </div>
                 <div className="hr-kpi">
                     <span className="kpi-label">Late Arrivals</span>
-                    <span className="kpi-val" style={{ color: '#f59e0b' }}>{logs.filter(l => l.status === 'late').length}</span>
+                    <span className="kpi-val" style={{ color: '#f59e0b' }}>{(logs || []).filter(l => l.status === 'late').length}</span>
                 </div>
                 <div className="hr-kpi">
                     <span className="kpi-label">Total Work Hours</span>
                     <span className="kpi-val" style={{ color: '#4f46e5' }}>
-                        {logs.reduce((acc, curr) => acc + (parseFloat(curr.work_hours) || 0), 0).toFixed(1)} h
+                        {(logs || []).reduce((acc, curr) => acc + (parseFloat(curr.work_hours) || 0), 0).toFixed(1)} h
                     </span>
                 </div>
             </div>

@@ -12,12 +12,12 @@ const Attendance = () => {
   const fetchAttendance = async () => {
     try {
       const res = await api.get('/hr/attendance/my');
-      const data = res.data.data;
+      const data = res.data.data || [];
       setLogs(data);
 
       // Determine active session: check_in exists today but NO check_out
       const today = new Date().toISOString().split('T')[0];
-      const sessionToday = data.find(log => log.check_in && log.check_in.startsWith(today));
+      const sessionToday = (data || []).find(log => log.check_in && log.check_in.startsWith(today));
       
       if (sessionToday) {
         if (!sessionToday.check_out) {
