@@ -102,6 +102,7 @@ function App() {
                   <Route path="products" element={<Products />} />
                   <Route path="deals" element={<Deals />} />
                   <Route path="tasks" element={<Tasks />} />
+                  <Route path="units-registry" element={<UnitsRegistry />} />
                   <Route path="finance" element={<Invoices />} />
                   <Route path="finance/invoice-preview/:id" element={<InvoicePreview />} />
                   <Route path="accounting" element={<Navigate to="/finance" replace />} />

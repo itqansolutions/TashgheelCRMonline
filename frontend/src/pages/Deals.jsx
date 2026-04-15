@@ -12,6 +12,7 @@ const Deals = () => {
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState(null);
+  const [reUnits, setReUnits] = useState([]);
 
   // Helper to map icon names to Lucide components (Polish Sprint)
   const getFieldIcon = (iconName) => {
@@ -34,11 +35,20 @@ const Deals = () => {
     client_id: '',
     product_id: '',
     assigned_to: '',
+    unit_id: '',
     custom_fields: {}
   });
 
+  const fetchReUnits = async () => {
+      try {
+          const res = await api.get('/api/re-units');
+          setReUnits(res.data.data || []);
+      } catch (err) { console.error('Failed to fetch units:', err); }
+  };
+
   useEffect(() => {
     fetchDeals();
+    fetchReUnits();
     if (customers.length === 0) fetchCustomers();
     if (products.length === 0) fetchProducts();
     if (users.length === 0) fetchUsers();
@@ -61,6 +71,7 @@ const Deals = () => {
         client_id: deal.client_id || '',
         product_id: deal.product_id || '',
         assigned_to: deal.assigned_to || '',
+        unit_id: deal.unit_id || '',
         custom_fields: deal.custom_fields || {}
       });
     } else {
@@ -72,6 +83,7 @@ const Deals = () => {
         client_id: '', 
         product_id: '', 
         assigned_to: '',
+        unit_id: '',
         custom_fields: {} 
       });
     }
@@ -97,6 +109,16 @@ const Deals = () => {
     });
   };
 
+  const handleUnitChange = (unitId) => {
+      const unit = reUnits.find(u => u.id === unitId);
+      setFormData({
+          ...formData,
+          unit_id: unitId,
+          value: unit ? unit.price : formData.value,
+          title: unit ? `${unit.project_name} - Unit ${u.unit_number}` : formData.title
+      });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.client_id) return toast.error('Please select a customer');
@@ -110,9 +132,10 @@ const Deals = () => {
         toast.success('Deal created');
       }
       fetchDeals(false);
+      fetchReUnits(); // Refresh availability
       setIsModalOpen(false);
     } catch (err) {
-      toast.error('Failed to save deal');
+      toast.error(err.response?.data?.message || 'Failed to save deal');
     }
   };
 
@@ -122,6 +145,7 @@ const Deals = () => {
         await api.delete(`/deals/${id}`);
         toast.success('Deal deleted');
         fetchDeals(false);
+        fetchReUnits();
       } catch (err) {
         toast.error('Failed to delete');
       }
@@ -152,6 +176,43 @@ const Deals = () => {
             </div>
             <span style={{ fontWeight: '600' }}>{val}</span>
           </div>
+
+          {/* REAL ESTATE UNIT BADGE */}
+          {item.unit_id && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginLeft: '30px', marginTop: '4px' }}>
+                   <div style={{ 
+                        display: 'flex', alignItems: 'center', gap: '6px', 
+                        fontSize: '11px', color: '#0ea5e9', background: '#f0f9ff',
+                        padding: '2px 10px', borderRadius: '6px', border: '1px solid #bae6fd',
+                        fontWeight: 800
+                   }}>
+                        <Building2 size={12} /> {item.unit_project} • Unit {item.unit_number}
+                   </div>
+                   
+                   {/* PAYMENT PROXIMITY ALERT */}
+                   {item.payment_status === 'Pending' && item.next_payment_date && (
+                       (() => {
+                           const today = new Date();
+                           const dueDate = new Date(item.next_payment_date);
+                           const diff = (dueDate - today) / (1000 * 60 * 60 * 24);
+                           if (diff <= 7 && diff >= -1) {
+                               return (
+                                   <div style={{ 
+                                       display: 'flex', alignItems: 'center', gap: '6px', 
+                                       fontSize: '11px', color: '#dc2626', background: '#fef2f2',
+                                       padding: '2px 10px', borderRadius: '6px', border: '1px solid #fecaca',
+                                       fontWeight: 800, animation: 'pulse 2s infinite'
+                                   }}>
+                                       <Clock size={12} /> DUE SOON: {dueDate.toLocaleDateString()}
+                                   </div>
+                               );
+                           }
+                           return null;
+                       })()
+                   )}
+              </div>
+          )}
+
           {/* VISUAL CARDS FOR CUSTOM FIELDS (Polish Sprint) */}
           {item.custom_fields && Object.keys(item.custom_fields).length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px', marginLeft: '30px' }}>
@@ -176,7 +237,7 @@ const Deals = () => {
     { 
       key: 'product_name', 
       label: 'Product',
-      render: (val) => val || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>General Service</span>
+      render: (val, item) => item.unit_id ? <span style={{ color: '#0ea5e9', fontWeight: 700 }}>Real Estate Unit</span> : (val || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>General Service</span>)
     },
     { 
       key: 'value', 
@@ -233,6 +294,7 @@ const Deals = () => {
         .btn-cancel { background: #f1f5f9; color: var(--text-muted); padding: 10px 20px; border-radius: 8px; font-weight: 600; }
         .btn-save { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; }
         .industry-tag { background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; border: 1px solid #e2e8f0; }
+        .unit-select-card { border: 1px solid #bae6fd; background: #f0f9ff; padding: 12px; borderRadius: 8px; margin-bottom: 16px; grid-column: span 2; }
       `}</style>
 
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -304,6 +366,27 @@ const Deals = () => {
             />
           </div>
 
+          {/* REAL ESTATE UNIT SELECTOR */}
+          <div className="unit-select-card">
+              <label style={{ color: '#0369a1', fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                  <Building2 size={14} /> SELECT PROPERTY UNIT (REAL ESTATE)
+              </label>
+              <select 
+                  className="ap-input" 
+                  style={{ border: '1px solid #0ea5e9' }}
+                  value={formData.unit_id} 
+                  onChange={(e) => handleUnitChange(e.target.value)}
+              >
+                  <option value="">-- Select Available Unit --</option>
+                  {reUnits.filter(u => u.status === 'Available' || u.id === formData.unit_id).map(u => (
+                      <option key={u.id} value={u.id}>
+                          {u.project_name} | Unit {u.unit_number} ({u.area}m²) - {Number(u.price).toLocaleString()} EGP
+                      </option>
+                  ))}
+              </select>
+              <p style={{ fontSize: '11px', color: '#0284c7', marginTop: '6px' }}>Selecting a unit will automatically set the deal value and reserve the unit.</p>
+          </div>
+
           {/* DYNAMIC TEMPLATE FIELDS (Polish Sprint) */}
           {(templateConfig?.deal_fields || []).map(field => (
             <div key={field.key} className="form-group">
@@ -325,6 +408,7 @@ const Deals = () => {
             <select 
               value={formData.product_id}
               onChange={(e) => handleProductChange(e.target.value)}
+              disabled={!!formData.unit_id}
             >
               <option value="">-- No Specific Product --</option>
               {(products || []).map(p => (
@@ -351,6 +435,7 @@ const Deals = () => {
               type="number" 
               value={formData.value}
               onChange={(e) => setFormData({...formData, value: e.target.value})}
+              disabled={!!formData.unit_id}
             />
           </div>
           <div className="form-group">
@@ -381,6 +466,80 @@ const Deals = () => {
               ))}
             </select>
           </div>
+
+          {/* PAYMENT SUMMARY MVP (Polish Sprint) */}
+          {(editingDeal?.pipeline_stage?.toLowerCase() === 'won' || formData.pipeline_stage?.toLowerCase() === 'won') && editingDeal?.unit_id && (
+              <div style={{ gridColumn: 'span 2', background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '12px', padding: '20px', marginTop: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
+                          <DollarSign size={18} color="#16a34a"/> 💰 PAYMENT SUMMARY
+                      </h4>
+                      <div style={{ 
+                          fontSize: '11px', fontWeight: 900, padding: '4px 10px', borderRadius: '6px',
+                          background: (editingDeal.payment_total - editingDeal.paid_amount) <= 0 ? '#dcfce7' : '#fef9c3',
+                          color: (editingDeal.payment_total - editingDeal.paid_amount) <= 0 ? '#166534' : '#854d0e'
+                      }}>
+                          {(editingDeal.payment_total - editingDeal.paid_amount) <= 0 ? '✅ FULLY PAID' : '⏳ PAYMENT PENDING'}
+                      </div>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                      <div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Price</div>
+                          <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)' }}>{Number(editingDeal.payment_total || editingDeal.value).toLocaleString()} EGP</div>
+                      </div>
+                      <div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Paid So Far</div>
+                          <div style={{ fontSize: '18px', fontWeight: 900, color: '#16a34a' }}>{Number(editingDeal.paid_amount || 0).toLocaleString()} EGP</div>
+                      </div>
+                      <div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Remaining</div>
+                          <div style={{ fontSize: '18px', fontWeight: 900, color: '#dc2626' }}>{Number((editingDeal.payment_total || editingDeal.value) - (editingDeal.paid_amount || 0)).toLocaleString()} EGP</div>
+                      </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div className="form-group">
+                          <label style={{ fontSize: '12px' }}>Update Paid Amount</label>
+                          <input 
+                              type="number" 
+                              placeholder="Add payment..."
+                              className="ap-input"
+                              onBlur={async (e) => {
+                                  if (!e.target.value) return;
+                                  try {
+                                      // Note: In real app, search for the payment ID first or use a dedicated endpoint
+                                      const payRes = await api.get(`/api/re-payments/deal/${editingDeal.id}`);
+                                      if (payRes.data.data) {
+                                          await api.put(`/api/re-payments/${payRes.data.data.id}`, { paid_amount: e.target.value });
+                                          toast.success('Payment updated');
+                                          fetchDeals(false);
+                                      }
+                                  } catch (err) { toast.error('Update failed'); }
+                              }}
+                          />
+                      </div>
+                      <div className="form-group">
+                          <label style={{ fontSize: '12px' }}>Next Due Date</label>
+                          <input 
+                              type="date" 
+                              className="ap-input"
+                              defaultValue={editingDeal.next_payment_date ? new Date(editingDeal.next_payment_date).toISOString().split('T')[0] : ''}
+                              onChange={async (e) => {
+                                  try {
+                                      const payRes = await api.get(`/api/re-payments/deal/${editingDeal.id}`);
+                                      if (payRes.data.data) {
+                                          await api.put(`/api/re-payments/${payRes.data.data.id}`, { next_payment_date: e.target.value });
+                                          toast.success('Due date updated');
+                                          fetchDeals(false);
+                                      }
+                                  } catch (err) { toast.error('Update failed'); }
+                              }}
+                          />
+                      </div>
+                  </div>
+              </div>
+          )}
         </form>
       </Modal>
     </div>

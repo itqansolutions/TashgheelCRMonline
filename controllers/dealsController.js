@@ -16,11 +16,19 @@ exports.getDeals = async (req, res) => {
         c.name as client_name, 
         c.company_name as client_company,
         p.name as product_name,
-        u.name as assigned_to_name
+        u.name as assigned_to_name,
+        ru.project_name as unit_project,
+        ru.unit_number as unit_number,
+        rp.next_payment_date,
+        rp.status as payment_status,
+        rp.paid_amount,
+        rp.total_amount as payment_total
       FROM deals d
       LEFT JOIN customers c ON d.client_id = c.id
       LEFT JOIN products p ON d.product_id = p.id
       LEFT JOIN users u ON d.assigned_to = u.id
+      LEFT JOIN re_units ru ON d.unit_id = ru.id
+      LEFT JOIN re_payments_mvp rp ON d.id = rp.deal_id
       WHERE d.tenant_id = $1
       ORDER BY d.created_at DESC
     `, [tenant_id]);
@@ -65,15 +73,31 @@ exports.getDealById = async (req, res) => {
 // @route   POST /api/deals
 // @access  Private
 exports.createDeal = async (req, res) => {
-  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields } = req.body;
+  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields, unit_id } = req.body;
   const tenant_id = req.user.tenant_id;
   try {
+    // 1. Real Estate Validation: If unit_id is provided, check availability
+    if (unit_id) {
+        const unitCheck = await db.query('SELECT status FROM re_units WHERE id = $1 AND tenant_id = $2', [unit_id, tenant_id]);
+        if (unitCheck.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Unit not found.' });
+        if (unitCheck.rows[0].status !== 'Available') {
+            return res.status(400).json({ status: 'error', message: `This unit is already ${unitCheck.rows[0].status}. Please select an Available unit.` });
+        }
+    }
+
+    // 2. Insert Deal
     const result = await db.query(
-      'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, custom_fields) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-      [title, value || 0, pipeline_stage || 'discovery', client_id, product_id, project_id, assigned_to || req.user.id, tenant_id, custom_fields || {}]
+      'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, custom_fields, unit_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+      [title, value || 0, pipeline_stage || 'discovery', client_id, product_id, project_id, assigned_to || req.user.id, tenant_id, custom_fields || {}, unit_id]
     );
 
     const newDeal = result.rows[0];
+
+    // 3. Automation: If unit linked, mark it as Reserved
+    if (unit_id) {
+        await db.query('UPDATE re_units SET status = \'Reserved\' WHERE id = $1', [unit_id]);
+        logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: newDeal.id, status_change: 'Reserved' } });
+    }
 
     // Audit Logging
     logCreate(req, 'Deal', newDeal.id, newDeal);
@@ -189,6 +213,36 @@ exports.updateDealStatus = async (req, res) => {
         level: LOG_LEVELS.INFO
       });
 
+      // 3. Real Estate Automation: Unit Status Transitions
+      const unitIdRes = await db.query('SELECT unit_id FROM deals WHERE id = $1', [req.params.id]);
+      const unit_id = unitIdRes.rows[0]?.unit_id;
+
+      if (unit_id) {
+          if (pipeline_stage === 'won') {
+              // 1. Update Unit Status
+              await db.query('UPDATE re_units SET status = \'Sold\' WHERE id = $1', [unit_id]);
+              logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: req.params.id, status_change: 'Sold (Deal Won)' } });
+
+              // 2. Idempotent Payment Hook: Create record if not exists
+              const dealRes = await db.query('SELECT value, tenant_id, branch_id FROM deals WHERE id = $1', [req.params.id]);
+              const deal = dealRes.rows[0];
+              
+              const payCheck = await db.query('SELECT id FROM re_payments_mvp WHERE deal_id = $1', [req.params.id]);
+              if (payCheck.rows.length === 0) {
+                  await db.query(`
+                      INSERT INTO re_payments_mvp (tenant_id, branch_id, deal_id, total_amount, status)
+                      VALUES ($1, $2, $3, $4, 'Pending')
+                  `, [deal.tenant_id, deal.branch_id, req.params.id, deal.value]);
+                  
+                  logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Payment', entityId: req.params.id, details: { event: 'Payment Registry Created', total: deal.value } });
+              }
+
+          } else if (pipeline_stage === 'lost') {
+              await db.query('UPDATE re_units SET status = \'Available\' WHERE id = $1', [unit_id]);
+              logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: req.params.id, status_change: 'Available (Deal Lost)' } });
+          }
+      }
+
       // Trigger Template Automation (Step 3)
       await templateAutomationService.runTemplateAutomation({
           tenantId: tenant_id,
@@ -229,8 +283,11 @@ exports.deleteDeal = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   try {
     const result = await db.query('DELETE FROM deals WHERE id = $1 AND tenant_id = $2 RETURNING *', [req.params.id, tenant_id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
+    // 1. Real Estate Automation: Revert unit status if linked
+    const unit_id = result.rows[0].unit_id;
+    if (unit_id) {
+        await db.query('UPDATE re_units SET status = \'Available\' WHERE id = $1', [unit_id]);
+        logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: req.params.id, status_change: 'Available (Deal Deleted)' } });
     }
 
     // Audit Logging

@@ -124,6 +124,8 @@ app.use('/api/lead-sources', leadSourceRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
+app.use('/api/re-units', reUnitRoutes);
+app.use('/api/re-payments', rePaymentRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 
 
