@@ -7,7 +7,7 @@ const emailService = require('../services/emailService');
 
 // Register User & Create Tenant (SaaS Flow)
 exports.register = async (req, res) => {
-  const { name, email, password, companyName, selectedPlan, templateName = 'general' } = req.body;
+  const { name, email, password, companyName, selectedPlan, phone, templateName = 'general' } = req.body;
 
   if (!companyName) {
     return res.status(400).json({ status: 'error', message: 'Company Name is required for SaaS registration' });
