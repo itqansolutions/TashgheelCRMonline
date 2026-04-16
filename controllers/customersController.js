@@ -120,14 +120,22 @@ exports.createCustomer = async (req, res) => {
     // Triple Isolation: Inject branch_id with Smart Fallback
     const branch_id = req.branchId || req.user?.branch_id;
 
+    // 🔥 SANITIZATION: Prevent "invalid input syntax for type integer: '' "
+    const cleanSourceId = (source_id === '' || source_id === null) ? null : parseInt(source_id);
+    const cleanBudgetMin = (budget_min === '' || budget_min === null) ? 0 : parseFloat(budget_min);
+    const cleanBudgetMax = (budget_max === '' || budget_max === null) ? 0 : parseFloat(budget_max);
+    const cleanAreaMin = (preferred_area_min === '' || preferred_area_min === null) ? 0 : parseFloat(preferred_area_min);
+    const cleanAreaMax = (preferred_area_max === '' || preferred_area_max === null) ? 0 : parseFloat(preferred_area_max);
+    const cleanRooms = (preferred_rooms === '' || preferred_rooms === null) ? 0 : parseInt(preferred_rooms);
+
     const result = await db.query(
       `INSERT INTO customers (
         name, company_name, email, phone, address, source_id, assigned_to, manager_id, status, tenant_id, branch_id,
         entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
       [
-        name, company_name, email, phone, address, source_id, assigned_to || req.user.id, manager_id, status || 'lead', tenant_id, branch_id,
-        entity_type || 'customer', budget_min || 0, budget_max || 0, preferred_area_min || 0, preferred_area_max || 0, preferred_location, preferred_rooms || 0
+        name, company_name, email, phone, address, cleanSourceId, assigned_to || req.user.id, manager_id, status || 'lead', tenant_id, branch_id,
+        entity_type || 'customer', cleanBudgetMin, cleanBudgetMax, cleanAreaMin, cleanAreaMax, preferred_location, cleanRooms
       ]
     );
 
@@ -136,8 +144,8 @@ exports.createCustomer = async (req, res) => {
 
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    console.error('[Create Customer Error]', err.message);
+    res.status(500).json({ status: 'error', message: `Server error: ${err.message}` });
   }
 };
 
@@ -159,6 +167,14 @@ exports.updateCustomer = async (req, res) => {
     }
     const oldData = oldResult.rows[0];
 
+    // 🔥 SANITIZATION: Prevent SQL Syntax errors on Empty Strings
+    const cleanSourceId = (source_id === '' || source_id === null) ? null : parseInt(source_id);
+    const cleanBudgetMin = (budget_min === '' || budget_min === null) ? 0 : parseFloat(budget_min);
+    const cleanBudgetMax = (budget_max === '' || budget_max === null) ? 0 : parseFloat(budget_max);
+    const cleanAreaMin = (preferred_area_min === '' || preferred_area_min === null) ? 0 : parseFloat(preferred_area_min);
+    const cleanAreaMax = (preferred_area_max === '' || preferred_area_max === null) ? 0 : parseFloat(preferred_area_max);
+    const cleanRooms = (preferred_rooms === '' || preferred_rooms === null) ? 0 : parseInt(preferred_rooms);
+
     // 2. Perform update
     const result = await db.query(
       `UPDATE customers SET 
@@ -167,8 +183,8 @@ exports.updateCustomer = async (req, res) => {
         updated_at = CURRENT_TIMESTAMP 
       WHERE id = $17 AND tenant_id = $18 AND branch_id = $19 RETURNING *`,
       [
-        name, company_name, email, phone, address, source_id, assigned_to, manager_id, status, 
-        entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms,
+        name, company_name, email, phone, address, cleanSourceId, assigned_to, manager_id, status, 
+        entity_type, cleanBudgetMin, cleanBudgetMax, cleanAreaMin, cleanAreaMax, preferred_location, cleanRooms,
         req.params.id, tenant_id, branch_id
       ]
     );
@@ -178,8 +194,8 @@ exports.updateCustomer = async (req, res) => {
 
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    console.error('[Update Customer Error]', err.message);
+    res.status(500).json({ status: 'error', message: `Server error: ${err.message}` });
   }
 };
 
