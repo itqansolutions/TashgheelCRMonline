@@ -5,6 +5,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { safeArray } from '../../utils/dataUtils';
 
 const UnitsRegistry = () => {
     const { user } = useAuth();
@@ -25,7 +26,7 @@ const UnitsRegistry = () => {
         transaction_type: 'sale', rooms: 1, location: ''
     });
 
-    const vendors = (customers || []).filter(c => c.entity_type === 'vendor');
+    const vendors = safeArray(customers).filter(c => c.entity_type === 'vendor');
 
     const fetchUnits = async () => {
         try {
@@ -81,7 +82,7 @@ const UnitsRegistry = () => {
         }
     };
 
-    const filteredUnits = units.filter(u => {
+    const filteredUnits = safeArray(units).filter(u => {
         const matchesFilter = filter === 'All' || u.status === filter;
         const matchesSearch = u.project_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                              u.unit_number.toLowerCase().includes(searchTerm.toLowerCase());
@@ -267,7 +268,7 @@ const UnitsRegistry = () => {
                                     <label className="ap-label">Responsible Staff</label>
                                     <select className="ap-input" value={formData.responsible_person_id} onChange={e => setFormData({...formData, responsible_person_id: e.target.value})}>
                                         <option value="">-- Unassigned --</option>
-                                        {users.map(u => (
+                                        {safeArray(users).map(u => (
                                             <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
                                         ))}
                                     </select>
