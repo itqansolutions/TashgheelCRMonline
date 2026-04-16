@@ -65,10 +65,12 @@ exports.getCustomers = async (req, res) => {
   } catch (err) {
     console.error('[Customers API Error]', {
       error: err.message,
+      stack: err.stack,
       tenantId: tenant_id,
-      branchId: branch_id
+      branchId: branch_id,
+      query: query
     });
-    res.status(500).json({ status: 'error', message: 'Database resolution failed', data: [] });
+    res.status(500).json({ status: 'error', message: `Database resolution failed: ${err.message}`, data: [] });
   }
 };
 

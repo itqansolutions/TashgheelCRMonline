@@ -5,12 +5,21 @@ const logger = require('../utils/logger');
 // @route   GET /api/users
 // @access  Private (Admin, Manager)
 exports.getUsers = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
+
+  if (!branch_id) {
+    return res.json({ status: 'success', data: [] });
+  }
+
   try {
     const result = await db.query(
       `SELECT u.id, u.name, u.email, u.role, u.department_id, d.name as department_name, u.created_at 
        FROM users u 
        LEFT JOIN departments d ON u.department_id = d.id 
-       ORDER BY u.created_at DESC`
+       WHERE u.tenant_id = $1 AND u.branch_id = $2
+       ORDER BY u.created_at DESC`,
+      [tenant_id, branch_id]
     );
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
@@ -130,10 +139,14 @@ exports.createUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
-    // Insert user
+    // Auto-Inject Context
+    const tenant_id = req.user.tenant_id;
+    const branch_id = req.branchId || req.user?.branch_id;
+
+    // Insert user with Triple Isolation
     const result = await db.query(
-      'INSERT INTO users (name, email, password_hash, role, department_id) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, email, role, department_id',
-      [name, email, password_hash, role || 'employee', department_id]
+      'INSERT INTO users (name, email, password_hash, role, department_id, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, email, role, department_id',
+      [name, email, password_hash, role || 'employee', department_id, tenant_id, branch_id]
     );
 
     const newUser = result.rows[0];

@@ -21,6 +21,13 @@ const reconcileDatabase = async () => {
         await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_area_max NUMERIC DEFAULT 0`);
         await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_location TEXT`);
         await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_rooms INTEGER DEFAULT 0`);
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS manager_id UUID`);
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS source TEXT`);
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS assigned_to UUID`);
+
+        // Users: Multi-Tenant & Branch Scoping
+        await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id UUID`);
+        await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS branch_id UUID`);
 
         // Units: Operational Columns
         await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS vendor_id UUID`);
