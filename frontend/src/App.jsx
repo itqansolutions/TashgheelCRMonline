@@ -28,6 +28,7 @@ import CompanySettings from './pages/Settings/CompanySettings';
 import SuperAdmin from './pages/SuperAdmin';
 import Attendance from './pages/HR/Attendance';
 import AttendanceAdmin from './pages/HR/AttendanceAdmin';
+import UnitsRegistry from './pages/RealEstate/UnitsRegistry';
 import MyRequests from './pages/HR/MyRequests';
 import ApprovalCenter from './pages/HR/ApprovalCenter';
 import PayrollEngine from './pages/HR/PayrollEngine';
