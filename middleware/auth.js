@@ -30,6 +30,12 @@ module.exports = async (req, res, next) => {
     // Safety Sync
     if (!req.tenantId) req.tenantId = req.user.tenant_id;
     
+    // 🔥 NEW: Branch Context Extraction
+    const branchId = req.header('x-branch-id');
+    if (branchId) {
+        req.branchId = branchId;
+    }
+    
     next();
   } catch (err) {
     res.status(401).json({ status: 'error', message: 'Token is not valid' });
