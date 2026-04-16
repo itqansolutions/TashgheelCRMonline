@@ -19,15 +19,16 @@ module.exports = async (req, res, next) => {
        try {
            const userResult = await db.query('SELECT tenant_id FROM users WHERE id = $1', [req.user.id]);
            if (userResult.rows.length > 0 && userResult.rows[0].tenant_id) {
+               console.log(`[AUTH] Hydrated missing tenant_id for user ${req.user.id}: ${userResult.rows[0].tenant_id}`);
                req.user.tenant_id = userResult.rows[0].tenant_id;
-           } else {
-               // If user truly has no tenant (e.g. system user or error), we might need to handle it.
-               // For now, let it proceed to controllers which will handle missing tenant_id with 403.
            }
        } catch (dbErr) {
            console.error('Auth Middleware: Failed to hydrate tenant context', dbErr.message);
        }
     }
+
+    // Safety Sync
+    if (!req.tenantId) req.tenantId = req.user.tenant_id;
     
     next();
   } catch (err) {

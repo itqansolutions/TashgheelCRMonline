@@ -69,10 +69,17 @@ const branchScope = async (req, res, next) => {
 
       const branchTenantId = branchRes.rows[0].tenant_id;
 
-      if (branchTenantId !== tenantId) {
+      // --- DIAGNOSTIC LOGGING ---
+      console.log(`[ACL] Branch Validation: BranchID=${resolvedBranchId} | UserTenant=${tenantId} | BranchTenant=${branchTenantId}`);
+
+      if (String(branchTenantId).toLowerCase().trim() !== String(tenantId).toLowerCase().trim()) {
         // SECURITY ALERT: Possible cross-tenant ID guessing
-        console.warn(`[SECURITY] Cross-tenant branch access attempt: User ${userId} tried accessing branch ${resolvedBranchId}`);
-        return res.status(403).json({ status: 'error', message: 'Access denied: Branch does not belong to your organization.' });
+        console.warn(`[SECURITY] Cross-tenant branch access attempt: User ${userId} tried accessing branch ${resolvedBranchId} (belongs to ${branchTenantId})`);
+        return res.status(403).json({ 
+            status: 'error', 
+            message: 'Access denied: Branch does not belong to your organization.',
+            debug: { userTenant: tenantId, branchTenant: branchTenantId } // Temporary for debugging
+        });
       }
 
       // Update Cache
