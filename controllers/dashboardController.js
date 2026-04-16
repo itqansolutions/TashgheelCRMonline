@@ -42,6 +42,10 @@ exports.getBranchSummary = async (req, res) => {
     try {
         console.log(`[BI-ENGINE] Running Aggregations | Mode: ${viewMode} | Target: ${targetBranchId} | Time: ${timeFilter}`);
         
+        // 0. Fetch Industry Template Context
+        const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id = $1', [tenant_id]);
+        const templateName = tenantRes.rows[0]?.template_name;
+
         // Define filters based on time filter
         const timeFilterLogic = (col) => {
             if (timeFilter === 'THIS_MONTH') {
@@ -63,14 +67,25 @@ exports.getBranchSummary = async (req, res) => {
 
         // --- Execute Optimized Queries ---
         
-        // 1. Revenue
-        const revRes = await db.query(`
-            SELECT COALESCE(SUM(amount), 0) as total 
-            FROM payments 
-            WHERE tenant_id = $1 ${branchFilter}
-            AND ${timeFilterLogic('payment_date')}
-        `, queryParams);
-        const revenue = parseFloat(revRes.rows[0].total);
+        // 1. Revenue (Template-Aware Switch)
+        let revenue = 0;
+        if (templateName === 'real_estate') {
+            const revRes = await db.query(`
+                SELECT COALESCE(SUM(paid_amount), 0) as total 
+                FROM re_payments_mvp 
+                WHERE tenant_id = $1 ${branchFilter}
+                AND ${timeFilterLogic('created_at')}
+            `, queryParams);
+            revenue = parseFloat(revRes.rows[0].total);
+        } else {
+            const revRes = await db.query(`
+                SELECT COALESCE(SUM(total_amount), 0) as total 
+                FROM invoices 
+                WHERE tenant_id = $1 ${branchFilter.replace('branch_id', 'branch_id')}
+                AND ${timeFilterLogic('created_at')}
+            `, queryParams);
+            revenue = parseFloat(revRes.rows[0].total);
+        }
 
         // 2. Expenses
         const expRes = await db.query(`
@@ -155,32 +170,36 @@ exports.getBranchSummary = async (req, res) => {
 
         // --- Industry Specific Analytics (Step 4 Polish) ---
         let industrySpecific = {};
-        const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id = $1', [tenant_id]);
-        const templateName = tenantRes.rows[0]?.template_name;
 
         if (templateName === 'real_estate') {
-            // 1. Total Portfolio Value (Sum of price in custom_fields)
-            // Note: custom_fields->>'price' extraction, then cast to numeric
-            const portfolioRes = await db.query(`
-                SELECT SUM(COALESCE((custom_fields->>'price')::numeric, 0)) as total_value
-                FROM deals 
-                WHERE tenant_id = $1 ${branchFilter}
-                AND ${timeFilterLogic('created_at')}
+            // 1. Unit Inventory Status breakdown
+            const unitStatsRes = await db.query(`
+                SELECT 
+                    COUNT(*) as total_units,
+                    COUNT(*) FILTER (WHERE status = 'Available') as available,
+                    COUNT(*) FILTER (WHERE status = 'Reserved') as reserved,
+                    COUNT(*) FILTER (WHERE status = 'Sold') as sold
+                FROM re_units 
+                WHERE tenant_id = $1 ${branchFilter.replace('branch_id', 'branch_id')}
             `, queryParams);
             
-            // 2. Active Site Visits
-            const siteVisitsRes = await db.query(`
-                SELECT COUNT(*) as count
-                FROM deals 
-                WHERE tenant_id = $1 ${branchFilter}
-                AND pipeline_stage = 'Site Visit'
-                AND ${timeFilterLogic('created_at')}
-            `, queryParams);
+            // 2. Collection Forecast (Next 30 days)
+            const collectionsRes = await db.query(`
+                SELECT COALESCE(SUM(total_amount - paid_amount), 0) as expected
+                FROM re_payments_mvp
+                WHERE tenant_id = $1 
+                AND next_payment_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
+            `, [tenant_id]);
 
             industrySpecific = {
                 template: 'real_estate',
-                portfolioValue: parseFloat(portfolioRes.rows[0].total_value || 0),
-                activeSiteVisits: parseInt(siteVisitsRes.rows[0].count || 0)
+                inventory: {
+                    total: parseInt(unitStatsRes.rows[0].total_units || 0),
+                    available: parseInt(unitStatsRes.rows[0].available || 0),
+                    reserved: parseInt(unitStatsRes.rows[0].reserved || 0),
+                    sold: parseInt(unitStatsRes.rows[0].sold || 0)
+                },
+                collectionForecast: parseFloat(collectionsRes.rows[0].expected || 0)
             };
         }
 

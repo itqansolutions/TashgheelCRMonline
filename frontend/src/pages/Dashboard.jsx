@@ -213,26 +213,27 @@ const Dashboard = () => {
                 {stats?.industrySpecific?.template === 'real_estate' && (
                   <>
                     <KPICard 
-                      title="Portfolio Value" 
-                      value={`${stats.industrySpecific.portfolioValue?.toLocaleString() ?? 0} EGP`}
-                      icon={<Coins size={20} />}
-                      color="purple"
-                      trend="up"
-                      trendValue="Active"
-                      subtitle="Est. Property Value"
-                    />
-                    <KPICard 
-                      title="Active Site Visits" 
-                      value={stats.industrySpecific.activeSiteVisits ?? 0}
+                      title="Available Units" 
+                      value={stats.industrySpecific.inventory?.available ?? 0}
                       icon={<MapPin size={20} />}
                       color="green"
                       trend="up"
-                      trendValue="LIVE"
-                      subtitle="Pending visits"
+                      trendValue="Live"
+                      subtitle={`Out of ${stats.industrySpecific.inventory?.total ?? 0} total`}
+                    />
+                    <KPICard 
+                      title="Expected Collections" 
+                      value={`${(stats.industrySpecific.collectionForecast ?? 0).toLocaleString()} EGP`}
+                      icon={<Coins size={20} />}
+                      color="purple"
+                      trend="up"
+                      trendValue="30 Days"
+                      subtitle="Approaching installments"
                     />
                   </>
                 )}
 
+                {/* GENERAL & SHARED METRICS */}
                 <KPICard 
                 title="Total Revenue" 
                 value={`${stats?.revenue?.toLocaleString() ?? 0} EGP`}

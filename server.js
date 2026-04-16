@@ -176,8 +176,11 @@ const promoteOnStartup = async () => {
   }
 };
 
+const reconcileDatabase = require('./scripts/dbReconciliation');
+
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
+  await reconcileDatabase();
   await promoteOnStartup();
   await seedDemoAccount();
 });

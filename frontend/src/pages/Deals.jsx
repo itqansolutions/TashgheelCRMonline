@@ -8,7 +8,9 @@ import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 
 const Deals = () => {
+  const { user } = useAuth();
   const { deals, fetchDeals, customers, fetchCustomers, products, fetchProducts, users, fetchUsers, templateConfig, loading } = useData();
+  const isRealEstate = user?.template_name === 'real_estate';
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState(null);
@@ -48,11 +50,11 @@ const Deals = () => {
 
   useEffect(() => {
     fetchDeals();
-    fetchReUnits();
+    if (isRealEstate) fetchReUnits();
     if (customers.length === 0) fetchCustomers();
     if (products.length === 0) fetchProducts();
     if (users.length === 0) fetchUsers();
-  }, []);
+  }, [isRealEstate]);
 
   // Initialize pipeline stage once template config is loaded
   useEffect(() => {
@@ -178,7 +180,7 @@ const Deals = () => {
           </div>
 
           {/* REAL ESTATE UNIT BADGE */}
-          {item.unit_id && (
+          {isRealEstate && item.unit_id && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginLeft: '30px', marginTop: '4px' }}>
                    <div style={{ 
                         display: 'flex', alignItems: 'center', gap: '6px', 
@@ -367,25 +369,27 @@ const Deals = () => {
           </div>
 
           {/* REAL ESTATE UNIT SELECTOR */}
-          <div className="unit-select-card">
-              <label style={{ color: '#0369a1', fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                  <Building2 size={14} /> SELECT PROPERTY UNIT (REAL ESTATE)
-              </label>
-              <select 
-                  className="ap-input" 
-                  style={{ border: '1px solid #0ea5e9' }}
-                  value={formData.unit_id} 
-                  onChange={(e) => handleUnitChange(e.target.value)}
-              >
-                  <option value="">-- Select Available Unit --</option>
-                  {reUnits.filter(u => u.status === 'Available' || u.id === formData.unit_id).map(u => (
-                      <option key={u.id} value={u.id}>
-                          {u.project_name} | Unit {u.unit_number} ({u.area}m²) - {Number(u.price).toLocaleString()} EGP
-                      </option>
-                  ))}
-              </select>
-              <p style={{ fontSize: '11px', color: '#0284c7', marginTop: '6px' }}>Selecting a unit will automatically set the deal value and reserve the unit.</p>
-          </div>
+          {isRealEstate && (
+            <div className="unit-select-card">
+                <label style={{ color: '#0369a1', fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                    <Building2 size={14} /> SELECT PROPERTY UNIT (REAL ESTATE)
+                </label>
+                <select 
+                    className="ap-input" 
+                    style={{ border: '1px solid #0ea5e9' }}
+                    value={formData.unit_id} 
+                    onChange={(e) => handleUnitChange(e.target.value)}
+                >
+                    <option value="">-- Select Available Unit --</option>
+                    {reUnits.filter(u => u.status === 'Available' || u.id === formData.unit_id).map(u => (
+                        <option key={u.id} value={u.id}>
+                            {u.project_name} | Unit {u.unit_number} ({u.area}m²) - {Number(u.price).toLocaleString()} EGP
+                        </option>
+                    ))}
+                </select>
+                <p style={{ fontSize: '11px', color: '#0284c7', marginTop: '6px' }}>Selecting a unit will automatically set the deal value and reserve the unit.</p>
+            </div>
+          )}
 
           {/* DYNAMIC TEMPLATE FIELDS (Polish Sprint) */}
           {(templateConfig?.deal_fields || []).map(field => (
@@ -468,7 +472,7 @@ const Deals = () => {
           </div>
 
           {/* PAYMENT SUMMARY MVP (Polish Sprint) */}
-          {(editingDeal?.pipeline_stage?.toLowerCase() === 'won' || formData.pipeline_stage?.toLowerCase() === 'won') && editingDeal?.unit_id && (
+          {isRealEstate && (editingDeal?.pipeline_stage?.toLowerCase() === 'won' || formData.pipeline_stage?.toLowerCase() === 'won') && editingDeal?.unit_id && (
               <div style={{ gridColumn: 'span 2', background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '12px', padding: '20px', marginTop: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                       <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>

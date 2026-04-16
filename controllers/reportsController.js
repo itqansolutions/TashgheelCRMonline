@@ -28,13 +28,27 @@ exports.getTopProducts = async (req, res) => {
 exports.getFinancialTrends = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     try {
-        const revenueResult = await db.query(`
-            SELECT TO_CHAR(payment_date, 'YYYY-MM') as month, SUM(amount) as revenue
-            FROM payments
-            WHERE tenant_id = $1
-            GROUP BY month
-            ORDER BY month ASC
-        `, [tenant_id]);
+        const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id = $1', [tenant_id]);
+        const templateName = tenantRes.rows[0]?.template_name;
+
+        let revenueResult;
+        if (templateName === 'real_estate') {
+            revenueResult = await db.query(`
+                SELECT TO_CHAR(created_at, 'YYYY-MM') as month, SUM(paid_amount) as revenue
+                FROM re_payments_mvp
+                WHERE tenant_id = $1
+                GROUP BY month
+                ORDER BY month ASC
+            `, [tenant_id]);
+        } else {
+            revenueResult = await db.query(`
+                SELECT TO_CHAR(created_at, 'YYYY-MM') as month, SUM(total_amount) as revenue
+                FROM invoices
+                WHERE tenant_id = $1
+                GROUP BY month
+                ORDER BY month ASC
+            `, [tenant_id]);
+        }
 
         const expenseResult = await db.query(`
             SELECT TO_CHAR(expense_date, 'YYYY-MM') as month, SUM(amount) as expenses

@@ -6,8 +6,12 @@ import { Plus, Package, Tag, DollarSign, List } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 
+import { useAuth } from '../context/AuthContext';
+
 const Products = () => {
+  const { user } = useAuth();
   const { products, fetchProducts, loading } = useData();
+  const isRealEstate = user?.template_name === 'real_estate';
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   

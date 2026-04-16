@@ -7,8 +7,12 @@ import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 import InvoicePreview from '../components/Features/InvoicePreview';
 
+import { useAuth } from '../context/AuthContext';
+
 const Invoices = () => {
+  const { user } = useAuth();
   const { customers, fetchCustomers, deals, fetchDeals, quotations, fetchQuotations, settings, fetchSettings } = useData();
+  const isRealEstate = user?.template_name === 'real_estate';
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);

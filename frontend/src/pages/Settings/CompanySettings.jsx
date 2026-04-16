@@ -119,7 +119,18 @@ const CompanySettings = () => {
       `}</style>
 
       <div className="settings-header">
-        <h2 style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '-0.02em', color: '#1e293b' }}>Brand Identity</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+             <div style={{ 
+                 fontSize: '10px', fontWeight: 900, padding: '2px 8px', borderRadius: '4px',
+                 background: user?.template_name === 'real_estate' ? '#4f46e5' : '#64748b',
+                 color: 'white', textTransform: 'uppercase'
+             }}>
+                 {user?.template_name === 'real_estate' ? '🏠 Real Estate Sales OS' : '🏢 General CRM'}
+             </div>
+        </div>
+        <h2 style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '-0.02em', color: '#1e293b' }}>
+            {user?.template_name === 'real_estate' ? 'Corporate Property Identity' : 'Brand Identity'}
+        </h2>
         <p style={{ color: '#64748b', fontSize: '14px' }}>Customize your organization for professional invoicing and reports.</p>
       </div>
 

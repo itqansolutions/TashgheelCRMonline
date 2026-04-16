@@ -200,7 +200,7 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
         <table className="data-table">
           <thead>
             <tr>
-              {columns.map((col) => (
+              {(columns || []).map((col) => (
                 <th key={col.key} onClick={() => handleSort(col.key)}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {col.label}
@@ -212,10 +212,10 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
             </tr>
           </thead>
           <tbody>
-            {currentItems.length > 0 ? (
-              currentItems.map((item, index) => (
+            {(currentItems || []).length > 0 ? (
+              (currentItems || []).map((item, index) => (
                 <tr key={item.id || index}>
-                  {columns.map((col) => (
+                  {(columns || []).map((col) => (
                     <td key={col.key}>
                       {col.render ? col.render(item[col.key], item) : item[col.key]}
                     </td>

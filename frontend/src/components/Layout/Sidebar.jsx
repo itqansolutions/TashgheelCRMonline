@@ -3,7 +3,8 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, ShoppingBag, Handshake, CheckSquare, Wallet, 
   Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, 
-  Settings as AdminSettingsIcon, ShieldAlert, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard
+  Settings as AdminSettingsIcon, ShieldAlert, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard,
+  Building2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
@@ -28,6 +29,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Products',        icon: <ShoppingBag />,     path: '/products' },
     { name: 'Deals',           icon: <Handshake />,       path: '/deals' },
     { name: 'Tasks',           icon: <CheckSquare />,     path: '/tasks' },
+    ...(user?.template_name === 'real_estate' ? [
+        { name: 'Units Registry', icon: <Building2 />,        path: '/units-registry' }
+    ] : []),
     { name: 'Accounting',      icon: <Wallet />,          path: '/accounting' },
     { name: 'Employees',       icon: <Users2 />,          path: '/employees' },
     // Module-gated items

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useData } from '../../context/DataContext';
-import { Mail, Phone, MapPin, Globe, CreditCard } from 'lucide-react';
+import { Mail, Phone, MapPin, Globe, CreditCard, Building2 } from 'lucide-react';
 
 const InvoicePreview = ({ invoice }) => {
   const { settings } = useData();
@@ -192,12 +192,33 @@ const InvoicePreview = ({ invoice }) => {
           <tbody>
             <tr>
               <td>
-                <div style={{ fontWeight: '700' }}>Services/Products Rendered</div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                  {invoice.notes || 'Professional services as discussed.'}
-                </div>
+                <div style={{ fontWeight: '700', marginBottom: '8px' }}>Services/Products Rendered</div>
+                
+                {invoice.notes?.includes('🏢') ? (
+                  <div style={{ 
+                    background: '#f0f9ff', 
+                    border: '1px solid #bae6fd', 
+                    borderRadius: '10px', 
+                    padding: '16px',
+                    color: '#0369a1',
+                    fontSize: '13px',
+                    lineHeight: '1.6',
+                    whiteSpace: 'pre-wrap',
+                    position: 'relative',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{ position: 'absolute', right: '-10px', bottom: '-10px', opacity: 0.1, transform: 'rotate(-15deg)' }}>
+                      <Building2 size={80} />
+                    </div>
+                    {invoice.notes}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'pre-wrap' }}>
+                    {invoice.notes || 'Professional services as discussed.'}
+                  </div>
+                )}
               </td>
-              <td style={{ textAlign: 'right' }}>{invoice.total_amount} EGP</td>
+              <td style={{ textAlign: 'right', verticalAlign: 'top', paddingTop: '22px' }}>{invoice.total_amount} EGP</td>
             </tr>
             <tr className="total-row">
               <td style={{ textAlign: 'right' }}>Total Amount Due:</td>

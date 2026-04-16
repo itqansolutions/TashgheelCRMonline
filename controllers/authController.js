@@ -123,7 +123,14 @@ exports.register = async (req, res) => {
     res.json({ 
       status: 'success', 
       token, 
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, tenant_id: user.tenant_id },
+      user: { 
+        id: user.id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role, 
+        tenant_id: user.tenant_id,
+        template_name: templateName 
+      },
       subscription: { status: 'trial', plan: planName, modules, trial_ends_at: trialEnd }
     });
   } catch (err) {
@@ -145,8 +152,14 @@ exports.login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Get user
-    const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+    // Get user with tenant template
+    const userResult = await db.query(`
+      SELECT u.*, t.template_name 
+      FROM users u 
+      JOIN tenants t ON u.tenant_id = t.id 
+      WHERE u.email = $1
+    `, [email]);
+
     if (userResult.rows.length === 0) {
       logSecurity(req, ACTIONS.LOGIN_FAIL, { email, reason: 'user_not_found' });
       return res.status(400).json({ status: 'error', message: 'Invalid Credentials' });
@@ -176,7 +189,8 @@ exports.login = async (req, res) => {
         name: user.name, 
         email: user.email, 
         role: user.role,
-        tenant_id: user.tenant_id
+        tenant_id: user.tenant_id,
+        template_name: user.template_name
       } 
     });
   } catch (err) {
@@ -194,7 +208,12 @@ exports.demoLogin = async (req, res) => {
   const DEMO_EMAIL = 'demo@tashgheel.com';
 
   try {
-    const userResult = await db.query('SELECT * FROM users WHERE email = $1', [DEMO_EMAIL]);
+    const userResult = await db.query(`
+      SELECT u.*, t.template_name 
+      FROM users u 
+      JOIN tenants t ON u.tenant_id = t.id 
+      WHERE u.email = $1
+    `, [DEMO_EMAIL]);
     
     if (userResult.rows.length === 0) {
       return res.status(404).json({ 
@@ -207,7 +226,7 @@ exports.demoLogin = async (req, res) => {
 
     // Generate JWT
     const payload = { user: { id: user.id, role: user.role, tenant_id: user.tenant_id } };
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '2h' }); // Short-lived demo token
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '2h' }); 
 
     res.json({ 
       status: 'success', 
@@ -218,7 +237,8 @@ exports.demoLogin = async (req, res) => {
         email: user.email, 
         role: user.role,
         tenant_id: user.tenant_id,
-        isDemo: true // Indicator for UI
+        template_name: user.template_name,
+        isDemo: true 
       } 
     });
   } catch (err) {
@@ -305,7 +325,12 @@ exports.resetPassword = async (req, res) => {
 // Get User Detail
 exports.getMe = async (req, res) => {
   try {
-    const userResult = await db.query('SELECT id, name, email, role, tenant_id, created_at FROM users WHERE id = $1', [req.user.id]);
+    const userResult = await db.query(`
+      SELECT u.id, u.name, u.email, u.role, u.tenant_id, u.created_at, t.template_name 
+      FROM users u 
+      JOIN tenants t ON u.tenant_id = t.id
+      WHERE u.id = $1
+    `, [req.user.id]);
     
     const user = userResult.rows[0];
 

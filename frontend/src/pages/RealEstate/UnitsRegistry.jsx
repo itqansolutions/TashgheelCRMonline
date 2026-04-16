@@ -1,10 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Plus, Search, Filter, Home, Layers, Maximize, UserCheck, Trash2, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { Navigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
 const UnitsRegistry = () => {
+    const { user } = useAuth();
     const [units, setUnits] = useState([]);
+    
+    // Security Gate: Redirect if not in Real Estate template
+    if (user && user.template_name !== 'real_estate') {
+        return <Navigate to="/dashboard" />;
+    }
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('All');
     const [searchTerm, setSearchTerm] = useState('');

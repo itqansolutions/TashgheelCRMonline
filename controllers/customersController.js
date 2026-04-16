@@ -6,24 +6,36 @@ const { logCreate, logUpdate, logDelete } = require('../services/loggerService')
 // @access  Private
 exports.getCustomers = async (req, res) => {
   const tenant_id = req.user.tenant_id;
+  // CTO Fallback Logic: Resolve branchId from header or user profile to prevent DB crashes
+  const branch_id = req.branchId || req.user?.branch_id;
+
+  if (!branch_id) {
+    console.warn('[Customers API] Warning: Branch context missing, returning empty set.', { tenant_id });
+    return res.json({ status: 'success', data: [] });
+  }
+
   try {
+    // Hybrid Source Resolution: Support both legacy 'source' column and new 'lead_sources' table
     const result = await db.query(`
       SELECT 
         c.*, 
-        u.name as assigned_to_name,
-        m.name as manager_name,
-        ls.name as source_name
+        COALESCE(u.name, 'Unassigned') as assigned_to_name,
+        COALESCE(ls.name, c.source, 'Direct') as source_name
       FROM customers c
       LEFT JOIN users u ON c.assigned_to = u.id
-      LEFT JOIN users m ON c.manager_id = m.id
       LEFT JOIN lead_sources ls ON c.source_id = ls.id
       WHERE c.tenant_id = $1 AND c.branch_id = $2
       ORDER BY c.created_at DESC
-    `, [tenant_id, req.branchId]);
+    `, [tenant_id, branch_id]);
+    
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
-    console.error('CRITICAL: getCustomers failed:', err.message);
-    res.status(500).json({ status: 'error', message: 'Failed to retrieve customers' });
+    console.error('[Customers API Error]', {
+      error: err.message,
+      tenantId: tenant_id,
+      branchId: branch_id
+    });
+    res.status(500).json({ status: 'error', message: 'Database resolution failed', data: [] });
   }
 };
 
@@ -32,27 +44,31 @@ exports.getCustomers = async (req, res) => {
 // @access  Private
 exports.getCustomerById = async (req, res) => {
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
+
+  if (!branch_id) {
+    return res.status(400).json({ status: 'error', message: 'Branch context required for this operation.' });
+  }
+
   try {
     const result = await db.query(`
       SELECT 
         c.*, 
-        u.name as assigned_to_name,
-        m.name as manager_name,
-        ls.name as source_name
+        COALESCE(u.name, 'Unassigned') as assigned_to_name,
+        COALESCE(ls.name, c.source, 'Direct') as source_name
       FROM customers c
       LEFT JOIN users u ON c.assigned_to = u.id
-      LEFT JOIN users m ON c.manager_id = m.id
       LEFT JOIN lead_sources ls ON c.source_id = ls.id
       WHERE c.id = $1 AND c.tenant_id = $2 AND c.branch_id = $3
-    `, [req.params.id, tenant_id, req.branchId]);
+    `, [req.params.id, tenant_id, branch_id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized' });
     }
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    console.error('[Customer Detail Error]', { error: err.message, tenantId: tenant_id, branchId: branch_id });
+    res.status(500).json({ status: 'error', message: 'Failed to resolve customer context' });
   }
 };
 

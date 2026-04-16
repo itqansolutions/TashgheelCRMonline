@@ -7,8 +7,12 @@ import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 import FileUploader from '../components/Common/FileUploader';
 
+import { useAuth } from '../context/AuthContext';
+
 const Customers = () => {
+  const { user } = useAuth();
   const { customers, fetchCustomers, users, fetchUsers, leadSources, fetchLeadSources, loading } = useData();
+  const isRealEstate = user?.template_name === 'real_estate';
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   
@@ -178,8 +182,14 @@ const Customers = () => {
 
       <div className="page-header">
         <div>
-          <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Customers</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Manage your leads and active clients.</p>
+          <h2 style={{ fontSize: '24px', fontWeight: '800' }}>
+            {isRealEstate ? 'Leads & Prospective Buyers' : 'Customers'}
+          </h2>
+          <p style={{ color: 'var(--text-muted)' }}>
+            {isRealEstate 
+              ? 'Manage your real estate interests and potential buyers.' 
+              : 'Manage your leads and active clients.'}
+          </p>
         </div>
         <button label="add customer control" className="btn-add" onClick={() => handleOpenModal()}>
           <Plus size={20} />
@@ -188,9 +198,9 @@ const Customers = () => {
       </div>
 
       <DataTable 
-        title="All Customers"
+        title={isRealEstate ? "Prospective Buyers" : "Customer Directory"}
         columns={columns}
-        data={customers}
+        data={customers || []}
         loading={loading}
         onEdit={handleOpenModal}
         onDelete={handleDelete}
