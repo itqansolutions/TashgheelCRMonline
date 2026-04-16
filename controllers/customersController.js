@@ -79,8 +79,8 @@ exports.createCustomer = async (req, res) => {
   const { name, company_name, email, phone, address, source, source_id, assigned_to, manager_id, status } = req.body;
   const tenant_id = req.user.tenant_id;
   try {
-    // Triple Isolation: Inject branch_id
-    const branch_id = req.branchId;
+    // Triple Isolation: Inject branch_id with Smart Fallback
+    const branch_id = req.branchId || req.user?.branch_id;
 
     const result = await db.query(
       'INSERT INTO customers (name, company_name, email, phone, address, source_id, assigned_to, manager_id, status, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
@@ -103,7 +103,7 @@ exports.createCustomer = async (req, res) => {
 exports.updateCustomer = async (req, res) => {
   const { name, company_name, email, phone, address, source, source_id, assigned_to, manager_id, status } = req.body;
   const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId;
+  const branch_id = req.branchId || req.user?.branch_id;
   try {
     // 1. Get old data for diffing & security check (Triple Isolation)
     const oldResult = await db.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2 AND branch_id = $3', [req.params.id, tenant_id, branch_id]);

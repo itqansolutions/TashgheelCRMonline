@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRight, MapPin, Coins, Ruler, Building2, Layers, Zap } from 'lucide-react';
+import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRight, MapPin, Coins, Ruler, Building2, Layers, Zap, Clock } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
+import { useAuth } from '../context/AuthContext';
 
 const Deals = () => {
   const { user } = useAuth();
@@ -103,7 +104,7 @@ const Deals = () => {
   };
 
   const handleProductChange = (productId) => {
-    const product = products.find(p => p.id === parseInt(productId));
+    const product = (products || []).find(p => p.id === parseInt(productId));
     setFormData({
       ...formData,
       product_id: productId,
@@ -112,7 +113,7 @@ const Deals = () => {
   };
 
   const handleUnitChange = (unitId) => {
-      const unit = reUnits.find(u => u.id === unitId);
+      const unit = (reUnits || []).find(u => u.id === unitId);
       setFormData({
           ...formData,
           unit_id: unitId,
@@ -317,7 +318,7 @@ const Deals = () => {
       <DataTable 
         title="Active Deals"
         columns={columns}
-        data={deals}
+        data={deals || []}
         loading={loading}
         onEdit={handleOpenModal}
         onDelete={handleDelete}
@@ -381,7 +382,7 @@ const Deals = () => {
                     onChange={(e) => handleUnitChange(e.target.value)}
                 >
                     <option value="">-- Select Available Unit --</option>
-                    {reUnits.filter(u => u.status === 'Available' || u.id === formData.unit_id).map(u => (
+                    {(reUnits || []).filter(u => u.status === 'Available' || u.id === formData.unit_id).map(u => (
                         <option key={u.id} value={u.id}>
                             {u.project_name} | Unit {u.unit_number} ({u.area}m²) - {Number(u.price).toLocaleString()} EGP
                         </option>

@@ -9,6 +9,8 @@ const templateAutomationService = require('../services/templateAutomationService
 // @access  Private
 exports.getDeals = async (req, res) => {
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
+
   try {
     const result = await db.query(`
       SELECT 
@@ -29,9 +31,9 @@ exports.getDeals = async (req, res) => {
       LEFT JOIN users u ON d.assigned_to = u.id
       LEFT JOIN re_units ru ON d.unit_id = ru.id
       LEFT JOIN re_payments_mvp rp ON d.id = rp.deal_id
-      WHERE d.tenant_id = $1
+      WHERE d.tenant_id = $1 AND d.branch_id = $2
       ORDER BY d.created_at DESC
-    `, [tenant_id]);
+    `, [tenant_id, branch_id]);
 
     const templateConfig = await getTenantTemplate(tenant_id);
 
@@ -41,7 +43,7 @@ exports.getDeals = async (req, res) => {
       template_config: templateConfig 
     });
   } catch (err) {
-    console.error(err.message);
+    console.error('[Deals API Error]', err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
@@ -51,20 +53,22 @@ exports.getDeals = async (req, res) => {
 // @access  Private
 exports.getDealById = async (req, res) => {
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
+
   try {
     const result = await db.query(`
       SELECT d.*, p.name as product_name 
       FROM deals d 
       LEFT JOIN products p ON d.product_id = p.id 
-      WHERE d.id = $1 AND d.tenant_id = $2
-    `, [req.params.id, tenant_id]);
+      WHERE d.id = $1 AND d.tenant_id = $2 AND d.branch_id = $3
+    `, [req.params.id, tenant_id, branch_id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
-    console.error(err.message);
+    console.error('[Deal Detail Error]', err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
@@ -75,6 +79,8 @@ exports.getDealById = async (req, res) => {
 exports.createDeal = async (req, res) => {
   const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields, unit_id } = req.body;
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
+
   try {
     // 1. Real Estate Validation: If unit_id is provided, check availability
     if (unit_id) {
@@ -85,10 +91,10 @@ exports.createDeal = async (req, res) => {
         }
     }
 
-    // 2. Insert Deal
+    // 2. Insert Deal (With branch_id injection)
     const result = await db.query(
-      'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, custom_fields, unit_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
-      [title, value || 0, pipeline_stage || 'discovery', client_id, product_id, project_id, assigned_to || req.user.id, tenant_id, custom_fields || {}, unit_id]
+      'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, branch_id, custom_fields, unit_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
+      [title, value || 0, pipeline_stage || 'discovery', client_id, product_id, project_id, assigned_to || req.user.id, tenant_id, branch_id, custom_fields || {}, unit_id]
     );
 
     const newDeal = result.rows[0];
@@ -105,7 +111,6 @@ exports.createDeal = async (req, res) => {
     // Phase 7 Workflow Engine: Auto-Assign if no explicit assignee was given
     if (!assigned_to) {
         const workflowEngine = require('../services/workflowEngine');
-        const branch_id = req.branchId || null;
         workflowEngine.onDealCreated({
             deal_id: newDeal.id,
             deal_title: newDeal.title,
@@ -131,8 +136,8 @@ exports.createDeal = async (req, res) => {
 
     res.status(201).json({ status: 'success', data: newDeal });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    console.error('[Deal Create Error]', err.message);
+    res.status(500).json({ status: 'error', message: 'Failed to create deal' });
   }
 };
 
@@ -142,9 +147,11 @@ exports.createDeal = async (req, res) => {
 exports.updateDeal = async (req, res) => {
   const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields } = req.body;
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
+
   try {
-    // 1. Get old version for logging & security check
-    const oldResult = await db.query('SELECT * FROM deals WHERE id = $1 AND tenant_id = $2', [req.params.id, tenant_id]);
+    // 1. Get old version for logging & security check (Triple Isolation)
+    const oldResult = await db.query('SELECT * FROM deals WHERE id = $1 AND tenant_id = $2 AND branch_id = $3', [req.params.id, tenant_id, branch_id]);
     if (oldResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
@@ -154,14 +161,14 @@ exports.updateDeal = async (req, res) => {
     const result = await db.query(
       `UPDATE deals 
        SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $9 AND tenant_id = $10 RETURNING *`,
-      [title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields || oldData.custom_fields, req.params.id, tenant_id]
+       WHERE id = $9 AND tenant_id = $10 AND branch_id = $11 RETURNING *`,
+      [title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields || oldData.custom_fields, req.params.id, tenant_id, branch_id]
     );
 
     // Audit Logging
     logUpdate(req, 'Deal', req.params.id, oldData, result.rows[0]);
 
-    // Trigger Template Automation if stage changed (Step 3)
+    // Trigger Template Automation if stage changed
     if (oldData.pipeline_stage !== pipeline_stage) {
       await templateAutomationService.runTemplateAutomation({
           tenantId: tenant_id,
@@ -177,7 +184,7 @@ exports.updateDeal = async (req, res) => {
 
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
-    console.error(err.message);
+    console.error('[Deal Update Error]', err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
@@ -188,9 +195,11 @@ exports.updateDeal = async (req, res) => {
 exports.updateDealStatus = async (req, res) => {
   const { pipeline_stage } = req.body;
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
+
   try {
     // 1. Get old status & security check
-    const oldResult = await db.query('SELECT title, pipeline_stage, assigned_to FROM deals WHERE id = $1 AND tenant_id = $2', [req.params.id, tenant_id]);
+    const oldResult = await db.query('SELECT title, pipeline_stage, assigned_to FROM deals WHERE id = $1 AND tenant_id = $2 AND branch_id = $3', [req.params.id, tenant_id, branch_id]);
     if (oldResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
@@ -198,8 +207,8 @@ exports.updateDealStatus = async (req, res) => {
 
     // 2. Update status
     const result = await db.query(
-      'UPDATE deals SET pipeline_stage = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3 RETURNING *',
-      [pipeline_stage, req.params.id, tenant_id]
+      'UPDATE deals SET pipeline_stage = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3 AND branch_id = $4 RETURNING *',
+      [pipeline_stage, req.params.id, tenant_id, branch_id]
     );
 
     // Audit Logging
@@ -219,11 +228,10 @@ exports.updateDealStatus = async (req, res) => {
 
       if (unit_id) {
           if (pipeline_stage === 'won') {
-              // 1. Update Unit Status
               await db.query('UPDATE re_units SET status = \'Sold\' WHERE id = $1', [unit_id]);
               logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: req.params.id, status_change: 'Sold (Deal Won)' } });
 
-              // 2. Idempotent Payment Hook: Create record if not exists
+              // Create Payment Registry
               const dealRes = await db.query('SELECT value, tenant_id, branch_id FROM deals WHERE id = $1', [req.params.id]);
               const deal = dealRes.rows[0];
               
@@ -233,17 +241,13 @@ exports.updateDealStatus = async (req, res) => {
                       INSERT INTO re_payments_mvp (tenant_id, branch_id, deal_id, total_amount, status)
                       VALUES ($1, $2, $3, $4, 'Pending')
                   `, [deal.tenant_id, deal.branch_id, req.params.id, deal.value]);
-                  
-                  logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Payment', entityId: req.params.id, details: { event: 'Payment Registry Created', total: deal.value } });
               }
-
           } else if (pipeline_stage === 'lost') {
               await db.query('UPDATE re_units SET status = \'Available\' WHERE id = $1', [unit_id]);
-              logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: req.params.id, status_change: 'Available (Deal Lost)' } });
           }
       }
 
-      // Trigger Template Automation (Step 3)
+      // Trigger Template Automation
       await templateAutomationService.runTemplateAutomation({
           tenantId: tenant_id,
           event: 'stage_change',
@@ -254,24 +258,11 @@ exports.updateDealStatus = async (req, res) => {
               assigned_to: assigned_to
           }
       });
-
-      // Trigger Notification for Assignee
-      if (assigned_to && assigned_to !== req.user.id) {
-          notificationService.notify({
-              type: pipeline_stage === 'won' ? 'INVOICE_PAID' : 'SYSTEM_ALERT',
-              title: 'Deal Stage Updated',
-              message: `Deal "${title}" moved from ${oldStage} to ${pipeline_stage}`,
-              tenant_id,
-              branch_id: null,
-              user_id: assigned_to,
-              link: '/deals'
-          }).catch(e => console.error('Deal notify error:', e));
-      }
     }
 
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
-    console.error(err.message);
+    console.error('[Deal Status Update Error]', err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
@@ -281,13 +272,18 @@ exports.updateDealStatus = async (req, res) => {
 // @access  Private
 exports.deleteDeal = async (req, res) => {
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
+
   try {
-    const result = await db.query('DELETE FROM deals WHERE id = $1 AND tenant_id = $2 RETURNING *', [req.params.id, tenant_id]);
-    // 1. Real Estate Automation: Revert unit status if linked
+    const result = await db.query('DELETE FROM deals WHERE id = $1 AND tenant_id = $2 AND branch_id = $3 RETURNING *', [req.params.id, tenant_id, branch_id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
+    }
+
+    // Real Estate Automation: Revert unit status if linked
     const unit_id = result.rows[0].unit_id;
     if (unit_id) {
         await db.query('UPDATE re_units SET status = \'Available\' WHERE id = $1', [unit_id]);
-        logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: req.params.id, status_change: 'Available (Deal Deleted)' } });
     }
 
     // Audit Logging
@@ -295,7 +291,7 @@ exports.deleteDeal = async (req, res) => {
 
     res.json({ status: 'success', message: 'Deal deleted' });
   } catch (err) {
-    console.error(err.message);
+    console.error('[Deal Delete Error]', err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };

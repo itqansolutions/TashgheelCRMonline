@@ -134,7 +134,7 @@ const Invoices = () => {
         <DataTable 
           title="Recent Invoices"
           columns={columns}
-          data={invoices}
+          data={invoices || []}
           loading={loading}
           actions={(inv) => (
             <button 

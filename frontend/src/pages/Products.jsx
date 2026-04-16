@@ -132,7 +132,7 @@ const Products = () => {
       <DataTable 
         title="Product Catalog"
         columns={columns}
-        data={products}
+        data={products || []}
         loading={loading}
         onEdit={handleOpenModal}
         onDelete={handleDelete}
