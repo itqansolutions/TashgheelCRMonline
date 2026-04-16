@@ -4,9 +4,11 @@ import { Navigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { useData } from '../../context/DataContext';
 
 const UnitsRegistry = () => {
     const { user } = useAuth();
+    const { users, customers, fetchCustomers, fetchUsers } = useData();
     const [units, setUnits] = useState([]);
     
     // Security Gate: Redirect if not in Real Estate template
@@ -18,8 +20,12 @@ const UnitsRegistry = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [formData, setFormData] = useState({
-        project_name: '', unit_number: '', type: 'Apartment', floor: '', area: '', price: ''
+        project_name: '', unit_number: '', name: '', type: 'Apartment', floor: '', 
+        area_sqm: '', price: '', vendor_id: '', responsible_person_id: '', 
+        transaction_type: 'sale', rooms: 1, location: ''
     });
+
+    const vendors = (customers || []).filter(c => c.entity_type === 'vendor');
 
     const fetchUnits = async () => {
         try {
@@ -32,7 +38,11 @@ const UnitsRegistry = () => {
         }
     };
 
-    useEffect(() => { fetchUnits(); }, []);
+    useEffect(() => { 
+        fetchUnits();
+        if (users.length === 0) fetchUsers();
+        if (customers.length === 0) fetchCustomers();
+    }, []);
 
     const handleAddUnit = async (e) => {
         e.preventDefault();
@@ -40,7 +50,11 @@ const UnitsRegistry = () => {
             await api.post('/api/re-units', formData);
             toast.success('Unit added to registry');
             setShowAddModal(false);
-            setFormData({ project_name: '', unit_number: '', type: 'Apartment', floor: '', area: '', price: '' });
+            setFormData({ 
+                project_name: '', unit_number: '', name: '', type: 'Apartment', floor: '', 
+                area_sqm: '', price: '', vendor_id: '', responsible_person_id: '', 
+                transaction_type: 'sale', rooms: 1, location: '' 
+            });
             fetchUnits();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to add unit');
@@ -142,17 +156,29 @@ const UnitsRegistry = () => {
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
-                                        <Home size={14}/> {u.type}
+                                        <Home size={14}/> {u.type} ({u.transaction_type})
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
-                                        <Layers size={14}/> Floor {u.floor}
+                                        <Layers size={14}/> Floor {u.floor} | {u.rooms} Rooms
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
-                                        <Maximize size={14}/> {u.area} m²
+                                        <Maximize size={14}/> {u.area_sqm} m²
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-muted)' }}>
+                                        <MapPin size={14}/> {u.location || 'N/A'}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 800, color: 'var(--primary)', gridColumn: 'span 2' }}>
                                         EGP {Number(u.price).toLocaleString()}
                                     </div>
+                                </div>
+
+                                <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '12px', marginBottom: '16px' }}>
+                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-main)', marginBottom: '4px' }}>
+                                        <UserCheck size={14} color="#3b82f6"/> <b>Owner:</b> {u.vendor_name || 'Direct Entry'}
+                                     </div>
+                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-main)' }}>
+                                        <UserCheck size={14} color="#10b981"/> <b>Seller:</b> {u.responsible_person_name || 'Unassigned'}
+                                     </div>
                                 </div>
 
                                 <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -183,15 +209,21 @@ const UnitsRegistry = () => {
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
                     <div className="ap-card" style={{ width: '100%', maxWidth: '500px', padding: '32px' }}>
                         <h3 style={{ marginTop: 0, fontWeight: 900, marginBottom: '24px' }}>Register New Unit</h3>
-                        <form onSubmit={handleAddUnit}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                        <form onSubmit={handleAddUnit}>                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
                                 <div className="ap-form-group">
                                     <label className="ap-label">Project Name</label>
                                     <input className="ap-input" required value={formData.project_name} onChange={e => setFormData({...formData, project_name: e.target.value})} placeholder="e.g. New Cairo" />
                                 </div>
                                 <div className="ap-form-group">
-                                    <label className="ap-label">Unit Number</label>
+                                    <label className="ap-label">Unit Code/Number</label>
                                     <input className="ap-input" required value={formData.unit_number} onChange={e => setFormData({...formData, unit_number: e.target.value})} placeholder="e.g. 302" />
+                                </div>
+                                <div className="ap-form-group">
+                                    <label className="ap-label">Transaction</label>
+                                    <select className="ap-input" value={formData.transaction_type} onChange={e => setFormData({...formData, transaction_type: e.target.value})}>
+                                        <option value="sale">For Sale</option>
+                                        <option value="rent">For Rent</option>
+                                    </select>
                                 </div>
                                 <div className="ap-form-group">
                                     <label className="ap-label">Type</label>
@@ -203,6 +235,14 @@ const UnitsRegistry = () => {
                                     </select>
                                 </div>
                                 <div className="ap-form-group">
+                                    <label className="ap-label">Area (m²)</label>
+                                    <input className="ap-input" type="number" required value={formData.area_sqm} onChange={e => setFormData({...formData, area_sqm: e.target.value})} />
+                                </div>
+                                <div className="ap-form-group">
+                                    <label className="ap-label">Rooms</label>
+                                    <input className="ap-input" type="number" required value={formData.rooms} onChange={e => setFormData({...formData, rooms: e.target.value})} />
+                                </div>
+                                <div className="ap-form-group">
                                     <label className="ap-label">Price (EGP)</label>
                                     <input className="ap-input" type="number" required value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} />
                                 </div>
@@ -210,11 +250,29 @@ const UnitsRegistry = () => {
                                     <label className="ap-label">Floor</label>
                                     <input className="ap-input" type="number" required value={formData.floor} onChange={e => setFormData({...formData, floor: e.target.value})} />
                                 </div>
-                                <div className="ap-form-group">
-                                    <label className="ap-label">Area (m²)</label>
-                                    <input className="ap-input" type="number" required value={formData.area} onChange={e => setFormData({...formData, area: e.target.value})} />
+                                <div className="ap-form-group" style={{ gridColumn: 'span 2' }}>
+                                    <label className="ap-label">Unit Location/Address</label>
+                                    <input className="ap-input" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} placeholder="Full address or area" />
                                 </div>
-                            </div>
+                                <div className="ap-form-group">
+                                    <label className="ap-label">Vendor (Owner)</label>
+                                    <select className="ap-input" value={formData.vendor_id} onChange={e => setFormData({...formData, vendor_id: e.target.value})}>
+                                        <option value="">-- Direct/No Owner --</option>
+                                        {vendors.map(v => (
+                                            <option key={v.id} value={v.id}>{v.name} ({v.company_name})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="ap-form-group">
+                                    <label className="ap-label">Responsible Staff</label>
+                                    <select className="ap-input" value={formData.responsible_person_id} onChange={e => setFormData({...formData, responsible_person_id: e.target.value})}>
+                                        <option value="">-- Unassigned --</option>
+                                        {users.map(u => (
+                                            <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                </div>
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <button type="submit" className="btn-save" style={{ flex: 1, justifyContent: 'center' }}>Save Unit</button>
                                 <button type="button" onClick={() => setShowAddModal(false)} style={{ background: 'none', border: '1px solid var(--glass-border)', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>

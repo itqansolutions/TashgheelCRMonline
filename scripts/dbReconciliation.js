@@ -7,14 +7,42 @@ const db = require('../config/db');
 const reconcileDatabase = async () => {
     console.log('🔍 [DB-RECON] Starting schema integrity check...');
     try {
-        // 1. Repair CUSTOMERS table (Schema Alignment)
-        console.log('🚧 [DB-RECON] Checking Customers table integrity...');
+        // 1. Repair CUSTOMERS & RE_UNITS table (Schema Alignment)
+        console.log('🚧 [DB-RECON] Checking Customers & Units integrity...');
+        
+        // Customers: Multi-Tenant & RE Matching Columns
         await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS tenant_id UUID`);
-        await db.query(`UPDATE customers SET tenant_id = (SELECT id FROM tenants LIMIT 1) WHERE tenant_id IS NULL`);
         await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS branch_id UUID`);
-        await db.query(`UPDATE customers SET branch_id = (SELECT id FROM branches WHERE tenant_id = customers.tenant_id LIMIT 1) WHERE branch_id IS NULL`);
         await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS source_id INTEGER`);
-        console.log('✅ [DB-RECON] Customers schema verified.');
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS entity_type VARCHAR(20) DEFAULT 'customer'`);
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS budget_min NUMERIC DEFAULT 0`);
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS budget_max NUMERIC DEFAULT 0`);
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_area_min NUMERIC DEFAULT 0`);
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_area_max NUMERIC DEFAULT 0`);
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_location TEXT`);
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_rooms INTEGER DEFAULT 0`);
+
+        // Units: Operational Columns
+        await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS vendor_id UUID`);
+        await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS responsible_person_id UUID`);
+        await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS transaction_type VARCHAR(20) DEFAULT 'sale'`);
+        await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS rooms INTEGER DEFAULT 0`);
+        await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS location TEXT`);
+
+        // Lead Statuses: Customizable lookup table
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS lead_statuses (
+                id SERIAL PRIMARY KEY,
+                tenant_id UUID,
+                name VARCHAR(50) NOT NULL,
+                color VARCHAR(20),
+                is_default BOOLEAN DEFAULT false,
+                sort_order INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        console.log('✅ [DB-RECON] Tables schema verified.');
 
         // 2. SECURE & SEED GOLD DEMO (Showcase Data)
         console.log('💎 [DB-RECON] Hardening Gold Demo Showcase...');
@@ -23,6 +51,21 @@ const reconcileDatabase = async () => {
         
         if (userRes.rows.length > 0) {
             const { id: userId, tenant_id: tenantId } = userRes.rows[0];
+
+            // Seed default Lead Statuses for RE if empty
+            const statusCheck = await db.query('SELECT 1 FROM lead_statuses WHERE tenant_id = $1 LIMIT 1', [tenantId]);
+            if (statusCheck.rows.length === 0) {
+                console.log('🚧 [DB-RECON] Seeding default Real Estate lead statuses...');
+                await db.query(`
+                    INSERT INTO lead_statuses (tenant_id, name, color, is_default, sort_order)
+                    VALUES 
+                    ($1, 'New Lead', '#ef4444', true, 1),
+                    ($1, 'Site Visit', '#f59e0b', false, 2),
+                    ($1, 'Negotiation', '#3b82f6', false, 3),
+                    ($1, 'Reserved', '#8b5cf6', false, 4),
+                    ($1, 'Closed/Sold', '#10b981', false, 5)
+                `, [tenantId]);
+            }
             const bcrypt = require('bcrypt');
             const newHash = await bcrypt.hash('Demo@1234', 10);
 

@@ -26,12 +26,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const navItems = [
     { name: 'Dashboard',       icon: <LayoutDashboard />, path: '/dashboard' },
     { name: 'Customers',       icon: <Users />,           path: '/customers' },
-    { name: 'Products',        icon: <ShoppingBag />,     path: '/products' },
+    { 
+      name: user?.template_name === 'real_estate' ? 'Units Registry' : 'Products', 
+      icon: user?.template_name === 'real_estate' ? <Building2 /> : <ShoppingBag />, 
+      path: user?.template_name === 'real_estate' ? '/units-registry' : '/products' 
+    },
     { name: 'Deals',           icon: <Handshake />,       path: '/deals' },
-    { name: 'Tasks',           icon: <CheckSquare />,     path: '/tasks' },
-    ...(user?.template_name === 'real_estate' ? [
-        { name: 'Units Registry', icon: <Building2 />,        path: '/units-registry' }
-    ] : []),
     { name: 'Accounting',      icon: <Wallet />,          path: '/accounting' },
     { name: 'Employees',       icon: <Users2 />,          path: '/employees' },
     // Module-gated items

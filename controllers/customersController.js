@@ -15,8 +15,7 @@ exports.getCustomers = async (req, res) => {
   }
 
   try {
-    // Hybrid Source Resolution: Support both legacy 'source' column and new 'lead_sources' table
-    const result = await db.query(`
+    let query = `
       SELECT 
         c.*, 
         COALESCE(u.name, 'Unassigned') as assigned_to_name,
@@ -25,8 +24,42 @@ exports.getCustomers = async (req, res) => {
       LEFT JOIN users u ON c.assigned_to = u.id
       LEFT JOIN lead_sources ls ON c.source_id = ls.id
       WHERE c.tenant_id = $1 AND c.branch_id = $2
-      ORDER BY c.created_at DESC
-    `, [tenant_id, branch_id]);
+    `;
+    const params = [tenant_id, branch_id];
+    let paramIdx = 3;
+
+    // Dynamic Filters
+    if (req.query.entity_type) {
+        query += ` AND c.entity_type = $${paramIdx++}`;
+        params.push(req.query.entity_type);
+    }
+    if (req.query.budget_min) {
+        query += ` AND c.budget_min >= $${paramIdx++}`;
+        params.push(req.query.budget_min);
+    }
+    if (req.query.budget_max && req.query.budget_max > 0) {
+        query += ` AND c.budget_max <= $${paramIdx++}`;
+        params.push(req.query.budget_max);
+    }
+    if (req.query.preferred_rooms) {
+        query += ` AND c.preferred_rooms = $${paramIdx++}`;
+        params.push(req.query.preferred_rooms);
+    }
+    if (req.query.preferred_location) {
+        query += ` AND c.preferred_location LIKE $${paramIdx++}`;
+        params.push(`%${req.query.preferred_location}%`);
+    }
+    if (req.query.manager_id) {
+        query += ` AND c.manager_id = $${paramIdx++}`;
+        params.push(req.query.manager_id);
+    }
+    if (req.query.unassigned === 'true') {
+        query += ` AND c.manager_id IS NULL`;
+    }
+
+    query += ` ORDER BY c.created_at DESC`;
+
+    const result = await db.query(query, params);
     
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
@@ -76,15 +109,24 @@ exports.getCustomerById = async (req, res) => {
 // @route   POST /api/customers
 // @access  Private
 exports.createCustomer = async (req, res) => {
-  const { name, company_name, email, phone, address, source, source_id, assigned_to, manager_id, status } = req.body;
+  const { 
+    name, company_name, email, phone, address, source_id, assigned_to, manager_id, status,
+    entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms
+  } = req.body;
   const tenant_id = req.user.tenant_id;
   try {
     // Triple Isolation: Inject branch_id with Smart Fallback
     const branch_id = req.branchId || req.user?.branch_id;
 
     const result = await db.query(
-      'INSERT INTO customers (name, company_name, email, phone, address, source_id, assigned_to, manager_id, status, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
-      [name, company_name, email, phone, address, source_id, assigned_to || req.user.id, manager_id, status || 'lead', tenant_id, branch_id]
+      `INSERT INTO customers (
+        name, company_name, email, phone, address, source_id, assigned_to, manager_id, status, tenant_id, branch_id,
+        entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING *`,
+      [
+        name, company_name, email, phone, address, source_id, assigned_to || req.user.id, manager_id, status || 'lead', tenant_id, branch_id,
+        entity_type || 'customer', budget_min || 0, budget_max || 0, preferred_area_min || 0, preferred_area_max || 0, preferred_location, preferred_rooms || 0
+      ]
     );
 
     // NEW Audit Logging (Async)
@@ -101,7 +143,10 @@ exports.createCustomer = async (req, res) => {
 // @route   PUT /api/customers/:id
 // @access  Private
 exports.updateCustomer = async (req, res) => {
-  const { name, company_name, email, phone, address, source, source_id, assigned_to, manager_id, status } = req.body;
+  const { 
+    name, company_name, email, phone, address, source_id, assigned_to, manager_id, status,
+    entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms
+  } = req.body;
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
   try {
@@ -114,8 +159,16 @@ exports.updateCustomer = async (req, res) => {
 
     // 2. Perform update
     const result = await db.query(
-      'UPDATE customers SET name = $1, company_name = $2, email = $3, phone = $4, address = $5, source_id = $6, assigned_to = $7, manager_id = $8, status = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 AND tenant_id = $11 AND branch_id = $12 RETURNING *',
-      [name, company_name, email, phone, address, source_id, assigned_to, manager_id, status, req.params.id, tenant_id, branch_id]
+      `UPDATE customers SET 
+        name = $1, company_name = $2, email = $3, phone = $4, address = $5, source_id = $6, assigned_to = $7, manager_id = $8, status = $9, 
+        entity_type = $10, budget_min = $11, budget_max = $12, preferred_area_min = $13, preferred_area_max = $14, preferred_location = $15, preferred_rooms = $16,
+        updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $17 AND tenant_id = $18 AND branch_id = $19 RETURNING *`,
+      [
+        name, company_name, email, phone, address, source_id, assigned_to, manager_id, status, 
+        entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms,
+        req.params.id, tenant_id, branch_id
+      ]
     );
 
     // NEW Audit Logging with automated Diff Calculation

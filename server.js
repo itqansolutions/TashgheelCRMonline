@@ -1,4 +1,4 @@
-// Tashgheel CRM - Industry-Aware Multi-Tenant System [STABLE - 2026-04-16]
+// Tashgheel CRM - Industry-Aware Multi-Tenant System [STABLE - 2026-04-16 16:36]
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -124,6 +124,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/lead-sources', leadSourceRoutes);
+app.use('/api/lead-statuses', require('./routes/leadStatusRoutes'));
 app.use('/api/settings', settingsRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
