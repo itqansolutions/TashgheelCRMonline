@@ -52,6 +52,12 @@ export const AuthProvider = ({ children }) => {
     const res = await api.post('/auth/login', { email, password });
     const { token, user: userData } = res.data;
     localStorage.setItem('token', token);
+    
+    // 🔥 NEW: Auto-Selection Context logic
+    if (userData.branch_id) {
+        localStorage.setItem('branch_id', userData.branch_id);
+    }
+
     setUser({
       ...userData,
       isDemo: userData.isDemo || false,

@@ -1,3 +1,4 @@
+const db = require('../config/db');
 const { generateDiff } = require('../utils/diffHelper');
 
 /**

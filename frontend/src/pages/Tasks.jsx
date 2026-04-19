@@ -30,7 +30,7 @@ const Tasks = () => {
     if (showLoading) setLoading(true);
     try {
       const res = await api.get('/tasks');
-      setTasks(res.data.data);
+      setTasks(res.data?.data || []);
     } catch (err) {
       toast.error('Failed to load tasks');
     } finally {
@@ -167,7 +167,7 @@ const Tasks = () => {
       <DataTable 
         title="Active Tasks"
         columns={columns}
-        data={tasks}
+        data={tasks || []}
         loading={loading}
         onEdit={handleOpenModal}
         onDelete={async (id) => {

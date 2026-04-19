@@ -10,7 +10,7 @@ const ApprovalCenter = () => {
     const fetchAllLeaves = async () => {
         try {
             const res = await api.get('/hr/leaves');
-            setLeaves(res.data.data);
+            setLeaves(res.data?.data || []);
         } catch (err) {
             toast.error('Failed to load leave requests.');
         } finally {

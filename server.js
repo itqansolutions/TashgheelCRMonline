@@ -90,11 +90,6 @@ app.use('/api/admin', adminPlanRoutes);
 // Serve Static Assets (PUBLIC — must be before auth guard)
 app.use(express.static(frontendPath));
 
-// SPA Catch-all (PUBLIC — serves index.html for all frontend routes)
-app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
-
 // Global Subscription & Branch Guard (applies only to /api routes below)
 app.use('/api', authMiddleware, branchScope, subscriptionGuard);
 
@@ -134,6 +129,12 @@ app.use('/api/super-admin', superAdminRoutes);
 
 
 const db = require('./config/db');
+
+// SPA Catch-all (PUBLIC — serves index.html for all frontend routes)
+// Must be the LAST route defined
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
 
 // Error handling middleware (Production grade)
 app.use((err, req, res, next) => {

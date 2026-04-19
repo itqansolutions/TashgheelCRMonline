@@ -99,7 +99,8 @@ const Employees = () => {
     try {
       // Fetch permissions for this specific user
       const res = await api.get(`/users/${user.id}/permissions`);
-      setUserPermissions(res.data.data.map(p => p.page_path));
+      const perms = Array.isArray(res.data.data) ? res.data.data : [];
+      setUserPermissions(perms.map(p => p.page_path));
       setIsPermModalOpen(true);
     } catch (err) {
       toast.error('Failed to load user permissions');

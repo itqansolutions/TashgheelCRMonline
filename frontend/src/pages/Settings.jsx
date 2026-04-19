@@ -28,7 +28,7 @@ const Settings = () => {
   const fetchSources = async () => {
     try {
       const res = await api.get('/lead-sources');
-      setSources(res.data.data);
+      setSources(res.data?.data || []);
     } catch (err) {
       toast.error('Failed to load lead sources');
     }
@@ -272,7 +272,7 @@ const Settings = () => {
             </form>
 
             <div className="source-list">
-              {sources.map(source => (
+              {(sources || []).map(source => (
                 <div key={source.id} className="source-item">
                   {editingId === source.id ? (
                     <div style={{ display: 'flex', gap: '8px', flex: 1 }}>

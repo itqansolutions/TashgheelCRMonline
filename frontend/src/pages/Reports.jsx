@@ -31,9 +31,9 @@ const Reports = () => {
         api.get('/reports/financial-trends'),
         api.get('/reports/top-products')
       ]);
-      setRevenueData(trendRes.data.data.revenue);
-      setExpenseData(trendRes.data.data.expenses);
-      setTopProducts(productsRes.data.data);
+      setRevenueData(trendRes.data?.data?.revenue || []);
+      setExpenseData(trendRes.data?.data?.expenses || []);
+      setTopProducts(productsRes.data?.data || []);
     } catch (err) {
       toast.error('Failed to load report data');
     } finally {
@@ -46,11 +46,11 @@ const Reports = () => {
   }, []);
 
   const financialChartData = {
-    labels: revenueData.map(r => r.month),
+    labels: (revenueData || []).map(r => r.month),
     datasets: [
       {
         label: 'Revenue',
-        data: revenueData.map(r => r.revenue),
+        data: (revenueData || []).map(r => r.revenue),
         borderColor: '#1e40af',
         backgroundColor: 'rgba(30, 64, 175, 0.1)',
         fill: true,
@@ -58,7 +58,7 @@ const Reports = () => {
       },
       {
         label: 'Expenses',
-        data: expenseData.map(e => e.expenses),
+        data: (expenseData || []).map(e => e.expenses),
         borderColor: '#f59e0b',
         backgroundColor: 'rgba(245, 158, 11, 0.1)',
         fill: true,
@@ -68,11 +68,11 @@ const Reports = () => {
   };
 
   const productChartData = {
-    labels: topProducts.map(p => p.name),
+    labels: (topProducts || []).map(p => p.name),
     datasets: [
       {
         label: 'Units Sold',
-        data: topProducts.map(p => parseInt(p.total_sold)),
+        data: (topProducts || []).map(p => parseInt(p.total_sold)),
         backgroundColor: '#3b82f6',
         borderRadius: 6
       }

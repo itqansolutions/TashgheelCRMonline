@@ -174,6 +174,10 @@ exports.login = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Invalid Credentials' });
     }
 
+    // Resolve primary branch_id (linked in user_branches or users table)
+    const branchRes = await db.query('SELECT branch_id FROM user_branches WHERE user_id = $1 LIMIT 1', [user.id]);
+    const primaryBranchId = branchRes.rows[0]?.branch_id || user.branch_id;
+
     // Generate JWT with Tenant Context
     const payload = { user: { id: user.id, role: user.role, tenant_id: user.tenant_id } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '72h' });
@@ -190,7 +194,8 @@ exports.login = async (req, res) => {
         email: user.email, 
         role: user.role,
         tenant_id: user.tenant_id,
-        template_name: user.template_name
+        template_name: user.template_name,
+        branch_id: primaryBranchId
       } 
     });
   } catch (err) {
@@ -224,6 +229,10 @@ exports.demoLogin = async (req, res) => {
 
     const user = userResult.rows[0];
 
+    // Resolve primary branch_id for Demo user
+    const dbBranchRes = await db.query('SELECT branch_id FROM user_branches WHERE user_id = $1 LIMIT 1', [user.id]);
+    const demoBranchId = dbBranchRes.rows[0]?.branch_id || user.branch_id;
+
     // Generate JWT
     const payload = { user: { id: user.id, role: user.role, tenant_id: user.tenant_id } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '2h' }); 
@@ -238,6 +247,7 @@ exports.demoLogin = async (req, res) => {
         role: user.role,
         tenant_id: user.tenant_id,
         template_name: user.template_name,
+        branch_id: demoBranchId,
         isDemo: true 
       } 
     });

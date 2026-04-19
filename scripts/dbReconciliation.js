@@ -29,12 +29,42 @@ const reconcileDatabase = async () => {
         await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id UUID`);
         await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS branch_id UUID`);
 
-        // Units: Operational Columns
-        await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS vendor_id UUID`);
-        await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS responsible_person_id UUID`);
-        await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS transaction_type VARCHAR(20) DEFAULT 'sale'`);
-        await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS rooms INTEGER DEFAULT 0`);
-        await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS location TEXT`);
+        // Units: Operational Table & Columns
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS re_units (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(255) NOT NULL,
+                project_name VARCHAR(255),
+                floor VARCHAR(50),
+                area_sqm VARCHAR(50),
+                price NUMERIC DEFAULT 0,
+                status VARCHAR(20) DEFAULT 'available',
+                tenant_id UUID,
+                branch_id UUID,
+                vendor_id UUID,
+                responsible_person_id UUID,
+                transaction_type VARCHAR(20) DEFAULT 'sale',
+                rooms INTEGER DEFAULT 0,
+                location TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Payments: RE Payment Schedules
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS re_payments (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                unit_id UUID,
+                customer_id UUID,
+                amount NUMERIC NOT NULL,
+                due_date DATE,
+                status VARCHAR(20) DEFAULT 'pending',
+                tenant_id UUID,
+                branch_id UUID,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
 
         // Lead Statuses: Customizable lookup table
         await db.query(`

@@ -36,6 +36,18 @@ const branchScope = async (req, res, next) => {
         );
         if (mainBranchRes.rows.length > 0) {
           resolvedBranchId = mainBranchRes.rows[0].id;
+        } else {
+          // 🔥 SELF-HEALING: Auto-Provision Main Branch if missing
+          console.warn(`[ACL] Self-Healing: Missing main branch for tenant ${tenantId}. Creating one...`);
+          const newBranchRes = await db.query(`
+            INSERT INTO branches (name, tenant_id, is_main, address)
+            VALUES ('Main Branch', $1, true, 'Corporate Headquarters')
+            RETURNING id
+          `, [tenantId]);
+          resolvedBranchId = newBranchRes.rows[0].id;
+          
+          // Auto-assign user to this new branch
+          await db.query(`INSERT INTO user_branches (user_id, branch_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [userId, resolvedBranchId]);
         }
       }
     }
@@ -72,7 +84,7 @@ const branchScope = async (req, res, next) => {
       // --- DIAGNOSTIC LOGGING ---
       console.log(`[ACL] Branch Validation: BranchID=${resolvedBranchId} | UserTenant=${tenantId} | BranchTenant=${branchTenantId}`);
 
-      if (String(branchTenantId).toLowerCase().trim() !== String(tenantId).toLowerCase().trim()) {
+      if (branchTenantId && String(branchTenantId).toLowerCase().trim() !== String(tenantId).toLowerCase().trim()) {
         // SECURITY ALERT: Possible cross-tenant ID guessing
         console.warn(`[SECURITY] Cross-tenant branch access attempt: User ${userId} tried accessing branch ${resolvedBranchId} (belongs to ${branchTenantId})`);
         return res.status(403).json({ 
