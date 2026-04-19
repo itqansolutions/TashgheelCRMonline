@@ -26,8 +26,8 @@ exports.getInvoices = async (req, res) => {
         const result = await db.query(`
             SELECT 
                 i.*,
-                COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id = i.id), 0) as total_paid,
-                (i.total_amount - COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id = i.id), 0)) as remaining_balance,
+                COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text), 0) as total_paid,
+                (i.total_amount - COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text), 0)) as remaining_balance,
                 c.name as customer_name
             FROM invoices i
             LEFT JOIN deals d ON i.deal_id::text = d.id::text 
@@ -220,7 +220,7 @@ exports.getInvoiceDetails = async (req, res) => {
         const invRes = await db.query(`
             SELECT i.*, COALESCE(p.total_paid, 0) as total_paid, (i.total_amount - COALESCE(p.total_paid, 0)) as remaining_balance 
             FROM invoices i
-            LEFT JOIN (SELECT invoice_id, SUM(amount) as total_paid FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id) p ON i.id = p.invoice_id
+            LEFT JOIN (SELECT invoice_id, SUM(amount) as total_paid FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id) p ON i.id::text = p.invoice_id::text
             WHERE i.id = $2 AND i.tenant_id::text = $1::text AND i.branch_id::text = $3::text
         `, [tenant_id, invoice_id, branch_id]);
 

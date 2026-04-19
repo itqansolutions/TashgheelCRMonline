@@ -12,7 +12,7 @@ exports.getInvoices = async (req, res) => {
     const result = await db.query(`
       SELECT i.*, c.name as client_name 
       FROM invoices i
-      LEFT JOIN customers c ON i.client_id = c.id
+      LEFT JOIN customers c ON i.customer_id = c.id
       WHERE i.tenant_id::text = $1::text
       ORDER BY i.created_at DESC
     `, [tenant_id]);
@@ -32,7 +32,7 @@ exports.getInvoiceById = async (req, res) => {
     const result = await db.query(`
       SELECT i.*, c.name as client_name 
       FROM invoices i
-      LEFT JOIN customers c ON i.client_id = c.id
+      LEFT JOIN customers c ON i.customer_id = c.id
       WHERE i.id = $1 AND i.tenant_id::text = $2::text
     `, [req.params.id, tenant_id]);
     if (result.rows.length === 0) {
