@@ -102,12 +102,7 @@ const reconcileDatabase = async () => {
                 const branchRes = await db.query('SELECT id FROM branches WHERE tenant_id::text = $1 LIMIT 1', [tenantIdStr]);
                 const branchIdStr = String(branchRes.rows[0]?.id || '1');
 
-                await db.query(`
-                    INSERT INTO re_units (name, project_name, unit_number, floor, area_sqm, price, status, tenant_id, branch_id)
-                    VALUES 
-                    ('Penthouse 402', 'Palm Residences', 'P402', '4th', '185 sqm', 4500000, 'available', $1, $2),
-                    ('Suite 101', 'Coastal Breeze', 'S101', 'Ground', '95 sqm', 1800000, 'available', $1, $2)
-                `, [tenantIdStr, branchIdStr]);
+                // No auto-seeding of sample units per user request
                 
                 console.log('✅ [DB-RECON] Real Estate Demo Active.');
             }

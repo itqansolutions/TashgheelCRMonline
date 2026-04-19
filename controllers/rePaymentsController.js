@@ -15,7 +15,8 @@ exports.getPaymentByDeal = async (req, res) => {
         const result = await db.query(`
             SELECT *, 
                    (total_amount - paid_amount) as remaining_amount
-            WHERE deal_id = $1 AND tenant_id::text = $2::text
+            FROM re_payments_mvp
+            WHERE deal_id::text = $1::text AND tenant_id::text = $2::text
         `, [dealId, tenant_id]);
 
         if (result.rows.length === 0) return res.json({ status: 'success', data: null });
