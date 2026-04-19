@@ -17,7 +17,7 @@ exports.getUsers = async (req, res) => {
       `SELECT u.id, u.name, u.email, u.role, u.department_id, d.name as department_name, u.created_at 
        FROM users u 
        LEFT JOIN departments d ON u.department_id = d.id 
-       WHERE u.tenant_id = $1 AND u.branch_id = $2
+       WHERE u.tenant_id::text = $1::text AND u.branch_id::text = $2::text
        ORDER BY u.created_at DESC`,
       [tenant_id, branch_id]
     );
@@ -145,7 +145,7 @@ exports.createUser = async (req, res) => {
 
     // Insert user with Triple Isolation
     const result = await db.query(
-      'INSERT INTO users (name, email, password_hash, role, department_id, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, email, role, department_id',
+      'INSERT INTO users (name, email, password_hash, role, department_id, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6::text, $7::text) RETURNING id, name, email, role, department_id',
       [name, email, password_hash, role || 'employee', department_id, tenant_id, branch_id]
     );
 

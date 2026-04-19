@@ -35,7 +35,7 @@ exports.getTenantById = async (req, res) => {
   }
 
   try {
-    const result = await db.query('SELECT * FROM tenants WHERE id = $1', [id]);
+    const result = await db.query('SELECT * FROM tenants WHERE id::text = $1::text', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Tenant not found' });
     }
@@ -61,7 +61,7 @@ exports.updateTenant = async (req, res) => {
 
   try {
     // 1. Get old data for audit
-    const oldResult = await db.query('SELECT * FROM tenants WHERE id = $1', [id]);
+    const oldResult = await db.query('SELECT * FROM tenants WHERE id::text = $1::text', [id]);
     if (oldResult.rows.length === 0) {
         return res.status(404).json({ status: 'error', message: 'Tenant not found' });
     }
@@ -73,7 +73,7 @@ exports.updateTenant = async (req, res) => {
         query = `
           UPDATE tenants 
           SET name = $1, plan = $2, status = $3, subscription_end = $4 
-          WHERE id = $5 RETURNING *`;
+          WHERE id::text = $5::text RETURNING *`;
         params = [name || oldData.name, plan || oldData.plan, status || oldData.status, subscription_end || oldData.subscription_end, id];
     } else {
         const { 
@@ -85,7 +85,7 @@ exports.updateTenant = async (req, res) => {
           UPDATE tenants 
           SET name = $1, address = $2, phone = $3, tax_no = $4, reg_no = $5, logo_url = $6,
               currency = $7, tax_rate = $8, invoice_prefix = $9, invoice_footer = $10, terms = $11
-          WHERE id = $12 RETURNING *`;
+          WHERE id::text = $12::text RETURNING *`;
         
         params = [
           name || oldData.name,
@@ -128,7 +128,7 @@ exports.resetAdminPassword = async (req, res) => {
 
     try {
         // 1. Find the primary admin for this tenant
-        const userResult = await db.query('SELECT id FROM users WHERE tenant_id = $1 AND role = $2 LIMIT 1', [id, 'admin']);
+        const userResult = await db.query('SELECT id FROM users WHERE tenant_id::text = $1::text AND role = $2 LIMIT 1', [id, 'admin']);
         if (userResult.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'No admin user found for this tenant' });
         }

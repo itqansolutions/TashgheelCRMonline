@@ -9,7 +9,7 @@ exports.getBranches = async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT * FROM branches WHERE tenant_id = $1 ORDER BY name ASC',
+      'SELECT * FROM branches WHERE tenant_id::text = $1::text ORDER BY name ASC',
       [tenant_id]
     );
     res.json({ status: 'success', data: result.rows });
@@ -32,7 +32,7 @@ exports.createBranch = async (req, res) => {
 
   try {
     const result = await db.query(
-      'INSERT INTO branches (name, address, phone, tenant_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      'INSERT INTO branches (name, address, phone, tenant_id) VALUES ($1, $2, $3, $4::text) RETURNING *',
       [name, address, phone, tenant_id]
     );
 
@@ -59,13 +59,13 @@ exports.updateBranch = async (req, res) => {
 
   try {
     // Audit check
-    const oldResult = await db.query('SELECT * FROM branches WHERE id = $1 AND tenant_id = $2', [id, tenant_id]);
+    const oldResult = await db.query('SELECT * FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text', [id, tenant_id]);
     if (oldResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Branch not found' });
     }
 
     const result = await db.query(
-      'UPDATE branches SET name = $1, address = $2, phone = $3 WHERE id = $4 AND tenant_id = $5 RETURNING *',
+      'UPDATE branches SET name = $1, address = $2, phone = $3 WHERE id::text = $4::text AND tenant_id::text = $5::text RETURNING *',
       [name || oldResult.rows[0].name, address || oldResult.rows[0].address, phone || oldResult.rows[0].phone, id, tenant_id]
     );
 
@@ -91,7 +91,7 @@ exports.deleteBranch = async (req, res) => {
 
   try {
     // 1. Double check Main Branch protection
-    const checkResult = await db.query('SELECT is_main FROM branches WHERE id = $1 AND tenant_id = $2', [id, tenant_id]);
+    const checkResult = await db.query('SELECT is_main FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text', [id, tenant_id]);
     if (checkResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Branch not found' });
     }
@@ -103,7 +103,7 @@ exports.deleteBranch = async (req, res) => {
       });
     }
 
-    const result = await db.query('DELETE FROM branches WHERE id = $1 AND tenant_id = $2 RETURNING *', [id, tenant_id]);
+    const result = await db.query('DELETE FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text RETURNING *', [id, tenant_id]);
 
     logAction({ req, action: ACTIONS.DELETE, entityType: 'Branch', entityId: id });
 
@@ -122,7 +122,7 @@ exports.logBranchSwitch = async (req, res) => {
   const tenant_id = req.user.tenant_id;
 
   try {
-    const checkResult = await db.query('SELECT id FROM branches WHERE id = $1 AND tenant_id = $2', [branchId, tenant_id]);
+    const checkResult = await db.query('SELECT id FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text', [branchId, tenant_id]);
     if (checkResult.rows.length > 0) {
       logAction({
         req,
