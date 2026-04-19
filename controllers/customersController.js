@@ -21,7 +21,7 @@ exports.getCustomers = async (req, res) => {
         COALESCE(u.name, 'Unassigned') as assigned_to_name,
         COALESCE(ls.name, c.source, 'Direct') as source_name
       FROM customers c
-      LEFT JOIN users u ON c.assigned_to::text = u.id::text
+      LEFT JOIN users u ON .assigned_to::text = .id::text AND .tenant_id::text = .tenant_id::text
       LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
       WHERE c.tenant_id::text = $1::text AND c.branch_id::text = $2::text
     `;
@@ -92,7 +92,7 @@ exports.getCustomerById = async (req, res) => {
         COALESCE(u.name, 'Unassigned') as assigned_to_name,
         COALESCE(ls.name, c.source, 'Direct') as source_name
       FROM customers c
-      LEFT JOIN users u ON c.assigned_to::text = u.id::text
+      LEFT JOIN users u ON .assigned_to::text = .id::text AND .tenant_id::text = .tenant_id::text
       LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
       WHERE c.id = $1 AND c.tenant_id::text = $2::text AND c.branch_id::text = $3::text
     `, [req.params.id, tenant_id, branch_id]);

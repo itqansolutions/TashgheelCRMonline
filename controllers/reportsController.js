@@ -9,7 +9,7 @@ exports.getTopProducts = async (req, res) => {
         const result = await db.query(`
             SELECT p.name, p.category, SUM(ii.quantity) as total_sold, SUM(ii.subtotal) as total_revenue
             FROM invoice_items ii
-            JOIN products p ON ii.product_id::text = p.id::text
+            JOIN products p ON .product_id::text = .id::text AND .tenant_id::text = .tenant_id::text
             WHERE ii.tenant_id::text = $1::text
             GROUP BY p.id, p.name, p.category
             ORDER BY total_revenue DESC

@@ -156,7 +156,7 @@ exports.login = async (req, res) => {
     const userResult = await db.query(`
       SELECT u.*, t.template_name 
       FROM users u 
-      JOIN tenants t ON u.tenant_id = t.id 
+      JOIN tenants t ON u.tenant_id::text = t.id::text 
       WHERE u.email = $1
     `, [email]);
 
@@ -216,7 +216,7 @@ exports.demoLogin = async (req, res) => {
     const userResult = await db.query(`
       SELECT u.*, t.template_name 
       FROM users u 
-      JOIN tenants t ON u.tenant_id = t.id 
+      JOIN tenants t ON u.tenant_id::text = t.id::text 
       WHERE u.email = $1
     `, [DEMO_EMAIL]);
     
@@ -338,7 +338,7 @@ exports.getMe = async (req, res) => {
     const userResult = await db.query(`
       SELECT u.id, u.name, u.email, u.role, u.tenant_id, u.created_at, t.template_name 
       FROM users u 
-      JOIN tenants t ON u.tenant_id = t.id
+      JOIN tenants t ON u.tenant_id::text = t.id::text
       WHERE u.id = $1
     `, [req.user.id]);
     

@@ -30,8 +30,8 @@ exports.getInvoices = async (req, res) => {
                 (i.total_amount - COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text), 0)) as remaining_balance,
                 c.name as customer_name
             FROM invoices i
-            LEFT JOIN deals d ON i.deal_id::text = d.id::text 
-            LEFT JOIN customers c ON i.client_id::text = c.id::text
+            LEFT JOIN deals d ON .deal_id::text = .id::text AND .tenant_id::text = .tenant_id::text 
+            LEFT JOIN customers c ON .client_id::text = .id::text AND .tenant_id::text = .tenant_id::text
             WHERE i.tenant_id::text = $1::text AND i.branch_id::text = $2::text
             ORDER BY i.created_at DESC
         `, [tenant_id, branch_id]);

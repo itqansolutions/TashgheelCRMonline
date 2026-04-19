@@ -26,11 +26,11 @@ exports.getDeals = async (req, res) => {
         rp.paid_amount,
         rp.total_amount as payment_total
       FROM deals d
-      LEFT JOIN customers c ON d.client_id::text = c.id::text
-      LEFT JOIN products p ON d.product_id::text = p.id::text
-      LEFT JOIN users u ON d.assigned_to::text = u.id::text
-      LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text
-      LEFT JOIN re_payments_mvp rp ON d.id::text = rp.deal_id::text
+      LEFT JOIN customers c ON .client_id::text = .id::text AND .tenant_id::text = .tenant_id::text
+      LEFT JOIN products p ON .product_id::text = .id::text AND .tenant_id::text = .tenant_id::text
+      LEFT JOIN users u ON .assigned_to::text = .id::text AND .tenant_id::text = .tenant_id::text
+      LEFT JOIN re_units ru ON .unit_id::text = .id::text AND .tenant_id::text = .tenant_id::text
+      LEFT JOIN re_payments_mvp rp ON .id::text = .deal_id::text AND .tenant_id::text = .tenant_id::text
       WHERE d.tenant_id::text = $1::text AND d.branch_id::text = $2::text
       ORDER BY d.created_at DESC
     `, [tenant_id, branch_id]);
@@ -59,7 +59,7 @@ exports.getDealById = async (req, res) => {
     const result = await db.query(`
       SELECT d.*, p.name as product_name 
       FROM deals d 
-      LEFT JOIN products p ON d.product_id::text = p.id::text 
+      LEFT JOIN products p ON .product_id::text = .id::text AND .tenant_id::text = .tenant_id::text 
       WHERE d.id = $1 AND d.tenant_id::text = $2::text AND d.branch_id::text = $3::text
     `, [req.params.id, tenant_id, branch_id]);
     
