@@ -9,7 +9,7 @@ const db = require('../config/db');
 // @route   GET /api/re-payments/deal/:dealId
 exports.getPaymentByDeal = async (req, res) => {
     const { dealId } = req.params;
-    const tenant_id = req.user.tenant_id;
+    const tenant_id = String(req.user.tenant_id);
 
     try {
         const result = await db.query(`
@@ -38,7 +38,7 @@ exports.getPaymentByDeal = async (req, res) => {
 exports.updatePayment = async (req, res) => {
     const { id } = req.params;
     const { paid_amount, down_payment, next_payment_date } = req.body;
-    const tenant_id = req.user.tenant_id;
+    const tenant_id = String(req.user.tenant_id);
 
     try {
         const result = await db.query(`
@@ -80,7 +80,7 @@ exports.updatePayment = async (req, res) => {
 // @desc    Admin: Delete payment record
 exports.deletePayment = async (req, res) => {
     const { id } = req.params;
-    const tenant_id = req.user.tenant_id;
+    const tenant_id = String(req.user.tenant_id);
     try {
         await db.query('DELETE FROM re_payments_mvp WHERE id = $1 AND tenant_id = $2', [id, tenant_id]);
         res.json({ status: 'success', message: 'Payment tracking removed' });

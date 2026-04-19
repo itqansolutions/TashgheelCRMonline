@@ -10,9 +10,9 @@ const reconcileDatabase = async () => {
         // 1. Repair CUSTOMERS & RE_UNITS table (Schema Alignment)
         console.log('🚧 [DB-RECON] Checking Customers & Units integrity...');
         
-        // Customers: Multi-Tenant & RE Matching Columns
-        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS tenant_id UUID`);
-        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS branch_id UUID`);
+        // Customers: Multi-Tenant & RE Matching Columns (Polymorphic IDs)
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255)`);
+        await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
         await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS source_id INTEGER`);
         await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS entity_type VARCHAR(20) DEFAULT 'customer'`);
         await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS budget_min NUMERIC DEFAULT 0`);
@@ -25,11 +25,9 @@ const reconcileDatabase = async () => {
         await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS source TEXT`);
         await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS assigned_to UUID`);
 
-        // Users: Multi-Tenant & Branch Scoping (Integer IDs)
-        await db.query(`ALTER TABLE users ALTER COLUMN tenant_id TYPE INTEGER USING tenant_id::text::integer`);
-        await db.query(`ALTER TABLE users ALTER COLUMN branch_id TYPE INTEGER USING branch_id::text::integer`);
-        await db.query(`ALTER TABLE customers ALTER COLUMN tenant_id TYPE INTEGER USING tenant_id::text::integer`);
-        await db.query(`ALTER TABLE customers ALTER COLUMN branch_id TYPE INTEGER USING branch_id::text::integer`);
+        // Users: Multi-Tenant & Branch Scoping (Polymorphic IDs)
+        await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255)`);
+        await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
 
         // Units: Operational Table & Columns (Re-aligned to Integer IDs)
         await db.query(`DROP TABLE IF EXISTS re_payments_mvp`); // Drop first due to potential dependencies
@@ -46,8 +44,8 @@ const reconcileDatabase = async () => {
                 area_sqm VARCHAR(50),
                 price NUMERIC DEFAULT 0,
                 status VARCHAR(20) DEFAULT 'available',
-                tenant_id INTEGER,
-                branch_id INTEGER,
+                tenant_id VARCHAR(255),
+                branch_id VARCHAR(255),
                 vendor_id UUID,
                 responsible_person_id UUID,
                 transaction_type VARCHAR(20) DEFAULT 'sale',
@@ -58,7 +56,7 @@ const reconcileDatabase = async () => {
             )
         `);
 
-        // Payments: RE Payment Schedules (MVP Alignment - Integer IDs)
+        // Payments: RE Payment Schedules (MVP Alignment - Polymorphic IDs)
         await db.query(`
             CREATE TABLE IF NOT EXISTS re_payments_mvp (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -69,18 +67,18 @@ const reconcileDatabase = async () => {
                 paid_amount NUMERIC DEFAULT 0,
                 next_payment_date DATE,
                 status VARCHAR(20) DEFAULT 'pending',
-                tenant_id INTEGER,
-                branch_id INTEGER,
+                tenant_id VARCHAR(255),
+                branch_id VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
 
-        // Lead Statuses: Customizable lookup table (Integer IDs)
+        // Lead Statuses: Customizable lookup table (Polymorphic IDs)
         await db.query(`
             CREATE TABLE IF NOT EXISTS lead_statuses (
                 id SERIAL PRIMARY KEY,
-                tenant_id INTEGER,
+                tenant_id VARCHAR(255),
                 name VARCHAR(50) NOT NULL,
                 color VARCHAR(20),
                 is_default BOOLEAN DEFAULT false,
@@ -89,12 +87,12 @@ const reconcileDatabase = async () => {
             )
         `);
         
-        // Notifications: System-wide alert table (MVP Alignment - Integer IDs)
+        // Notifications: System-wide alert table (MVP Alignment - Polymorphic IDs)
         await db.query(`
             CREATE TABLE IF NOT EXISTS system_notifications (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                tenant_id INTEGER,
-                branch_id INTEGER,
+                tenant_id VARCHAR(255),
+                branch_id VARCHAR(255),
                 user_id UUID,
                 type VARCHAR(50) DEFAULT 'info',
                 title VARCHAR(255),

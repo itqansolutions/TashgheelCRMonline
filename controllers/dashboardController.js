@@ -17,11 +17,11 @@ const generateCacheKey = (tenantId, branchId, viewMode, role) => {
 // @route   GET /api/dashboard/branch-summary
 // @access  Private
 exports.getBranchSummary = async (req, res) => {
-    const tenant_id = req.user.tenant_id;
+    const tenant_id = String(req.user.tenant_id);
     const role = req.user.role;
     
     // View Mode parameters from Frontend Query
-    let { viewMode = 'SINGLE', targetBranchId = req.branchId, timeFilter = 'YTD' } = req.query;
+    let { viewMode = 'SINGLE', targetBranchId = String(req.branchId), timeFilter = 'YTD' } = req.query;
 
     // --- Role Protection Enforcement ---
     if (role === 'employee') {
@@ -30,7 +30,7 @@ exports.getBranchSummary = async (req, res) => {
         targetBranchId = req.branchId; 
     }
 
-    const cacheKey = generateCacheKey(`${tenant_id}:${timeFilter}`, targetBranchId, viewMode, role);
+    const cacheKey = generateCacheKey(`${tenant_id}:${timeFilter}`, String(targetBranchId), viewMode, role);
     
     // 1. Check Cache
     const cachedData = dashboardCache.get(cacheKey);
@@ -62,7 +62,7 @@ exports.getBranchSummary = async (req, res) => {
         
         if (viewMode === 'SINGLE') {
             branchFilter = `AND branch_id = $2`;
-            queryParams.push(targetBranchId);
+            queryParams.push(String(targetBranchId));
         } // If ALL, no branch filter, aggregates everything for the tenant
 
         // --- Execute Optimized Queries ---

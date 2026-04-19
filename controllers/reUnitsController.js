@@ -8,8 +8,8 @@ const db = require('../config/db');
 // @desc    Get all units for tenant
 // @route   GET /api/re-units
 exports.getUnits = async (req, res) => {
-    const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId || req.user?.branch_id;
+    const tenant_id = String(req.user.tenant_id);
+    const branch_id = String(req.branchId || req.user?.branch_id);
 
     try {
         if (!tenant_id || !branch_id) {
@@ -56,8 +56,8 @@ exports.createUnit = async (req, res) => {
         vendor_id, responsible_person_id, transaction_type, rooms, location 
     } = req.body;
     
-    const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId || req.user?.branch_id;
+    const tenant_id = String(req.user.tenant_id);
+    const branch_id = String(req.branchId || req.user?.branch_id);
 
     try {
         const result = await db.query(`
@@ -88,8 +88,8 @@ exports.updateUnit = async (req, res) => {
         vendor_id, responsible_person_id, transaction_type, rooms, location 
     } = req.body;
     
-    const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId || req.user?.branch_id;
+    const tenant_id = String(req.user.tenant_id);
+    const branch_id = String(req.branchId || req.user?.branch_id);
 
     try {
         const result = await db.query(`
@@ -128,8 +128,8 @@ exports.updateUnit = async (req, res) => {
 // @route   DELETE /api/re-units/:id
 exports.deleteUnit = async (req, res) => {
     const { id } = req.params;
-    const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId || req.user?.branch_id;
+    const tenant_id = String(req.user.tenant_id);
+    const branch_id = String(req.branchId || req.user?.branch_id);
 
     try {
         // Safety: Can't delete if Reserved or Sold
