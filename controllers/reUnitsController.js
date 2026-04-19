@@ -44,12 +44,7 @@ exports.getUnits = async (req, res) => {
             });
         }
 
-        res.status(500).json({ 
-            status: 'error', 
-            message: 'Unit inventory is currently unavailable.',
-            debug: err.message,
-            stack: err.stack?.split('\n').slice(0, 3).join('\n') 
-        });
+        res.status(500).json({ status: 'error', message: 'Unit inventory is currently unavailable.' });
     }
 };
 
@@ -70,7 +65,7 @@ exports.createUnit = async (req, res) => {
                 tenant_id, branch_id, name, project_name, unit_number, type, floor, area_sqm, price, 
                 vendor_id, responsible_person_id, transaction_type, rooms, location, status
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'Available')
+            VALUES ($1::text, $2::text, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'Available')
             RETURNING *
         `, [
             tenant_id, branch_id, name, project_name, unit_number, type, floor, area_sqm, price,

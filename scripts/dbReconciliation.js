@@ -8,11 +8,13 @@ const reconcileDatabase = async () => {
     console.log('🔍 [DB-RECON] Starting schema existence check...');
     
     try {
-        // 1. Create Modular Tables (Type-Agnostic VARCHAR for flexibility)
-        console.log('🚧 [DB-RECON] Ensuring Real Estate tables exist...');
+        // 2. RESET REAL ESTATE TABLES (Forced Schema Alignment)
+        console.log('🚧 [DB-RECON] Forcefully resetting Real Estate schema for ID alignment...');
+        await db.query(`DROP TABLE IF EXISTS re_payments_mvp CASCADE`);
+        await db.query(`DROP TABLE IF EXISTS re_units CASCADE`);
         
         await db.query(`
-            CREATE TABLE IF NOT EXISTS re_units (
+            CREATE TABLE re_units (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 name VARCHAR(255) NOT NULL,
                 project_name VARCHAR(255),
