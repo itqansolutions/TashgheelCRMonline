@@ -11,7 +11,11 @@ const pool = new Pool({
   connectionString: connectionString,
   ssl: {
     rejectUnauthorized: false
-  }
+  },
+  // --- DATABASE STABILIZATION (Enterprise Tier) ---
+  connectionTimeoutMillis: 10000, // 10s wait for new connection
+  idleTimeoutMillis: 30000,    // 30s before closing idle connection
+  max: 20,                     // Limit concurrent connections to avoid Railway proxy saturation
 });
 
 pool.on('connect', () => {

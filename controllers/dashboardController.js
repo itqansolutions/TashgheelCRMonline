@@ -142,6 +142,10 @@ exports.getBranchSummary = async (req, res) => {
         const prevExpenses = parseFloat(prevExpRes.rows[0].total);
         const prevProfit = prevRevenue - prevExpenses;
 
+        // -- Current Period Profitability Metrics
+        const profit = revenue - expenses;
+        const profitMargin = revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : 0;
+
         // -- Rule Processing
         const insights = [];
         

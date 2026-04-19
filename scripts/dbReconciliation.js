@@ -139,4 +139,24 @@ const reconcileDatabase = async () => {
     }
 };
 
-module.exports = reconcileDatabase;
+/**
+ * Resilient Wrapper for RECON
+ */
+const startReconciliationWithRetry = async (retries = 3, delay = 5000) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            await reconcileDatabase();
+            return; // Success!
+        } catch (err) {
+            console.error(`⚠️ [DB-RECON] Attempt ${i + 1} failed: ${err.message}`);
+            if (i < retries - 1) {
+                console.log(`📡 [DB-RECON] Retrying in ${delay / 1000}s...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            } else {
+                console.error('❌ [DB-RECON] Maximum retries reached. System might be unstable.');
+            }
+        }
+    }
+};
+
+module.exports = startReconciliationWithRetry;

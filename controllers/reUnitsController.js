@@ -12,6 +12,10 @@ exports.getUnits = async (req, res) => {
     const branch_id = req.branchId || req.user?.branch_id;
 
     try {
+        if (!tenant_id || !branch_id) {
+            return res.status(400).json({ status: 'error', message: 'Tenant or Branch context missing' });
+        }
+
         const result = await db.query(`
             SELECT 
                 ru.*,
@@ -24,10 +28,20 @@ exports.getUnits = async (req, res) => {
             ORDER BY ru.project_name DESC, ru.name ASC
         `, [tenant_id, branch_id]);
 
-        res.json({ status: 'success', data: result.rows });
+        res.json({ status: 'success', data: result.rows || [] });
     } catch (err) {
-        console.error('[Units API Error]', err.message);
-        res.status(500).json({ status: 'error', message: 'Failed to fetch units' });
+        console.error('[Units API Error]:', err.message);
+        
+        // Specific handling for missing table (common during unstable migrations)
+        if (err.message.includes('relation "re_units" does not exist')) {
+            return res.status(200).json({ 
+                status: 'success', 
+                data: [], 
+                message: 'Unit inventory is being initialized. Please refresh in a moment.' 
+            });
+        }
+
+        res.status(500).json({ status: 'error', message: 'Failed to fetch unit inventory. Please ensure your template is correctly set to Real Estate.' });
     }
 };
 
