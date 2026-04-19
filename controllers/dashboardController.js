@@ -237,8 +237,31 @@ exports.getBranchSummary = async (req, res) => {
         });
 
     } catch (err) {
-        console.error('CRITICAL BI ENGINE ERROR:', err.message);
-        res.status(500).json({ status: 'error', message: 'Intelligence aggregation failed.' });
+        console.error('📡 [BI ENGINE ERROR]:', err.message);
+        
+        // --- GRACEFUL DEGRADATION ---
+        // If the database is unreachable or a table is missing, return empty 
+        // fallback data instead of a 500 error during stabilization.
+        const isTableMissing = err.message.includes('relation') && err.message.includes('does not exist');
+        const isTimeout = err.message.includes('timeout') || err.message.includes('terminated');
+
+        if (isTableMissing || isTimeout) {
+            console.warn(`⚠️ Dashboard falling back to safe-state due to: ${err.message}`);
+            return res.json({ 
+                status: 'success', 
+                data: {
+                    revenue: 0, expenses: 0, profit: 0, profitMargin: 0,
+                    winRate: 0, wonDeals: 0, totalDeals: 0,
+                    taskCompletion: 0, completedTasks: 0, totalTasks: 0,
+                    viewMode, insights: [{ type: 'info', message: 'Metrics are currently being initialized. Please check back in a moment.' }],
+                    industrySpecific: {}, branchContext: viewMode === 'SINGLE' ? targetBranchId : 'ALL',
+                    partialData: true 
+                },
+                message: 'Operating in Safe-Mode due to database availability.'
+            });
+        }
+
+        res.status(500).json({ status: 'error', message: 'Dashboard intelligence platform is currently undergoing maintenance.' });
     }
 };
 

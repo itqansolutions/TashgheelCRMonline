@@ -51,18 +51,21 @@ const reconcileDatabase = async () => {
             )
         `);
 
-        // Payments: RE Payment Schedules
+        // Payments: RE Payment Schedules (MVP Alignment)
         await db.query(`
-            CREATE TABLE IF NOT EXISTS re_payments (
+            CREATE TABLE IF NOT EXISTS re_payments_mvp (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 unit_id UUID,
                 customer_id UUID,
-                amount NUMERIC NOT NULL,
-                due_date DATE,
+                deal_id UUID,
+                total_amount NUMERIC DEFAULT 0,
+                paid_amount NUMERIC DEFAULT 0,
+                next_payment_date DATE,
                 status VARCHAR(20) DEFAULT 'pending',
                 tenant_id UUID,
                 branch_id UUID,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
 
@@ -75,6 +78,21 @@ const reconcileDatabase = async () => {
                 color VARCHAR(20),
                 is_default BOOLEAN DEFAULT false,
                 sort_order INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
+        // Notifications: System-wide alert table (MVP Alignment)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS system_notifications (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id UUID,
+                branch_id UUID,
+                user_id UUID,
+                type VARCHAR(50) DEFAULT 'info',
+                title VARCHAR(255),
+                message TEXT,
+                is_read BOOLEAN DEFAULT false,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);

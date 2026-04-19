@@ -32,16 +32,19 @@ exports.getUnits = async (req, res) => {
     } catch (err) {
         console.error('[Units API Error]:', err.message);
         
-        // Specific handling for missing table (common during unstable migrations)
-        if (err.message.includes('relation "re_units" does not exist')) {
+        // --- GRACEFUL DEGRADATION ---
+        const isTableMissing = err.message.includes('relation') && err.message.includes('does not exist');
+        const isTimeout = err.message.includes('timeout') || err.message.includes('terminated');
+
+        if (isTableMissing || isTimeout) {
             return res.status(200).json({ 
                 status: 'success', 
                 data: [], 
-                message: 'Unit inventory is being initialized. Please refresh in a moment.' 
+                message: 'Unit inventory is currently being synchronized with the cloud. Please refresh in a moment.' 
             });
         }
 
-        res.status(500).json({ status: 'error', message: 'Failed to fetch unit inventory. Please ensure your template is correctly set to Real Estate.' });
+        res.status(500).json({ status: 'error', message: 'Unit inventory is currently unavailable.' });
     }
 };
 
