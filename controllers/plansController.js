@@ -39,7 +39,7 @@ exports.getMySubscription = async (req, res) => {
                 END as is_expired
             FROM subscriptions s
             JOIN plans p ON s.plan_id = p.id
-            WHERE s.tenant_id = $1
+            WHERE s.tenant_id::text = $1::text
         `, [tenant_id]);
 
         if (result.rows.length === 0) {
@@ -61,7 +61,7 @@ exports.getMySubscription = async (req, res) => {
 
         // Auto-expire trial if time has passed
         if (sub.is_expired && sub.status === 'trial') {
-            await db.query(`UPDATE subscriptions SET status = 'expired' WHERE tenant_id = $1`, [tenant_id]);
+            await db.query(`UPDATE subscriptions SET status = 'expired' WHERE tenant_id::text = $1::text`, [tenant_id]);
             sub.status = 'expired';
         }
 

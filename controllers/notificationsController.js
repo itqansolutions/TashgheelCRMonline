@@ -9,13 +9,13 @@ exports.getNotifications = async (req, res) => {
   
   try {
     const result = await db.query(
-      'SELECT * FROM notifications WHERE user_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT 50',
+      'SELECT * FROM notifications WHERE user_id = $1 AND tenant_id::text = $2::text ORDER BY created_at DESC LIMIT 50',
       [userId, tenant_id]
     );
     
     // Get unread count
     const countResult = await db.query(
-      'SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND tenant_id = $2 AND is_read = false',
+      'SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND tenant_id::text = $2::text AND is_read = false',
       [userId, tenant_id]
     );
 
@@ -40,7 +40,7 @@ exports.markAsRead = async (req, res) => {
 
   try {
     const result = await db.query(
-      'UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2 AND tenant_id = $3 RETURNING *',
+      'UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2 AND tenant_id::text = $3::text RETURNING *',
       [id, userId, tenant_id]
     );
 
@@ -64,7 +64,7 @@ exports.markAllAsRead = async (req, res) => {
 
   try {
     await db.query(
-      'UPDATE notifications SET is_read = true WHERE user_id = $1 AND tenant_id = $2',
+      'UPDATE notifications SET is_read = true WHERE user_id = $1 AND tenant_id::text = $2::text',
       [userId, tenant_id]
     );
     res.json({ status: 'success', message: 'All notifications marked as read' });
@@ -84,7 +84,7 @@ exports.deleteNotification = async (req, res) => {
 
   try {
     const result = await db.query(
-      'DELETE FROM notifications WHERE id = $1 AND user_id = $2 AND tenant_id = $3 RETURNING *',
+      'DELETE FROM notifications WHERE id = $1 AND user_id = $2 AND tenant_id::text = $3::text RETURNING *',
       [id, userId, tenant_id]
     );
 

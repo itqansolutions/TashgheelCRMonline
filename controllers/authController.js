@@ -86,7 +86,7 @@ exports.register = async (req, res) => {
 
     // Link Admin to this branch
     await db.query('INSERT INTO user_branches (user_id, branch_id) VALUES ($1, $2)', [user.id, mainBranchId]);
-    await db.query('UPDATE users SET branch_id = $1 WHERE id = $2', [mainBranchId, user.id]);
+    await db.query('UPDATE users SET branch_id::text = $1::text WHERE id = $2', [mainBranchId, user.id]);
 
     // Seed Settings (Note: settings table is global in current schema, need to make it tenant-aware if needed, 
     // but schema.sql says it lacks tenant_id. For now, we seed global keys if missing, 

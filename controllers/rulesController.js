@@ -13,7 +13,7 @@ exports.getRules = async (req, res) => {
             SELECT r.*, u.name as created_by_name
             FROM workflow_rules r
             LEFT JOIN users u ON r.created_by = u.id
-            WHERE r.tenant_id = $1 AND (r.branch_id = $2 OR r.branch_id IS NULL)
+            WHERE r.tenant_id::text = $1::text AND (r.branch_id::text = $2::text OR r.branch_id IS NULL)
             ORDER BY r.created_at DESC
         `, [tenant_id, branch_id]);
         res.json({ status: 'success', data: result.rows });
@@ -31,7 +31,7 @@ exports.createRule = async (req, res) => {
 
     try {
         // Safety: Max 20 rules per tenant
-        const countRes = await db.query(`SELECT COUNT(*) FROM workflow_rules WHERE tenant_id = $1`, [tenant_id]);
+        const countRes = await db.query(`SELECT COUNT(*) FROM workflow_rules WHERE tenant_id::text = $1::text`, [tenant_id]);
         if (parseInt(countRes.rows[0].count) >= MAX_RULES_PER_TENANT) {
             return res.status(400).json({ status: 'error', message: `Rule limit reached (max ${MAX_RULES_PER_TENANT} per tenant).` });
         }
@@ -86,7 +86,7 @@ exports.updateRule = async (req, res) => {
                 cooldown_minutes = COALESCE($4, cooldown_minutes),
                 is_active = COALESCE($5, is_active),
                 updated_at = NOW()
-            WHERE id = $6 AND tenant_id = $7
+            WHERE id = $6 AND tenant_id::text = $7::text
             RETURNING *
         `, [name, conditions ? JSON.stringify(conditions) : null, actions ? JSON.stringify(actions) : null, cooldown_minutes, is_active, id, tenant_id]);
 
@@ -102,7 +102,7 @@ exports.updateRule = async (req, res) => {
 exports.deleteRule = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     try {
-        const result = await db.query(`DELETE FROM workflow_rules WHERE id = $1 AND tenant_id = $2 RETURNING id`, [req.params.id, tenant_id]);
+        const result = await db.query(`DELETE FROM workflow_rules WHERE id = $1 AND tenant_id::text = $2::text RETURNING id`, [req.params.id, tenant_id]);
         if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Rule not found.' });
         res.json({ status: 'success', message: 'Rule deleted.' });
     } catch (err) {
@@ -116,7 +116,7 @@ exports.simulateRule = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     const { test_payload } = req.body;
     try {
-        const ruleRes = await db.query(`SELECT * FROM workflow_rules WHERE id = $1 AND tenant_id = $2`, [req.params.id, tenant_id]);
+        const ruleRes = await db.query(`SELECT * FROM workflow_rules WHERE id = $1 AND tenant_id::text = $2::text`, [req.params.id, tenant_id]);
         if (ruleRes.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Rule not found.' });
 
         const rule = ruleRes.rows[0];

@@ -161,7 +161,7 @@ exports.assignPlanToTenant = async (req, res) => {
 exports.getTenantOverride = async (req, res) => {
     const { tenant_id } = req.params;
     try {
-        const result = await db.query(`SELECT * FROM tenant_overrides WHERE tenant_id = $1`, [tenant_id]);
+        const result = await db.query(`SELECT * FROM tenant_overrides WHERE tenant_id::text = $1::text`, [tenant_id]);
         res.json({ status: 'success', data: result.rows[0] || null });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });
@@ -195,7 +195,7 @@ exports.setTenantOverride = async (req, res) => {
 exports.removeTenantOverride = async (req, res) => {
     const { tenant_id } = req.params;
     try {
-        await db.query(`DELETE FROM tenant_overrides WHERE tenant_id = $1`, [tenant_id]);
+        await db.query(`DELETE FROM tenant_overrides WHERE tenant_id::text = $1::text`, [tenant_id]);
         res.json({ status: 'success', message: 'Override removed. Tenant reverts to plan defaults.' });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });

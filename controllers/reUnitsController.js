@@ -22,8 +22,8 @@ exports.getUnits = async (req, res) => {
                 c.name as vendor_name,
                 u.name as responsible_person_name
             FROM re_units ru
-            LEFT JOIN customers c ON ru.vendor_id = c.id
-            LEFT JOIN users u ON ru.responsible_person_id = u.id
+            LEFT JOIN customers c ON ru.vendor_id::text = c.id::text
+            LEFT JOIN users u ON ru.responsible_person_id::text = u.id::text
             WHERE ru.tenant_id::text = $1::text AND ru.branch_id::text = $2::text
             ORDER BY ru.project_name DESC, ru.name ASC
         `, [tenant_id, branch_id]);
@@ -44,7 +44,7 @@ exports.getUnits = async (req, res) => {
             });
         }
 
-        res.status(500).json({ status: 'error', message: 'Unit inventory is currently unavailable.' });
+        res.status(500).json({ status: 'error', message: 'Dashboard intelligence platform is currently undergoing maintenance.', debug: err.message });
     }
 };
 
@@ -75,7 +75,7 @@ exports.createUnit = async (req, res) => {
         res.status(201).json({ status: 'success', data: result.rows[0] });
     } catch (err) {
         console.error('[Unit Create Error]', err.message);
-        res.status(500).json({ status: 'error', message: 'Failed to create unit' });
+        res.status(500).json({ status: 'error', message: err.message, stack: err.stack });
     }
 };
 

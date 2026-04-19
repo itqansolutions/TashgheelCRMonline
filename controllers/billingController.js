@@ -27,7 +27,7 @@ exports.getMyBilling = async (req, res) => {
                 END as trial_days_left
             FROM subscriptions s
             JOIN plans p ON s.plan_id = p.id
-            WHERE s.tenant_id = $1
+            WHERE s.tenant_id::text = $1::text
         `, [tenant_id]);
 
         // Latest upgrade request
@@ -39,7 +39,7 @@ exports.getMyBilling = async (req, res) => {
             FROM upgrade_requests ur
             JOIN plans cp ON ur.current_plan_id = cp.id
             JOIN plans rp ON ur.requested_plan_id = rp.id
-            WHERE ur.tenant_id = $1
+            WHERE ur.tenant_id::text = $1::text
             ORDER BY ur.created_at DESC LIMIT 1
         `, [tenant_id]);
 
@@ -71,7 +71,7 @@ exports.requestUpgrade = async (req, res) => {
         }
 
         // Get current subscription
-        const subRes = await db.query(`SELECT * FROM subscriptions WHERE tenant_id = $1`, [tenant_id]);
+        const subRes = await db.query(`SELECT * FROM subscriptions WHERE tenant_id::text = $1::text`, [tenant_id]);
         if (subRes.rows.length === 0) {
             return res.status(400).json({ status: 'error', message: 'No active subscription found.' });
         }
@@ -80,7 +80,7 @@ exports.requestUpgrade = async (req, res) => {
         // Block duplicate pending requests
         const existingReq = await db.query(`
             SELECT id FROM upgrade_requests 
-            WHERE tenant_id = $1 AND status = 'pending'
+            WHERE tenant_id::text = $1::text AND status = 'pending'
         `, [tenant_id]);
         if (existingReq.rows.length > 0) {
             return res.status(409).json({ status: 'error', message: 'You already have a pending upgrade request. Please wait for admin review.' });
@@ -99,7 +99,7 @@ exports.requestUpgrade = async (req, res) => {
         `, [tenant_id, sub.plan_id, requested_plan_id]);
 
         // Mark subscription as pending_upgrade
-        await db.query(`UPDATE subscriptions SET status = 'pending_upgrade' WHERE tenant_id = $1`, [tenant_id]);
+        await db.query(`UPDATE subscriptions SET status = 'pending_upgrade' WHERE tenant_id::text = $1::text`, [tenant_id]);
 
         // Notify admin (optional - add to notifications for system tenant admin)
         try {
@@ -134,11 +134,11 @@ exports.requestUpgrade = async (req, res) => {
 exports.cancelUpgradeRequest = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     try {
-        await db.query(`UPDATE upgrade_requests SET status = 'cancelled' WHERE tenant_id = $1 AND status = 'pending'`, [tenant_id]);
+        await db.query(`UPDATE upgrade_requests SET status = 'cancelled' WHERE tenant_id::text = $1::text AND status = 'pending'`, [tenant_id]);
         // Revert sub status
-        const subRes = await db.query(`SELECT status FROM subscriptions WHERE tenant_id = $1`, [tenant_id]);
+        const subRes = await db.query(`SELECT status FROM subscriptions WHERE tenant_id::text = $1::text`, [tenant_id]);
         if (subRes.rows[0]?.status === 'pending_upgrade') {
-            await db.query(`UPDATE subscriptions SET status = 'trial' WHERE tenant_id = $1`, [tenant_id]);
+            await db.query(`UPDATE subscriptions SET status = 'trial' WHERE tenant_id::text = $1::text`, [tenant_id]);
         }
         res.json({ status: 'success', message: 'Upgrade request cancelled.' });
     } catch (err) {
@@ -191,7 +191,7 @@ exports.approveUpgradeRequest = async (req, res) => {
         await db.query(`
             UPDATE subscriptions 
             SET plan_id = $1, status = 'active', expires_at = NOW() + INTERVAL '30 days', updated_at = NOW()
-            WHERE tenant_id = $2
+            WHERE tenant_id::text = $2::text
         `, [upgradeReq.requested_plan_id, upgradeReq.tenant_id]);
 
         // 2. Update tenant.plan column
@@ -213,7 +213,7 @@ exports.approveUpgradeRequest = async (req, res) => {
                 '🎉 Upgrade Approved!',
                 $2
             FROM users u
-            WHERE u.tenant_id = $1 AND u.role = 'admin'
+            WHERE u.tenant_id::text = $1::text AND u.role = 'admin'
             LIMIT 1
         `, [upgradeReq.tenant_id, `Your account has been upgraded. Welcome to ${planName}!`]);
 
@@ -243,7 +243,7 @@ exports.rejectUpgradeRequest = async (req, res) => {
 
         // Revert subscription to trial (or active if they had active before)
         await db.query(`
-            UPDATE subscriptions SET status = 'trial' WHERE tenant_id = $1 AND status = 'pending_upgrade'
+            UPDATE subscriptions SET status = 'trial' WHERE tenant_id::text = $1::text AND status = 'pending_upgrade'
         `, [reqRes.rows[0].tenant_id]);
 
         // Notify tenant
@@ -253,7 +253,7 @@ exports.rejectUpgradeRequest = async (req, res) => {
                 'Upgrade Request Update',
                 $2
             FROM users u
-            WHERE u.tenant_id = $1 AND u.role = 'admin' LIMIT 1
+            WHERE u.tenant_id::text = $1::text AND u.role = 'admin' LIMIT 1
         `, [reqRes.rows[0].tenant_id, notes || 'Your upgrade request could not be processed. Please contact support.']);
 
         res.json({ status: 'success', message: 'Request rejected. Tenant notified.' });
@@ -275,19 +275,19 @@ exports.adminInstantUpgrade = async (req, res) => {
         await db.query(`
             UPDATE subscriptions 
             SET plan_id = $1, status = 'active', expires_at = NOW() + ($2 || ' months')::INTERVAL, updated_at = NOW()
-            WHERE tenant_id = $3
+            WHERE tenant_id::text = $3::text
         `, [plan_id, duration, tenant_id]);
 
         await db.query(`UPDATE tenants SET plan = $1 WHERE id = $2`, [planRes.rows[0].name, tenant_id]);
 
         // Cancel any pending requests
-        await db.query(`UPDATE upgrade_requests SET status = 'approved', reviewed_by = $1, reviewed_at = NOW() WHERE tenant_id = $2 AND status = 'pending'`, [reviewer_id, tenant_id]);
+        await db.query(`UPDATE upgrade_requests SET status = 'approved', reviewed_by = $1, reviewed_at = NOW() WHERE tenant_id::text = $2::text AND status = 'pending'`, [reviewer_id, tenant_id]);
 
         // Notify tenant
         await db.query(`
             INSERT INTO notifications (user_id, tenant_id, type, title, message)
             SELECT u.id, u.tenant_id, 'success', '🎉 Account Upgraded!', $2
-            FROM users u WHERE u.tenant_id = $1 AND u.role = 'admin' LIMIT 1
+            FROM users u WHERE u.tenant_id::text = $1::text AND u.role = 'admin' LIMIT 1
         `, [tenant_id, `Your account has been upgraded to ${planRes.rows[0].display_name} for ${duration} month(s).`]);
 
         res.json({ status: 'success', message: `Tenant instantly upgraded to ${planRes.rows[0].display_name}.` });

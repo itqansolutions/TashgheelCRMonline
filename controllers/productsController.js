@@ -9,7 +9,7 @@ exports.getProducts = async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT * FROM products WHERE tenant_id = $1 AND branch_id = $2 ORDER BY name ASC',
+      'SELECT * FROM products WHERE tenant_id::text = $1::text AND branch_id::text = $2::text ORDER BY name ASC',
       [tenant_id, branch_id]
     );
     res.json({ status: 'success', data: result.rows });
@@ -28,7 +28,7 @@ exports.getProductById = async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT * FROM products WHERE id = $1 AND tenant_id = $2 AND branch_id = $3',
+      'SELECT * FROM products WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text',
       [req.params.id, tenant_id, branch_id]
     );
     if (result.rows.length === 0) {
@@ -71,7 +71,7 @@ exports.updateProduct = async (req, res) => {
 
   try {
     const result = await db.query(
-      'UPDATE products SET name = $1, sku = $2, description = $3, cost_price = $4, selling_price = $5, category = $6, updated_at = CURRENT_TIMESTAMP WHERE id = $7 AND tenant_id = $8 AND branch_id = $9 RETURNING *',
+      'UPDATE products SET name = $1, sku = $2, description = $3, cost_price = $4, selling_price = $5, category = $6, updated_at = CURRENT_TIMESTAMP WHERE id = $7 AND tenant_id::text = $8::text AND branch_id::text = $9::text RETURNING *',
       [name, sku, description, cost_price, selling_price, category, req.params.id, tenant_id, branch_id]
     );
     if (result.rows.length === 0) {
@@ -93,7 +93,7 @@ exports.deleteProduct = async (req, res) => {
 
   try {
     const result = await db.query(
-      'DELETE FROM products WHERE id = $1 AND tenant_id = $2 AND branch_id = $3 RETURNING *',
+      'DELETE FROM products WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *',
       [req.params.id, tenant_id, branch_id]
     );
     if (result.rows.length === 0) {

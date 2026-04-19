@@ -22,7 +22,7 @@ exports.getLogs = async (req, res) => {
       SELECT l.*, u.name as user_name, u.email as user_email
       FROM system_logs l
       LEFT JOIN users u ON l.user_id = u.id
-      WHERE l.tenant_id = $1
+      WHERE l.tenant_id::text = $1::text
     `;
     const params = [tenant_id];
 

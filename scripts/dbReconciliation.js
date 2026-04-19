@@ -8,13 +8,11 @@ const reconcileDatabase = async () => {
     console.log('🔍 [DB-RECON] Starting schema existence check...');
     
     try {
-        // 2. RESET REAL ESTATE TABLES (Forced Schema Alignment)
-        console.log('🚧 [DB-RECON] Forcefully resetting Real Estate schema for ID alignment...');
-        await db.query(`DROP TABLE IF EXISTS re_payments_mvp CASCADE`);
-        await db.query(`DROP TABLE IF EXISTS re_units CASCADE`);
+        // 2. ENSURE REAL ESTATE TABLES (Safe Schema with ID Compatibility)
+        console.log('🚧 [DB-RECON] Verifying Real Estate schema for ID alignment...');
         
         await db.query(`
-            CREATE TABLE re_units (
+            CREATE TABLE IF NOT EXISTS re_units (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 name VARCHAR(255) NOT NULL,
                 project_name VARCHAR(255),
@@ -26,8 +24,8 @@ const reconcileDatabase = async () => {
                 status VARCHAR(20) DEFAULT 'available',
                 tenant_id VARCHAR(255),
                 branch_id VARCHAR(255),
-                vendor_id UUID,
-                responsible_person_id UUID,
+                vendor_id VARCHAR(255),
+                responsible_person_id VARCHAR(255),
                 transaction_type VARCHAR(20) DEFAULT 'sale',
                 rooms INTEGER DEFAULT 0,
                 location TEXT,
@@ -39,9 +37,9 @@ const reconcileDatabase = async () => {
         await db.query(`
             CREATE TABLE IF NOT EXISTS re_payments_mvp (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                unit_id UUID,
-                customer_id UUID,
-                deal_id UUID,
+                unit_id VARCHAR(255),
+                customer_id VARCHAR(255),
+                deal_id VARCHAR(255),
                 total_amount NUMERIC DEFAULT 0,
                 paid_amount NUMERIC DEFAULT 0,
                 next_payment_date DATE,
@@ -64,6 +62,12 @@ const reconcileDatabase = async () => {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+
+        // Migration logic for existing property DBs to explicitly support mixed Integer/UUID string types
+        try {
+            await db.query(`ALTER TABLE re_units ALTER COLUMN vendor_id TYPE VARCHAR(255), ALTER COLUMN responsible_person_id TYPE VARCHAR(255)`);
+            await db.query(`ALTER TABLE re_payments_mvp ALTER COLUMN unit_id TYPE VARCHAR(255), ALTER COLUMN customer_id TYPE VARCHAR(255), ALTER COLUMN deal_id TYPE VARCHAR(255)`);
+        } catch(e) { /* Ignore - Migration already applied or invalid cast */ }
 
         await db.query(`
             CREATE TABLE IF NOT EXISTS system_notifications (

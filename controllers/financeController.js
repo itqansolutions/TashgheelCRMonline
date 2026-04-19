@@ -4,12 +4,12 @@ const { logCreate, logUpdate, logAction, ACTIONS } = require('../services/logger
 // Helper to generate Invoice Number
 const generateInvoiceNumber = async (tenant_id, branch_id) => {
     // 1. Get branch prefix
-    const branchRes = await db.query('SELECT invoice_prefix FROM branches WHERE id = $1 AND tenant_id = $2', [branch_id, tenant_id]);
+    const branchRes = await db.query('SELECT invoice_prefix FROM branches WHERE id = $1 AND tenant_id::text = $2::text', [branch_id, tenant_id]);
     const prefix = branchRes.rows.length && branchRes.rows[0].invoice_prefix ? branchRes.rows[0].invoice_prefix + '-' : 'INV-';
 
     // 2. Safely get the next sequence number for this tenant
     // Using a simple count + 1 approach or max() because PostgreSQL sequences per tenant are hard to manage dynamically.
-    const seqRes = await db.query(`SELECT COUNT(*) + 1 as next_id FROM invoices WHERE tenant_id = $1`, [tenant_id]);
+    const seqRes = await db.query(`SELECT COUNT(*) + 1 as next_id FROM invoices WHERE tenant_id::text = $1::text`, [tenant_id]);
     const nextSeq = String(seqRes.rows[0].next_id).padStart(4, '0');
 
     return `${prefix}${nextSeq}`;
@@ -30,10 +30,9 @@ exports.getInvoices = async (req, res) => {
                 (i.total_amount - COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id = i.id), 0)) as remaining_balance,
                 c.name as customer_name
             FROM invoices i
-            LEFT JOIN deals d ON i.deal_id = d.id  -- Assuming deal linking, wait schema.sql in next logic
-            -- If schema doesn't have deal_id directly in invoices, we'll link via quotation or fallback to customer.
-            -- Actually we should add deal_id and customer_id to invoices for direct tracking. 
-            WHERE i.tenant_id = $1 AND i.branch_id = $2
+            LEFT JOIN deals d ON i.deal_id::text = d.id::text 
+            LEFT JOIN customers c ON i.customer_id::text = c.id::text
+            WHERE i.tenant_id::text = $1::text AND i.branch_id::text = $2::text
             ORDER BY i.created_at DESC
         `, [tenant_id, branch_id]);
 
@@ -102,7 +101,7 @@ exports.createInvoiceFromDeal = async (req, res) => {
         await db.query('BEGIN');
 
         // Fetch Deal details
-        const dealRes = await db.query('SELECT * FROM deals WHERE id = $1 AND tenant_id = $2 AND branch_id = $3 FOR UPDATE', [deal_id, tenant_id, branch_id]);
+        const dealRes = await db.query('SELECT * FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text FOR UPDATE', [deal_id, tenant_id, branch_id]);
         if (dealRes.rows.length === 0) throw new Error('Deal not found or unauthorized');
         
         const deal = dealRes.rows[0];
@@ -159,13 +158,13 @@ exports.createPayment = async (req, res) => {
         await db.query('BEGIN');
 
         // 1. Fetch Invoice
-        const invRes = await db.query('SELECT total_amount FROM invoices WHERE id = $1 AND tenant_id = $2 AND branch_id = $3 FOR UPDATE', [invoice_id, tenant_id, branch_id]);
+        const invRes = await db.query('SELECT total_amount FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text FOR UPDATE', [invoice_id, tenant_id, branch_id]);
         if (invRes.rows.length === 0) throw new Error('Invoice not found or unauthorized');
         
         const invoiceTotal = parseFloat(invRes.rows[0].total_amount);
 
         // 2. Fetch existing payments
-        const paidRes = await db.query('SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE invoice_id = $1 AND tenant_id = $2', [invoice_id, tenant_id]);
+        const paidRes = await db.query('SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE invoice_id = $1 AND tenant_id::text = $2::text', [invoice_id, tenant_id]);
         const currentlyPaid = parseFloat(paidRes.rows[0].total_paid);
 
         const newTotalPaid = currentlyPaid + parseFloat(amount);
@@ -221,8 +220,8 @@ exports.getInvoiceDetails = async (req, res) => {
         const invRes = await db.query(`
             SELECT i.*, COALESCE(p.total_paid, 0) as total_paid, (i.total_amount - COALESCE(p.total_paid, 0)) as remaining_balance 
             FROM invoices i
-            LEFT JOIN (SELECT invoice_id, SUM(amount) as total_paid FROM payments WHERE tenant_id = $1 GROUP BY invoice_id) p ON i.id = p.invoice_id
-            WHERE i.id = $2 AND i.tenant_id = $1 AND i.branch_id = $3
+            LEFT JOIN (SELECT invoice_id, SUM(amount) as total_paid FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id) p ON i.id = p.invoice_id
+            WHERE i.id = $2 AND i.tenant_id::text = $1::text AND i.branch_id::text = $3::text
         `, [tenant_id, invoice_id, branch_id]);
 
         if (invRes.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Invoice not found' });

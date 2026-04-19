@@ -25,7 +25,7 @@ exports.getTasks = async (req, res) => {
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.director_id = u2.id
       LEFT JOIN users u3 ON t.created_by = u3.id
-      WHERE t.tenant_id = $1
+      WHERE t.tenant_id::text = $1::text
     `;
 
     const queryParams = [tenant_id];
@@ -72,7 +72,7 @@ exports.getTaskById = async (req, res) => {
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.director_id = u2.id
       LEFT JOIN users u3 ON t.created_by = u3.id
-      WHERE t.id = $1 AND t.tenant_id = $2
+      WHERE t.id = $1 AND t.tenant_id::text = $2::text
     `, [req.params.id, tenant_id]);
 
     if (result.rows.length === 0) {
@@ -144,14 +144,14 @@ exports.updateTask = async (req, res) => {
     await client.query('BEGIN');
 
     // Verify task belongs to tenant
-    const verifyResult = await client.query('SELECT id FROM tasks WHERE id = $1 AND tenant_id = $2', [req.params.id, tenant_id]);
+    const verifyResult = await client.query('SELECT id FROM tasks WHERE id = $1 AND tenant_id::text = $2::text', [req.params.id, tenant_id]);
     if (verifyResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
     }
 
     const result = await client.query(
-      'UPDATE tasks SET title = $1, description = $2, priority = $3, status = $4, assigned_to = $5, director_id = $6, parent_type = $7, parent_id = $8, due_date = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 AND tenant_id = $11 RETURNING *',
+      'UPDATE tasks SET title = $1, description = $2, priority = $3, status = $4, assigned_to = $5, director_id = $6, parent_type = $7, parent_id = $8, due_date = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 AND tenant_id::text = $11::text RETURNING *',
       [title, description, priority, status, assigned_to || null, director_id || null, parent_type, parent_id, due_date || null, req.params.id, tenant_id]
     );
 
@@ -180,7 +180,7 @@ exports.updateTask = async (req, res) => {
 exports.deleteTask = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   try {
-    const result = await db.query('DELETE FROM tasks WHERE id = $1 AND tenant_id = $2 RETURNING *', [req.params.id, tenant_id]);
+    const result = await db.query('DELETE FROM tasks WHERE id = $1 AND tenant_id::text = $2::text RETURNING *', [req.params.id, tenant_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
     }

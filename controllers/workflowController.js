@@ -13,7 +13,7 @@ exports.getLogs = async (req, res) => {
     try {
         const result = await db.query(`
             SELECT * FROM workflow_logs
-            WHERE tenant_id = $1 AND (branch_id = $2 OR branch_id IS NULL)
+            WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR branch_id IS NULL)
             ORDER BY created_at DESC
             LIMIT 100
         `, [tenant_id, branch_id]);
@@ -30,7 +30,7 @@ exports.getConfig = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     try {
         const result = await db.query(`
-            SELECT * FROM workflow_config WHERE tenant_id = $1 ORDER BY rule_key ASC
+            SELECT * FROM workflow_config WHERE tenant_id::text = $1::text ORDER BY rule_key ASC
         `, [tenant_id]);
 
         // Merge with known defaults so we show all rules even before first trigger

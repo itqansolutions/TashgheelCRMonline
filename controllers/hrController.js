@@ -156,7 +156,7 @@ exports.getMyAttendance = async (req, res) => {
     try {
         const result = await db.query(`
             SELECT * FROM hr_attendance 
-            WHERE user_id = $1 AND tenant_id = $2 AND branch_id = $3
+            WHERE user_id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text
             ORDER BY check_in DESC
             LIMIT 30
         `, [user_id, tenant_id, branch_id]);
@@ -180,7 +180,7 @@ exports.getStaffAttendance = async (req, res) => {
             SELECT h.*, u.name as employee_name, u.email as employee_email
             FROM hr_attendance h
             JOIN users u ON h.user_id = u.id
-            WHERE h.tenant_id = $1 AND h.branch_id = $2
+            WHERE h.tenant_id::text = $1::text AND h.branch_id::text = $2::text
             ORDER BY h.check_in DESC
             LIMIT 100
         `, [tenant_id, branch_id]);
@@ -270,7 +270,7 @@ exports.updateLeaveStatus = async (req, res) => {
         const updateRes = await db.query(`
             UPDATE hr_leaves 
             SET status = $1, approved_by = $2
-            WHERE id = $3 AND tenant_id = $4 AND branch_id = $5
+            WHERE id = $3 AND tenant_id::text = $4::text AND branch_id::text = $5::text
             RETURNING *
         `, [status, approved_by, leave_id, tenant_id, branch_id]);
 
@@ -312,7 +312,7 @@ exports.getAllLeaves = async (req, res) => {
             SELECT l.*, u.name as employee_name
             FROM hr_leaves l
             JOIN users u ON l.user_id = u.id
-            WHERE l.tenant_id = $1 AND l.branch_id = $2
+            WHERE l.tenant_id::text = $1::text AND l.branch_id::text = $2::text
             ORDER BY l.created_at DESC
         `, [tenant_id, branch_id]);
         res.json({ status: 'success', data: result.rows });
@@ -337,7 +337,7 @@ exports.generatePayroll = async (req, res) => {
         await db.query('BEGIN');
 
         // 1. Fetch Employee Profile
-        const profileRes = await db.query(`SELECT * FROM hr_profiles WHERE user_id = $1 AND tenant_id = $2`, [user_id, tenant_id]);
+        const profileRes = await db.query(`SELECT * FROM hr_profiles WHERE user_id = $1 AND tenant_id::text = $2::text`, [user_id, tenant_id]);
         if (profileRes.rows.length === 0) throw new Error('Employee profile not found or unauthorized.');
         
         const profile = profileRes.rows[0];
@@ -421,7 +421,7 @@ exports.getPayrolls = async (req, res) => {
             SELECT p.*, u.name as employee_name, (SELECT json_agg(i.*) FROM hr_payroll_items i WHERE i.payroll_id = p.id) as details
             FROM hr_payroll p
             JOIN users u ON p.user_id = u.id
-            WHERE p.tenant_id = $1 AND p.branch_id = $2
+            WHERE p.tenant_id::text = $1::text AND p.branch_id::text = $2::text
             ORDER BY p.payroll_year DESC, p.payroll_month DESC
         `, [tenant_id, branch_id]);
 
@@ -440,7 +440,7 @@ exports.finalizePayroll = async (req, res) => {
     try {
         const result = await db.query(`
             UPDATE hr_payroll SET status = 'finalized'
-            WHERE id = $1 AND tenant_id = $2 AND status = 'draft'
+            WHERE id = $1 AND tenant_id::text = $2::text AND status = 'draft'
             RETURNING *
         `, [payroll_id, tenant_id]);
 

@@ -15,7 +15,7 @@ exports.getMovements = async (req, res) => {
             JOIN products p ON m.product_id = p.id
             LEFT JOIN warehouses wf ON m.from_warehouse_id = wf.id
             LEFT JOIN warehouses wt ON m.to_warehouse_id = wt.id
-            WHERE m.tenant_id = $1 AND m.branch_id = $2
+            WHERE m.tenant_id::text = $1::text AND m.branch_id::text = $2::text
             ORDER BY m.created_at DESC
         `, [tenant_id, branch_id]);
 
@@ -56,7 +56,7 @@ exports.getStockList = async (req, res) => {
                 ), 0) as current_stock
             FROM stock_movements m
             JOIN products p ON m.product_id = p.id
-            WHERE m.tenant_id = $1 AND m.branch_id = $2 AND m.status = 'approved'
+            WHERE m.tenant_id::text = $1::text AND m.branch_id::text = $2::text AND m.status = 'approved'
             GROUP BY p.id
         `, [tenant_id, branch_id]);
 
@@ -107,7 +107,7 @@ exports.getWarehouses = async (req, res) => {
     const branch_id = req.branchId;
 
     try {
-        const result = await db.query(`SELECT * FROM warehouses WHERE tenant_id = $1 AND branch_id = $2 ORDER BY name ASC`, [tenant_id, branch_id]);
+        const result = await db.query(`SELECT * FROM warehouses WHERE tenant_id::text = $1::text AND branch_id::text = $2::text ORDER BY name ASC`, [tenant_id, branch_id]);
         res.json({ status: 'success', data: result.rows });
     } catch (err) {
         res.status(500).json({ status: 'error', message: 'Failed to fetch warehouses' });

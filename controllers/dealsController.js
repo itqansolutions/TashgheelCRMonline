@@ -29,7 +29,7 @@ exports.getDeals = async (req, res) => {
       LEFT JOIN customers c ON d.client_id = c.id
       LEFT JOIN products p ON d.product_id = p.id
       LEFT JOIN users u ON d.assigned_to = u.id
-      LEFT JOIN re_units ru ON d.unit_id = ru.id
+      LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text
       LEFT JOIN re_payments_mvp rp ON d.id = rp.deal_id
       WHERE d.tenant_id::text = $1::text AND d.branch_id::text = $2::text
       ORDER BY d.created_at DESC

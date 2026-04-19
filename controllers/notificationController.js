@@ -12,7 +12,7 @@ exports.getNotifications = async (req, res) => {
         // Fetch up to 50 latest notifications explicitly targeting the user (or optionally branch-wide if we expand it)
         const result = await db.query(`
             SELECT * FROM system_notifications 
-            WHERE tenant_id = $1 AND (branch_id = $2 OR branch_id IS NULL) 
+            WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR branch_id IS NULL) 
             AND (user_id = $3 OR user_id IS NULL)
             ORDER BY created_at DESC
             LIMIT 50
@@ -21,7 +21,7 @@ exports.getNotifications = async (req, res) => {
         // Calculate exact unread count 
         const unreadRes = await db.query(`
             SELECT COUNT(*) FROM system_notifications 
-            WHERE tenant_id = $1 AND (branch_id = $2 OR branch_id IS NULL) 
+            WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR branch_id IS NULL) 
             AND (user_id = $3 OR user_id IS NULL)
             AND is_read = FALSE
         `, [tenant_id, branch_id, user_id]);
@@ -49,7 +49,7 @@ exports.markAsRead = async (req, res) => {
         const result = await db.query(`
             UPDATE system_notifications 
             SET is_read = TRUE 
-            WHERE id = $1 AND tenant_id = $2 AND (user_id = $3 OR user_id IS NULL)
+            WHERE id = $1 AND tenant_id::text = $2::text AND (user_id = $3 OR user_id IS NULL)
             RETURNING *
         `, [notification_id, tenant_id, user_id]);
 
@@ -73,7 +73,7 @@ exports.markAllRead = async (req, res) => {
         await db.query(`
             UPDATE system_notifications 
             SET is_read = TRUE 
-            WHERE tenant_id = $1 AND (branch_id = $2 OR branch_id IS NULL) 
+            WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR branch_id IS NULL) 
             AND (user_id = $3 OR user_id IS NULL) AND is_read = FALSE
         `, [tenant_id, branch_id, user_id]);
 

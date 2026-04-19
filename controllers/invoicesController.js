@@ -13,7 +13,7 @@ exports.getInvoices = async (req, res) => {
       SELECT i.*, c.name as client_name 
       FROM invoices i
       LEFT JOIN customers c ON i.client_id = c.id
-      WHERE i.tenant_id = $1
+      WHERE i.tenant_id::text = $1::text
       ORDER BY i.created_at DESC
     `, [tenant_id]);
     res.json({ status: 'success', data: result.rows });
@@ -33,7 +33,7 @@ exports.getInvoiceById = async (req, res) => {
       SELECT i.*, c.name as client_name 
       FROM invoices i
       LEFT JOIN customers c ON i.client_id = c.id
-      WHERE i.id = $1 AND i.tenant_id = $2
+      WHERE i.id = $1 AND i.tenant_id::text = $2::text
     `, [req.params.id, tenant_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Invoice not found or unauthorized' });
@@ -88,7 +88,7 @@ exports.addPayment = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   try {
     // 1. Verify invoice ownership
-    const invoiceResult = await db.query('SELECT invoice_number, total_amount FROM invoices WHERE id = $1 AND tenant_id = $2', [req.params.id, tenant_id]);
+    const invoiceResult = await db.query('SELECT invoice_number, total_amount FROM invoices WHERE id = $1 AND tenant_id::text = $2::text', [req.params.id, tenant_id]);
     if (invoiceResult.rows.length === 0) {
        return res.status(404).json({ status: 'error', message: 'Invoice not found or unauthorized' });
     }
@@ -103,7 +103,7 @@ exports.addPayment = async (req, res) => {
     const payment = paymentResult.rows[0];
 
     // 3. Update invoice status
-    const paymentsResult = await db.query('SELECT SUM(amount) as paid FROM payments WHERE invoice_id = $1 AND tenant_id = $2', [req.params.id, tenant_id]);
+    const paymentsResult = await db.query('SELECT SUM(amount) as paid FROM payments WHERE invoice_id = $1 AND tenant_id::text = $2::text', [req.params.id, tenant_id]);
     
     const total = invoiceResult.rows[0].total_amount;
     const paid = parseFloat(paymentsResult.rows[0].paid || 0);
@@ -111,7 +111,7 @@ exports.addPayment = async (req, res) => {
     let status = 'partial';
     if (paid >= total) status = 'paid';
 
-    await db.query('UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3', [status, req.params.id, tenant_id]);
+    await db.query('UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text', [status, req.params.id, tenant_id]);
 
     // Log Payment Event
     logAction({ req, action: ACTIONS.PAYMENT, entityType: 'Invoice', entityId: req.params.id, details: { amount, method: payment_method } });
@@ -137,7 +137,7 @@ exports.addPayment = async (req, res) => {
 exports.deleteInvoice = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   try {
-    const result = await db.query('DELETE FROM invoices WHERE id = $1 AND tenant_id = $2 RETURNING *', [req.params.id, tenant_id]);
+    const result = await db.query('DELETE FROM invoices WHERE id = $1 AND tenant_id::text = $2::text RETURNING *', [req.params.id, tenant_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Invoice not found or unauthorized' });
     }

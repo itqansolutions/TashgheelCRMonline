@@ -9,8 +9,8 @@ exports.getTopProducts = async (req, res) => {
         const result = await db.query(`
             SELECT p.name, p.category, SUM(ii.quantity) as total_sold, SUM(ii.subtotal) as total_revenue
             FROM invoice_items ii
-            JOIN products p ON ii.product_id = p.id
-            WHERE ii.tenant_id = $1
+            JOIN products p ON ii.product_id::text = p.id::text
+            WHERE ii.tenant_id::text = $1::text
             GROUP BY p.id, p.name, p.category
             ORDER BY total_revenue DESC
             LIMIT 10
@@ -28,7 +28,7 @@ exports.getTopProducts = async (req, res) => {
 exports.getFinancialTrends = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     try {
-        const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id = $1', [tenant_id]);
+        const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id::text = $1::text', [tenant_id]);
         const templateName = tenantRes.rows[0]?.template_name;
 
         let revenueResult;
@@ -36,7 +36,7 @@ exports.getFinancialTrends = async (req, res) => {
             revenueResult = await db.query(`
                 SELECT TO_CHAR(created_at, 'YYYY-MM') as month, SUM(paid_amount) as revenue
                 FROM re_payments_mvp
-                WHERE tenant_id = $1
+                WHERE tenant_id::text = $1::text
                 GROUP BY month
                 ORDER BY month ASC
             `, [tenant_id]);
@@ -44,7 +44,7 @@ exports.getFinancialTrends = async (req, res) => {
             revenueResult = await db.query(`
                 SELECT TO_CHAR(created_at, 'YYYY-MM') as month, SUM(total_amount) as revenue
                 FROM invoices
-                WHERE tenant_id = $1
+                WHERE tenant_id::text = $1::text
                 GROUP BY month
                 ORDER BY month ASC
             `, [tenant_id]);
@@ -53,7 +53,7 @@ exports.getFinancialTrends = async (req, res) => {
         const expenseResult = await db.query(`
             SELECT TO_CHAR(expense_date, 'YYYY-MM') as month, SUM(amount) as expenses
             FROM expenses
-            WHERE tenant_id = $1
+            WHERE tenant_id::text = $1::text
             GROUP BY month
             ORDER BY month ASC
         `, [tenant_id]);
@@ -80,8 +80,8 @@ exports.getCustomerRankings = async (req, res) => {
         const result = await db.query(`
             SELECT c.name, COUNT(i.id) as invoice_count, SUM(i.total_amount) as total_spent
             FROM customers c
-            JOIN invoices i ON c.id = i.client_id
-            WHERE i.tenant_id = $1
+            JOIN invoices i ON c.id::text = i.client_id::text
+            WHERE i.tenant_id::text = $1::text
             GROUP BY c.id, c.name
             ORDER BY total_spent DESC
             LIMIT 10

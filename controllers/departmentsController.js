@@ -5,7 +5,7 @@ const db = require('../config/db');
 // @access  Private (Admin, Manager)
 exports.getDepartments = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM departments WHERE tenant_id = $1 ORDER BY name ASC', [req.user.tenant_id]);
+    const result = await db.query('SELECT * FROM departments WHERE tenant_id::text = $1::text ORDER BY name ASC', [req.user.tenant_id]);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error(err.message);
@@ -37,7 +37,7 @@ exports.updateDepartment = async (req, res) => {
   const { name, description } = req.body;
   try {
     const result = await db.query(
-      'UPDATE departments SET name = $1, description = $2 WHERE id = $3 AND tenant_id = $4 RETURNING *',
+      'UPDATE departments SET name = $1, description = $2 WHERE id = $3 AND tenant_id::text = $4::text RETURNING *',
       [name, description, req.params.id, req.user.tenant_id]
     );
     if (result.rows.length === 0) {
@@ -55,7 +55,7 @@ exports.updateDepartment = async (req, res) => {
 // @access  Private (Admin)
 exports.deleteDepartment = async (req, res) => {
   try {
-    const result = await db.query('DELETE FROM departments WHERE id = $1 AND tenant_id = $2 RETURNING *', [req.params.id, req.user.tenant_id]);
+    const result = await db.query('DELETE FROM departments WHERE id = $1 AND tenant_id::text = $2::text RETURNING *', [req.params.id, req.user.tenant_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Department not found' });
     }
