@@ -237,10 +237,10 @@ const Deals = () => {
         </div>
       )
     },
-    { 
+    !isRealEstate && { 
       key: 'product_name', 
       label: 'Product',
-      render: (val, item) => item.unit_id ? <span style={{ color: '#0ea5e9', fontWeight: 700 }}>Real Estate Unit</span> : (val || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>General Service</span>)
+      render: (val, item) => (val || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>General Service</span>)
     },
     { 
       key: 'value', 
@@ -316,8 +316,8 @@ const Deals = () => {
       </div>
 
       <DataTable 
-        title="Active Deals"
-        columns={columns}
+        title="Active Real Estate Opportunities"
+        columns={columns.filter(Boolean)}
         data={deals || []}
         loading={loading}
         onEdit={handleOpenModal}
@@ -408,19 +408,21 @@ const Deals = () => {
             </div>
           ))}
 
-          <div className="form-group">
-            <label>Select Product (Optional)</label>
-            <select 
-              value={formData.product_id}
-              onChange={(e) => handleProductChange(e.target.value)}
-              disabled={!!formData.unit_id}
-            >
-              <option value="">-- No Specific Product --</option>
-              {(products || []).map(p => (
-                <option key={p.id} value={p.id}>{p.name} ({p.selling_price} EGP)</option>
-              ))}
-            </select>
-          </div>
+          {!isRealEstate && (
+            <div className="form-group">
+                <label>Select Product (Optional)</label>
+                <select 
+                value={formData.product_id}
+                onChange={(e) => handleProductChange(e.target.value)}
+                >
+                <option value="">-- No Specific Product --</option>
+                {(products || []).map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.selling_price} EGP)</option>
+                ))}
+                </select>
+            </div>
+          )}
+          
           <div className="form-group">
             <label>Link to Customer</label>
             <select 
