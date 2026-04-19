@@ -44,7 +44,12 @@ exports.getUnits = async (req, res) => {
             });
         }
 
-        res.status(500).json({ status: 'error', message: 'Unit inventory is currently unavailable.' });
+        res.status(500).json({ 
+            status: 'error', 
+            message: 'Unit inventory is currently unavailable.',
+            debug: err.message,
+            stack: err.stack?.split('\n').slice(0, 3).join('\n') 
+        });
     }
 };
 
