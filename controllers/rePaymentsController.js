@@ -15,8 +15,7 @@ exports.getPaymentByDeal = async (req, res) => {
         const result = await db.query(`
             SELECT *, 
                    (total_amount - paid_amount) as remaining_amount
-            FROM re_payments_mvp 
-            WHERE deal_id = $1 AND tenant_id = $2
+            WHERE deal_id = $1 AND tenant_id::text = $2::text
         `, [dealId, tenant_id]);
 
         if (result.rows.length === 0) return res.json({ status: 'success', data: null });
@@ -47,7 +46,7 @@ exports.updatePayment = async (req, res) => {
                 down_payment = COALESCE($2, down_payment),
                 next_payment_date = COALESCE($3, next_payment_date),
                 updated_at = NOW()
-            WHERE id = $4 AND tenant_id = $5
+            WHERE id = $4 AND tenant_id::text = $5::text
             RETURNING *, (total_amount - (COALESCE($1, paid_amount))) as remaining_amount
         `, [paid_amount, down_payment, next_payment_date, id, tenant_id]);
 
@@ -82,7 +81,7 @@ exports.deletePayment = async (req, res) => {
     const { id } = req.params;
     const tenant_id = String(req.user.tenant_id);
     try {
-        await db.query('DELETE FROM re_payments_mvp WHERE id = $1 AND tenant_id = $2', [id, tenant_id]);
+        await db.query('DELETE FROM re_payments_mvp WHERE id = $1 AND tenant_id::text = $2::text', [id, tenant_id]);
         res.json({ status: 'success', message: 'Payment tracking removed' });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });

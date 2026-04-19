@@ -43,7 +43,7 @@ exports.getBranchSummary = async (req, res) => {
         console.log(`[BI-ENGINE] Running Aggregations | Mode: ${viewMode} | Target: ${targetBranchId} | Time: ${timeFilter}`);
         
         // 0. Fetch Industry Template Context
-        const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id = $1', [tenant_id]);
+        const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id::text = $1::text', [tenant_id]);
         const templateName = tenantRes.rows[0]?.template_name;
 
         // Define filters based on time filter
@@ -61,7 +61,7 @@ exports.getBranchSummary = async (req, res) => {
         let branchFilter = '';
         
         if (viewMode === 'SINGLE') {
-            branchFilter = `AND branch_id = $2`;
+            branchFilter = `AND branch_id::text = $2::text`;
             queryParams.push(String(targetBranchId));
         } // If ALL, no branch filter, aggregates everything for the tenant
 
@@ -73,7 +73,7 @@ exports.getBranchSummary = async (req, res) => {
             const revRes = await db.query(`
                 SELECT COALESCE(SUM(paid_amount), 0) as total 
                 FROM re_payments_mvp 
-                WHERE tenant_id = $1 ${branchFilter}
+                WHERE tenant_id::text = $1::text ${branchFilter}
                 AND ${timeFilterLogic('created_at')}
             `, queryParams);
             revenue = parseFloat(revRes.rows[0].total);
@@ -81,7 +81,7 @@ exports.getBranchSummary = async (req, res) => {
             const revRes = await db.query(`
                 SELECT COALESCE(SUM(total_amount), 0) as total 
                 FROM invoices 
-                WHERE tenant_id = $1 ${branchFilter.replace('branch_id', 'branch_id')}
+                WHERE tenant_id::text = $1::text ${branchFilter}
                 AND ${timeFilterLogic('created_at')}
             `, queryParams);
             revenue = parseFloat(revRes.rows[0].total);
@@ -91,7 +91,7 @@ exports.getBranchSummary = async (req, res) => {
         const expRes = await db.query(`
             SELECT COALESCE(SUM(amount), 0) as total 
             FROM expenses 
-            WHERE tenant_id = $1 ${branchFilter}
+            WHERE tenant_id::text = $1::text ${branchFilter}
             AND ${timeFilterLogic('expense_date')}
         `, queryParams);
         const expenses = parseFloat(expRes.rows[0].total);
@@ -102,7 +102,7 @@ exports.getBranchSummary = async (req, res) => {
                 COUNT(*) FILTER (WHERE pipeline_stage = 'won') as won_count,
                 COUNT(*) as total_count
             FROM deals 
-            WHERE tenant_id = $1 ${branchFilter}
+            WHERE tenant_id::text = $1::text ${branchFilter}
             AND ${timeFilterLogic('created_at')}
         `, queryParams);
         
@@ -116,7 +116,7 @@ exports.getBranchSummary = async (req, res) => {
                 COUNT(*) FILTER (WHERE status = 'completed') as completed_count,
                 COUNT(*) as total_count
             FROM tasks
-            WHERE tenant_id = $1 ${branchFilter}
+            WHERE tenant_id::text = $1::text ${branchFilter}
             AND ${timeFilterLogic('created_at')}
         `, queryParams);
         
@@ -135,8 +135,9 @@ exports.getBranchSummary = async (req, res) => {
             return `${col} > NOW() - INTERVAL '2 year' AND ${col} <= NOW() - INTERVAL '1 year'`;
         };
 
-        const prevRevRes = await db.query(`SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id = $1 ${branchFilter} AND ${prevTimeFilterLogic('payment_date')}`, queryParams);
-        const prevExpRes = await db.query(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE tenant_id = $1 ${branchFilter} AND ${prevTimeFilterLogic('expense_date')}`, queryParams);
+        const prevRevRes = await db.query(`SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id::text = $1::text ${branchFilter} AND ${prevTimeFilterLogic('payment_date')}`, queryParams);
+        const prevExpRes = await db.query(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE tenant_id::text = $1::text ${branchFilter} AND ${prevTimeFilterLogic('expense_date')}`, queryParams);
+        
         
         const prevRevenue = parseFloat(prevRevRes.rows[0].total);
         const prevExpenses = parseFloat(prevExpRes.rows[0].total);
@@ -184,14 +185,14 @@ exports.getBranchSummary = async (req, res) => {
                     COUNT(*) FILTER (WHERE status = 'Reserved') as reserved,
                     COUNT(*) FILTER (WHERE status = 'Sold') as sold
                 FROM re_units 
-                WHERE tenant_id = $1 ${branchFilter.replace('branch_id', 'branch_id')}
+                WHERE tenant_id::text = $1::text ${branchFilter}
             `, queryParams);
             
             // 2. Collection Forecast (Next 30 days)
             const collectionsRes = await db.query(`
                 SELECT COALESCE(SUM(total_amount - paid_amount), 0) as expected
                 FROM re_payments_mvp
-                WHERE tenant_id = $1 
+                WHERE tenant_id::text = $1::text 
                 AND next_payment_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
             `, [tenant_id]);
 
@@ -309,7 +310,7 @@ exports.getComparison = async (req, res) => {
                     COALESCE((SELECT COUNT(*) FROM tasks t WHERE t.branch_id = b.id AND t.tenant_id = b.tenant_id AND t.status = 'completed' AND ${timeFilterLogic('t.created_at')}), 0) as completed_tasks,
                     COALESCE((SELECT COUNT(*) FROM tasks t WHERE t.branch_id = b.id AND t.tenant_id = b.tenant_id AND ${timeFilterLogic('t.created_at')}), 0) as total_tasks
                 FROM branches b
-                WHERE b.tenant_id = $1
+                WHERE b.tenant_id::text = $1::text
             )
             SELECT 
                 branch_id,

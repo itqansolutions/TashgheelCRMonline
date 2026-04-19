@@ -23,7 +23,7 @@ exports.getCustomers = async (req, res) => {
       FROM customers c
       LEFT JOIN users u ON c.assigned_to = u.id
       LEFT JOIN lead_sources ls ON c.source_id = ls.id
-      WHERE c.tenant_id = $1 AND c.branch_id = $2
+      WHERE c.tenant_id::text = $1::text AND c.branch_id::text = $2::text
     `;
     const params = [tenant_id, branch_id];
     let paramIdx = 3;
@@ -94,7 +94,7 @@ exports.getCustomerById = async (req, res) => {
       FROM customers c
       LEFT JOIN users u ON c.assigned_to = u.id
       LEFT JOIN lead_sources ls ON c.source_id = ls.id
-      WHERE c.id = $1 AND c.tenant_id = $2 AND c.branch_id = $3
+      WHERE c.id = $1 AND c.tenant_id::text = $2::text AND c.branch_id::text = $3::text
     `, [req.params.id, tenant_id, branch_id]);
 
     if (result.rows.length === 0) {
@@ -163,7 +163,7 @@ exports.updateCustomer = async (req, res) => {
   const branch_id = req.branchId || req.user?.branch_id;
   try {
     // 1. Get old data for diffing & security check (Triple Isolation)
-    const oldResult = await db.query('SELECT * FROM customers WHERE id = $1 AND tenant_id = $2 AND branch_id = $3', [req.params.id, tenant_id, branch_id]);
+    const oldResult = await db.query('SELECT * FROM customers WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
     if (oldResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized for this branch' });
     }
@@ -185,7 +185,7 @@ exports.updateCustomer = async (req, res) => {
         name = $1, company_name = $2, email = $3, phone = $4, address = $5, source_id = $6, assigned_to = $7, manager_id = $8, status = $9, 
         entity_type = $10, budget_min = $11, budget_max = $12, preferred_area_min = $13, preferred_area_max = $14, preferred_location = $15, preferred_rooms = $16,
         updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $17 AND tenant_id = $18 AND branch_id = $19 RETURNING *`,
+      WHERE id = $17 AND tenant_id::text = $18::text AND branch_id::text = $19::text RETURNING *`,
       [
         name, company_name, email, phone, address, cleanSourceId, cleanAssignedTo, cleanManagerId, status, 
         entity_type, cleanBudgetMin, cleanBudgetMax, cleanAreaMin, cleanAreaMax, preferred_location, cleanRooms,
@@ -210,7 +210,7 @@ exports.deleteCustomer = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId;
   try {
-    const result = await db.query('DELETE FROM customers WHERE id = $1 AND tenant_id = $2 AND branch_id = $3 RETURNING *', [req.params.id, tenant_id, branch_id]);
+    const result = await db.query('DELETE FROM customers WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *', [req.params.id, tenant_id, branch_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized for this branch' });
     }

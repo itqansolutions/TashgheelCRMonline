@@ -31,7 +31,7 @@ exports.getDeals = async (req, res) => {
       LEFT JOIN users u ON d.assigned_to = u.id
       LEFT JOIN re_units ru ON d.unit_id = ru.id
       LEFT JOIN re_payments_mvp rp ON d.id = rp.deal_id
-      WHERE d.tenant_id = $1 AND d.branch_id = $2
+      WHERE d.tenant_id::text = $1::text AND d.branch_id::text = $2::text
       ORDER BY d.created_at DESC
     `, [tenant_id, branch_id]);
 
@@ -60,7 +60,7 @@ exports.getDealById = async (req, res) => {
       SELECT d.*, p.name as product_name 
       FROM deals d 
       LEFT JOIN products p ON d.product_id = p.id 
-      WHERE d.id = $1 AND d.tenant_id = $2 AND d.branch_id = $3
+      WHERE d.id = $1 AND d.tenant_id::text = $2::text AND d.branch_id::text = $3::text
     `, [req.params.id, tenant_id, branch_id]);
     
     if (result.rows.length === 0) {
@@ -84,7 +84,7 @@ exports.createDeal = async (req, res) => {
   try {
     // 1. Real Estate Validation: If unit_id is provided, check availability
     if (unit_id) {
-        const unitCheck = await db.query('SELECT status FROM re_units WHERE id = $1 AND tenant_id = $2', [unit_id, tenant_id]);
+        const unitCheck = await db.query('SELECT status FROM re_units WHERE id = $1 AND tenant_id::text = $2::text', [unit_id, tenant_id]);
         if (unitCheck.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Unit not found.' });
         if (unitCheck.rows[0].status !== 'Available') {
             return res.status(400).json({ status: 'error', message: `This unit is already ${unitCheck.rows[0].status}. Please select an Available unit.` });
@@ -151,7 +151,7 @@ exports.updateDeal = async (req, res) => {
 
   try {
     // 1. Get old version for logging & security check (Triple Isolation)
-    const oldResult = await db.query('SELECT * FROM deals WHERE id = $1 AND tenant_id = $2 AND branch_id = $3', [req.params.id, tenant_id, branch_id]);
+    const oldResult = await db.query('SELECT * FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
     if (oldResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
@@ -161,7 +161,7 @@ exports.updateDeal = async (req, res) => {
     const result = await db.query(
       `UPDATE deals 
        SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $9 AND tenant_id = $10 AND branch_id = $11 RETURNING *`,
+       WHERE id = $9 AND tenant_id::text = $10::text AND branch_id::text = $11::text RETURNING *`,
       [title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields || oldData.custom_fields, req.params.id, tenant_id, branch_id]
     );
 
@@ -199,7 +199,7 @@ exports.updateDealStatus = async (req, res) => {
 
   try {
     // 1. Get old status & security check
-    const oldResult = await db.query('SELECT title, pipeline_stage, assigned_to FROM deals WHERE id = $1 AND tenant_id = $2 AND branch_id = $3', [req.params.id, tenant_id, branch_id]);
+    const oldResult = await db.query('SELECT title, pipeline_stage, assigned_to FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
     if (oldResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
@@ -207,7 +207,7 @@ exports.updateDealStatus = async (req, res) => {
 
     // 2. Update status
     const result = await db.query(
-      'UPDATE deals SET pipeline_stage = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id = $3 AND branch_id = $4 RETURNING *',
+      'UPDATE deals SET pipeline_stage = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text AND branch_id::text = $4::text RETURNING *',
       [pipeline_stage, req.params.id, tenant_id, branch_id]
     );
 
@@ -275,7 +275,7 @@ exports.deleteDeal = async (req, res) => {
   const branch_id = req.branchId || req.user?.branch_id;
 
   try {
-    const result = await db.query('DELETE FROM deals WHERE id = $1 AND tenant_id = $2 AND branch_id = $3 RETURNING *', [req.params.id, tenant_id, branch_id]);
+    const result = await db.query('DELETE FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *', [req.params.id, tenant_id, branch_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }

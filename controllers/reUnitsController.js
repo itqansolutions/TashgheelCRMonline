@@ -24,7 +24,7 @@ exports.getUnits = async (req, res) => {
             FROM re_units ru
             LEFT JOIN customers c ON ru.vendor_id = c.id
             LEFT JOIN users u ON ru.responsible_person_id = u.id
-            WHERE ru.tenant_id = $1 AND ru.branch_id = $2
+            WHERE ru.tenant_id::text = $1::text AND ru.branch_id::text = $2::text
             ORDER BY ru.project_name DESC, ru.name ASC
         `, [tenant_id, branch_id]);
 
@@ -108,7 +108,7 @@ exports.updateUnit = async (req, res) => {
                 rooms = COALESCE($12, rooms),
                 location = COALESCE($13, location),
                 updated_at = NOW()
-            WHERE id = $14 AND tenant_id = $15 AND branch_id = $16
+            WHERE id = $14 AND tenant_id::text = $15::text AND branch_id::text = $16::text
             RETURNING *
         `, [
             name, project_name, unit_number, type, floor, area_sqm, price, status,
@@ -133,14 +133,14 @@ exports.deleteUnit = async (req, res) => {
 
     try {
         // Safety: Can't delete if Reserved or Sold
-        const check = await db.query('SELECT status FROM re_units WHERE id = $1 AND tenant_id = $2 AND branch_id = $3', [id, tenant_id, branch_id]);
+        const check = await db.query('SELECT status FROM re_units WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [id, tenant_id, branch_id]);
         if (check.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Unit not found' });
         
         if (check.rows[0].status !== 'Available') {
             return res.status(400).json({ status: 'error', message: 'Cannot delete a unit that is Reserved or Sold' });
         }
 
-        await db.query('DELETE FROM re_units WHERE id = $1 AND tenant_id = $2 AND branch_id = $3', [id, tenant_id, branch_id]);
+        await db.query('DELETE FROM re_units WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [id, tenant_id, branch_id]);
         res.json({ status: 'success', message: 'Unit removed from inventory' });
     } catch (err) {
         console.error('[Unit Delete Error]', err.message);
