@@ -22,7 +22,7 @@ const branchScope = async (req, res, next) => {
     if (!resolvedBranchId) {
       // 1. Check for User's default/first assigned branch
       const userBranchRes = await db.query(
-        'SELECT branch_id FROM user_branches WHERE user_id = $1 LIMIT 1',
+        'SELECT branch_id FROM user_branches WHERE user_id::text = $1::text LIMIT 1',
         [userId]
       );
       
@@ -31,7 +31,7 @@ const branchScope = async (req, res, next) => {
       } else {
         // 2. Fallback to Tenant's Main Branch
         const mainBranchRes = await db.query(
-          'SELECT id FROM branches WHERE tenant_id = $1 AND is_main = true LIMIT 1',
+          'SELECT id FROM branches WHERE tenant_id::text = $1::text AND is_main = true LIMIT 1',
           [tenantId]
         );
         if (mainBranchRes.rows.length > 0) {
@@ -41,13 +41,13 @@ const branchScope = async (req, res, next) => {
           console.warn(`[ACL] Self-Healing: Missing main branch for tenant ${tenantId}. Creating one...`);
           const newBranchRes = await db.query(`
             INSERT INTO branches (name, tenant_id, is_main, address)
-            VALUES ('Main Branch', $1, true, 'Corporate Headquarters')
+            VALUES ('Main Branch', $1::text, true, 'Corporate Headquarters')
             RETURNING id
           `, [tenantId]);
           resolvedBranchId = newBranchRes.rows[0].id;
           
           // Auto-assign user to this new branch
-          await db.query(`INSERT INTO user_branches (user_id, branch_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [userId, resolvedBranchId]);
+          await db.query(`INSERT INTO user_branches (user_id, branch_id) VALUES ($1::text, $2::text) ON CONFLICT DO NOTHING`, [userId, resolvedBranchId]);
         }
       }
     }
@@ -71,7 +71,7 @@ const branchScope = async (req, res, next) => {
     } else {
       // Cache Miss or Expired: Validate from DB
       const branchRes = await db.query(
-        'SELECT tenant_id FROM branches WHERE id = $1',
+        'SELECT tenant_id FROM branches WHERE id::text = $1::text',
         [resolvedBranchId]
       );
 

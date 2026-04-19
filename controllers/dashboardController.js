@@ -301,14 +301,14 @@ exports.getComparison = async (req, res) => {
                 SELECT 
                     b.id as branch_id,
                     b.name as branch_name,
-                    COALESCE((SELECT SUM(amount) FROM payments p WHERE p.branch_id = b.id AND p.tenant_id = b.tenant_id AND ${timeFilterLogic('p.payment_date')}), 0) as revenue,
-                    COALESCE((SELECT SUM(amount) FROM expenses e WHERE e.branch_id = b.id AND e.tenant_id = b.tenant_id AND ${timeFilterLogic('e.expense_date')}), 0) as expenses,
+                    COALESCE((SELECT SUM(amount) FROM payments p WHERE p.branch_id::text = b.id::text AND p.tenant_id::text = b.tenant_id::text AND ${timeFilterLogic('p.payment_date')}), 0) as revenue,
+                    COALESCE((SELECT SUM(amount) FROM expenses e WHERE e.branch_id::text = b.id::text AND e.tenant_id::text = b.tenant_id::text AND ${timeFilterLogic('e.expense_date')}), 0) as expenses,
                     
-                    COALESCE((SELECT COUNT(*) FROM deals d WHERE d.branch_id = b.id AND d.tenant_id = b.tenant_id AND d.pipeline_stage = 'won' AND ${timeFilterLogic('d.created_at')}), 0) as won_deals,
-                    COALESCE((SELECT COUNT(*) FROM deals d WHERE d.branch_id = b.id AND d.tenant_id = b.tenant_id AND ${timeFilterLogic('d.created_at')}), 0) as total_deals,
+                    COALESCE((SELECT COUNT(*) FROM deals d WHERE d.branch_id::text = b.id::text AND d.tenant_id::text = b.tenant_id::text AND d.pipeline_stage = 'won' AND ${timeFilterLogic('d.created_at')}), 0) as won_deals,
+                    COALESCE((SELECT COUNT(*) FROM deals d WHERE d.branch_id::text = b.id::text AND d.tenant_id::text = b.tenant_id::text AND ${timeFilterLogic('d.created_at')}), 0) as total_deals,
                     
-                    COALESCE((SELECT COUNT(*) FROM tasks t WHERE t.branch_id = b.id AND t.tenant_id = b.tenant_id AND t.status = 'completed' AND ${timeFilterLogic('t.created_at')}), 0) as completed_tasks,
-                    COALESCE((SELECT COUNT(*) FROM tasks t WHERE t.branch_id = b.id AND t.tenant_id = b.tenant_id AND ${timeFilterLogic('t.created_at')}), 0) as total_tasks
+                    COALESCE((SELECT COUNT(*) FROM tasks t WHERE t.branch_id::text = b.id::text AND t.tenant_id::text = b.tenant_id::text AND t.status = 'completed' AND ${timeFilterLogic('t.created_at')}), 0) as completed_tasks,
+                    COALESCE((SELECT COUNT(*) FROM tasks t WHERE t.branch_id::text = b.id::text AND t.tenant_id::text = b.tenant_id::text AND ${timeFilterLogic('t.created_at')}), 0) as total_tasks
                 FROM branches b
                 WHERE b.tenant_id::text = $1::text
             )

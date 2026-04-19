@@ -17,7 +17,7 @@ module.exports = async (req, res, next) => {
     // If user has an old token (lack tenant_id), fetch it from DB and attach it
     if (!req.tenant_id) {
        try {
-           const userResult = await db.query('SELECT tenant_id FROM users WHERE id = $1', [req.user.id]);
+           const userResult = await db.query('SELECT tenant_id FROM users WHERE id::text = $1::text', [req.user.id]);
            if (userResult.rows.length > 0 && userResult.rows[0].tenant_id) {
                console.log(`[AUTH] Hydrated missing tenant_id for user ${req.user.id}: ${userResult.rows[0].tenant_id}`);
                req.tenant_id = userResult.rows[0].tenant_id;
