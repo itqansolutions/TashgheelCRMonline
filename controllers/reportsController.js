@@ -80,7 +80,7 @@ exports.getCustomerRankings = async (req, res) => {
         const result = await db.query(`
             SELECT c.name, COUNT(i.id) as invoice_count, SUM(i.total_amount) as total_spent
             FROM customers c
-            JOIN invoices i ON c.id::text = i.customer_id::text
+            JOIN invoices i ON c.id::text = i.client_id::text
             WHERE i.tenant_id::text = $1::text
             GROUP BY c.id, c.name
             ORDER BY total_spent DESC

@@ -31,7 +31,7 @@ exports.getInvoices = async (req, res) => {
                 c.name as customer_name
             FROM invoices i
             LEFT JOIN deals d ON i.deal_id::text = d.id::text 
-            LEFT JOIN customers c ON i.customer_id::text = c.id::text
+            LEFT JOIN customers c ON i.client_id::text = c.id::text
             WHERE i.tenant_id::text = $1::text AND i.branch_id::text = $2::text
             ORDER BY i.created_at DESC
         `, [tenant_id, branch_id]);
