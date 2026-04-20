@@ -36,9 +36,9 @@ import InventoryControl from './pages/Inventory/InventoryControl';
 import AutomationControl from './pages/Automation/AutomationControl';
 import RuleBuilder from './pages/Automation/RuleBuilder';
 import Pricing from './pages/Pricing/Pricing';
-import AdminPlans from './pages/Admin/AdminPlans';
-import AdminUpgradeRequests from './pages/Admin/AdminUpgradeRequests';
 import Billing from './pages/Billing/Billing';
+import PlatformWrapper from './pages/SuperAdmin/PlatformWrapper';
+import SecretPortalHUD from './pages/SuperAdmin/SecretPortalHUD';
 
 // Corporate Pages
 import CorporateLayout from './pages/Corporate/CorporateLayout';
@@ -192,30 +192,14 @@ function App() {
                       </ProtectedRoute>
                     } 
                   />
-                  <Route 
-                    path="super-admin" 
-                    element={
-                      <ProtectedRoute allowedRoles={['admin']}>
-                        <SuperAdmin />
-                      </ProtectedRoute>
-                    } 
-                  />
-                  <Route 
-                    path="admin/plans" 
-                    element={
-                      <ProtectedRoute allowedRoles={['admin']}>
-                        <AdminPlans />
-                      </ProtectedRoute>
-                    } 
-                  />
-                  <Route 
-                    path="admin/upgrade-requests" 
-                    element={
-                      <ProtectedRoute allowedRoles={['admin']}>
-                        <AdminUpgradeRequests />
-                      </ProtectedRoute>
-                    } 
-                  />
+                  {/* --- SECLUDED PLATFORM OWNER PORTAL (SOP) --- */}
+                  <Route path="itqan-crm-hud" element={<PlatformWrapper />}>
+                    <Route index element={<SecretPortalHUD />} />
+                    <Route path="hub" element={<SuperAdmin />} />
+                    <Route path="pricing" element={<AdminPlans />} />
+                    <Route path="upgrades" element={<AdminUpgradeRequests />} />
+                    <Route path="audit" element={<Logs />} />
+                  </Route>
                 </Route>
 
                 {/* Fallback */}

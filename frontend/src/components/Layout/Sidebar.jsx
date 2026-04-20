@@ -55,24 +55,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     return allowed.includes(checkPath);
   });
 
-  const SYSTEM_DEFAULT_TENANT = '00000000-0000-0000-0000-000000000000';
-  if (user && user.tenant_id === SYSTEM_DEFAULT_TENANT && user.role === 'admin') {
-     filteredItems.push({ 
-       name: 'Platform Hub', 
-       icon: <ShieldAlert className="text-amber-500" />, 
-       path: '/super-admin' 
-     });
-     filteredItems.push({ 
-       name: 'Pricing Engine', 
-       icon: <DollarSign style={{ color: '#10b981' }}/>, 
-       path: '/admin/plans' 
-     });
-     filteredItems.push({ 
-       name: 'Upgrade Requests', 
-       icon: <Zap style={{ color: '#f59e0b' }}/>, 
-       path: '/admin/upgrade-requests' 
-     });
-  }
+  // SYSTEM_DEFAULT_TENANT logic removed for SOP (Secluded Platform Owner Portal)
+
 
   // Trial urgency color
   const trialColor = trialDaysLeft !== null
