@@ -1,6 +1,6 @@
 const db = require('../config/db');
 const salesService = require('../services/salesService');
-const { sendNotification, notifyAdmins } = require('../services/notificationService');
+const notificationService = require('../services/notificationService');
 const { logAction, logDelete, ACTIONS } = require('../services/loggerService');
 
 // @desc    Get all invoices
@@ -8,14 +8,15 @@ const { logAction, logDelete, ACTIONS } = require('../services/loggerService');
 // @access  Private
 exports.getInvoices = async (req, res) => {
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
   try {
     const result = await db.query(`
       SELECT i.*, c.name as client_name 
       FROM invoices i
-      LEFT JOIN customers c ON i.customer_id = c.id
-      WHERE i.tenant_id::text = $1::text
+      LEFT JOIN customers c ON i.customer_id::text = c.id::text AND i.tenant_id::text = c.tenant_id::text
+      WHERE i.tenant_id::text = $1::text AND i.branch_id::text = $2::text
       ORDER BY i.created_at DESC
-    `, [tenant_id]);
+    `, [tenant_id, branch_id]);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error(err.message);
@@ -28,13 +29,14 @@ exports.getInvoices = async (req, res) => {
 // @access  Private
 exports.getInvoiceById = async (req, res) => {
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
   try {
     const result = await db.query(`
       SELECT i.*, c.name as client_name 
       FROM invoices i
-      LEFT JOIN customers c ON i.customer_id = c.id
-      WHERE i.id = $1 AND i.tenant_id::text = $2::text
-    `, [req.params.id, tenant_id]);
+      LEFT JOIN customers c ON i.customer_id::text = c.id::text AND i.tenant_id::text = c.tenant_id::text
+      WHERE i.id = $1 AND i.tenant_id::text = $2::text AND i.branch_id::text = $3::text
+    `, [req.params.id, tenant_id, branch_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Invoice not found or unauthorized' });
     }
@@ -49,9 +51,9 @@ exports.getInvoiceById = async (req, res) => {
 // @route   POST /api/invoices/from-quotation/:quotationId
 // @access  Private
 exports.createInvoiceFromQuotation = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
   try {
-    // Note: salesService handles the creation logic, ensuring it inherits tenant_id
-    const invoice = await salesService.convertQuotationToInvoice(req.params.quotationId);
+    const invoice = await salesService.convertQuotationToInvoice(req.params.quotationId, tenant_id);
     
     // Log Billing Event
     logAction({ req, action: ACTIONS.BILLING, entityType: 'Invoice', entityId: invoice.id, details: { source: 'quotation', sourceId: req.params.quotationId } });
@@ -67,8 +69,9 @@ exports.createInvoiceFromQuotation = async (req, res) => {
 // @route   POST /api/invoices/from-deal/:dealId
 // @access  Private
 exports.createInvoiceFromDeal = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
   try {
-    const invoice = await salesService.convertDealToInvoice(req.params.dealId);
+    const invoice = await salesService.convertDealToInvoice(req.params.dealId, tenant_id);
 
     // Log Billing Event
     logAction({ req, action: ACTIONS.BILLING, entityType: 'Invoice', entityId: invoice.id, details: { source: 'deal', sourceId: req.params.dealId } });
@@ -86,9 +89,10 @@ exports.createInvoiceFromDeal = async (req, res) => {
 exports.addPayment = async (req, res) => {
   const { amount, payment_method, notes } = req.body;
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
   try {
     // 1. Verify invoice ownership
-    const invoiceResult = await db.query('SELECT invoice_number, total_amount FROM invoices WHERE id = $1 AND tenant_id::text = $2::text', [req.params.id, tenant_id]);
+    const invoiceResult = await db.query('SELECT invoice_number, total_amount FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
     if (invoiceResult.rows.length === 0) {
        return res.status(404).json({ status: 'error', message: 'Invoice not found or unauthorized' });
     }
@@ -96,8 +100,8 @@ exports.addPayment = async (req, res) => {
 
     // 2. Insert Payment with tenant isolation
     const paymentResult = await db.query(
-      'INSERT INTO payments (invoice_id, amount, payment_method, notes, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [req.params.id, amount, payment_method, notes, tenant_id]
+      'INSERT INTO payments (invoice_id, amount, payment_method, notes, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [req.params.id, amount, payment_method, notes, tenant_id, branch_id]
     );
     
     const payment = paymentResult.rows[0];
@@ -116,11 +120,14 @@ exports.addPayment = async (req, res) => {
     // Log Payment Event
     logAction({ req, action: ACTIONS.PAYMENT, entityType: 'Invoice', entityId: req.params.id, details: { amount, method: payment_method } });
 
-    // Trigger Notification for Admins
-    notifyAdmins(tenant_id, {
+    // Trigger Notification for Managers
+    notificationService.notifyRole({
+        role: 'manager',
         type: 'success',
         title: 'Payment Received',
         message: `Payment of ${amount} recorded for ${invoice_number}`,
+        tenant_id: tenant_id,
+        branch_id: branch_id,
         link: '/accounting'
     });
 
@@ -136,8 +143,9 @@ exports.addPayment = async (req, res) => {
 // @access  Private
 exports.deleteInvoice = async (req, res) => {
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
   try {
-    const result = await db.query('DELETE FROM invoices WHERE id = $1 AND tenant_id::text = $2::text RETURNING *', [req.params.id, tenant_id]);
+    const result = await db.query('DELETE FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *', [req.params.id, tenant_id, branch_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Invoice not found or unauthorized' });
     }

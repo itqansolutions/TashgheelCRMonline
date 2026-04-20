@@ -10,14 +10,15 @@ const db = require('../config/db');
 exports.getPaymentByDeal = async (req, res) => {
     const { dealId } = req.params;
     const tenant_id = String(req.user.tenant_id);
+    const branch_id = String(req.branchId || req.user?.branch_id);
 
     try {
         const result = await db.query(`
             SELECT *, 
                    (total_amount - paid_amount) as remaining_amount
             FROM re_payments_mvp
-            WHERE deal_id::text = $1::text AND tenant_id::text = $2::text
-        `, [dealId, tenant_id]);
+            WHERE deal_id::text = $1::text AND tenant_id::text = $2::text AND branch_id::text = $3::text
+        `, [dealId, tenant_id, branch_id]);
 
         if (result.rows.length === 0) return res.json({ status: 'success', data: null });
         

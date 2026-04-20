@@ -153,16 +153,17 @@ class WorkflowEngine {
                     AND d.pipeline_stage NOT IN ('won', 'lost')
                     AND d.tenant_id = $1
                 WHERE u.tenant_id = $1 AND u.role = 'employee'
+                AND EXISTS (SELECT 1 FROM user_branches ub WHERE ub.user_id::text = u.id::text AND ub.branch_id::text = $2::text)
                 GROUP BY u.id, u.name
                 ORDER BY open_deals ASC
                 LIMIT 1
-            `, [tenant_id]);
+            `, [tenant_id, branch_id]);
 
             if (assigneeRes.rows.length === 0) return;
 
             const assignee = assigneeRes.rows[0];
 
-            await db.query(`UPDATE deals SET assigned_to = $1 WHERE id = $2 AND tenant_id = $3`, [assignee.id, deal_id, tenant_id]);
+            await db.query(`UPDATE deals SET assigned_to = $1 WHERE id = $2 AND tenant_id = $3 AND branch_id::text = $4::text`, [assignee.id, deal_id, tenant_id, branch_id]);
 
             await notificationService.notify({
                 type: 'SYSTEM_ALERT',

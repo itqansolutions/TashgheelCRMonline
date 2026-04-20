@@ -30,8 +30,8 @@ exports.getInvoices = async (req, res) => {
                 (i.total_amount - COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text), 0)) as remaining_balance,
                 c.name as customer_name
             FROM invoices i
-            LEFT JOIN deals d ON .deal_id::text = .id::text AND .tenant_id::text = .tenant_id::text 
-            LEFT JOIN customers c ON .client_id::text = .id::text AND .tenant_id::text = .tenant_id::text
+            LEFT JOIN deals d ON i.deal_id::text = d.id::text AND i.tenant_id::text = d.tenant_id::text 
+            LEFT JOIN customers c ON i.client_id::text = c.id::text AND i.tenant_id::text = c.tenant_id::text
             WHERE i.tenant_id::text = $1::text AND i.branch_id::text = $2::text
             ORDER BY i.created_at DESC
         `, [tenant_id, branch_id]);
@@ -133,6 +133,19 @@ exports.createInvoiceFromDeal = async (req, res) => {
 
         // Mark Deal as Won
         await db.query(`UPDATE deals SET pipeline_stage = 'won' WHERE id = $1`, [deal.id]);
+
+        // Real Estate Automation: If deal has a linked unit, mark it as Sold + create payment record
+        if (deal.unit_id) {
+            await db.query(`UPDATE re_units SET status = 'Sold' WHERE id = $1 AND tenant_id::text = $2::text`, [deal.unit_id, tenant_id]);
+            
+            const payCheck = await db.query('SELECT id FROM re_payments_mvp WHERE deal_id::text = $1::text', [deal.id]);
+            if (payCheck.rows.length === 0) {
+                await db.query(`
+                    INSERT INTO re_payments_mvp (tenant_id, branch_id, deal_id, total_amount, status)
+                    VALUES ($1, $2, $3, $4, 'Pending')
+                `, [tenant_id, branch_id, deal.id, deal.value]);
+            }
+        }
 
         await db.query('COMMIT');
 

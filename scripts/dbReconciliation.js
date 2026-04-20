@@ -42,6 +42,7 @@ const reconcileDatabase = async () => {
                 deal_id VARCHAR(255),
                 total_amount NUMERIC DEFAULT 0,
                 paid_amount NUMERIC DEFAULT 0,
+                down_payment NUMERIC DEFAULT 0,
                 next_payment_date DATE,
                 status VARCHAR(20) DEFAULT 'pending',
                 tenant_id VARCHAR(255),
@@ -96,10 +97,39 @@ const reconcileDatabase = async () => {
             await db.query(`ALTER TABLE re_payments_mvp ALTER COLUMN unit_id TYPE VARCHAR(255), ALTER COLUMN customer_id TYPE VARCHAR(255), ALTER COLUMN deal_id TYPE VARCHAR(255)`);
             
             // Hard Schema Resilience (Unconditional)
-            await db.query(ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(100));
+            await db.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(100)`);
             await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS unit_id VARCHAR(255)`);
             await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id VARCHAR(255)`);
             await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255)`);
+
+            // Branch Isolation Columns (Required for Triple Isolation)
+            await db.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+
+            // Real Estate Extended Columns
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS entity_type VARCHAR(50) DEFAULT 'customer'`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS budget_min NUMERIC DEFAULT 0`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS budget_max NUMERIC DEFAULT 0`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_area_min NUMERIC DEFAULT 0`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_area_max NUMERIC DEFAULT 0`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_location TEXT`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_rooms INTEGER DEFAULT 0`);
+
+            // RE Payments extended
+            await db.query(`ALTER TABLE re_payments_mvp ADD COLUMN IF NOT EXISTS down_payment NUMERIC DEFAULT 0`);
+
+            // Finance extended
+            await db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS invoice_prefix VARCHAR(20)`);
+            await db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS is_main BOOLEAN DEFAULT false`);
+            await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS notes TEXT`);
+
         } catch(e) { /* Ignore - Migration already applied or invalid cast */ }
 
         await db.query(`
@@ -107,10 +137,12 @@ const reconcileDatabase = async () => {
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 tenant_id VARCHAR(255),
                 branch_id VARCHAR(255),
-                user_id UUID,
+                user_id VARCHAR(255),
                 type VARCHAR(50) DEFAULT 'info',
                 title VARCHAR(255),
                 message TEXT,
+                link VARCHAR(255),
+                metadata JSONB,
                 is_read BOOLEAN DEFAULT false,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )

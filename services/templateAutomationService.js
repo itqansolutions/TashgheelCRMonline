@@ -71,8 +71,8 @@ class TemplateAutomationService {
             const description = `Automated industry follow-up for deal "${payload.title}".\nProperty Details: ${contextStr || 'N/A'}`;
 
             await db.query(`
-                INSERT INTO tasks (title, description, priority, status, assigned_to, tenant_id, parent_type, parent_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                INSERT INTO tasks (title, description, priority, status, assigned_to, tenant_id, branch_id, parent_type, parent_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             `, [
                 title,
                 description,
@@ -80,6 +80,7 @@ class TemplateAutomationService {
                 'todo',
                 payload.assigned_to,
                 tenantId,
+                payload.branch_id || null,
                 'deals',
                 payload.deal_id
             ]);

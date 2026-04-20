@@ -1,5 +1,6 @@
 const db = require('../config/db');
-const { sendNotification } = require('../services/notificationService');
+const notificationService = require('../services/notificationService');
+const { logCreate, logUpdate, logDelete } = require('../services/loggerService');
 
 // @desc    Get all tasks
 // @route   GET /api/tasks
@@ -9,6 +10,8 @@ exports.getTasks = async (req, res) => {
   try {
     const userId = req.user.id;
     const isAdmin = req.user.role === 'admin';
+
+    const branch_id = req.branchId || req.user?.branch_id;
 
     let query = `
       SELECT t.*, 
@@ -25,10 +28,10 @@ exports.getTasks = async (req, res) => {
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.director_id = u2.id
       LEFT JOIN users u3 ON t.created_by = u3.id
-      WHERE t.tenant_id::text = $1::text
+      WHERE t.tenant_id::text = $1::text AND t.branch_id::text = $2::text
     `;
 
-    const queryParams = [tenant_id];
+    const queryParams = [tenant_id, branch_id];
     
     if (!isAdmin) {
       // User sees tasks they are In Charge of, Director of, Creator of, or following within their tenant
@@ -72,8 +75,8 @@ exports.getTaskById = async (req, res) => {
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.director_id = u2.id
       LEFT JOIN users u3 ON t.created_by = u3.id
-      WHERE t.id = $1 AND t.tenant_id::text = $2::text
-    `, [req.params.id, tenant_id]);
+      WHERE t.id = $1 AND t.tenant_id::text = $2::text AND t.branch_id::text = $3::text
+    `, [req.params.id, tenant_id, req.branchId || req.user?.branch_id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
@@ -92,13 +95,14 @@ exports.getTaskById = async (req, res) => {
 exports.createTask = async (req, res) => {
   const { title, description, priority, status, assigned_to, director_id, follower_ids, parent_type, parent_id, due_date } = req.body;
   const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
     
     const result = await client.query(
-      'INSERT INTO tasks (title, description, priority, status, assigned_to, director_id, created_by, parent_type, parent_id, due_date, tenant_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
-      [title, description, priority || 'medium', status || 'todo', assigned_to || null, director_id || null, req.user.id, parent_type, parent_id, due_date || null, tenant_id]
+      'INSERT INTO tasks (title, description, priority, status, assigned_to, director_id, created_by, parent_type, parent_id, due_date, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *',
+      [title, description, priority || 'medium', status || 'todo', assigned_to || null, director_id || null, req.user.id, parent_type, parent_id, due_date || null, tenant_id, branch_id]
     );
 
     const taskId = result.rows[0].id;
@@ -113,15 +117,19 @@ exports.createTask = async (req, res) => {
 
     // Trigger Notification for Assignee
     if (assigned_to && assigned_to !== req.user.id) {
-        sendNotification({
-            userId: assigned_to,
-            tenantId: tenant_id,
+        notificationService.notify({
+            user_id: assigned_to,
+            tenant_id: tenant_id,
+            branch_id: branch_id,
             type: 'info',
             title: 'New Task Assigned',
             message: `You have been assigned a new task: ${title}`,
             link: '/tasks'
         });
     }
+
+    // Audit Logging
+    logCreate(req, 'Task', result.rows[0].id, result.rows[0]);
 
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
@@ -144,15 +152,17 @@ exports.updateTask = async (req, res) => {
     await client.query('BEGIN');
 
     // Verify task belongs to tenant
-    const verifyResult = await client.query('SELECT id FROM tasks WHERE id = $1 AND tenant_id::text = $2::text', [req.params.id, tenant_id]);
+    const branch_id = req.branchId || req.user?.branch_id;
+
+    const verifyResult = await client.query('SELECT id FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
     if (verifyResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
     }
 
     const result = await client.query(
-      'UPDATE tasks SET title = $1, description = $2, priority = $3, status = $4, assigned_to = $5, director_id = $6, parent_type = $7, parent_id = $8, due_date = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 AND tenant_id::text = $11::text RETURNING *',
-      [title, description, priority, status, assigned_to || null, director_id || null, parent_type, parent_id, due_date || null, req.params.id, tenant_id]
+      'UPDATE tasks SET title = $1, description = $2, priority = $3, status = $4, assigned_to = $5, director_id = $6, parent_type = $7, parent_id = $8, due_date = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 AND tenant_id::text = $11::text AND branch_id::text = $12::text RETURNING *',
+      [title, description, priority, status, assigned_to || null, director_id || null, parent_type, parent_id, due_date || null, req.params.id, tenant_id, branch_id]
     );
 
     // Update followers: Delete then Insert (simple sync)
@@ -180,7 +190,8 @@ exports.updateTask = async (req, res) => {
 exports.deleteTask = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   try {
-    const result = await db.query('DELETE FROM tasks WHERE id = $1 AND tenant_id::text = $2::text RETURNING *', [req.params.id, tenant_id]);
+    const branch_id = req.branchId || req.user?.branch_id;
+    const result = await db.query('DELETE FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *', [req.params.id, tenant_id, branch_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
     }
