@@ -7,9 +7,8 @@ const generateInvoiceNumber = async (tenant_id, branch_id) => {
     const branchRes = await db.query('SELECT invoice_prefix FROM branches WHERE id = $1 AND tenant_id::text = $2::text', [branch_id, tenant_id]);
     const prefix = branchRes.rows.length && branchRes.rows[0].invoice_prefix ? branchRes.rows[0].invoice_prefix + '-' : 'INV-';
 
-    // 2. Safely get the next sequence number for this tenant
-    // Using a simple count + 1 approach or max() because PostgreSQL sequences per tenant are hard to manage dynamically.
-    const seqRes = await db.query(`SELECT COUNT(*) + 1 as next_id FROM invoices WHERE tenant_id::text = $1::text`, [tenant_id]);
+    // 2. Safely get the next sequence number for this branch
+    const seqRes = await db.query(`SELECT COUNT(*) + 1 as next_id FROM invoices WHERE tenant_id::text = $1::text AND branch_id::text = $2::text`, [tenant_id, branch_id]);
     const nextSeq = String(seqRes.rows[0].next_id).padStart(4, '0');
 
     return `${prefix}${nextSeq}`;
@@ -63,10 +62,10 @@ exports.createInvoice = async (req, res) => {
         // Let's add them dynamically if needed or just insert what we have. 
         // We will do a generic insert, assuming schema might need a patch for customer_id if it fails, or we patch it beforehand.
         const invRes = await db.query(`
-            INSERT INTO invoices (invoice_number, total_amount, due_date, status, tenant_id, branch_id)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO invoices (invoice_number, total_amount, due_date, status, tenant_id, branch_id, client_id, deal_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
-        `, [invoiceNumber, total_amount, due_date || null, 'unpaid', tenant_id, branch_id]);
+        `, [invoiceNumber, total_amount, due_date || null, 'unpaid', tenant_id, branch_id, customer_id, deal_id || null]);
         
         const newInvoiceId = invRes.rows[0].id;
 
@@ -239,8 +238,8 @@ exports.getInvoiceDetails = async (req, res) => {
 
         if (invRes.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Invoice not found' });
 
-        const itemsRes = await db.query('SELECT * FROM invoice_items WHERE invoice_id = $1', [invoice_id]);
-        const paymentsRes = await db.query('SELECT * FROM payments WHERE invoice_id = $1 ORDER BY payment_date DESC', [invoice_id]);
+        const itemsRes = await db.query('SELECT * FROM invoice_items WHERE invoice_id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [invoice_id, tenant_id, branch_id]);
+        const paymentsRes = await db.query('SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text ORDER BY payment_date DESC', [invoice_id, tenant_id, branch_id]);
 
         res.json({
             status: 'success',

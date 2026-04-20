@@ -112,6 +112,12 @@ const reconcileDatabase = async () => {
             await db.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
             await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
             await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE departments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE lead_sources ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE system_logs ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE user_access ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE user_access ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
 
             // Real Estate Extended Columns
             await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS entity_type VARCHAR(50) DEFAULT 'customer'`);

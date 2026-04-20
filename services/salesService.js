@@ -17,8 +17,8 @@ exports.convertQuotationToInvoice = async (quotationId, tenant_id) => {
   // 2. Create Invoice with tenant context
   const invoiceNumber = `INV-${Date.now()}`;
   const invoiceResult = await db.query(
-    'INSERT INTO invoices (quotation_id, client_id, invoice_number, total_amount, due_date, status, tenant_id) VALUES ($1, $2, $3, $4, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\', $5) RETURNING *',
-    [quotationId, quotation.client_id, invoiceNumber, quotation.total_amount, tenant_id]
+    'INSERT INTO invoices (quotation_id, client_id, invoice_number, total_amount, due_date, status, tenant_id, branch_id, deal_id) VALUES ($1, $2, $3, $4, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\', $5, $6, $7) RETURNING *',
+    [quotationId, quotation.client_id, invoiceNumber, quotation.total_amount, tenant_id, quotation.branch_id, quotation.deal_id || null]
   );
   
   const invoice = invoiceResult.rows[0];
@@ -58,8 +58,8 @@ exports.convertDealToInvoice = async (dealId, tenant_id) => {
   // 3. Create Invoice with tenant context
   const invoiceNumber = `INV-${Date.now()}`;
   const invoiceResult = await db.query(
-    'INSERT INTO invoices (invoice_number, client_id, total_amount, due_date, status, notes, tenant_id) VALUES ($1, $2, $3, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\', $4, $5) RETURNING *',
-    [invoiceNumber, deal.client_id, deal.value, invoiceNotes, tenant_id]
+    'INSERT INTO invoices (invoice_number, client_id, total_amount, due_date, status, notes, tenant_id, branch_id, deal_id) VALUES ($1, $2, $3, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\', $4, $5, $6, $7) RETURNING *',
+    [invoiceNumber, deal.client_id, deal.value, invoiceNotes, tenant_id, deal.branch_id, deal.id]
   );
   
   const invoice = invoiceResult.rows[0];

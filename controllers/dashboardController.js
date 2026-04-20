@@ -135,11 +135,32 @@ exports.getBranchSummary = async (req, res) => {
             return `${col} > NOW() - INTERVAL '2 year' AND ${col} <= NOW() - INTERVAL '1 year'`;
         };
 
-        const prevRevRes = await db.query(`SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id::text = $1::text ${branchFilter} AND ${prevTimeFilterLogic('payment_date')}`, queryParams);
-        const prevExpRes = await db.query(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE tenant_id::text = $1::text ${branchFilter} AND ${prevTimeFilterLogic('expense_date')}`, queryParams);
+        let prevRevenue = 0;
+        if (templateName === 'real_estate') {
+            const prevRevRes = await db.query(`
+                SELECT COALESCE(SUM(paid_amount), 0) as total 
+                FROM re_payments_mvp 
+                WHERE tenant_id::text = $1::text ${branchFilter}
+                AND ${prevTimeFilterLogic('created_at')}
+            `, queryParams);
+            prevRevenue = parseFloat(prevRevRes.rows[0].total);
+        } else {
+            const prevRevRes = await db.query(`
+                SELECT COALESCE(SUM(amount), 0) as total 
+                FROM payments 
+                WHERE tenant_id::text = $1::text ${branchFilter} 
+                AND ${prevTimeFilterLogic('payment_date')}
+            `, queryParams);
+            prevRevenue = parseFloat(prevRevRes.rows[0].total);
+        }
+
+        const prevExpRes = await db.query(`
+            SELECT COALESCE(SUM(amount), 0) as total 
+            FROM expenses 
+            WHERE tenant_id::text = $1::text ${branchFilter} 
+            AND ${prevTimeFilterLogic('expense_date')}
+        `, queryParams);
         
-        
-        const prevRevenue = parseFloat(prevRevRes.rows[0].total);
         const prevExpenses = parseFloat(prevExpRes.rows[0].total);
         const prevProfit = prevRevenue - prevExpenses;
 
