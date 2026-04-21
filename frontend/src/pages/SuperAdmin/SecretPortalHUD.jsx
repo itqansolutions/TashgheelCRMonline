@@ -314,7 +314,7 @@ const SecretPortalHUD = () => {
                     <div className="w-72 h-72 relative perspective-[1000px]">
                         <div className="absolute inset-0 bg-indigo-500/20 rounded-[3rem] blur-3xl group-hover:bg-indigo-500/30 transition-colors" />
                         <img 
-                            src="file:///C:/Users/mmost/.gemini/antigravity/brain/d9d993b3-7bec-41aa-ad1c-13ce97597f7f/genesis_hero_graphic_1776788117931.png" 
+                            src="/assets/genesis-hero.png" 
                             alt="System Graphic" 
                             className="relative z-10 w-full h-full object-cover rounded-[3rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/5 transform rotate-y-[-10deg] group-hover:rotate-y-0 transition-transform duration-700"
                         />
