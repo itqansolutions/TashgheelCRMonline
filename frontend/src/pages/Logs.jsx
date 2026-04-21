@@ -3,7 +3,7 @@ import api from '../services/api';
 import { 
   History, User, Tag, Clock, Info, Shield, Search, Filter, 
   Download, ChevronDown, Eye, AlertCircle, CheckCircle, Activity,
-  ArrowRight, X
+  ArrowRight, X, Terminal, Fingerprint, Globe, Cpu
 } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
@@ -15,7 +15,6 @@ const Logs = () => {
   const [total, setTotal] = useState(0);
   const [users, setUsers] = useState([]);
   
-  // Filters
   const [filters, setFilters] = useState({
     user_id: '',
     action: '',
@@ -27,7 +26,6 @@ const Logs = () => {
     offset: 0
   });
 
-  // Modal State
   const [selectedLog, setSelectedLog] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -40,9 +38,7 @@ const Logs = () => {
     try {
       const res = await api.get('/users');
       setUsers(res.data.data || []);
-    } catch (err) {
-      console.error('Failed to load users for filter');
-    }
+    } catch (err) { console.error('Filter load failed'); }
   };
 
   const fetchLogs = async () => {
@@ -52,15 +48,11 @@ const Logs = () => {
       Object.entries(filters).forEach(([key, val]) => {
         if (val) queryParams.append(key, val);
       });
-
       const res = await api.get(`/logs?${queryParams.toString()}`);
       setLogs(res.data.data);
       setTotal(res.data.total);
-    } catch (err) {
-      toast.error('Failed to load system logs');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { toast.error('Signal Error: Logs retrieval failed'); }
+    finally { setLoading(false); }
   };
 
   const handleFilterChange = (e) => {
@@ -69,21 +61,11 @@ const Logs = () => {
   };
 
   const resetFilters = () => {
-    setFilters({
-      user_id: '',
-      action: '',
-      entity_type: '',
-      level: '',
-      from: '',
-      to: '',
-      limit: 50,
-      offset: 0
-    });
+    setFilters({ user_id: '', action: '', entity_type: '', level: '', from: '', to: '', limit: 50, offset: 0 });
   };
 
   const exportToCSV = () => {
-    if (logs.length === 0) return toast.error('No logs to export');
-    
+    if (logs.length === 0) return toast.error('No data in buffer');
     const headers = ['Timestamp', 'Operator', 'Action', 'Module', 'Severity', 'Details'];
     const rows = logs.map(log => [
       new Date(log.created_at).toLocaleString(),
@@ -93,65 +75,52 @@ const Logs = () => {
       log.level,
       JSON.stringify(log.details)
     ]);
-
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + [headers, ...rows].map(e => e.join(",")).join("\n");
-
+    const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].map(e => e.join(",")).join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `system_audit_logs_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `oracle_audit_${new Date().toISOString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success('Logs exported successfully');
   };
 
-  const getActionColor = (action) => {
-    const colors = {
-      CREATE: { bg: '#f0fdf4', text: '#16a34a' },
-      UPDATE: { bg: '#eff6ff', text: '#2563eb' },
-      DELETE: { bg: '#fef2f2', text: '#dc2626' },
-      LOGIN: { bg: '#f5f3ff', text: '#7c3aed' },
-      LOGIN_FAIL: { bg: '#fff1f2', text: '#e11d48' },
-      STAGE_CHANGE: { bg: '#fff7ed', text: '#d97706' }
+  const getLevelStyle = (level) => {
+    const map = {
+      INFO:     { color: 'text-indigo-400',  bg: 'bg-indigo-500/10', border: 'border-indigo-500/10' },
+      WARNING:  { color: 'text-amber-500',   bg: 'bg-amber-500/10',  border: 'border-amber-500/10' },
+      CRITICAL: { color: 'text-rose-500',    bg: 'bg-rose-500/10',   border: 'border-rose-500/10' }
     };
-    return colors[action] || { bg: '#f8fafc', text: '#64748b' };
-  };
-
-  const getLevelColor = (level) => {
-    const colors = {
-      INFO: { bg: '#f8fafc', text: '#64748b', icon: <CheckCircle size={14} /> },
-      WARNING: { bg: '#fffbeb', text: '#d97706', icon: <Info size={14} /> },
-      CRITICAL: { bg: '#fef2f2', text: '#dc2626', icon: <AlertCircle size={14} /> }
-    };
-    return colors[level] || colors.INFO;
+    return map[level] || map.INFO;
   };
 
   const renderDiffView = (details) => {
     if (!details || (!details.before && !details.after)) {
-      return <pre style={{ fontSize: '12px', background: '#f1f5f9', padding: '10px', borderRadius: '8px' }}>{JSON.stringify(details, null, 2)}</pre>;
+      return (
+        <div className="bg-black/40 border border-white/5 p-6 rounded-2xl font-mono text-[11px] text-indigo-300 leading-relaxed max-h-[400px] overflow-y-auto">
+          {JSON.stringify(details, null, 2)}
+        </div>
+      );
     }
-
     const before = details.before || {};
     const after = details.after || {};
     const allKeys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
 
     return (
-      <div className="diff-viewer">
-        <div className="diff-header">
-          <div className="diff-col">Previous State</div>
-          <div className="diff-col">New State</div>
+      <div className="space-y-2">
+        <div className="grid grid-cols-12 gap-4 px-4 py-2 text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">
+            <div className="col-span-3">Attribute</div>
+            <div className="col-span-4">Previous State</div>
+            <div className="col-span-1 text-center">∆</div>
+            <div className="col-span-4">Next State</div>
         </div>
-        <div className="diff-body">
+        <div className="space-y-1">
           {allKeys.map(key => (
-            <div key={key} className="diff-row">
-              <div className="diff-key">{key.replace('_', ' ')}</div>
-              <div className="diff-compare">
-                <div className="diff-val old">{String(before[key] !== undefined ? before[key] : '-')}</div>
-                <ArrowRight size={14} style={{ color: '#94a3b8' }} />
-                <div className="diff-val new">{String(after[key] !== undefined ? after[key] : '-')}</div>
-              </div>
+            <div key={key} className="grid grid-cols-12 gap-4 p-3 bg-white/[0.02] border border-white/5 rounded-xl text-[11px] items-center">
+              <div className="col-span-3 font-black text-slate-400 uppercase tracking-tighter truncate">{key.replace(/_/g, ' ')}</div>
+              <div className="col-span-4 font-mono text-rose-500/80 line-through truncate">{String(before[key] ?? '-')}</div>
+              <div className="col-span-1 flex justify-center text-slate-700"><ArrowRight size={12}/></div>
+              <div className="col-span-4 font-mono text-emerald-400 font-bold truncate">{String(after[key] ?? '-')}</div>
             </div>
           ))}
         </div>
@@ -159,209 +128,226 @@ const Logs = () => {
     );
   };
 
-  const columns = [
-    { 
-      key: 'created_at', 
-      label: 'Timestamp',
-      render: (val) => (
-        <div style={{ display: 'flex', flexDirection: 'column', color: '#475569' }}>
-          <span style={{ fontSize: '13px', fontWeight: '600' }}>{new Date(val).toLocaleDateString()}</span>
-          <span style={{ fontSize: '11px' }}>{new Date(val).toLocaleTimeString()}</span>
-        </div>
-      )
-    },
-    { 
-      key: 'user_name', 
-      label: 'Operator',
-      render: (val, row) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f633, #3b82f611)', display: 'flex', alignItems: 'center', justify: 'center', fontSize: '12px', fontWeight: 'bold', color: '#3b82f6' }}>
-            {val ? val.charAt(0).toUpperCase() : 'S'}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontWeight: '600' }}>{val || 'System'}</span>
-            <span style={{ fontSize: '11px', color: '#94a3b8' }}>{row.user_email || 'Automation'}</span>
-          </div>
-        </div>
-      )
-    },
-    { 
-      key: 'level', 
-      label: 'Severity',
-      render: (val) => {
-        const conf = getLevelColor(val);
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: conf.text, fontWeight: '700', fontSize: '11px', padding: '4px 8px', borderRadius: '6px', background: conf.bg, border: `1px solid ${conf.text}22` }}>
-            {conf.icon} {val}
-          </div>
-        )
-      }
-    },
-    { 
-      key: 'action', 
-      label: 'Action',
-      render: (val) => {
-        const conf = getActionColor(val);
-        return (
-          <span className="status-badge" style={{ background: conf.bg, color: conf.text, fontWeight: '800' }}>{val}</span>
-        )
-      }
-    },
-    { 
-        key: 'entity_type', 
-        label: 'Module',
-        render: (val) => <span style={{ fontWeight: '500', color: '#1e293b' }}>{val}</span>
-    }
-  ];
-
-  const todayLogs = (logs || []).filter(l => l.created_at && new Date(l.created_at).toDateString() === new Date().toDateString());
-  const criticalCount = total > 0 ? (logs || []).filter(l => l.level === 'CRITICAL').length : 0;
-
   return (
-    <div className="logs-page">
+    <div className="min-h-screen bg-slate-950 p-6 md:p-10 animate-in fade-in duration-500">
       <style>{`
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .stat-card { background: white; padding: 20px; border-radius: 16px; border: 1px solid var(--border); display: flex; align-items: center; gap: 15px; }
-        .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify: center; }
-        
-        .filter-section { background: white; padding: 20px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 24px; }
-        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; align-items: end; }
-        .filter-group label { display: block; font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 6px; text-transform: uppercase; }
-        .filter-group select, .filter-group input { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); outline: none; transition: 0.2s; font-size: 13px; }
-        .filter-group select:focus, .filter-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
-        
-        .diff-viewer { display: flex; flexDirection: column; gap: 12px; }
-        .diff-header { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 10px; font-weight: 800; font-size: 12px; color: #64748b; padding: 0 100px 0 150px; }
-        .diff-row { display: grid; grid-template-columns: 150px 1fr; gap: 20px; align-items: center; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
-        .diff-key { font-weight: 700; font-size: 12px; color: #1e293b; text-transform: capitalize; }
-        .diff-compare { display: grid; grid-template-columns: 1fr 20px 1fr; gap: 10px; align-items: center; }
-        .diff-val { font-family: monospace; font-size: 12px; padding: 4px 8px; border-radius: 4px; overflow-wrap: anywhere; }
-        .diff-val.old { background: #fee2e2; color: #991b1b; text-decoration: line-through; }
-        .diff-val.new { background: #dcfce7; color: #166534; font-weight: bold; }
-
-        .btn-refresh { background: #f1f5f9; color: #475569; padding: 8px 16px; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; cursor: pointer; border: none; }
-        .btn-export { background: #1e293b; color: white; padding: 8px 16px; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; cursor: pointer; border: none; }
+        .hud-card {
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 2rem;
+        }
+        .hud-input {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 0.75rem;
+            padding: 0.6rem 0.8rem;
+            outline: none;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .hud-input:focus { border-color: rgba(99, 102, 241, 0.5); }
+        .hud-table-row:hover { background: rgba(99, 102, 241, 0.03); }
       `}</style>
 
-      <div className="page-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
         <div>
-          <h2 style={{ fontSize: '26px', fontWeight: '900', letterSpacing: '-0.02em' }}>Audit & Monitoring</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Real-time forensic visibility across the CRM ecosystem.</p>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg border border-indigo-500/20">
+              <Terminal size={20} />
+            </div>
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Protocol: Forensic_Audit_Oracle</span>
+          </div>
+          <h1 className="text-4xl font-black text-white tracking-tighter">System Intelligence Feed</h1>
+          <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1 opacity-70">Real-time action monitoring across all active nodes</p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button className="btn-refresh" onClick={fetchLogs}><History size={16} /> Refresh</button>
-          <button className="btn-export" onClick={exportToCSV}><Download size={16} /> Export CSV</button>
-        </div>
-      </div>
-
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#eff6ff', color: '#2563eb' }}><Activity size={24} /></div>
-          <div><div style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>TOTAL EVENTS</div><div style={{ fontSize: '20px', fontWeight: '800' }}>{total}</div></div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}><CheckCircle size={24} /></div>
-          <div><div style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>TODAY'S ACTIVITY</div><div style={{ fontSize: '20px', fontWeight: '800' }}>{todayLogs.length}</div></div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#fef2f2', color: '#dc2626' }}><AlertCircle size={24} /></div>
-          <div><div style={{ fontSize: '12px', color: '#64748b', fontWeight: 'bold' }}>CRITICAL ALERTS</div><div style={{ fontSize: '20px', fontWeight: '800', color: criticalCount > 0 ? '#dc2626' : 'inherit' }}>{criticalCount}</div></div>
+        <div className="flex gap-4">
+             <button onClick={fetchLogs} className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all border border-white/5"><RefreshCw size={18} className={loading ? 'animate-spin' : ''}/></button>
+             <button onClick={exportToCSV} className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all border border-white/5"><Download size={18}/></button>
         </div>
       </div>
 
-      <div className="filter-section">
-        <div className="filter-grid">
-          <div className="filter-group">
-            <label>Operator</label>
-            <select name="user_id" value={filters.user_id} onChange={handleFilterChange}>
-              <option value="">All Operators</option>
-              {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="hud-card p-8 flex items-center gap-6">
+            <div className="w-14 h-14 bg-indigo-600/10 text-indigo-500 border border-indigo-500/20 rounded-2xl flex items-center justify-center"><Activity size={24}/></div>
+            <div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Global Events</p>
+                <h3 className="text-2xl font-black text-white">{total}</h3>
+            </div>
+        </div>
+        <div className="hud-card p-8 flex items-center gap-6">
+            <div className="w-14 h-14 bg-emerald-600/10 text-emerald-500 border border-emerald-500/20 rounded-2xl flex items-center justify-center"><Globe size={24}/></div>
+            <div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Active Cycle</p>
+                <h3 className="text-2xl font-black text-white">24h Forensic Sync</h3>
+            </div>
+        </div>
+        <div className="hud-card p-8 flex items-center gap-6">
+            <div className="w-14 h-14 bg-rose-600/10 text-rose-500 border border-rose-500/20 rounded-2xl flex items-center justify-center"><Cpu size={24}/></div>
+            <div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Security Health</p>
+                <h3 className="text-2xl font-black text-white">Operational</h3>
+            </div>
+        </div>
+      </div>
+
+      <div className="hud-card p-8 mb-10 border-indigo-500/10">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Node Operator</label>
+            <select name="user_id" value={filters.user_id} className="hud-input w-full" onChange={handleFilterChange}>
+              <option value="">All Intelligence Units</option>
+              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
           </div>
-          <div className="filter-group">
-            <label>Action</label>
-            <select name="action" value={filters.action} onChange={handleFilterChange}>
-              <option value="">All Actions</option>
-              <option value="LOGIN">LOGIN</option>
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Action Sequence</label>
+            <select name="action" value={filters.action} className="hud-input w-full" onChange={handleFilterChange}>
+              <option value="">All Operations</option>
               <option value="CREATE">CREATE</option>
               <option value="UPDATE">UPDATE</option>
               <option value="DELETE">DELETE</option>
-              <option value="STAGE_CHANGE">STAGE CHANGE</option>
-              <option value="BILLING">BILLING</option>
-              <option value="PAYMENT">PAYMENT</option>
+              <option value="LOGIN">LOGIN</option>
             </select>
           </div>
-          <div className="filter-group">
-            <label>Severity</label>
-            <select name="level" value={filters.level} onChange={handleFilterChange}>
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Severity Index</label>
+            <select name="level" value={filters.level} className="hud-input w-full" onChange={handleFilterChange}>
               <option value="">All Levels</option>
               <option value="INFO">INFO</option>
               <option value="WARNING">WARNING</option>
               <option value="CRITICAL">CRITICAL</option>
             </select>
           </div>
-          <div className="filter-group">
-            <label>Date From</label>
-            <input type="date" name="from" value={filters.from} onChange={handleFilterChange} />
-          </div>
-          <div className="filter-group">
-            <label>Date To</label>
-            <input type="date" name="to" value={filters.to} onChange={handleFilterChange} />
-          </div>
-          <div className="filter-group" style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn-secondary" onClick={fetchLogs} style={{ height: '36px', width: '100px', fontWeight: '700' }}>Apply</button>
-            <button className="btn-cancel" onClick={resetFilters} style={{ height: '36px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#64748b' }}><X size={16} /></button>
+          <div className="flex gap-2">
+             <button onClick={fetchLogs} className="flex-1 h-10 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500 transition-all">Filter Feed</button>
+             <button onClick={resetFilters} className="w-10 h-10 bg-white/5 text-slate-500 rounded-xl flex items-center justify-center border border-white/5 hover:text-white transition-all"><X size={16}/></button>
           </div>
         </div>
       </div>
 
-      <DataTable 
-        title="Audit Trail"
-        columns={columns}
-        data={logs}
-        loading={loading}
-        actions={(row) => (
-          <button 
-            label="view log details"
-            className="btn-icon" 
-            onClick={() => {
-              setSelectedLog(row);
-              setIsModalOpen(true);
-            }}
-            title="Inspect Data"
-          >
-            <Eye size={16} />
-          </button>
-        )}
-      />
+      <div className="hud-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-black/20 border-b border-white/5">
+              <tr>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Event Timestamp</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Intelligence Unit</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Operation Details</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Index</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Analysis</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {loading ? (
+                <tr>
+                    <td colSpan="5" className="py-20 text-center text-slate-600 font-black text-[10px] uppercase tracking-[0.4em]">Interpreting Signal...</td>
+                </tr>
+              ) : logs.map(log => {
+                const style = getLevelStyle(log.level);
+                return (
+                  <tr key={log.id} className="hud-table-row transition-colors group">
+                    <td className="px-8 py-5">
+                        <div className="flex flex-col">
+                            <span className="text-sm font-bold text-white tracking-tighter">{new Date(log.created_at).toLocaleTimeString()}</span>
+                            <span className="text-[9px] font-black text-slate-700 uppercase">{new Date(log.created_at).toLocaleDateString()}</span>
+                        </div>
+                    </td>
+                    <td className="px-8 py-5">
+                       <div className="flex items-center gap-3">
+                           <div className="w-8 h-8 rounded-full bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-[10px] font-black shadow-lg border border-indigo-500/10">
+                                {log.user_name?.[0] || 'S'}
+                           </div>
+                           <div className="flex flex-col">
+                               <span className="text-xs font-bold text-slate-300 group-hover:text-white transition-colors">{log.user_name || 'System Auto'}</span>
+                               <span className="text-[9px] font-black text-slate-700 uppercase tracking-widest">{log.ip_address || 'INT_BUS'}</span>
+                           </div>
+                       </div>
+                    </td>
+                    <td className="px-8 py-5">
+                       <div className="flex items-center gap-4">
+                           <span className="px-3 py-1 bg-white/5 rounded-lg border border-white/5 text-[9px] font-black text-slate-400 uppercase tracking-widest">{log.action}</span>
+                           <span className="text-xs font-bold text-slate-500 tracking-tight">{log.entity_type}</span>
+                       </div>
+                    </td>
+                    <td className="px-8 py-5">
+                       <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg border ${style.bg} ${style.color} ${style.border}`}>
+                           <div className={`w-1.5 h-1.5 rounded-full ${style.color === 'text-rose-500' ? 'bg-rose-500 shadow-[0_0_10px_#ef4444]' : 'bg-current'} animate-pulse`}></div>
+                           <span className="text-[9px] font-black uppercase tracking-widest">{log.level}</span>
+                       </div>
+                    </td>
+                    <td className="px-8 py-5 text-right">
+                       <button 
+                        onClick={() => { setSelectedLog(log); setIsModalOpen(true); }}
+                        className="p-3 bg-white/5 rounded-xl text-slate-500 hover:text-white hover:bg-indigo-600/20 transition-all opacity-0 group-hover:opacity-100"
+                       >
+                           <Eye size={16} />
+                       </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={`Log Inspection: ${selectedLog?.action} on ${selectedLog?.entity_type}`}
-        width="800px"
-        footer={<button className="btn-cancel" onClick={() => setIsModalOpen(false)}>Close</button>}
+        title={
+            <div className="flex items-center gap-4 text-white">
+                <Shield className="text-indigo-500" size={24}/>
+                <div className="flex flex-col">
+                    <span className="text-xl font-black tracking-tighter uppercase">Deep Scan: Event_{selectedLog?.id}</span>
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Security Level Verification Sequence</span>
+                </div>
+            </div>
+        }
+        width="1000px"
+        footer={<button className="px-8 py-3 bg-slate-800 text-slate-400 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-700 transition-all" onClick={() => setIsModalOpen(false)}>Terminate Inspection</button>}
       >
-        {selectedLog && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px', padding: '15px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-               <div><label style={{ fontSize: '10px', display: 'block', color: '#64748b', fontWeight: '800' }}>OPERATOR</label><strong>{selectedLog.user_name || 'System'}</strong></div>
-               <div><label style={{ fontSize: '10px', display: 'block', color: '#64748b', fontWeight: '800' }}>IP ADDRESS</label><strong>{selectedLog.ip_address || 'Internal'}</strong></div>
-               <div><label style={{ fontSize: '10px', display: 'block', color: '#64748b', fontWeight: '800' }}>TIMESTAMP</label><strong>{new Date(selectedLog.created_at).toLocaleString()}</strong></div>
-             </div>
-             
-             <div>
-               <h4 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                 <Tag size={16} style={{ color: 'var(--primary)' }} /> Data Delta / Details
-               </h4>
-               {renderDiffView(selectedLog.details)}
-             </div>
+        <div className="bg-slate-950 p-8 rounded-[2.5rem] border border-white/10 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-20 opacity-5 pointer-events-none transform rotate-12">
+                <Fingerprint size={240} className="text-indigo-500" />
+            </div>
+            
+            {selectedLog && (
+                <div className="space-y-12 relative z-10">
+                    <div className="grid grid-cols-4 gap-8">
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Origin Source</label>
+                            <div className="text-lg font-black text-white">{selectedLog.user_name || 'System'}</div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">IP Nexus</label>
+                            <div className="text-lg font-black text-white">{selectedLog.ip_address || '127.0.0.1'}</div>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Protocol Date</label>
+                            <div className="text-lg font-black text-white">{new Date(selectedLog.created_at).toLocaleDateString()}</div>
+                        </div>
+                        <div className="space-y-1 text-right">
+                            <label className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Auth Level</label>
+                            <div className="text-lg font-black text-indigo-500 uppercase">{selectedLog.level}</div>
+                        </div>
+                    </div>
 
-             <div style={{ fontSize: '11px', color: '#64748b', padding: '10px', background: '#f1f5f9', borderRadius: '8px' }}>
-               <strong>User Agent:</strong> {selectedLog.user_agent}
-             </div>
-          </div>
-        )}
+                    <div className="space-y-4">
+                        <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] flex items-center gap-3">
+                            <Terminal size={14} /> Intelligence Delta Matrix
+                        </h4>
+                        {renderDiffView(selectedLog.details)}
+                    </div>
+
+                    <div className="p-6 bg-black/40 border border-white/5 rounded-2xl flex items-center gap-4">
+                        <Globe size={18} className="text-slate-600" />
+                        <span className="text-[10px] font-bold text-slate-500 font-mono tracking-tight">{selectedLog.user_agent}</span>
+                    </div>
+                </div>
+            )}
+        </div>
       </Modal>
     </div>
   );

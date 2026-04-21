@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit3, Copy, Trash2, ToggleRight, ToggleLeft, Users, Building2, Check, X, Save, RefreshCw, Eye, Zap } from 'lucide-react';
+import { 
+    Plus, Edit3, Copy, Trash2, ToggleRight, ToggleLeft, 
+    Users, Building2, Check, X, Save, RefreshCw, 
+    Eye, Zap, Layers, DollarSign, Settings,
+    ShieldCheck, Box, ChevronRight, Layout
+} from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
 const ALL_MODULES = [
-    { key: 'crm',        label: 'CRM & Sales',         icon: '🤝' },
-    { key: 'finance',    label: 'Finance & Invoicing',  icon: '💰' },
-    { key: 'hr',         label: 'HR & Attendance',      icon: '👥' },
-    { key: 'inventory',  label: 'Inventory',            icon: '📦' },
-    { key: 'automation', label: 'Workflow Automation',  icon: '⚙️' },
-    { key: 'reports',    label: 'Advanced Reports',     icon: '📊' },
+    { key: 'crm',        label: 'CRM & Sales',         icon: <Users size={16}/> },
+    { key: 'finance',    label: 'Finance & Invoicing',  icon: <DollarSign size={16}/> },
+    { key: 'hr',         label: 'HR & Attendance',      icon: <Users size={16}/> },
+    { key: 'inventory',  label: 'Inventory Control',     icon: <Box size={16}/> },
+    { key: 'automation', label: 'Workflow Engine',      icon: <Zap size={16}/> },
+    { key: 'reports',    label: 'BI Analytics',         icon: <BarChart3 size={16}/> },
 ];
+
+const BarChart3 = ({ size }) => <Layers size={size} />; // Fallback
 
 const emptyPlan = () => ({
     name: '', display_name: '', price_monthly: '',
@@ -23,12 +30,11 @@ const AdminPlans = () => {
     const [plans, setPlans]       = useState([]);
     const [tenants, setTenants]   = useState([]);
     const [loading, setLoading]   = useState(true);
-    const [activeTab, setActiveTab] = useState('plans'); // 'plans' | 'tenants'
+    const [activeTab, setActiveTab] = useState('plans'); 
     const [showForm, setShowForm] = useState(false);
     const [editId, setEditId]     = useState(null);
     const [form, setForm]         = useState(emptyPlan());
 
-    // Tenant detail panel
     const [selectedTenant, setSelectedTenant] = useState(null);
     const [tenantOverride, setTenantOverride] = useState(null);
     const [assignPlanId, setAssignPlanId]     = useState('');
@@ -50,7 +56,6 @@ const AdminPlans = () => {
 
     useEffect(() => { fetchAll(); }, []);
 
-    // ── Plan Form logic ────────────────────────────────────────
     const handleEdit = (plan) => {
         setForm({
             name: plan.name, display_name: plan.display_name,
@@ -68,11 +73,11 @@ const AdminPlans = () => {
         try {
             if (editId) {
                 await api.put(`/admin/plans/${editId}`, form);
-                toast.success('Plan updated!');
+                toast.success('Plan metadata updated');
             } else {
                 if (!form.name.trim()) return toast.error('Plan key name is required');
                 await api.post('/admin/plans', form);
-                toast.success('Plan created!');
+                toast.success('New plan protocol registered');
             }
             setShowForm(false);
             setEditId(null);
@@ -86,16 +91,16 @@ const AdminPlans = () => {
     const handleClone = async (id) => {
         try {
             await api.post(`/admin/plans/${id}/clone`);
-            toast.success('Plan cloned as draft!');
+            toast.success('DNA Cloned. Draft record created.');
             fetchAll();
         } catch (err) { toast.error('Clone failed'); }
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm('Delete this plan? Cannot delete if tenants are on it.')) return;
+        if (!window.confirm('Erase this plan from record?')) return;
         try {
             await api.delete(`/admin/plans/${id}`);
-            toast.success('Plan deleted');
+            toast.success('Plan record purged');
             fetchAll();
         } catch (err) { toast.error(err.response?.data?.message || 'Delete failed'); }
     };
@@ -107,7 +112,6 @@ const AdminPlans = () => {
         } catch { toast.error('Toggle failed'); }
     };
 
-    // ── Tenant Panel logic ─────────────────────────────────────
     const openTenantPanel = async (tenant) => {
         setSelectedTenant(tenant);
         setAssignPlanId(tenant.plan_id || '');
@@ -124,7 +128,7 @@ const AdminPlans = () => {
     const handleAssignPlan = async () => {
         try {
             await api.put(`/admin/tenants/${selectedTenant.id}/plan`, { plan_id: parseInt(assignPlanId), status: 'active' });
-            toast.success('Plan assigned!');
+            toast.success('Re-assigned subscription package');
             fetchAll();
             setSelectedTenant(null);
         } catch (err) { toast.error('Assign failed'); }
@@ -133,264 +137,308 @@ const AdminPlans = () => {
     const handleSaveOverride = async () => {
         try {
             await api.put(`/admin/tenants/${selectedTenant.id}/override`, { modules: overrideModules, notes: `Manual override` });
-            toast.success('Override saved — this tenant now has custom module access!');
+            toast.success('Custom access protocol applied');
             fetchAll();
             setSelectedTenant(null);
         } catch { toast.error('Override failed'); }
     };
 
-    const handleRemoveOverride = async () => {
-        try {
-            await api.delete(`/admin/tenants/${selectedTenant.id}/override`);
-            toast.success('Override removed — reverts to plan defaults');
-            fetchAll();
-            setSelectedTenant(null);
-        } catch { toast.error('Remove failed'); }
-    };
-
-    // ── Live Plan Preview ──────────────────────────────────────
-    const PlanPreview = () => (
-        <div style={{ background: 'linear-gradient(135deg, rgba(79,70,229,0.08), rgba(99,102,241,0.04))', border: '1.5px solid rgba(79,70,229,0.2)', borderRadius: 16, padding: 24 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-                <Eye size={12} style={{ marginRight: 4 }}/> Live Preview
-            </div>
-            <div style={{ fontWeight: 900, fontSize: 20 }}>{form.display_name || 'Plan Name'}</div>
-            <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--primary)', margin: '4px 0' }}>
-                ${form.price_monthly || 0}<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>/mo</span>
-            </div>
-            <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}><Users size={11}/> {form.max_users === -1 ? '∞' : form.max_users} users</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}><Building2 size={11}/> {form.max_branches === -1 ? '∞' : form.max_branches} branches</span>
-            </div>
-            <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: 12 }}>
-                {ALL_MODULES.map(m => (
-                    <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontSize: 13 }}>
-                        {form.modules[m.key]
-                            ? <Check size={13} style={{ color: '#10b981' }}/>
-                            : <X size={13} style={{ color: 'var(--text-muted)', opacity: 0.4 }}/>
-                        }
-                        <span style={{ color: form.modules[m.key] ? 'var(--text-main)' : 'var(--text-muted)', opacity: form.modules[m.key] ? 1 : 0.5 }}>
-                            {m.icon} {m.label}
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-
     return (
-        <div style={{ padding: 28 }}>
+        <div className="min-h-screen bg-slate-950 p-6 md:p-10 animate-in fade-in duration-500">
             <style>{`
-                .ap-tabs { display: flex; gap: 4px; background: rgba(0,0,0,0.04); padding: 4px; border-radius: 10px; width: fit-content; margin-bottom: 24px; }
-                .ap-tab { padding: 8px 20px; border-radius: 7px; font-weight: 700; font-size: 13px; border: none; cursor: pointer; background: transparent; color: var(--text-muted); transition: all 0.2s; }
-                .ap-tab.active { background: var(--bg-card); color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-                .ap-card { background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: 14px; padding: 24px; margin-bottom: 16px; }
-                .ap-grid { display: grid; grid-template-columns: 1fr 320px; gap: 24px; }
-                .ap-form-group { margin-bottom: 16px; }
-                .ap-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; display: block; }
-                .ap-input { width: 100%; padding: 9px 12px; border: 1px solid var(--glass-border); border-radius: 8px; background: var(--bg-main); color: var(--text-main); font-size: 14px; font-weight: 500; box-sizing: border-box; }
-                .ap-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
-                .module-toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: 10px; background: rgba(0,0,0,0.02); margin-bottom: 6px; cursor: pointer; transition: 0.15s; }
-                .module-toggle:hover { background: rgba(79,70,229,0.04); }
-                .btn-save { background: var(--primary); color: white; border: none; padding: 11px 22px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-                .btn-save:hover { opacity: 0.9; }
-                .badge-active { background: rgba(16,185,129,0.1); color: #10b981; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
-                .badge-inactive { background: rgba(107,114,128,0.1); color: #9ca3af; padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
-                .plan-table { width: 100%; border-collapse: collapse; }
-                .plan-table th, .plan-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--glass-border); }
-                .plan-table th { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
-                .tenant-row { cursor: pointer; transition: 0.15s; }
-                .tenant-row:hover td { background: rgba(79,70,229,0.02); }
-                .override-panel { position: fixed; right: 0; top: 0; bottom: 0; width: 480px; background: var(--bg-card); border-left: 1px solid var(--glass-border); padding: 32px; overflow-y: auto; z-index: 200; box-shadow: -20px 0 40px rgba(0,0,0,0.1); }
+                .hud-card {
+                    background: rgba(30, 41, 59, 0.4);
+                    backdrop-filter: blur(20px);
+                    border: 1px solid rgba(255, 255, 255, 0.05);
+                    border-radius: 2rem;
+                }
+                .hud-input {
+                    background: rgba(0, 0, 0, 0.3);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    color: white;
+                    border-radius: 1rem;
+                    padding: 0.75rem 1rem;
+                    outline: none;
+                    transition: all 0.2s;
+                }
+                .hud-input:focus {
+                    border-color: rgba(99, 102, 241, 0.5);
+                    box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
+                }
+                .mod-switch {
+                    background: rgba(255, 255, 255, 0.03);
+                    border: 1px solid rgba(255, 255, 255, 0.05);
+                    transition: all 0.2s;
+                }
+                .mod-switch:hover {
+                    background: rgba(99, 102, 241, 0.05);
+                    border-color: rgba(99, 102, 241, 0.2);
+                }
+                .ap-tab {
+                    padding: 0.75rem 2rem;
+                    border-radius: 1rem;
+                    font-weight: 800;
+                    font-size: 0.75rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.1em;
+                    transition: all 0.3s;
+                }
+                .ap-tab.active {
+                    background: rgba(99, 102, 241, 0.15);
+                    color: #818cf8;
+                    box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
+                }
+                .btn-hud {
+                    padding: 0.75rem 1.5rem;
+                    border-radius: 1rem;
+                    font-weight: 800;
+                    text-transform: uppercase;
+                    letter-spacing: 0.1em;
+                    font-size: 0.7rem;
+                    transition: all 0.2s;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                }
             `}</style>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24 }}>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
                 <div>
-                    <h2 style={{ margin: 0, fontSize: 28, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Zap size={26} color="var(--primary)"/> Pricing Engine
-                    </h2>
-                    <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: 14 }}>Build custom plans and manage tenant subscriptions</p>
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 bg-indigo-600/20 text-indigo-400 rounded-lg border border-indigo-500/20">
+                            <DollarSign size={20} />
+                        </div>
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Module: Pricing_Engine_Core</span>
+                    </div>
+                    <h1 className="text-4xl font-black text-white tracking-tighter">Business Logic Tiers</h1>
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1 opacity-70">Define system packages and access protocols</p>
                 </div>
                 {activeTab === 'plans' && (
-                    <button className="btn-save" onClick={() => { setShowForm(true); setEditId(null); setForm(emptyPlan()); }}>
-                        <Plus size={16}/> New Plan
+                    <button 
+                        onClick={() => { setShowForm(true); setEditId(null); setForm(emptyPlan()); }}
+                        className="btn-hud bg-indigo-600 text-white shadow-xl shadow-indigo-600/20 hover:bg-indigo-500 active:scale-95"
+                    >
+                        <Plus size={16}/> Initialize New Plan
                     </button>
                 )}
             </div>
 
-            <div className="ap-tabs">
-                <button className={`ap-tab ${activeTab === 'plans' ? 'active' : ''}`} onClick={() => setActiveTab('plans')}>📦 Plans ({plans.length})</button>
-                <button className={`ap-tab ${activeTab === 'tenants' ? 'active' : ''}`} onClick={() => setActiveTab('tenants')}>🏢 Tenants ({tenants.length})</button>
+            <div className="flex gap-2 p-1 bg-slate-900/50 rounded-2xl w-fit mb-10 border border-white/5">
+                <button className={`ap-tab ${activeTab === 'plans' ? 'active text-white' : 'text-slate-500 hover:text-slate-300'}`} onClick={() => setActiveTab('plans')}>
+                    Package Definitions
+                </button>
+                <button className={`ap-tab ${activeTab === 'tenants' ? 'active text-white' : 'text-slate-500 hover:text-slate-300'}`} onClick={() => setActiveTab('tenants')}>
+                    Tenant Map
+                </button>
             </div>
 
             {loading ? (
-                <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>Loading...</div>
+                <div className="flex flex-col items-center justify-center py-20 opacity-30">
+                    <RefreshCw className="animate-spin text-indigo-500 mb-4" size={40} />
+                    <span className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Synchronizing Registry...</span>
+                </div>
             ) : activeTab === 'plans' ? (
-                <>
-                    {/* Plan Builder Form */}
+                <div className="space-y-8">
                     {showForm && (
-                        <div className="ap-card" style={{ border: '1.5px solid var(--primary)', marginBottom: 24 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                                <h3 style={{ margin: 0, fontWeight: 900 }}>{editId ? 'Edit Plan' : 'Create New Plan'}</h3>
-                                <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                        <div className="hud-card p-10 border-indigo-500/30 animate-in zoom-in-95 duration-500">
+                            <div className="flex items-center justify-between mb-10">
+                                <h3 className="text-xl font-black text-white flex items-center gap-3">
+                                    <Settings className="text-indigo-500" size={20} />
+                                    {editId ? 'Modify Subscription Template' : 'Initialize Template DNA'}
+                                </h3>
+                                <button onClick={() => setShowForm(false)} className="text-slate-500 hover:text-white transition-colors">
+                                    <X size={24} />
+                                </button>
                             </div>
 
-                            <div className="ap-grid">
-                                <div>
-                                    {/* Basic Info */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                                        {!editId && (
-                                            <div className="ap-form-group">
-                                                <label className="ap-label">Plan Key (slug)</label>
-                                                <input className="ap-input" placeholder="e.g. starter" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-                                            </div>
-                                        )}
-                                        <div className="ap-form-group">
-                                            <label className="ap-label">Display Name</label>
-                                            <input className="ap-input" placeholder="e.g. Starter" value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))} />
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                                <div className="lg:col-span-2 space-y-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Internal Slug</label>
+                                            <input className="hud-input w-full" disabled={!!editId} placeholder="e.g. starter_v1" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
                                         </div>
-                                        <div className="ap-form-group">
-                                            <label className="ap-label">Price ($/month)</label>
-                                            <input className="ap-input" type="number" min="0" placeholder="49" value={form.price_monthly} onChange={e => setForm(f => ({ ...f, price_monthly: e.target.value }))} />
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Display Alias</label>
+                                            <input className="hud-input w-full" placeholder="e.g. Premium Hub" value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))} />
                                         </div>
-                                    </div>
-
-                                    {/* Limits */}
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
-                                        <div className="ap-form-group">
-                                            <label className="ap-label">Max Users (-1 = ∞)</label>
-                                            <input className="ap-input" type="number" value={form.max_users} onChange={e => setForm(f => ({ ...f, max_users: parseInt(e.target.value) || -1 }))} />
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Monthly Billing ($)</label>
+                                            <input className="hud-input w-full" type="number" placeholder="499" value={form.price_monthly} onChange={e => setForm(f => ({ ...f, price_monthly: e.target.value }))} />
                                         </div>
-                                        <div className="ap-form-group">
-                                            <label className="ap-label">Max Branches (-1 = ∞)</label>
-                                            <input className="ap-input" type="number" value={form.max_branches} onChange={e => setForm(f => ({ ...f, max_branches: parseInt(e.target.value) || -1 }))} />
-                                        </div>
-                                        <div className="ap-form-group">
-                                            <label className="ap-label">Sort Order</label>
-                                            <input className="ap-input" type="number" value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: parseInt(e.target.value) || 0 }))} />
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">User Capacity (-1=∞)</label>
+                                            <input className="hud-input w-full" type="number" value={form.max_users} onChange={e => setForm(f => ({ ...f, max_users: parseInt(e.target.value) || -1 }))} />
                                         </div>
                                     </div>
 
-                                    {/* Module Toggles */}
-                                    <label className="ap-label">Included Modules</label>
-                                    {ALL_MODULES.map(m => (
-                                        <div key={m.key} className="module-toggle" onClick={() => setForm(f => ({ ...f, modules: { ...f.modules, [m.key]: !f.modules[m.key] } }))}>
-                                            <span style={{ fontWeight: 600, fontSize: 14 }}>{m.icon} {m.label}</span>
-                                            {form.modules[m.key]
-                                                ? <ToggleRight size={28} color="#10b981"/>
-                                                : <ToggleLeft size={28} color="#9ca3af"/>
-                                            }
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest px-1">Module Permissions Matrix</label>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {ALL_MODULES.map(m => (
+                                                <div 
+                                                    key={m.key} 
+                                                    className={`mod-switch p-4 rounded-2xl flex items-center justify-between cursor-pointer ${form.modules[m.key] ? 'bg-indigo-600/10 border-indigo-500/20' : ''}`}
+                                                    onClick={() => setForm(f => ({ ...f, modules: { ...f.modules, [m.key]: !f.modules[m.key] } }))}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={form.modules[m.key] ? 'text-indigo-400' : 'text-slate-600'}>{m.icon}</span>
+                                                        <span className={`text-xs font-bold ${form.modules[m.key] ? 'text-white' : 'text-slate-600'}`}>{m.label}</span>
+                                                    </div>
+                                                    {form.modules[m.key] ? <ToggleRight size={24} className="text-indigo-500" /> : <ToggleLeft size={24} className="text-slate-700" />}
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
+                                    </div>
 
-                                    <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-                                        <button className="btn-save" onClick={handleSave}><Save size={15}/> Save Plan</button>
-                                        <button onClick={() => setShowForm(false)} style={{ background: 'none', border: '1px solid var(--glass-border)', padding: '10px 18px', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+                                    <div className="flex gap-4 pt-6">
+                                        <button className="btn-hud bg-indigo-600 text-white" onClick={handleSave}>
+                                            <Save size={16}/> Commit Protocol
+                                        </button>
+                                        <button className="btn-hud bg-slate-800 text-slate-400" onClick={() => setShowForm(false)}>
+                                            Abort
+                                        </button>
                                     </div>
                                 </div>
 
-                                <PlanPreview/>
+                                {/* PREVIEW PANEL */}
+                                <div className="space-y-6">
+                                    <h4 className="text-[10px] font-black text-slate-600 uppercase tracking-widest text-center">Live Logic Preview</h4>
+                                    <div className="hud-card p-8 border-indigo-500/20 relative overflow-hidden group">
+                                        <div className="absolute top-0 right-0 p-10 opacity-5 grayscale group-hover:grayscale-0 transition-all">
+                                            <ShieldCheck size={120} className="text-indigo-500" />
+                                        </div>
+                                        <span className="text-[9px] font-black px-2 py-1 bg-indigo-600 text-white rounded mb-4 inline-block">Active Preview</span>
+                                        <h2 className="text-3xl font-black text-white leading-none mb-2">{form.display_name || 'Protocol_X'}</h2>
+                                        <div className="text-3xl font-black text-indigo-400 mb-6">
+                                            ${form.price_monthly || '00'}<span className="text-xs text-slate-500">/MO</span>
+                                        </div>
+                                        <div className="space-y-3 mb-8">
+                                            <div className="flex items-center gap-3 text-xs font-bold text-slate-400">
+                                                <Users size={14} className="text-indigo-500" /> 
+                                                {form.max_users === -1 ? 'Infinite Node Capacity' : `${form.max_users} Active User Nodes`}
+                                            </div>
+                                            <div className="flex items-center gap-3 text-xs font-bold text-slate-400">
+                                                <Building2 size={14} className="text-indigo-500" /> 
+                                                {form.max_branches === -1 ? 'Global Branching' : `${form.max_branches} Linked Branches`}
+                                            </div>
+                                        </div>
+                                        <div className="border-t border-white/5 pt-6 space-y-2">
+                                            {ALL_MODULES.filter(m => form.modules[m.key]).map(m => (
+                                                <div key={m.key} className="flex items-center gap-3 text-[10px] font-black text-slate-300 uppercase">
+                                                    <Check size={12} className="text-emerald-500" /> {m.label} Enabled
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Plans Table */}
-                    <div className="ap-card">
-                        <table className="plan-table">
-                            <thead>
+                    <div className="hud-card overflow-hidden">
+                        <table className="w-full text-left">
+                            <thead className="bg-black/20 border-b border-white/5">
                                 <tr>
-                                    <th>Plan</th>
-                                    <th>Price</th>
-                                    <th>Limits</th>
-                                    <th>Modules</th>
-                                    <th>Tenants</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Protocol Tier</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Pricing</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Logic Limits</th>
+                                    <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {plans.map(plan => {
-                                    const mods = typeof plan.modules === 'string' ? JSON.parse(plan.modules) : plan.modules || {};
-                                    const activeModCount = Object.values(mods).filter(Boolean).length;
-                                    return (
-                                        <tr key={plan.id}>
-                                            <td>
-                                                <div style={{ fontWeight: 800 }}>{plan.display_name}</div>
-                                                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{plan.name}</div>
-                                            </td>
-                                            <td style={{ fontWeight: 700 }}>${plan.price_monthly}<span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/mo</span></td>
-                                            <td style={{ fontSize: 13 }}>
-                                                <div>{plan.max_users === -1 ? '∞' : plan.max_users} users</div>
-                                                <div>{plan.max_branches === -1 ? '∞' : plan.max_branches} branches</div>
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                                    {ALL_MODULES.filter(m => mods[m.key]).map(m => (
-                                                        <span key={m.key} title={m.label} style={{ fontSize: 16 }}>{m.icon}</span>
-                                                    ))}
-                                                    {activeModCount === 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>None</span>}
+                            <tbody className="divide-y divide-white/5">
+                                {plans.map(plan => (
+                                    <tr key={plan.id} className="group hover:bg-white/[0.02] transition-colors">
+                                        <td className="px-8 py-6">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center font-black text-indigo-400 text-xs border border-white/5">
+                                                    {plan.id}
                                                 </div>
-                                            </td>
-                                            <td style={{ fontWeight: 700 }}>{plan.tenant_count}</td>
-                                            <td>
-                                                <span className={plan.is_active ? 'badge-active' : 'badge-inactive'}>
-                                                    {plan.is_active ? 'Active' : 'Draft'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: 6 }}>
-                                                    <button title="Edit" onClick={() => handleEdit(plan)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><Edit3 size={15}/></button>
-                                                    <button title="Clone" onClick={() => handleClone(plan.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><Copy size={15}/></button>
-                                                    <button title={plan.is_active ? 'Disable' : 'Enable'} onClick={() => handleToggleActive(plan)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-                                                        {plan.is_active ? <ToggleRight size={18} color="#10b981"/> : <ToggleLeft size={18} color="#9ca3af"/>}
-                                                    </button>
-                                                    <button title="Delete" onClick={() => handleDelete(plan.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#ef4444' }}><Trash2 size={15}/></button>
+                                                <div>
+                                                    <p className="font-bold text-white text-base group-hover:text-indigo-400 transition-colors">{plan.display_name}</p>
+                                                    <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">ID: {plan.name}</p>
                                                 </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <div className="flex flex-col">
+                                                <span className="text-lg font-black text-white">${plan.price_monthly}</span>
+                                                <span className="text-[9px] font-black text-slate-600 uppercase">Per Cycle</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6">
+                                            <div className="flex gap-6">
+                                                <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
+                                                    <Users size={14} className="text-slate-600" /> {plan.max_users === -1 ? '∞' : plan.max_users}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
+                                                    <Building2 size={14} className="text-slate-600" /> {plan.max_branches === -1 ? '∞' : plan.max_branches}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-6 text-right">
+                                            <div className="flex items-center justify-end gap-3 translate-x-4 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300">
+                                                <button onClick={() => handleEdit(plan)} className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white hover:bg-indigo-600/20 transition-all">
+                                                    <Edit3 size={16} />
+                                                </button>
+                                                <button onClick={() => handleClone(plan.id)} className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white hover:bg-emerald-600/20 transition-all">
+                                                    <Copy size={16} />
+                                                </button>
+                                                <button onClick={() => handleDelete(plan.id)} className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-600/20 transition-all">
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
-                </>
+                </div>
             ) : (
-                /* Tenants Tab */
-                <div className="ap-card">
-                    <table className="plan-table">
-                        <thead>
+                <div className="hud-card overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <table className="w-full text-left">
+                        <thead className="bg-black/20 border-b border-white/5">
                             <tr>
-                                <th>Tenant</th>
-                                <th>Admin Contact</th>
-                                <th>Plan</th>
-                                <th>Status</th>
-                                <th>Users</th>
-                                <th>Actions</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Active Workspace</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Admin Nexus</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest">Subscription Tier</th>
+                                <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Operations</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-white/5">
                             {tenants.map(t => (
-                                <tr key={t.id} className="tenant-row" onClick={() => openTenantPanel(t)}>
-                                    <td>
-                                        <div style={{ fontWeight: 800 }}>{t.name}</div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.slug}</div>
+                                <tr key={t.id} className="group hover:bg-white/[0.02] transition-colors cursor-pointer" onClick={() => openTenantPanel(t)}>
+                                    <td className="px-8 py-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/5 flex items-center justify-center font-black text-indigo-500 text-sm">
+                                                {t.name?.[0]}
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-white text-base group-hover:text-indigo-400 transition-colors">{t.name}</p>
+                                                <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{t.slug}</p>
+                                            </div>
+                                        </div>
                                     </td>
-                                    <td>
-                                        <div style={{ fontWeight: 700, fontSize: 13 }}>{t.admin_name || '—'}</div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.admin_email}</div>
-                                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.admin_phone}</div>
+                                    <td className="px-8 py-6">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-bold text-slate-300">{t.admin_name || 'System Admin'}</span>
+                                            <span className="text-[10px] font-bold text-slate-600 uppercase">{t.admin_email}</span>
+                                        </div>
                                     </td>
-                                    <td style={{ fontWeight: 700 }}>
-                                        {t.display_name || t.plan_name || '—'}
-                                        {t.price_monthly > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> · ${t.price_monthly}/mo</span>}
+                                    <td className="px-8 py-6">
+                                         <div className="flex flex-col">
+                                            <span className="text-sm font-black text-indigo-400 uppercase tracking-widest">
+                                                {t.display_name || t.plan_name || 'Custom'}
+                                            </span>
+                                            <span className="text-[9px] font-black text-slate-600">Sub ID: {t.sub_status}</span>
+                                        </div>
                                     </td>
-                                    <td>
-                                        <span className={t.sub_status === 'active' ? 'badge-active' : t.sub_status === 'trial' ? 'badge-inactive' : 'badge-inactive'} style={{ textTransform: 'capitalize' }}>
-                                            {t.sub_status || 'none'}
-                                        </span>
+                                    <td className="px-8 py-6 text-right">
+                                        <button className="px-5 py-2 bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all">
+                                            Manage Nexus
+                                        </button>
                                     </td>
-                                    <td style={{ fontWeight: 700 }}>{t.user_count}</td>
-                                    <td><button style={{ fontSize: 12, background: 'rgba(79,70,229,0.08)', color: 'var(--primary)', border: 'none', padding: '5px 12px', borderRadius: 6, fontWeight: 700, cursor: 'pointer' }}>Manage →</button></td>
                                 </tr>
                             ))}
                         </tbody>
@@ -398,53 +446,67 @@ const AdminPlans = () => {
                 </div>
             )}
 
-            {/* Tenant Side Panel */}
+            {/* SIDE OVERRIDE PANEL (HUD STYLE) */}
             {selectedTenant && (
-                <div className="override-panel">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                        <div>
-                            <div style={{ fontWeight: 900, fontSize: 18 }}>{selectedTenant.name}</div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{selectedTenant.user_count} users · {selectedTenant.sub_status}</div>
+                <div className="fixed inset-y-0 right-0 w-[500px] bg-slate-950 border-l border-white/10 shadow-2xl z-[300] p-12 overflow-y-auto animate-in slide-in-from-right duration-500">
+                    <div className="flex items-center justify-between mb-12">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-indigo-600/30">
+                                <Layout size={24} />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-black text-white tracking-tight">{selectedTenant.name}</h3>
+                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Workspace Profile Access</p>
+                            </div>
                         </div>
-                        <button onClick={() => setSelectedTenant(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
-                    </div>
-
-                    {/* Plan Assignment */}
-                    <div style={{ marginBottom: 24, padding: 16, background: 'rgba(79,70,229,0.05)', borderRadius: 12, border: '1px solid rgba(79,70,229,0.15)' }}>
-                        <div style={{ fontWeight: 800, marginBottom: 10, fontSize: 13 }}>📦 Assign Plan</div>
-                        <select className="ap-input" value={assignPlanId} onChange={e => setAssignPlanId(e.target.value)} style={{ marginBottom: 10 }}>
-                            <option value="">Select plan...</option>
-                            {plans.map(p => <option key={p.id} value={p.id}>{p.display_name} — ${p.price_monthly}/mo</option>)}
-                        </select>
-                        <button className="btn-save" style={{ width: '100%', justifyContent: 'center' }} onClick={handleAssignPlan} disabled={!assignPlanId}>
-                            <RefreshCw size={14}/> Update Plan
+                        <button onClick={() => setSelectedTenant(null)} className="text-slate-500 hover:text-white transition-colors">
+                            <X size={28} />
                         </button>
                     </div>
 
-                    {/* Module Override */}
-                    <div style={{ marginBottom: 24, padding: 16, background: 'rgba(245,158,11,0.05)', borderRadius: 12, border: '1px solid rgba(245,158,11,0.2)' }}>
-                        <div style={{ fontWeight: 800, marginBottom: 4, fontSize: 13 }}>⚡ Per-Tenant Module Override</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>Override specific modules regardless of plan</div>
-
-                        {ALL_MODULES.map(m => (
-                            <div key={m.key} className="module-toggle" onClick={() => setOverrideModules(prev => ({ ...prev, [m.key]: !prev[m.key] }))}>
-                                <span style={{ fontWeight: 600, fontSize: 13 }}>{m.icon} {m.label}</span>
-                                {overrideModules[m.key]
-                                    ? <ToggleRight size={26} color="#10b981"/>
-                                    : <ToggleLeft size={26} color="#9ca3af"/>
-                                }
-                            </div>
-                        ))}
-
-                        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                            <button className="btn-save" style={{ flex: 1, justifyContent: 'center', background: '#f59e0b' }} onClick={handleSaveOverride}>
-                                <Save size={14}/> Save Override
-                            </button>
-                            {tenantOverride && (
-                                <button onClick={handleRemoveOverride} style={{ border: '1px solid #ef4444', color: '#ef4444', padding: '8px 14px', borderRadius: 8, background: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>
-                                    Reset
+                    <div className="space-y-12">
+                        {/* Plan Switch */}
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Subscription Protocol Override</label>
+                            <div className="hud-card p-6 border-indigo-500/20 bg-indigo-500/5">
+                                <select className="hud-input w-full mb-4" value={assignPlanId} onChange={e => setAssignPlanId(e.target.value)}>
+                                    <option value="">Select standard package...</option>
+                                    {plans.map(p => <option key={p.id} value={p.id}>{p.display_name} — ${p.price_monthly}</option>)}
+                                </select>
+                                <button className="btn-hud w-full bg-indigo-600 text-white justify-center" onClick={handleAssignPlan}>
+                                    <RefreshCw size={14}/> Push Update to Node
                                 </button>
-                            )}
+                            </div>
+                        </div>
+
+                        {/* Logic Matrix */}
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <label className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Per-Tenant Logic Matrix</label>
+                                <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Manual Override Active</span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2">
+                                {ALL_MODULES.map(m => (
+                                    <div 
+                                        key={m.key} 
+                                        className={`p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
+                                            overrideModules[m.key] 
+                                            ? 'bg-emerald-600/5 border-emerald-500/20' 
+                                            : 'bg-white/5 border-white/5'
+                                        }`}
+                                        onClick={() => setOverrideModules(prev => ({ ...prev, [m.key]: !prev[m.key] }))}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <span className={overrideModules[m.key] ? 'text-emerald-500' : 'text-slate-600'}>{m.icon}</span>
+                                            <span className="text-xs font-bold text-white">{m.label}</span>
+                                        </div>
+                                        {overrideModules[m.key] ? <Check size={16} className="text-emerald-500" /> : <X size={16} className="text-slate-800" />}
+                                    </div>
+                                ))}
+                            </div>
+                            <button className="btn-hud w-full bg-amber-600 text-white justify-center mt-6" onClick={handleSaveOverride}>
+                                <Save size={14}/> Save Matrix State
+                            </button>
                         </div>
                     </div>
                 </div>

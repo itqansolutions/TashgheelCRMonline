@@ -58,55 +58,74 @@ const SecretPortalHUD = () => {
                         radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 50%),
                         linear-gradient(rgba(15, 23, 42, 0) 0%, rgba(15, 23, 42, 0.8) 100%);
                 }
+                .crt-overlay {
+                    position: fixed; inset: 0; pointer-events: none; z-index: 50;
+                    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.05) 50%), 
+                                linear-gradient(90deg, rgba(255, 0, 0, 0.01), rgba(0, 255, 0, 0.005), rgba(0, 0, 255, 0.01));
+                    background-size: 100% 4px, 3px 100%;
+                }
                 .hud-tile {
                     background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.7) 100%);
-                    backdrop-filter: blur(20px);
+                    backdrop-filter: blur(24px);
                     border: 1px solid rgba(255, 255, 255, 0.05);
-                    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
                 }
                 .hud-tile:hover {
-                    border-color: rgba(99, 102, 241, 0.4);
-                    transform: translateY(-10px) scale(1.02);
-                    box-shadow: 0 40px 80px -20px rgba(99, 102, 241, 0.25);
+                    border-color: rgba(99, 102, 241, 0.6);
+                    transform: translateY(-8px) scale(1.03);
+                    box-shadow: 0 40px 100px -20px rgba(99, 102, 241, 0.4), inset 0 0 40px rgba(99, 102, 241, 0.1);
                 }
                 .glow-text {
-                    text-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+                    text-shadow: 0 0 15px rgba(99, 102, 241, 0.7);
+                }
+                @keyframes scan {
+                    from { transform: translateY(-100%); }
+                    to { transform: translateY(100%); }
+                }
+                .scanline {
+                    position: absolute; inset: 0; background: linear-gradient(to bottom, transparent, rgba(99, 102, 241, 0.05), transparent);
+                    height: 20%; width: 100%; animation: scan 8s linear infinite; pointer-events: none;
                 }
             `}</style>
             
             <div className="portal-bg" />
+            <div className="crt-overlay" />
 
             {/* HEADER HUB */}
-            <div className="w-full max-w-6xl flex flex-col md:flex-row md:items-end justify-between gap-8 mb-20 relative z-10 animate-in fade-in slide-in-from-top-4 duration-700">
+            <div className="w-full max-w-6xl flex flex-col md:flex-row md:items-end justify-between gap-8 mb-24 relative z-10 animate-in fade-in slide-in-from-top-12 duration-1000">
                 <div>
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="p-3 bg-indigo-600 rounded-2xl shadow-xl shadow-indigo-600/30">
-                            <Cpu size={28} className="text-white" />
+                    <div className="flex items-center gap-5 mb-5">
+                        <div className="p-3 bg-indigo-600 rounded-2xl shadow-2xl shadow-indigo-600/50 border border-white/20">
+                            <Cpu size={32} className="text-white" />
                         </div>
-                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.4em] glow-text">Access Mode: GENESIS CORE</span>
+                        <div>
+                            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.5em] glow-text block">Access Protocol: GENESIS_OS_V1</span>
+                            <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest mt-0.5 block">Encryption Cipher: AES-XTS-256</span>
+                        </div>
                     </div>
-                    <h1 className="text-5xl font-black text-white tracking-tighter leading-none mb-2">Internal Management Hub</h1>
-                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs opacity-70">ITQAN CRM Platform Operating Layer</p>
+                    <h1 className="text-6xl font-black text-white tracking-tighter leading-none mb-3">SaaS Command Nexus</h1>
+                    <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-xs opacity-60">Strategic Platform Operating Layer & Sovereign Node Control</p>
                 </div>
                 <button 
                   onClick={handleExit}
-                  className="flex items-center gap-3 px-8 py-4 bg-white/5 border border-white/5 rounded-2xl text-slate-400 hover:text-white hover:bg-white/10 transition-all font-black text-[10px] uppercase tracking-widest active:scale-95"
+                  className="flex items-center gap-3 px-10 py-5 bg-white/5 border border-white/5 rounded-2xl text-slate-400 hover:text-white hover:bg-rose-600/10 hover:border-rose-500/20 transition-all font-black text-[11px] uppercase tracking-widest active:scale-95 group"
                 >
-                    <LogOut size={16} /> De-authorize Session
+                    <LogOut size={18} className="group-hover:text-rose-500 transition-colors" /> De-authorize Session
                 </button>
             </div>
 
             {/* SECTIONS GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-8 w-full max-w-7xl relative z-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-10 w-full max-w-7xl relative z-10 px-4">
                 {modules.map((mod, idx) => (
                     <div 
                         key={mod.id} 
                         onClick={() => navigate(mod.path)}
-                        className="hud-tile group p-10 rounded-[2.5rem] cursor-pointer relative overflow-hidden animate-in zoom-in-95 duration-500"
-                        style={{ animationDelay: `${idx * 100}ms` }}
+                        className="hud-tile group p-12 rounded-[2.5rem] cursor-pointer relative overflow-hidden animate-in zoom-in-95 duration-700"
+                        style={{ animationDelay: `${idx * 150}ms` }}
                     >
-                        <div className="absolute -right-8 -top-8 p-12 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-700 pointer-events-none">
-                            {React.cloneElement(mod.icon, { size: 160 })}
+                        <div className="scanline" />
+                        <div className="absolute -right-10 -top-10 p-12 opacity-[0.02] group-hover:opacity-[0.06] transition-opacity duration-1000 pointer-events-none transform group-hover:rotate-12 transition-transform">
+                            {React.cloneElement(mod.icon, { size: 200 })}
                         </div>
 
                         <div className={`p-4 rounded-2xl mb-8 w-fit shadow-xl ${
