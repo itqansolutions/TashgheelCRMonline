@@ -32,6 +32,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       path: user?.template_name === 'real_estate' ? '/units-registry' : '/products' 
     },
     { name: 'Deals',           icon: <Handshake />,       path: '/deals' },
+    { name: 'Tasks',           icon: <CheckSquare />,     path: '/tasks' },
     { name: 'Accounting',      icon: <Wallet />,          path: '/accounting' },
     { name: 'Employees',       icon: <Users2 />,          path: '/employees' },
     // Module-gated items

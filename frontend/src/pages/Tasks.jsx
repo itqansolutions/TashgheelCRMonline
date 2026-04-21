@@ -119,6 +119,7 @@ const Tasks = () => {
   const { user } = useAuth();
   const { customers, deals, users, fetchCustomers, fetchDeals, fetchUsers } = useData();
   const [tasks, setTasks] = useState([]);
+  const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
@@ -150,6 +151,8 @@ const Tasks = () => {
     if (customers.length === 0) fetchCustomers(false);
     if (deals.length === 0) fetchDeals(false);
     if (users.length === 0) fetchUsers(false);
+    // Fetch units for the unit selector
+    api.get('/re-units').then(r => setUnits(r.data?.data || [])).catch(() => {});
   }, []);
 
   const handleOpenModal = (task = null) => {
@@ -468,6 +471,10 @@ const Tasks = () => {
                 <option value="">-- Select --</option>
                 {formData.parent_type === 'customer' && (customers || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 {formData.parent_type === 'deal' && (deals || []).map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
+                {formData.parent_type === 'unit' && (units.length === 0
+                  ? <option disabled>No units found — add units in Units Registry first</option>
+                  : units.map(u => <option key={u.id} value={u.id}>{u.unit_number} — {u.project_name || 'Individual'} ({u.status})</option>)
+                )}
               </select>
             </div>
           )}
