@@ -16,6 +16,8 @@ const Customers = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [isViewingDetails, setIsViewingDetails] = useState(false);
+  const [relatedUnits, setRelatedUnits] = useState([]);
+  const [loadingRel, setLoadingRel] = useState(false);
   
   // UI Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,6 +48,27 @@ const Customers = () => {
     if (leadSources.length === 0) fetchLeadSources();
   }, []);
 
+  useEffect(() => {
+      if (isViewingDetails && editingCustomer) {
+          const fetchRels = async () => {
+              setLoadingRel(true);
+              try {
+                  const uRes = await api.get('/re-units');
+                  if (editingCustomer.entity_type === 'vendor') {
+                      setRelatedUnits(uRes.data.data.filter(u => u.vendor_id === editingCustomer.id));
+                  } else {
+                      const dRes = await api.get('/deals');
+                      const wonUnitsIds = dRes.data.data.filter(d => d.client_id === editingCustomer.id && d.unit_id).map(d => d.unit_id);
+                      setRelatedUnits(uRes.data.data.filter(u => wonUnitsIds.includes(u.id)));
+                  }
+              } catch(e) {} finally { setLoadingRel(false); }
+          };
+          fetchRels();
+      } else {
+          setRelatedUnits([]);
+      }
+  }, [isViewingDetails, editingCustomer]);
+
   const handleOpenModal = (customer = null) => {
     if (customer) {
       setEditingCustomer(customer);
@@ -58,6 +81,7 @@ const Customers = () => {
         status: customer.status || 'lead',
         source_id: customer.source_id || '',
         manager_id: customer.manager_id || '',
+        assigned_to: customer.assigned_to || '',
         entity_type: customer.entity_type || 'customer',
         budget_min: customer.budget_min || 0,
         budget_max: customer.budget_max || 0,
@@ -69,7 +93,7 @@ const Customers = () => {
     } else {
       setEditingCustomer(null);
       setFormData({ 
-          name: '', company_name: '', email: '', phone: '', address: '', status: 'lead', source_id: '', manager_id: '',
+          name: '', company_name: '', email: '', phone: '', address: '', status: 'lead', source_id: '', manager_id: '', assigned_to: '',
           entity_type: 'customer', budget_min: 0, budget_max: 0, preferred_area_min: 0, preferred_area_max: 0, preferred_location: '', preferred_rooms: 0
       });
     }
@@ -400,7 +424,51 @@ const Customers = () => {
                     </div>
                 )}
 
-                <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                    </div>
+                )}
+                
+                {/* Related Data Module */}
+                <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+                        
+                        <div>
+                            <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Building size={16} color="var(--primary)"/> Related Units
+                            </h4>
+                            {loadingRel ? <span style={{ fontSize:'12px', color:'var(--text-muted)' }}>Loading...</span> : (
+                                relatedUnits.length > 0 ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {relatedUnits.map(u => (
+                                            <div key={u.id} style={{ padding: '10px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px' }}>
+                                                <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: '4px' }}>Unit {u.unit_number}</div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '11px', fontWeight: 600 }}>
+                                                    <span>{u.project_name || 'Individual'}</span>
+                                                    <span>{Number(u.price).toLocaleString()} EGP</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div style={{ padding: '16px', background: '#f1f5f9', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic' }}>
+                                        No linked units found for this {editingCustomer.entity_type}.
+                                    </div>
+                                )
+                            )}
+                        </div>
+
+                        <div>
+                            <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <MapPin size={16} color="var(--primary)"/> Identity Documents
+                            </h4>
+                            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                                <FileUploader linkedType="customer" linkedId={editingCustomer.id} />
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div style={{ marginTop: '32px', display: 'flex', gap: '10px' }}>
                     <button className="btn-save" onClick={() => setIsViewingDetails(false)}>Edit Details</button>
                     <button className="btn-cancel" onClick={() => window.print()}>Print Card</button>
                 </div>
@@ -485,7 +553,19 @@ const Customers = () => {
               )}
 
               <div className="form-group">
-                <label>Director/Manager</label>
+                <label>Assigned Employee</label>
+                <select 
+                  value={formData.assigned_to}
+                  onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
+                >
+                  <option value="">-- Let System Decide / Me --</option>
+                  {(users || []).map(u => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Director/Manager Override</label>
                 <select 
                   value={formData.manager_id}
                   onChange={(e) => setFormData({...formData, manager_id: e.target.value})}
@@ -531,9 +611,10 @@ const Customers = () => {
             </form>
         )}
 
+        {/* Document Uploader Fallback for Edit Mode Without Viewing */}
         {!isViewingDetails && editingCustomer && (
           <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
-            <h4 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px' }}>Customer Attachments</h4>
+            <h4 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px' }}>Customer Documents</h4>
             <FileUploader linkedType="customer" linkedId={editingCustomer.id} />
           </div>
         )}

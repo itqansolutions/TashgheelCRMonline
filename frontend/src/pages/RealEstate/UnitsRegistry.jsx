@@ -13,8 +13,12 @@ const UnitsRegistry = () => {
     const [units, setUnits] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('All');
+    const [assignedFilter, setAssignedFilter] = useState('all');
+    const [budgetMin, setBudgetMin] = useState('');
+    const [budgetMax, setBudgetMax] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
+    const [selectedUnit, setSelectedUnit] = useState(null);
 
     // Security Gate: Redirect if not in Real Estate template
     if (user && user.template_name !== 'real_estate') {
@@ -23,7 +27,7 @@ const UnitsRegistry = () => {
 
     const [formData, setFormData] = useState({
         project_name: '', unit_number: '', name: '', type: 'Apartment', floor: '', 
-        area_sqm: '', price: '', vendor_id: '', responsible_person_id: '', 
+        area_sqm: '', price: '', vendor_id: '', assigned_to: '', responsible_person_id: '', 
         transaction_type: 'sale', rooms: 1, location: ''
     });
 
@@ -54,7 +58,7 @@ const UnitsRegistry = () => {
             setShowAddModal(false);
             setFormData({ 
                 project_name: '', unit_number: '', name: '', type: 'Apartment', floor: '', 
-                area_sqm: '', price: '', vendor_id: '', responsible_person_id: '', 
+                area_sqm: '', price: '', vendor_id: '', assigned_to: '', responsible_person_id: '', 
                 transaction_type: 'sale', rooms: 1, location: '' 
             });
             fetchUnits();
@@ -64,6 +68,11 @@ const UnitsRegistry = () => {
     };
 
     const handleDelete = async (id) => {
+        const targetUnit = units.find(u => u.id === id);
+        if (targetUnit && (targetUnit.vendor_id || targetUnit.status?.toLowerCase() !== 'available')) {
+            toast.error('Asset Locked: Cannot delete a unit linked to a Vendor or an Active Deal.');
+            return;
+        }
         if (!window.confirm('Are you sure you want to remove this property from the inventory? This action is permanent.')) return;
         try {
             await api.delete(`/re-units/${id}`);
@@ -88,7 +97,11 @@ const UnitsRegistry = () => {
         const matchesFilter = filter === 'All' || u.status?.toLowerCase() === filter.toLowerCase();
         const matchesSearch = (u.project_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
                              (u.unit_number?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-        return matchesFilter && matchesSearch;
+        const matchesAssigned = assignedFilter === 'all' || u.assigned_to === assignedFilter;
+        const matchesMin = !budgetMin || Number(u.price) >= Number(budgetMin);
+        const matchesMax = !budgetMax || Number(u.price) <= Number(budgetMax);
+
+        return matchesFilter && matchesSearch && matchesAssigned && matchesMin && matchesMax;
     });
 
     const groupedUnits = filteredUnits.reduce((acc, u) => {
@@ -124,17 +137,30 @@ const UnitsRegistry = () => {
             </div>
 
             {/* Controls Bar */}
-            <div className="ap-card" style={{ padding: '12px 16px', marginBottom: '32px', display: 'flex', gap: '24px', alignItems: 'center', background: 'var(--glass-bg)' }}>
-                <div style={{ flex: 1, position: 'relative' }}>
+            <div className="ap-card" style={{ padding: '12px 16px', marginBottom: '32px', display: 'flex', gap: '16px', alignItems: 'center', background: 'var(--glass-bg)', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
                     <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}/>
                     <input 
                         className="ap-input" 
-                        placeholder="Search projects, buildings or unit codes..." 
-                        style={{ paddingLeft: '48px', border: 'none', background: 'transparent' }}
+                        placeholder="Search projects or codes..." 
+                        style={{ paddingLeft: '48px', border: 'none', background: 'transparent', height: '40px' }}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+                <div style={{ height: '32px', width: '1px', background: 'var(--border)' }}></div>
+                
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <input type="number" placeholder="Min EGP" className="ap-input" style={{ width: '110px', height: '40px' }} value={budgetMin} onChange={e => setBudgetMin(e.target.value)} />
+                    <input type="number" placeholder="Max EGP" className="ap-input" style={{ width: '110px', height: '40px' }} value={budgetMax} onChange={e => setBudgetMax(e.target.value)} />
+                </div>
+                <div style={{ height: '32px', width: '1px', background: 'var(--border)' }}></div>
+                
+                <select className="ap-input" style={{ width: '180px', height: '40px' }} value={assignedFilter} onChange={e => setAssignedFilter(e.target.value)}>
+                    <option value="all">All Employees</option>
+                    {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+
                 <div style={{ height: '32px', width: '1px', background: 'var(--border)' }}></div>
                 <div style={{ display: 'flex', background: 'rgba(0,0,0,0.03)', padding: '5px', borderRadius: '12px' }}>
                     {['All', 'Available', 'Reserved', 'Sold'].map(tab => (
@@ -142,7 +168,7 @@ const UnitsRegistry = () => {
                             key={tab}
                             onClick={() => setFilter(tab)}
                             style={{ 
-                                padding: '8px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 800,
+                                padding: '8px 16px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 800,
                                 background: filter === tab ? 'white' : 'transparent',
                                 color: filter === tab ? 'var(--primary)' : 'var(--text-muted)',
                                 boxShadow: filter === tab ? 'var(--shadow-md)' : 'none',
@@ -186,14 +212,8 @@ const UnitsRegistry = () => {
                                                 return (
                                                     <div 
                                                         key={u.id} 
-                                                        title={`Type: ${u.type}\nArea: ${u.area_sqm}m²\nPrice: ${Number(u.price).toLocaleString()} EGP\nClick to Delete`}
-                                                        onClick={() => {
-                                                            if (u.status?.toLowerCase() === 'available' || !u.status) {
-                                                                handleDelete(u.id);
-                                                            } else {
-                                                                toast.error(`Cannot delete ${u.status} units from map.`);
-                                                            }
-                                                        }}
+                                                        title={`Click to View Full Details`}
+                                                        onClick={() => setSelectedUnit(u)}
                                                         style={{ 
                                                             padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s',
                                                             background: config.bg, color: config.color, border: `1px solid ${config.color}40`,
@@ -238,7 +258,7 @@ const UnitsRegistry = () => {
             {/* Redesigned Add Unit Modal */}
             {showAddModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.4)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '650px', padding: '40px', background: 'white', position: 'relative' }}>
+                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '650px', padding: '40px', background: 'white', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
                         <button 
                             onClick={() => setShowAddModal(false)}
                             style={{ position: 'absolute', top: '24px', right: '24px', padding: '8px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer' }}
@@ -264,6 +284,25 @@ const UnitsRegistry = () => {
                                 <div className="ap-form-group">
                                     <label className="ap-label">Unit Number / Code</label>
                                     <input className="ap-input" required value={formData.unit_number} onChange={e => setFormData({...formData, unit_number: e.target.value})} placeholder="e.g. PH-402" />
+                                </div>
+
+                                {/* Linkages */}
+                                <div style={{ gridColumn: 'span 2', paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '8px', marginTop: '8px' }}>
+                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Responsibility & Ownership</h4>
+                                </div>
+                                <div className="ap-form-group">
+                                    <label className="ap-label">Assigned Employee (Target List)</label>
+                                    <select className="ap-input" value={formData.assigned_to} onChange={e => setFormData({...formData, assigned_to: e.target.value})}>
+                                        <option value="">-- Let System Decide --</option>
+                                        {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="ap-form-group">
+                                    <label className="ap-label">Original Vendor (Owner)</label>
+                                    <select className="ap-input" value={formData.vendor_id} onChange={e => setFormData({...formData, vendor_id: e.target.value})}>
+                                        <option value="">-- Independent --</option>
+                                        {(vendors || []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                    </select>
                                 </div>
 
                                 {/* Specifications */}
@@ -294,30 +333,11 @@ const UnitsRegistry = () => {
 
                                 {/* Commercials */}
                                 <div style={{ gridColumn: 'span 2', paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '8px', marginTop: '8px' }}>
-                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Pricing & Ownership</h4>
-                                </div>
-                                <div className="ap-form-group">
-                                    <label className="ap-label">Target Price (EGP)</label>
-                                    <input className="ap-input" type="number" required value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="0.00" />
-                                </div>
-                                <div className="ap-form-group">
-                                    <label className="ap-label">Transaction Type</label>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        {['sale', 'rent'].map(type => (
-                                            <button 
-                                                key={type}
-                                                type="button"
-                                                onClick={() => setFormData({...formData, transaction_type: type})}
-                                                style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '2px solid', borderColor: formData.transaction_type === type ? 'var(--primary)' : 'var(--border)', background: formData.transaction_type === type ? 'rgba(79, 70, 229, 0.05)' : 'transparent', color: formData.transaction_type === type ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 800, textTransform: 'capitalize' }}
-                                            >
-                                                For {type}
-                                            </button>
-                                        ))}
-                                    </div>
+                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Pricing</h4>
                                 </div>
                                 <div className="ap-form-group" style={{ gridColumn: 'span 2' }}>
-                                    <label className="ap-label">Precise Location Info</label>
-                                    <input className="ap-input" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} placeholder="Enter full address or detailed coordinates..." />
+                                    <label className="ap-label">Target Price (EGP)</label>
+                                    <input className="ap-input" type="number" required value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="0.00" />
                                 </div>
                             </div>
 
@@ -326,6 +346,77 @@ const UnitsRegistry = () => {
                                 <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '0 32px', borderRadius: '12px', border: '2px solid var(--border)', fontWeight: 800, color: 'var(--text-muted)' }}>Discard</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Read-Only Unit Details Modal */}
+            {selectedUnit && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}>
+                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '500px', padding: '0', background: 'white', position: 'relative', overflow: 'hidden' }}>
+                        {(() => {
+                            const config = getStatusConfig(selectedUnit.status);
+                            return (
+                                <>
+                                    <div style={{ padding: '24px 32px', background: config.bg, borderBottom: `1px solid ${config.color}40`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div>
+                                            <div style={{ fontSize: '12px', fontWeight: 900, color: config.color, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
+                                                {selectedUnit.project_name || 'Individual'}
+                                            </div>
+                                            <h2 style={{ fontSize: '28px', margin: 0, fontWeight: 900, color: 'var(--text-main)' }}>Unit {selectedUnit.unit_number}</h2>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                                            <button onClick={() => setSelectedUnit(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-main)' }}><X size={24}/></button>
+                                            <div style={{ background: 'white', color: config.color, padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 900, boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                                                {selectedUnit.status || 'Available'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style={{ padding: '32px' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
+                                            <div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Property Type</div>
+                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>{selectedUnit.type}</div>
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Market Value</div>
+                                                <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)' }}>{Number(selectedUnit.price).toLocaleString()} EGP</div>
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Area Size</div>
+                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>{selectedUnit.area_sqm} m²</div>
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Layout</div>
+                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>Floor {selectedUnit.floor} • {selectedUnit.rooms} Rooms</div>
+                                            </div>
+                                        </div>
+
+                                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Employee Assignment</div>
+                                            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <UserCheck size={16} color="var(--primary)"/> 
+                                                {users.find(u => u.id === selectedUnit.assigned_to)?.name || 'Unassigned / Open'}
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: '12px' }}>
+                                            <button 
+                                                onClick={() => {
+                                                    handleDelete(selectedUnit.id);
+                                                    setSelectedUnit(null);
+                                                }}
+                                                className="btn-primary-premium"
+                                                style={{ flex: 1, justifyContent: 'center', background: 'var(--danger)', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}
+                                            >
+                                                <Trash2 size={16} /> Disable & Delete Unit
+                                            </button>
+                                        </div>
+                                    </div>
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
             )}

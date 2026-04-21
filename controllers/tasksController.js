@@ -9,8 +9,7 @@ exports.getTasks = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   try {
     const userId = req.user.id;
-    const isAdmin = req.user.role === 'admin';
-
+    const userRole = req.user.role;
     const branch_id = req.branchId || req.user?.branch_id;
 
     let query = `
@@ -32,14 +31,26 @@ exports.getTasks = async (req, res) => {
     `;
 
     const queryParams = [tenant_id, branch_id];
-    
-    if (!isAdmin) {
-      // User sees tasks they are In Charge of, Director of, Creator of, or following within their tenant
+
+    if (userRole === 'admin') {
+      // Admin sees ALL tasks in the tenant/branch - no extra filter needed
+    } else if (userRole === 'manager') {
+      // Manager sees their own tasks + tasks assigned to users they manage (director_id = manager)
       query += ` 
-        AND (t.assigned_to = $2 
-             OR t.director_id = $2 
-             OR t.created_by = $2 
-             OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id = t.id AND tf.user_id = $2))
+        AND (t.assigned_to = $3 
+             OR t.director_id = $3 
+             OR t.created_by = $3
+             OR t.assigned_to IN (SELECT id FROM users WHERE manager_id = $3 AND tenant_id::text = $1::text)
+             OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id = t.id AND tf.user_id = $3))
+      `;
+      queryParams.push(userId);
+    } else {
+      // Employee sees only tasks they are directly involved in
+      query += ` 
+        AND (t.assigned_to = $3 
+             OR t.director_id = $3 
+             OR t.created_by = $3 
+             OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id = t.id AND tf.user_id = $3))
       `;
       queryParams.push(userId);
     }
@@ -53,6 +64,7 @@ exports.getTasks = async (req, res) => {
     res.status(500).json({ status: 'error', message: 'Server error retrieving tasks' });
   }
 };
+
 
 // @desc    Get single task
 // @route   GET /api/tasks/:id

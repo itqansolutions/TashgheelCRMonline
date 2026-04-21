@@ -53,31 +53,60 @@ exports.getUnits = async (req, res) => {
 exports.createUnit = async (req, res) => {
     const { 
         name, project_name, unit_number, type, floor, area_sqm, price, 
-        vendor_id, responsible_person_id, transaction_type, rooms, location 
+        vendor_id, assigned_to, responsible_person_id, transaction_type, rooms, location 
     } = req.body;
     
     const tenant_id = String(req.user.tenant_id);
     const branch_id = String(req.branchId || req.user?.branch_id);
 
+    // Sanitize optional UUID/FK fields to null to avoid PostgreSQL cast errors
+    const cleanVendorId = (vendor_id && vendor_id !== '') ? vendor_id : null;
+    const cleanAssignedTo = (assigned_to && assigned_to !== '') ? assigned_to : null;
+    const cleanResponsibleId = (responsible_person_id && responsible_person_id !== '') ? responsible_person_id : null;
+
     try {
         const result = await db.query(`
             INSERT INTO re_units (
                 tenant_id, branch_id, name, project_name, unit_number, type, floor, area_sqm, price, 
-                vendor_id, responsible_person_id, transaction_type, rooms, location, status
+                vendor_id, assigned_to, responsible_person_id, transaction_type, rooms, location, status
             )
-            VALUES ($1::text, $2::text, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'Available')
+            VALUES ($1::text, $2::text, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'Available')
             RETURNING *
         `, [
             tenant_id, branch_id, name, project_name, unit_number, type, floor, area_sqm, price,
-            vendor_id, responsible_person_id, transaction_type || 'sale', rooms || 0, location
+            cleanVendorId, cleanAssignedTo, cleanResponsibleId, transaction_type || 'sale', rooms || 0, location
         ]);
         
-        res.status(201).json({ status: 'success', data: result.rows[0] });
+        const newUnit = result.rows[0];
+
+        // AUTO-TASK: If an employee is assigned, create a task notification in their queue
+        if (cleanAssignedTo) {
+            try {
+                await db.query(`
+                    INSERT INTO tasks (title, description, priority, status, assigned_to, created_by, parent_type, parent_id, tenant_id, branch_id)
+                    VALUES ($1, $2, 'medium', 'todo', $3, $4, 'unit', $5, $6, $7)
+                `, [
+                    `Handle Unit: ${unit_number || name} @ ${project_name || 'Property'}`,
+                    `You have been assigned to manage this real estate unit. Unit Type: ${type}, Area: ${area_sqm}m², Price: ${Number(price).toLocaleString()} EGP.`,
+                    cleanAssignedTo,
+                    req.user.id,
+                    newUnit.id,
+                    tenant_id,
+                    branch_id
+                ]);
+            } catch (taskErr) {
+                // Non-fatal: log but don't block the unit creation
+                console.error('[Auto-Task Create Warning]', taskErr.message);
+            }
+        }
+
+        res.status(201).json({ status: 'success', data: newUnit });
     } catch (err) {
         console.error('[Unit Create Error]', err.message);
         res.status(500).json({ status: 'error', message: err.message, stack: err.stack });
     }
 };
+
 
 // @desc    Update unit details or status
 // @route   PUT /api/re-units/:id

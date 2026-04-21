@@ -12,6 +12,9 @@ exports.uploadFile = async (req, res) => {
 
   const { linked_type, linked_id } = req.body;
   
+  const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
+  
   if (!linked_type || !linked_id) {
     // Remove the uploaded file if entity linkage is missing
     fs.unlinkSync(req.file.path);
@@ -20,8 +23,8 @@ exports.uploadFile = async (req, res) => {
 
   try {
     const result = await db.query(
-      'INSERT INTO attachments (filename, original_name, mime_type, file_path, linked_type, linked_id, uploaded_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [req.file.filename, req.file.originalname, req.file.mimetype, req.file.path, linked_type, linked_id, req.user.id]
+      'INSERT INTO attachments (filename, original_name, mime_type, file_path, linked_type, linked_id, uploaded_by, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      [req.file.filename, req.file.originalname, req.file.mimetype, req.file.path, linked_type, linked_id, req.user.id, tenant_id, branch_id]
     );
 
     res.status(201).json({ status: 'success', data: result.rows[0] });
@@ -38,10 +41,12 @@ exports.uploadFile = async (req, res) => {
 // @access  Private
 exports.getAttachments = async (req, res) => {
   const { entityType, entityId } = req.params;
+  const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
   try {
     const result = await db.query(
-      'SELECT * FROM attachments WHERE linked_type = $1 AND linked_id = $2 ORDER BY created_at DESC',
-      [entityType, entityId]
+      'SELECT * FROM attachments WHERE linked_type = $1 AND linked_id = $2 AND tenant_id::text = $3::text AND branch_id::text = $4::text ORDER BY created_at DESC',
+      [entityType, entityId, tenant_id, branch_id]
     );
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
@@ -54,9 +59,11 @@ exports.getAttachments = async (req, res) => {
 // @route   DELETE /api/files/:id
 // @access  Private (Admin or Owner)
 exports.deleteAttachment = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
   try {
-    // 1. Get file details
-    const fileResult = await db.query('SELECT * FROM attachments WHERE id = $1', [req.params.id]);
+    // 1. Get file details AND enforce Tenant isolation
+    const fileResult = await db.query('SELECT * FROM attachments WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
     if (fileResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'File not found' });
     }
@@ -87,8 +94,10 @@ exports.deleteAttachment = async (req, res) => {
 // @route   GET /api/files
 // @access  Private
 exports.getFiles = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
   try {
-    const result = await db.query('SELECT * FROM attachments ORDER BY created_at DESC');
+    const result = await db.query('SELECT * FROM attachments WHERE tenant_id::text = $1::text AND branch_id::text = $2::text ORDER BY created_at DESC', [tenant_id, branch_id]);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error(err.message);

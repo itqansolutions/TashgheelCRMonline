@@ -91,11 +91,19 @@ exports.createDeal = async (req, res) => {
         }
     }
 
+    // DEFINITIVE SANITIZATION: Prevent 500 Server Error for Empty String UUID conversions
+    const cleanClientId = (client_id && client_id !== '') ? client_id : null;
+    const cleanProductId = (product_id && product_id !== '') ? product_id : null;
+    const cleanProjectId = (project_id && project_id !== '') ? project_id : null;
+    const cleanUnitId = (unit_id && unit_id !== '') ? unit_id : null;
+    const cleanAssignedTo = (assigned_to && assigned_to !== '') ? assigned_to : req.user.id;
+    const cleanProbability = (probability && probability !== '') ? parseInt(probability) : 0;
+    const cleanExpectedDate = (expected_close_date && expected_close_date !== '') ? expected_close_date : null;
+
     // 2. Insert Deal (With branch_id injection and new Phase 2 schema)
-    const dbExpectedCloseDate = expected_close_date || null;
     const result = await db.query(
       'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, branch_id, custom_fields, unit_id, probability, expected_close_date, next_action) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *',
-      [title, value || 0, pipeline_stage || 'discovery', client_id, product_id, project_id, assigned_to || req.user.id, tenant_id, branch_id, custom_fields || {}, unit_id, probability || 0, dbExpectedCloseDate, next_action || '']
+      [title, value || 0, pipeline_stage || 'discovery', cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, tenant_id, branch_id, custom_fields || {}, cleanUnitId, cleanProbability, cleanExpectedDate, next_action || '']
     );
 
     const newDeal = result.rows[0];
@@ -166,13 +174,20 @@ exports.updateDeal = async (req, res) => {
     }
     const oldData = oldResult.rows[0];
 
+    // DEFINITIVE SANITIZATION
+    const cleanClientId = (client_id && client_id !== '') ? client_id : null;
+    const cleanProductId = (product_id && product_id !== '') ? product_id : null;
+    const cleanProjectId = (project_id && project_id !== '') ? project_id : null;
+    const cleanAssignedTo = (assigned_to && assigned_to !== '') ? assigned_to : oldData.assigned_to;
+    const cleanProbability = (probability && probability !== '') ? parseInt(probability) : 0;
+    const cleanExpectedDate = (expected_close_date && expected_close_date !== '') ? expected_close_date : null;
+
     // 2. Perform Update (With phase 2 metrics)
-    const dbExpectedCloseDate = expected_close_date || null;
     const result = await db.query(
       `UPDATE deals 
        SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, probability = $9, expected_close_date = $10, next_action = $11, updated_at = CURRENT_TIMESTAMP 
        WHERE id = $12 AND tenant_id::text = $13::text AND branch_id::text = $14::text RETURNING *`,
-      [title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields || oldData.custom_fields, probability || 0, dbExpectedCloseDate, next_action || '', req.params.id, tenant_id, branch_id]
+      [title, value, pipeline_stage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, custom_fields || oldData.custom_fields, cleanProbability, cleanExpectedDate, next_action || '', req.params.id, tenant_id, branch_id]
     );
 
     // Audit Logging
