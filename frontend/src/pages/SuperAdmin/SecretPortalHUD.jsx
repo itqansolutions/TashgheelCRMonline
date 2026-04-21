@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Cpu, Building2, CreditCard, ShieldAlert, 
+  Cpu, Building2, CreditCard, ShieldAlert, ShieldCheck,
   Layers, Zap, Fingerprint, Activity, BarChart3,
   Network, Settings, ExternalLink, ArrowLeft, LogOut
 } from 'lucide-react';
