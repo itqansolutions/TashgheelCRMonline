@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Search, Filter, Home, Layers, Maximize, UserCheck, Trash2, CheckCircle2, XCircle, Clock, MapPin, X } from 'lucide-react';
+import { Building2, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -19,6 +19,8 @@ const UnitsRegistry = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showAddModal, setShowAddModal] = useState(false);
     const [selectedUnit, setSelectedUnit] = useState(null);
+    const [viewMode, setViewMode] = useState('map'); // 'map' | 'cards' | 'list'
+    const [assigningEmployee, setAssigningEmployee] = useState('');
 
     // Security Gate: Redirect if not in Real Estate template
     if (user && user.template_name !== 'real_estate') {
@@ -64,6 +66,18 @@ const UnitsRegistry = () => {
             fetchUnits();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to add unit');
+        }
+    };
+
+    const handleAssignEmployee = async (unitId, employeeId) => {
+        try {
+            await api.put(`/re-units/${unitId}`, { assigned_to: employeeId || null });
+            toast.success(employeeId ? 'Employee assigned successfully!' : 'Assignment cleared.');
+            fetchUnits();
+            // Update selected unit in-place so modal shows new name immediately
+            setSelectedUnit(prev => ({ ...prev, assigned_to: employeeId || null }));
+        } catch(err) {
+            toast.error('Failed to update assignment.');
         }
     };
 
@@ -130,10 +144,20 @@ const UnitsRegistry = () => {
                         Real Estate Inventory • <span style={{ color: 'var(--primary)', fontWeight: 700 }}>{units.length} Units Tracked</span>
                     </p>
                 </div>
-                <button onClick={() => setShowAddModal(true)} className="btn-primary-premium">
-                    <Plus size={20} strokeWidth={3} />
-                    Register New Unit
-                </button>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    {/* View Mode Toggle */}
+                    <div style={{ display: 'flex', background: 'rgba(0,0,0,0.04)', padding: '4px', borderRadius: '12px', gap: '2px' }}>
+                        {[{ key: 'map', icon: <Map size={15}/>, label: 'Map' }, { key: 'cards', icon: <LayoutGrid size={15}/>, label: 'Cards' }, { key: 'list', icon: <List size={15}/>, label: 'List' }].map(v => (
+                            <button key={v.key} onClick={() => setViewMode(v.key)} style={{ padding: '8px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', background: viewMode === v.key ? 'white' : 'transparent', color: viewMode === v.key ? 'var(--primary)' : 'var(--text-muted)', boxShadow: viewMode === v.key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none', transition: '0.2s' }}>
+                                {v.icon} {v.label}
+                            </button>
+                        ))}
+                    </div>
+                    <button onClick={() => setShowAddModal(true)} className="btn-primary-premium">
+                        <Plus size={20} strokeWidth={3} />
+                        Register New Unit
+                    </button>
+                </div>
             </div>
 
             {/* Controls Bar */}
@@ -187,16 +211,31 @@ const UnitsRegistry = () => {
                     <div className="wow-float" style={{ marginBottom: '16px' }}><Building2 size={48} opacity={0.3}/></div>
                     <p style={{ fontWeight: 600 }}>Syncing Property Inventory...</p>
                 </div>
-            ) : (
+            ) : filteredUnits.length === 0 ? (
+                <div style={{ padding: '80px', textAlign: 'center' }}>
+                   <div className="ap-card" style={{ padding: '60px', background: 'rgba(0,0,0,0.01)', borderStyle: 'dashed', borderWidth: '2px' }}>
+                        <div className="wow-float" style={{ marginBottom: '20px' }}>
+                            <Building2 size={64} opacity={0.1}/>
+                        </div>
+                        <h3 style={{ fontWeight: 900, color: 'var(--text-main)', marginBottom: '8px' }}>No Properties Found</h3>
+                        <p style={{ color: 'var(--text-muted)', marginBottom: '32px' }}>Try adjusting your filters or register new units.</p>
+                        <button onClick={() => setShowAddModal(true)} className="btn-primary-premium" style={{ margin: '0 auto' }}>
+                            <Plus size={20} />
+                            Register First Unit
+                        </button>
+                   </div>
+                </div>
+            ) : viewMode === 'map' ? (
+                /* ─── MAP VIEW ─── */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                    {Object.keys(groupedUnits).length > 0 ? Object.entries(groupedUnits).map(([project, floors], pIdx) => (
+                    {Object.entries(groupedUnits).map(([project, floors]) => (
                         <div key={project} className="ap-card delay-1 wow-reveal" style={{ padding: '32px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid var(--border)', paddingBottom: '16px', marginBottom: '24px' }}>
                                 <h3 style={{ fontSize: '24px', margin: 0, fontWeight: 900, display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-main)' }}>
                                     <Building2 size={24} color="var(--primary)" /> {project}
                                 </h3>
                                 <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-muted)', background: 'var(--bg-main)', padding: '6px 12px', borderRadius: '8px' }}>
-                                    {Object.values(floors).flat().length} Units Match
+                                    {Object.values(floors).flat().length} Units
                                 </div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -210,18 +249,10 @@ const UnitsRegistry = () => {
                                             {sortedUnits.map(u => {
                                                 const config = getStatusConfig(u.status);
                                                 return (
-                                                    <div 
-                                                        key={u.id} 
-                                                        title={`Click to View Full Details`}
-                                                        onClick={() => setSelectedUnit(u)}
-                                                        style={{ 
-                                                            padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s',
-                                                            background: config.bg, color: config.color, border: `1px solid ${config.color}40`,
-                                                            display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '110px'
-                                                        }}
-                                                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 6px 12px ${config.bg}`; }}
-                                                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-                                                    >
+                                                    <div key={u.id} title="Click to View Full Details" onClick={() => setSelectedUnit(u)}
+                                                        style={{ padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s', background: config.bg, color: config.color, border: `1px solid ${config.color}40`, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '110px' }}
+                                                        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 6px 12px ${config.bg}`; }}
+                                                        onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                             <span style={{ fontWeight: 900, fontSize: '16px' }}>{u.unit_number}</span>
                                                             {config.icon}
@@ -237,23 +268,88 @@ const UnitsRegistry = () => {
                                 ))}
                             </div>
                         </div>
-                    )) : (
-                        <div style={{ padding: '80px', textAlign: 'center' }}>
-                           <div className="ap-card" style={{ padding: '60px', background: 'rgba(0,0,0,0.01)', borderStyle: 'dashed', borderWidth: '2px' }}>
-                                <div className="wow-float" style={{ marginBottom: '20px' }}>
-                                    <Building2 size={64} opacity={0.1}/>
+                    ))}
+                </div>
+            ) : viewMode === 'cards' ? (
+                /* ─── CARDS VIEW ─── */
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px' }}>
+                    {filteredUnits.map(u => {
+                        const config = getStatusConfig(u.status);
+                        return (
+                            <div key={u.id} onClick={() => setSelectedUnit(u)} className="ap-card"
+                                style={{ padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s', borderTop: `3px solid ${config.color}` }}
+                                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.1)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = ''; }}>
+                                <div style={{ padding: '20px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                                        <div>
+                                            <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>{u.project_name || 'Individual'}</div>
+                                            <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)' }}>Unit {u.unit_number}</div>
+                                        </div>
+                                        <span style={{ background: config.bg, color: config.color, padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 900 }}>{u.status}</span>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                                        <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px' }}>
+                                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>TYPE</div>
+                                            <div style={{ fontSize: '13px', fontWeight: 800 }}>{u.type}</div>
+                                        </div>
+                                        <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px' }}>
+                                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>AREA</div>
+                                            <div style={{ fontSize: '13px', fontWeight: 800 }}>{u.area_sqm} m²</div>
+                                        </div>
+                                    </div>
+                                    <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)', marginBottom: '8px' }}>{Number(u.price).toLocaleString()} EGP</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                        Floor {u.floor} • {u.rooms} Rooms
+                                        {u.assigned_to && <span style={{ marginLeft: '8px', color: '#16a34a' }}>• {users.find(em => em.id === u.assigned_to)?.name}</span>}
+                                    </div>
                                 </div>
-                                <h3 style={{ fontWeight: 900, color: 'var(--text-main)', marginBottom: '8px' }}>No Properties Registered</h3>
-                                <p style={{ color: 'var(--text-muted)', marginBottom: '32px' }}>Your inventory map is empty. Start grouping premium units to your registry.</p>
-                                <button onClick={() => setShowAddModal(true)} className="btn-primary-premium" style={{ margin: '0 auto' }}>
-                                    <Plus size={20} />
-                                    Register First Unit
-                                </button>
-                           </div>
-                        </div>
-                    )}
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                /* ─── LIST VIEW ─── */
+                <div className="ap-card" style={{ padding: '0', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ background: '#f8fafc', borderBottom: '2px solid var(--border)' }}>
+                                {['Unit', 'Project', 'Type', 'Area', 'Price (EGP)', 'Status', 'Employee', ''].map(h => (
+                                    <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredUnits.map((u, i) => {
+                                const config = getStatusConfig(u.status);
+                                return (
+                                    <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa', cursor: 'pointer', transition: 'background 0.15s' }}
+                                        onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
+                                        onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? 'white' : '#fafafa'}>
+                                        <td style={{ padding: '14px 16px', fontWeight: 900, fontSize: '15px', color: 'var(--text-main)' }}>{u.unit_number}</td>
+                                        <td style={{ padding: '14px 16px', fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>{u.project_name || '—'}</td>
+                                        <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700 }}>{u.type}</td>
+                                        <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700 }}>{u.area_sqm} m²</td>
+                                        <td style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--primary)' }}>{Number(u.price).toLocaleString()}</td>
+                                        <td style={{ padding: '14px 16px' }}>
+                                            <span style={{ background: config.bg, color: config.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 900 }}>{u.status}</span>
+                                        </td>
+                                        <td style={{ padding: '14px 16px', fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                            {users.find(em => em.id === u.assigned_to)?.name || <span style={{ fontStyle: 'italic' }}>Unassigned</span>}
+                                        </td>
+                                        <td style={{ padding: '14px 16px' }}>
+                                            <button onClick={() => setSelectedUnit(u)} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'white', color: 'var(--primary)', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}>
+                                                Details
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             )}
+
 
             {/* Redesigned Add Unit Modal */}
             {showAddModal && (
@@ -393,12 +489,33 @@ const UnitsRegistry = () => {
                                             </div>
                                         </div>
 
-                                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px' }}>
-                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Employee Assignment</div>
-                                            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                <UserCheck size={16} color="var(--primary)"/> 
-                                                {users.find(u => u.id === selectedUnit.assigned_to)?.name || 'Unassigned / Open'}
+                                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <UserCheck size={13}/> Employee Assignment
                                             </div>
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                <select
+                                                    defaultValue={selectedUnit.assigned_to || ''}
+                                                    onChange={e => setAssigningEmployee(e.target.value)}
+                                                    style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600, background: 'white', cursor: 'pointer' }}
+                                                >
+                                                    <option value="">— Unassigned / Open —</option>
+                                                    {(users || []).map(u => (
+                                                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    onClick={() => handleAssignEmployee(selectedUnit.id, assigningEmployee)}
+                                                    style={{ padding: '10px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: 800, fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                                >
+                                                    Save
+                                                </button>
+                                            </div>
+                                            {selectedUnit.assigned_to && (
+                                                <div style={{ marginTop: '8px', fontSize: '12px', color: '#16a34a', fontWeight: 600 }}>
+                                                    ✓ Currently: {users.find(u => u.id === selectedUnit.assigned_to)?.name || 'Assigned'}
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div style={{ display: 'flex', gap: '12px' }}>
