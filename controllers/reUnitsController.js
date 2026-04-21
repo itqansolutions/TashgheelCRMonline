@@ -114,11 +114,16 @@ exports.updateUnit = async (req, res) => {
     const { id } = req.params;
     const { 
         name, project_name, unit_number, type, floor, area_sqm, price, status,
-        vendor_id, responsible_person_id, transaction_type, rooms, location 
+        vendor_id, assigned_to, responsible_person_id, transaction_type, rooms, location 
     } = req.body;
     
     const tenant_id = String(req.user.tenant_id);
     const branch_id = String(req.branchId || req.user?.branch_id);
+
+    // Sanitize optional FK fields — empty string must become null for PostgreSQL UUID columns
+    const cleanVendorId = (vendor_id !== undefined && vendor_id !== '') ? vendor_id : undefined;
+    const cleanAssignedTo = (assigned_to !== undefined && assigned_to !== '') ? assigned_to : (assigned_to === '' ? null : undefined);
+    const cleanResponsibleId = (responsible_person_id !== undefined && responsible_person_id !== '') ? responsible_person_id : undefined;
 
     try {
         const result = await db.query(`
@@ -132,22 +137,27 @@ exports.updateUnit = async (req, res) => {
                 price = COALESCE($7, price),
                 status = COALESCE($8, status),
                 vendor_id = COALESCE($9, vendor_id),
-                responsible_person_id = COALESCE($10, responsible_person_id),
-                transaction_type = COALESCE($11, transaction_type),
-                rooms = COALESCE($12, rooms),
-                location = COALESCE($13, location),
+                assigned_to = CASE WHEN $10::text IS NOT NULL THEN $10::uuid ELSE assigned_to END,
+                responsible_person_id = COALESCE($11, responsible_person_id),
+                transaction_type = COALESCE($12, transaction_type),
+                rooms = COALESCE($13, rooms),
+                location = COALESCE($14, location),
                 updated_at = NOW()
-            WHERE id = $14 AND tenant_id::text = $15::text AND branch_id::text = $16::text
+            WHERE id = $15 AND tenant_id::text = $16::text AND branch_id::text = $17::text
             RETURNING *
         `, [
             name, project_name, unit_number, type, floor, area_sqm, price, status,
-            vendor_id, responsible_person_id, transaction_type, rooms, location,
+            cleanVendorId ?? null,
+            cleanAssignedTo !== undefined ? cleanAssignedTo : null,
+            cleanResponsibleId ?? null,
+            transaction_type, rooms, location,
             id, tenant_id, branch_id
         ]);
 
         if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
         res.json({ status: 'success', data: result.rows[0] });
     } catch (err) {
+
         console.error('[Unit Update Error]', err.message);
         res.status(500).json({ status: 'error', message: 'Failed to update unit' });
     }

@@ -22,6 +22,13 @@ const UnitsRegistry = () => {
     const [viewMode, setViewMode] = useState('map'); // 'map' | 'cards' | 'list'
     const [assigningEmployee, setAssigningEmployee] = useState('');
 
+    // Sync the employee dropdown to the unit's current assignee when modal opens
+    useEffect(() => {
+        if (selectedUnit) {
+            setAssigningEmployee(selectedUnit.assigned_to || '');
+        }
+    }, [selectedUnit?.id]);
+
     // Security Gate: Redirect if not in Real Estate template
     if (user && user.template_name !== 'real_estate') {
         return <Navigate to="/dashboard" />;
@@ -495,7 +502,7 @@ const UnitsRegistry = () => {
                                             </div>
                                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                                 <select
-                                                    defaultValue={selectedUnit.assigned_to || ''}
+                                                    value={assigningEmployee}
                                                     onChange={e => setAssigningEmployee(e.target.value)}
                                                     style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600, background: 'white', cursor: 'pointer' }}
                                                 >
