@@ -99,10 +99,18 @@ exports.createDeal = async (req, res) => {
 
     const newDeal = result.rows[0];
 
-    // 3. Automation: If unit linked, mark it as Reserved
+    // 3. Fetch Reservation Duration Settings & Automation
     if (unit_id) {
-        await db.query('UPDATE re_units SET status = \'Reserved\' WHERE id = $1', [unit_id]);
-        logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: newDeal.id, status_change: 'Reserved' } });
+        let reservationHours = 48;
+        try {
+            const settingsRes = await db.query("SELECT value FROM settings WHERE key = 'reservation_duration_hours'");
+            if (settingsRes.rows.length > 0 && !isNaN(settingsRes.rows[0].value)) {
+                reservationHours = parseInt(settingsRes.rows[0].value);
+            }
+        } catch(e) { console.error('Settings fetch error:', e.message); }
+
+        await db.query(`UPDATE re_units SET status = 'Reserved', reservation_expires_at = CURRENT_TIMESTAMP + INTERVAL '${reservationHours} hours' WHERE id = $1`, [unit_id]);
+        logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: newDeal.id, status_change: 'Reserved', expires_in_hours: reservationHours } });
     }
 
     // Audit Logging

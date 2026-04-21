@@ -136,6 +136,9 @@ const reconcileDatabase = async () => {
             await db.query(`ALTER TABLE branches ADD COLUMN IF NOT EXISTS is_main BOOLEAN DEFAULT false`);
             await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS notes TEXT`);
 
+            // Core Stability (Phase 1)
+            await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS reservation_expires_at TIMESTAMP NULL`);
+
         } catch(e) { /* Ignore - Migration already applied or invalid cast */ }
 
         await db.query(`

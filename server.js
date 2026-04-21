@@ -179,10 +179,12 @@ const promoteOnStartup = async () => {
 };
 
 const reconcileDatabase = require('./scripts/dbReconciliation');
+const { startReservationScanner } = require('./services/reservationService');
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
   await reconcileDatabase();
+  startReservationScanner(10); // Run reservation garbage collection every 10 minutes
   await promoteOnStartup();
   await seedDemoAccount();
 });
