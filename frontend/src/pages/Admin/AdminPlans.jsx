@@ -8,6 +8,8 @@ import {
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
+const BarChart3 = ({ size }) => <Layers size={size} />; // Fallback - MOVED UP TO FIX TDZ
+
 const ALL_MODULES = [
     { key: 'crm',        label: 'CRM & Sales',         icon: <Users size={16}/> },
     { key: 'finance',    label: 'Finance & Invoicing',  icon: <DollarSign size={16}/> },
@@ -16,8 +18,6 @@ const ALL_MODULES = [
     { key: 'automation', label: 'Workflow Engine',      icon: <Zap size={16}/> },
     { key: 'reports',    label: 'BI Analytics',         icon: <BarChart3 size={16}/> },
 ];
-
-const BarChart3 = ({ size }) => <Layers size={size} />; // Fallback
 
 const emptyPlan = () => ({
     name: '', display_name: '', price_monthly: '',
