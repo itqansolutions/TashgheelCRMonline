@@ -424,9 +424,6 @@ const Customers = () => {
                     </div>
                 )}
 
-                    </div>
-                )}
-                
                 {/* Related Data Module */}
                 <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>

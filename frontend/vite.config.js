@@ -10,4 +10,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    // Raise chunk size warning threshold to prevent Railway CI from treating
+    // Vite chunk warnings (written to stderr) as build failures
+    chunkSizeWarningLimit: 1500,
+  },
 })
+
