@@ -25,7 +25,8 @@ const scripts = [
     'workflow-rules-migration.js',
     'fix-departments-tenant-migration.js',
     'fix-lead-sources-migration.js',
-    'industry-templates-migration.js'
+    'industry-templates-migration.js',
+    're-units-enhancement-migration.js'
 ];
 
 console.log('--- [PRE-BOOT] Starting System Synchronization ---');

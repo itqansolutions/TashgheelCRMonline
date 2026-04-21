@@ -112,56 +112,69 @@ exports.createUnit = async (req, res) => {
 // @route   PUT /api/re-units/:id
 exports.updateUnit = async (req, res) => {
     const { id } = req.params;
-    const { 
-        name, project_name, unit_number, type, floor, area_sqm, price, status,
-        vendor_id, assigned_to, responsible_person_id, transaction_type, rooms, location 
-    } = req.body;
-    
     const tenant_id = String(req.user.tenant_id);
     const branch_id = String(req.branchId || req.user?.branch_id);
 
-    // Sanitize optional FK fields — empty string must become null for PostgreSQL UUID columns
-    const cleanVendorId = (vendor_id !== undefined && vendor_id !== '') ? vendor_id : undefined;
-    const cleanAssignedTo = (assigned_to !== undefined && assigned_to !== '') ? assigned_to : (assigned_to === '' ? null : undefined);
-    const cleanResponsibleId = (responsible_person_id !== undefined && responsible_person_id !== '') ? responsible_person_id : undefined;
+    // Dynamic PATCH: only update fields that were explicitly sent in the request body
+    const allowedFields = [
+        'name', 'project_name', 'unit_number', 'type', 'floor', 
+        'area_sqm', 'price', 'status', 'vendor_id', 'assigned_to', 
+        'responsible_person_id', 'transaction_type', 'rooms', 'location'
+    ];
+
+    // UUID-typed columns that must be null (not '') for PostgreSQL
+    const uuidFields = ['vendor_id', 'assigned_to', 'responsible_person_id'];
+
+    const setClauses = [];
+    const values = [];
+    let paramIdx = 1;
+
+    for (const field of allowedFields) {
+        if (req.body.hasOwnProperty(field)) {
+            let val = req.body[field];
+            // Convert empty string to null for UUID fields
+            if (uuidFields.includes(field) && (val === '' || val === 'null' || val === undefined)) {
+                val = null;
+            }
+            setClauses.push(`${field} = $${paramIdx}`);
+            values.push(val);
+            paramIdx++;
+        }
+    }
+
+    if (setClauses.length === 0) {
+        return res.status(400).json({ status: 'error', message: 'No fields to update' });
+    }
+
+    // Always update the timestamp
+    setClauses.push(`updated_at = NOW()`);
+
+    // Append WHERE clause parameters
+    values.push(id, tenant_id, branch_id);
+    const whereP1 = paramIdx;
+    const whereP2 = paramIdx + 1;
+    const whereP3 = paramIdx + 2;
 
     try {
         const result = await db.query(`
-            UPDATE re_units SET
-                name = COALESCE($1, name),
-                project_name = COALESCE($2, project_name),
-                unit_number = COALESCE($3, unit_number),
-                type = COALESCE($4, type),
-                floor = COALESCE($5, floor),
-                area_sqm = COALESCE($6, area_sqm),
-                price = COALESCE($7, price),
-                status = COALESCE($8, status),
-                vendor_id = COALESCE($9, vendor_id),
-                assigned_to = CASE WHEN $10::text IS NOT NULL THEN $10::uuid ELSE assigned_to END,
-                responsible_person_id = COALESCE($11, responsible_person_id),
-                transaction_type = COALESCE($12, transaction_type),
-                rooms = COALESCE($13, rooms),
-                location = COALESCE($14, location),
-                updated_at = NOW()
-            WHERE id = $15 AND tenant_id::text = $16::text AND branch_id::text = $17::text
+            UPDATE re_units 
+            SET ${setClauses.join(', ')}
+            WHERE id = $${whereP1}::uuid 
+              AND tenant_id::text = $${whereP2}::text 
+              AND branch_id::text = $${whereP3}::text
             RETURNING *
-        `, [
-            name, project_name, unit_number, type, floor, area_sqm, price, status,
-            cleanVendorId ?? null,
-            cleanAssignedTo !== undefined ? cleanAssignedTo : null,
-            cleanResponsibleId ?? null,
-            transaction_type, rooms, location,
-            id, tenant_id, branch_id
-        ]);
+        `, values);
 
-        if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+        if (result.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+        }
         res.json({ status: 'success', data: result.rows[0] });
     } catch (err) {
-
-        console.error('[Unit Update Error]', err.message);
-        res.status(500).json({ status: 'error', message: 'Failed to update unit' });
+        console.error('[Unit Update Error]', err.message, err.stack);
+        res.status(500).json({ status: 'error', message: err.message });
     }
 };
+
 
 // @desc    Delete unit (only if Available)
 // @route   DELETE /api/re-units/:id
