@@ -194,14 +194,16 @@ function App() {
                       </ProtectedRoute>
                     } 
                   />
-                  {/* --- SECLUDED PLATFORM OWNER PORTAL (SOP) --- */}
-                  <Route path="itqan-crm-hud" element={<PlatformWrapper />}>
-                    <Route index element={<SecretPortalHUD />} />
-                    <Route path="hub" element={<SuperAdmin />} />
-                    <Route path="pricing" element={<AdminPlans />} />
-                    <Route path="upgrades" element={<AdminUpgradeRequests />} />
-                    <Route path="audit" element={<Logs />} />
-                  </Route>
+                </Route>
+
+                {/* --- SECLUDED PLATFORM OWNER PORTAL (SOP) --- */}
+                {/* MOVED OUTSIDE MAIN Layout FOR ISOLATION */}
+                <Route path="itqan-crm-hud" element={<PlatformWrapper />}>
+                  <Route index element={<SecretPortalHUD />} />
+                  <Route path="hub" element={<SuperAdmin />} />
+                  <Route path="pricing" element={<AdminPlans />} />
+                  <Route path="upgrades" element={<AdminUpgradeRequests />} />
+                  <Route path="audit" element={<Logs />} />
                 </Route>
 
                 {/* Fallback */}
