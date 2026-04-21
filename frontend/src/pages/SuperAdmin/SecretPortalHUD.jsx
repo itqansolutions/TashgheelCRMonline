@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Cpu, Building2, CreditCard, ShieldAlert, ShieldCheck,
+  Cpu, Building2, CreditCard, ShieldAlert, Shield,
   Layers, Zap, Fingerprint, Activity, BarChart3,
   Network, Settings, ExternalLink, ArrowLeft, LogOut
 } from 'lucide-react';
@@ -99,7 +99,7 @@ const SecretPortalHUD = () => {
                     <div className="relative z-10">
                         <div className="flex items-center gap-4 mb-6">
                             <div className="bg-white/20 p-2 rounded-lg backdrop-blur-md">
-                                <ShieldCheck size={20} className="text-white" />
+                                <Shield size={20} className="text-white" />
                             </div>
                             <span className="text-xs font-bold text-white/80 uppercase tracking-[0.3em]">Platform Authorization: Genesis v4.8</span>
                         </div>

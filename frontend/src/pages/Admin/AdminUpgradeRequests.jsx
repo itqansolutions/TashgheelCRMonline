@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
     Check, X, Clock, Zap, AlertTriangle, 
-    Loader2, RefreshCw, Layers, ShieldCheck, 
+    Loader2, RefreshCw, Layers, 
     Users, DollarSign, ArrowUpRight, TrendingUp,
     CheckCircle2, XCircle, AlertCircle
 } from 'lucide-react';

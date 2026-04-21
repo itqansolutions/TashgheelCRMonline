@@ -3,7 +3,7 @@ import {
     Plus, Edit3, Copy, Trash2, ToggleRight, ToggleLeft, 
     Users, Building2, Check, X, Save, RefreshCw, 
     Eye, Zap, Layers, DollarSign, Settings,
-    ShieldCheck, Box, ChevronRight, Layout
+    Shield, Box, ChevronRight, Layout
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -295,7 +295,7 @@ const AdminPlans = () => {
                                 <div className="space-y-6">
                                     <div className="ap-card p-8 border-[var(--primary)] shadow-2xl relative overflow-hidden group">
                                         <div className="absolute top-0 right-0 p-10 opacity-5 grayscale group-hover:grayscale-0 transition-all pointer-events-none">
-                                            <ShieldCheck size={140} className="text-indigo-600" />
+                                            <Shield size={140} className="text-indigo-600" />
                                         </div>
                                         <div className="inline-block px-3 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest mb-6">Preview</div>
                                         <h2 className="text-3xl font-black text-[var(--text-main)] mb-2">{form.display_name || 'Protocol_Alpha'}</h2>

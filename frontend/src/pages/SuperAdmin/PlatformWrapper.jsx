@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import SecretPortalGate from './SecretPortalGate';
 import { useAuth } from '../../context/AuthContext';
-import { Cpu, ShieldCheck, Loader2 } from 'lucide-react';
+import { Cpu, Shield, Loader2 } from 'lucide-react';
 
 const HandshakeLoader = () => (
     <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 z-[1000]">
