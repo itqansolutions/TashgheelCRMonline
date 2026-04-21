@@ -4,10 +4,17 @@ const db = require('../config/db');
 // @route   GET /api/reports/top-products
 // @access  Private (Admin, Manager)
 exports.getTopProducts = async (req, res) => {
-    const tenant_id = req.user.tenant_id;
+    const tenant_id = req.tenant_id || req.user?.tenant_id;
+    if (!tenant_id) {
+        return res.status(400).json({ status: 'error', message: 'Tenant context missing' });
+    }
     try {
         const result = await db.query(`
-            SELECT p.name, p.category, SUM(ii.quantity) as total_sold, SUM(ii.subtotal) as total_revenue
+            SELECT 
+                p.name, 
+                p.category, 
+                COALESCE(SUM(ii.quantity), 0) as total_sold, 
+                COALESCE(SUM(ii.subtotal), 0) as total_revenue
             FROM invoice_items ii
             JOIN products p ON ii.product_id::text = p.id::text AND ii.tenant_id::text = p.tenant_id::text
             WHERE ii.tenant_id::text = $1::text
@@ -17,8 +24,8 @@ exports.getTopProducts = async (req, res) => {
         `, [tenant_id]);
         res.json({ status: 'success', data: result.rows });
     } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ status: 'error', message: 'Server error' });
+        console.error('[REPORTS] Top Products Error:', err.message);
+        res.status(500).json({ status: 'error', message: 'Failed to aggregate product metrics' });
     }
 };
 

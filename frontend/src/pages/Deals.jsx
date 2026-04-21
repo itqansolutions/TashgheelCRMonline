@@ -44,7 +44,7 @@ const Deals = () => {
 
   const fetchReUnits = async () => {
       try {
-          const res = await api.get('/api/re-units');
+          const res = await api.get('/re-units');
           setReUnits(res.data.data || []);
       } catch (err) { console.error('Failed to fetch units:', err); }
   };
@@ -118,7 +118,7 @@ const Deals = () => {
           ...formData,
           unit_id: unitId,
           value: unit ? unit.price : formData.value,
-          title: unit ? `${unit.project_name} - Unit ${u.unit_number}` : formData.title
+          title: unit ? `${unit.project_name} - Unit ${unit.unit_number}` : formData.title
       });
   };
 
@@ -516,9 +516,9 @@ const Deals = () => {
                                   if (!e.target.value) return;
                                   try {
                                       // Note: In real app, search for the payment ID first or use a dedicated endpoint
-                                      const payRes = await api.get(`/api/re-payments/deal/${editingDeal.id}`);
+                                      const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
                                       if (payRes.data.data) {
-                                          await api.put(`/api/re-payments/${payRes.data.data.id}`, { paid_amount: e.target.value });
+                                          await api.put(`/re-payments/${payRes.data.data.id}`, { paid_amount: e.target.value });
                                           toast.success('Payment updated');
                                           fetchDeals(false);
                                       }
@@ -534,9 +534,9 @@ const Deals = () => {
                               defaultValue={editingDeal.next_payment_date ? new Date(editingDeal.next_payment_date).toISOString().split('T')[0] : ''}
                               onChange={async (e) => {
                                   try {
-                                      const payRes = await api.get(`/api/re-payments/deal/${editingDeal.id}`);
+                                      const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
                                       if (payRes.data.data) {
-                                          await api.put(`/api/re-payments/${payRes.data.data.id}`, { next_payment_date: e.target.value });
+                                          await api.put(`/re-payments/${payRes.data.data.id}`, { next_payment_date: e.target.value });
                                           toast.success('Due date updated');
                                           fetchDeals(false);
                                       }
