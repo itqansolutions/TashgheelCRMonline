@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRight, MapPin, Coins, Ruler, Building2, Layers, Zap, Clock } from 'lucide-react';
+import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRight, MapPin, Coins, Ruler, Building2, Layers, Zap, Clock, AlertCircle } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
+import KanbanBoard from '../components/Deals/KanbanBoard';
 import Modal from '../components/Common/Modal';
 import { useAuth } from '../context/AuthContext';
 
@@ -16,6 +17,7 @@ const Deals = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState(null);
   const [reUnits, setReUnits] = useState([]);
+  const [viewMode, setViewMode] = useState(isRealEstate ? 'table' : 'kanban');
 
   // Helper to map icon names to Lucide components (Polish Sprint)
   const getFieldIcon = (iconName) => {
@@ -39,6 +41,9 @@ const Deals = () => {
     product_id: '',
     assigned_to: '',
     unit_id: '',
+    probability: 0,
+    expected_close_date: '',
+    next_action: '',
     custom_fields: {}
   });
 
@@ -75,6 +80,9 @@ const Deals = () => {
         product_id: deal.product_id || '',
         assigned_to: deal.assigned_to || '',
         unit_id: deal.unit_id || '',
+        probability: deal.probability || 0,
+        expected_close_date: deal.expected_close_date ? deal.expected_close_date.split('T')[0] : '',
+        next_action: deal.next_action || '',
         custom_fields: deal.custom_fields || {}
       });
     } else {
@@ -87,6 +95,9 @@ const Deals = () => {
         product_id: '', 
         assigned_to: '',
         unit_id: '',
+        probability: 0,
+        expected_close_date: '',
+        next_action: '',
         custom_fields: {} 
       });
     }
@@ -309,40 +320,48 @@ const Deals = () => {
           <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Sales Pipeline</h2>
           <p style={{ color: 'var(--text-muted)' }}>Track your deals from discovery to closing.</p>
         </div>
-        <button label="add deal control" className="btn-add" onClick={() => handleOpenModal()}>
-          <Plus size={20} />
-          Create Deal
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
+                <button onClick={() => setViewMode('kanban')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: viewMode === 'kanban' ? 'white' : 'transparent', color: viewMode === 'kanban' ? 'var(--primary)' : '#64748b', fontWeight: 700, boxShadow: viewMode === 'kanban' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    Kanban
+                </button>
+                <button onClick={() => setViewMode('table')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: viewMode === 'table' ? 'white' : 'transparent', color: viewMode === 'table' ? 'var(--primary)' : '#64748b', fontWeight: 700, boxShadow: viewMode === 'table' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    List
+                </button>
+            </div>
+            <button label="add deal control" className="btn-add" onClick={() => handleOpenModal()}>
+                <Plus size={20} />
+                Create Deal
+            </button>
+        </div>
       </div>
 
-      <DataTable 
-        title="Active Real Estate Opportunities"
-        columns={columns.filter(Boolean)}
-        data={deals || []}
-        loading={loading}
-        onEdit={handleOpenModal}
-        onDelete={handleDelete}
-        actions={(row) => (
-          <button 
-            title="Generate Invoice" 
-            onClick={() => handleGenerateInvoice(row.id)}
-            style={{ 
-              padding: '6px', 
-              borderRadius: '6px', 
-              background: '#f0fdf4', 
-              color: '#16a34a',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            <Receipt size={16} />
-            <span style={{ fontSize: '12px', fontWeight: '600' }}>Bill</span>
-          </button>
-        )}
-      />
+      {viewMode === 'table' ? (
+          <DataTable 
+            title="Active CRM Opportunities"
+            columns={columns.filter(Boolean)}
+            data={deals || []}
+            loading={loading}
+            onEdit={handleOpenModal}
+            onDelete={handleDelete}
+            actions={(row) => (
+              <button 
+                title="Generate Invoice" 
+                onClick={() => handleGenerateInvoice(row.id)}
+                style={{ padding: '6px', borderRadius: '6px', background: '#f0fdf4', color: '#16a34a', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <Receipt size={16} />
+                <span style={{ fontSize: '12px', fontWeight: '600' }}>Bill</span>
+              </button>
+            )}
+          />
+      ) : (
+          <KanbanBoard 
+            deals={deals || []}
+            pipelineStages={templateConfig?.pipeline || ['discovery', 'proposal', 'negotiation', 'won', 'lost']}
+            onEdit={handleOpenModal}
+          />
+      )}
 
       <Modal 
         isOpen={isModalOpen} 
@@ -461,6 +480,25 @@ const Deals = () => {
               )}
             </select>
           </div>
+          
+          {/* Phase 2: Action Metrics */}
+          {!isRealEstate && (
+            <>
+                <div className="form-group">
+                    <label>Win Probability (%)</label>
+                    <input type="number" min="0" max="100" value={formData.probability} onChange={(e) => setFormData({...formData, probability: parseInt(e.target.value) || 0})} />
+                </div>
+                <div className="form-group">
+                    <label>Expected Close Date</label>
+                    <input type="date" value={formData.expected_close_date} onChange={(e) => setFormData({...formData, expected_close_date: e.target.value})} />
+                </div>
+                <div className="form-group full">
+                    <label>Next Action Required</label>
+                    <input type="text" placeholder="e.g. Call client to discuss proposal" value={formData.next_action} onChange={(e) => setFormData({...formData, next_action: e.target.value})} />
+                </div>
+            </>
+          )}
+
           <div className="form-group full">
             <label>Deal Owner</label>
             <select 
@@ -474,77 +512,111 @@ const Deals = () => {
             </select>
           </div>
 
-          {/* PAYMENT SUMMARY MVP (Polish Sprint) */}
+          {/* PAYMENT SUMMARY MVP (Phase 2 Upgrade) */}
           {isRealEstate && (editingDeal?.pipeline_stage?.toLowerCase() === 'won' || formData.pipeline_stage?.toLowerCase() === 'won') && editingDeal?.unit_id && (
               <div style={{ gridColumn: 'span 2', background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '12px', padding: '20px', marginTop: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
-                          <DollarSign size={18} color="#16a34a"/> 💰 PAYMENT SUMMARY
-                      </h4>
-                      <div style={{ 
-                          fontSize: '11px', fontWeight: 900, padding: '4px 10px', borderRadius: '6px',
-                          background: (editingDeal.payment_total - editingDeal.paid_amount) <= 0 ? '#dcfce7' : '#fef9c3',
-                          color: (editingDeal.payment_total - editingDeal.paid_amount) <= 0 ? '#166534' : '#854d0e'
-                      }}>
-                          {(editingDeal.payment_total - editingDeal.paid_amount) <= 0 ? '✅ FULLY PAID' : '⏳ PAYMENT PENDING'}
-                      </div>
-                  </div>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                      <div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Total Price</div>
-                          <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)' }}>{Number(editingDeal.payment_total || editingDeal.value).toLocaleString()} EGP</div>
-                      </div>
-                      <div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Paid So Far</div>
-                          <div style={{ fontSize: '18px', fontWeight: 900, color: '#16a34a' }}>{Number(editingDeal.paid_amount || 0).toLocaleString()} EGP</div>
-                      </div>
-                      <div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Remaining</div>
-                          <div style={{ fontSize: '18px', fontWeight: 900, color: '#dc2626' }}>{Number((editingDeal.payment_total || editingDeal.value) - (editingDeal.paid_amount || 0)).toLocaleString()} EGP</div>
-                      </div>
-                  </div>
+                  {(() => {
+                      const totalValue = Number(editingDeal.payment_total || editingDeal.value || 0);
+                      const paidValue = Number(editingDeal.paid_amount || 0);
+                      const remainingValue = totalValue - paidValue;
+                      const percentage = totalValue > 0 ? Math.min(100, (paidValue / totalValue) * 100).toFixed(1) : 0;
+                      
+                      let riskColor = '#3b82f6';
+                      let riskText = 'On Track';
+                      let riskBg = '#eff6ff';
+                      
+                      if (remainingValue <= 0) {
+                          riskColor = '#10b981'; riskText = 'Fully Paid'; riskBg = '#dcfce7';
+                      } else if (editingDeal.next_payment_date) {
+                          const diffDays = Math.ceil((new Date(editingDeal.next_payment_date) - new Date()) / (1000 * 60 * 60 * 24));
+                          if (diffDays < 0) {
+                              riskColor = '#ef4444'; riskText = `OVERDUE (${Math.abs(diffDays)} Days)`; riskBg = '#fef2f2';
+                          } else if (diffDays <= 7) {
+                              riskColor = '#f59e0b'; riskText = `DUE IN ${diffDays} DAYS`; riskBg = '#fffbeb';
+                          }
+                      }
 
-                  <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                      <div className="form-group">
-                          <label style={{ fontSize: '12px' }}>Update Paid Amount</label>
-                          <input 
-                              type="number" 
-                              placeholder="Add payment..."
-                              className="ap-input"
-                              onBlur={async (e) => {
-                                  if (!e.target.value) return;
-                                  try {
-                                      // Note: In real app, search for the payment ID first or use a dedicated endpoint
-                                      const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
-                                      if (payRes.data.data) {
-                                          await api.put(`/re-payments/${payRes.data.data.id}`, { paid_amount: e.target.value });
-                                          toast.success('Payment updated');
-                                          fetchDeals(false);
-                                      }
-                                  } catch (err) { toast.error('Update failed'); }
-                              }}
-                          />
-                      </div>
-                      <div className="form-group">
-                          <label style={{ fontSize: '12px' }}>Next Due Date</label>
-                          <input 
-                              type="date" 
-                              className="ap-input"
-                              defaultValue={editingDeal.next_payment_date ? new Date(editingDeal.next_payment_date).toISOString().split('T')[0] : ''}
-                              onChange={async (e) => {
-                                  try {
-                                      const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
-                                      if (payRes.data.data) {
-                                          await api.put(`/re-payments/${payRes.data.data.id}`, { next_payment_date: e.target.value });
-                                          toast.success('Due date updated');
-                                          fetchDeals(false);
-                                      }
-                                  } catch (err) { toast.error('Update failed'); }
-                              }}
-                          />
-                      </div>
-                  </div>
+                      return (
+                          <>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                                  <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
+                                      <DollarSign size={18} color="#16a34a"/> Cash Flow Timeline
+                                  </h4>
+                                  <div style={{ display: 'flex', gap: '8px' }}>
+                                      <div style={{ padding: '4px 12px', background: riskBg, color: riskColor, borderRadius: '8px', fontSize: '12px', fontWeight: 800, border: `1px solid ${riskColor}40` }}>
+                                          <AlertCircle size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                                          {riskText}
+                                      </div>
+                                  </div>
+                              </div>
+                              
+                              {/* Central Progress Visualization */}
+                              <div style={{ marginBottom: '24px' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: '#64748b' }}>
+                                      <span>Paid: {paidValue.toLocaleString()} EGP</span>
+                                      <span style={{ color: 'var(--primary)', fontWeight: 900 }}>{percentage}% Collected</span>
+                                      <span>Target: {totalValue.toLocaleString()} EGP</span>
+                                  </div>
+                                  <div style={{ width: '100%', height: '14px', background: '#e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
+                                      <div style={{ width: `${percentage}%`, height: '100%', background: remainingValue <= 0 ? '#10b981' : 'var(--primary)', transition: 'width 0.5s ease-out' }}></div>
+                                  </div>
+                              </div>
+
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
+                                  <div className="form-group" style={{ marginBottom: 0 }}>
+                                      <label style={{ fontSize: '12px' }}>Log New Payment</label>
+                                      <div style={{ display: 'flex', gap: '8px' }}>
+                                          <input 
+                                              type="number" 
+                                              placeholder="Amount..."
+                                              className="ap-input"
+                                              style={{ flex: 1 }}
+                                              id="new_payment_trigger"
+                                          />
+                                          <button 
+                                              type="button"
+                                              onClick={async () => {
+                                                  const newAmt = document.getElementById('new_payment_trigger').value;
+                                                  if (!newAmt) return;
+                                                  try {
+                                                      const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
+                                                      if (payRes.data.data) {
+                                                          const updatedAmt = Number(payRes.data.data.paid_amount) + Number(newAmt);
+                                                          await api.put(`/re-payments/${payRes.data.data.id}`, { paid_amount: updatedAmt });
+                                                          toast.success(`Payment logged: +${newAmt} EGP`);
+                                                          fetchDeals(false);
+                                                          document.getElementById('new_payment_trigger').value = '';
+                                                      }
+                                                  } catch (err) { toast.error('Update failed'); }
+                                              }}
+                                              style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 700, cursor: 'pointer' }}
+                                          >
+                                              Add
+                                          </button>
+                                      </div>
+                                  </div>
+                                  <div className="form-group" style={{ marginBottom: 0 }}>
+                                      <label style={{ fontSize: '12px' }}>Next Installment Date</label>
+                                      <input 
+                                          type="date" 
+                                          className="ap-input"
+                                          defaultValue={editingDeal.next_payment_date ? new Date(editingDeal.next_payment_date).toISOString().split('T')[0] : ''}
+                                          onChange={async (e) => {
+                                              try {
+                                                  const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
+                                                  if (payRes.data.data) {
+                                                      await api.put(`/re-payments/${payRes.data.data.id}`, { next_payment_date: e.target.value });
+                                                      toast.success('Installment horizon updated');
+                                                      fetchDeals(false);
+                                                  }
+                                              } catch (err) { toast.error('Update failed'); }
+                                          }}
+                                      />
+                                  </div>
+                              </div>
+                          </>
+                      );
+                  })()}
               </div>
           )}
         </form>

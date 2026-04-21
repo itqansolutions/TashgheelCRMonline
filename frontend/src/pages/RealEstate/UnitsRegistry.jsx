@@ -91,6 +91,15 @@ const UnitsRegistry = () => {
         return matchesFilter && matchesSearch;
     });
 
+    const groupedUnits = filteredUnits.reduce((acc, u) => {
+        const proj = u.project_name || 'Individual Properties';
+        if (!acc[proj]) acc[proj] = {};
+        const floor = u.floor || 'G';
+        if (!acc[proj][floor]) acc[proj][floor] = [];
+        acc[proj][floor].push(u);
+        return acc;
+    }, {});
+
     return (
         <div className="wow-reveal" style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
             {/* Header Section */}
@@ -153,90 +162,69 @@ const UnitsRegistry = () => {
                     <p style={{ fontWeight: 600 }}>Syncing Property Inventory...</p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '28px' }}>
-                    {filteredUnits.length > 0 ? filteredUnits.map((u, i) => {
-                        const config = getStatusConfig(u.status);
-                        return (
-                            <div key={u.id} className={`ap-card delay-${(i % 4) + 1} wow-reveal`} style={{ padding: '0', overflow: 'hidden' }}>
-                                {/* Card Header with Glow */}
-                                <div style={{ padding: '24px', borderBottom: '1px solid var(--glass-border)', position: 'relative' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        <div>
-                                            <div style={{ fontSize: '11px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
-                                                {u.project_name || 'Individual Property'}
-                                            </div>
-                                            <h3 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: 'var(--text-main)' }}>
-                                                Unit {u.unit_number}
-                                            </h3>
-                                        </div>
-                                        <div className={config.glow} style={{ ...config, background: config.bg, color: config.color, padding: '6px 14px', borderRadius: '10px', fontSize: '11px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase' }}>
-                                            {config.icon} {u.status || 'Available'}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Main Details */}
-                                <div style={{ padding: '24px' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(79, 70, 229, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                                                <Home size={16}/>
-                                            </div>
-                                            <div style={{ fontSize: '13px', fontWeight: 600 }}>{u.type}</div>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(79, 70, 229, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                                                <Maximize size={16}/>
-                                            </div>
-                                            <div style={{ fontSize: '13px', fontWeight: 800 }}>{u.area_sqm} m²</div>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(79, 70, 229, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                                                <Layers size={16}/>
-                                            </div>
-                                            <div style={{ fontSize: '13px', fontWeight: 600 }}>Floor {u.floor} • {u.rooms} R</div>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(79, 70, 229, 0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                                                <MapPin size={16}/>
-                                            </div>
-                                            <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={u.location}>
-                                                {u.location || 'Location N/A'}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Action Footnote */}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '20px', borderTop: '1px solid var(--glass-border)' }}>
-                                        <div>
-                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Market Value</div>
-                                            <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)' }}>
-                                                <span style={{ fontSize: '14px', marginRight: '4px' }}>EGP</span>
-                                                {Number(u.price).toLocaleString()}
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            {(u.status?.toLowerCase() === 'available' || !u.status) && (
-                                                <button 
-                                                    onClick={() => handleDelete(u.id)}
-                                                    style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.05)', color: 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.2s' }}
-                                                >
-                                                    <Trash2 size={16}/>
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                    {Object.keys(groupedUnits).length > 0 ? Object.entries(groupedUnits).map(([project, floors], pIdx) => (
+                        <div key={project} className="ap-card delay-1 wow-reveal" style={{ padding: '32px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid var(--border)', paddingBottom: '16px', marginBottom: '24px' }}>
+                                <h3 style={{ fontSize: '24px', margin: 0, fontWeight: 900, display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-main)' }}>
+                                    <Building2 size={24} color="var(--primary)" /> {project}
+                                </h3>
+                                <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-muted)', background: 'var(--bg-main)', padding: '6px 12px', borderRadius: '8px' }}>
+                                    {Object.values(floors).flat().length} Units Match
                                 </div>
                             </div>
-                        );
-                    }) : (
-                        <div style={{ gridColumn: '1 / -1', padding: '80px', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                {Object.entries(floors).sort(([a],[b]) => parseInt(b || 0) - parseInt(a || 0)).map(([floor, sortedUnits]) => (
+                                    <div key={floor} style={{ display: 'flex', gap: '16px', alignItems: 'stretch' }}>
+                                        <div style={{ width: '80px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', borderRadius: '12px', color: 'var(--text-muted)' }}>
+                                            <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Floor</span>
+                                            <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--text-main)' }}>{floor}</span>
+                                        </div>
+                                        <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '12px', padding: '16px', background: 'rgba(0,0,0,0.01)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                                            {sortedUnits.map(u => {
+                                                const config = getStatusConfig(u.status);
+                                                return (
+                                                    <div 
+                                                        key={u.id} 
+                                                        title={`Type: ${u.type}\nArea: ${u.area_sqm}m²\nPrice: ${Number(u.price).toLocaleString()} EGP\nClick to Delete`}
+                                                        onClick={() => {
+                                                            if (u.status?.toLowerCase() === 'available' || !u.status) {
+                                                                handleDelete(u.id);
+                                                            } else {
+                                                                toast.error(`Cannot delete ${u.status} units from map.`);
+                                                            }
+                                                        }}
+                                                        style={{ 
+                                                            padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s',
+                                                            background: config.bg, color: config.color, border: `1px solid ${config.color}40`,
+                                                            display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '110px'
+                                                        }}
+                                                        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 6px 12px ${config.bg}`; }}
+                                                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                                    >
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <span style={{ fontWeight: 900, fontSize: '16px' }}>{u.unit_number}</span>
+                                                            {config.icon}
+                                                        </div>
+                                                        <div style={{ fontSize: '10px', fontWeight: 800, opacity: 0.9, textTransform: 'uppercase' }}>
+                                                            {u.type === 'Apartment' ? 'APT' : u.type === 'Commercial' ? 'COM' : u.type === 'Villa' ? 'VIL' : 'UNT'} • {u.area_sqm}m²
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )) : (
+                        <div style={{ padding: '80px', textAlign: 'center' }}>
                            <div className="ap-card" style={{ padding: '60px', background: 'rgba(0,0,0,0.01)', borderStyle: 'dashed', borderWidth: '2px' }}>
                                 <div className="wow-float" style={{ marginBottom: '20px' }}>
                                     <Building2 size={64} opacity={0.1}/>
                                 </div>
                                 <h3 style={{ fontWeight: 900, color: 'var(--text-main)', marginBottom: '8px' }}>No Properties Registered</h3>
-                                <p style={{ color: 'var(--text-muted)', marginBottom: '32px' }}>Your inventory is currently empty. Start adding premium units to your registry.</p>
+                                <p style={{ color: 'var(--text-muted)', marginBottom: '32px' }}>Your inventory map is empty. Start grouping premium units to your registry.</p>
                                 <button onClick={() => setShowAddModal(true)} className="btn-primary-premium" style={{ margin: '0 auto' }}>
                                     <Plus size={20} />
                                     Register First Unit
