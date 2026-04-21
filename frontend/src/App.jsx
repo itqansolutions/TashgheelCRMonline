@@ -36,6 +36,8 @@ import InventoryControl from './pages/Inventory/InventoryControl';
 import AutomationControl from './pages/Automation/AutomationControl';
 import RuleBuilder from './pages/Automation/RuleBuilder';
 import Pricing from './pages/Pricing/Pricing';
+import AdminPlans from './pages/Admin/AdminPlans';
+import AdminUpgradeRequests from './pages/Admin/AdminUpgradeRequests';
 import Billing from './pages/Billing/Billing';
 import PlatformWrapper from './pages/SuperAdmin/PlatformWrapper';
 import SecretPortalHUD from './pages/SuperAdmin/SecretPortalHUD';
