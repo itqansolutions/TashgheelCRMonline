@@ -129,7 +129,6 @@ const Logs = () => {
   };
 
   return (
-    return (
         <div className="p-4 md:p-8 animate-in fade-in duration-500">
             <style>{`
                 .platform-table th {
@@ -409,8 +408,6 @@ const Logs = () => {
             )}
         </div>
     );
-};
-  );
 };
 
 export default Logs;

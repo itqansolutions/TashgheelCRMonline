@@ -287,7 +287,5 @@ const AdminUpgradeRequests = () => {
         </div>
     );
 };
-    );
-};
 
 export default AdminUpgradeRequests;

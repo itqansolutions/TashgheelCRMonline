@@ -50,7 +50,6 @@ const SecretPortalHUD = () => {
     };
 
     return (
-    return (
         <div className="min-h-screen bg-[var(--bg-main)] p-8 md:p-16 flex flex-col items-center">
             <style>{`
                 .hud-header-grad {

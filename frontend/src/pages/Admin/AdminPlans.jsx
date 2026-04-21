@@ -507,7 +507,6 @@ const AdminPlans = () => {
             )}
         </div>
     );
-};   );
 };
 
 export default AdminPlans;
