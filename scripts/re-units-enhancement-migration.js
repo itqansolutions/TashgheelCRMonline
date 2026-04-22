@@ -33,15 +33,15 @@ async function runMigration() {
         `);
         console.log('✅ [Migration] re_units table verified.');
 
-        // 2. Add assigned_to column (the column linking a unit to a responsible employee)
+        // 2. Add assigned_to column — plain UUID, no FK constraint to avoid migration failures
+        //    Application code handles the join to users table
         await client.query(`
             ALTER TABLE re_units
-            ADD COLUMN IF NOT EXISTS assigned_to UUID REFERENCES users(id) ON DELETE SET NULL
+            ADD COLUMN IF NOT EXISTS assigned_to UUID
         `);
         console.log('✅ [Migration] re_units.assigned_to column verified.');
 
-        // 3. Add vendor_id FK reference if not already constrained (safe IF NOT EXISTS workaround)
-        // Note: vendor_id references customers (where entity_type = 'vendor')
+        // 3. Add vendor_id column if missing (plain UUID, no FK)
         await client.query(`
             ALTER TABLE re_units
             ADD COLUMN IF NOT EXISTS vendor_id UUID

@@ -183,11 +183,24 @@ const { startReservationScanner } = require('./services/reservationService');
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
+
+  // ── Failsafe inline migration: ensure re_units has all required columns ──
+  try {
+    await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS assigned_to UUID`);
+    await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS vendor_id UUID`);
+    console.log('✅ [Boot] re_units columns verified (assigned_to, vendor_id).');
+  } catch (e) {
+    // Table may not exist yet — pre-boot will handle full creation
+    console.warn('⚠️ [Boot] re_units column check:', e.message);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   await reconcileDatabase();
   startReservationScanner(10); // Run reservation garbage collection every 10 minutes
   await promoteOnStartup();
   await seedDemoAccount();
 });
+
 
 // ---------------------------------------------------------
 // Auto-Seed Demo Account on Startup (Idempotent)
