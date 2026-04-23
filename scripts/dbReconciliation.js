@@ -101,6 +101,7 @@ const reconcileDatabase = async () => {
             await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS unit_id VARCHAR(255)`);
             await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id VARCHAR(255)`);
             await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS unit_id VARCHAR(255)`);
 
             // Branch Isolation Columns (Required for Triple Isolation)
             await db.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
