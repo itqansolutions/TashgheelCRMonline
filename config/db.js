@@ -13,6 +13,7 @@ const pool = new Pool({
     rejectUnauthorized: false
   },
   // --- DATABASE STABILIZATION (Enterprise Tier) ---
+  // Increased timeout to mitigate Railway proxy ETIMEDOUT errors
   connectionTimeoutMillis: 10000, // 10s wait for new connection
   idleTimeoutMillis: 30000,    // 30s before closing idle connection
   max: 20,                     // Limit concurrent connections to avoid Railway proxy saturation
