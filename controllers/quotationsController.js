@@ -8,6 +8,7 @@ exports.getQuotations = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
   try {
+    const result = await db.query(`
       SELECT q.*, d.title as deal_title, COALESCE(c.name, c2.name, 'Generic Customer') as client_name,
              u.unit_number, u.project_name
       FROM quotations q
@@ -17,6 +18,7 @@ exports.getQuotations = async (req, res) => {
       LEFT JOIN re_units u ON q.unit_id::text = u.id::text
       WHERE q.tenant_id::text = $1::text AND q.branch_id::text = $2::text
       ORDER BY q.created_at DESC
+    `, [tenant_id, branch_id]);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error('[Quotations API Error]', err.message);
