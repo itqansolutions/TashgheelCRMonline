@@ -135,9 +135,6 @@ const reconcileDatabase = async () => {
                     id SERIAL PRIMARY KEY,
                     tenant_id VARCHAR(255) NOT NULL,
                     branch_id VARCHAR(255),
-                    deal_id VARCHAR(255),
-                    client_id VARCHAR(255),
-                    unit_id VARCHAR(255),
                     total_amount NUMERIC DEFAULT 0,
                     status VARCHAR(20) DEFAULT 'draft',
                     notes TEXT,
@@ -146,6 +143,11 @@ const reconcileDatabase = async () => {
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             `);
+
+            // Ensure columns exist (for existing tables)
+            await db.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS client_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS unit_id VARCHAR(255)`);
 
             await db.query(`
                 CREATE TABLE IF NOT EXISTS quotation_items (
