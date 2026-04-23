@@ -17,7 +17,9 @@ const Settings = () => {
     company_name: '',
     company_logo: '',
     invoice_footer: '',
-    invoice_terms: ''
+    invoice_terms: '',
+    quotation_footer: '',
+    quotation_terms: ''
   });
 
   useEffect(() => {
@@ -235,6 +237,25 @@ const Settings = () => {
                   placeholder="Payment is due within 15 days..." 
                   value={branding.invoice_terms}
                   onChange={(e) => setBranding({...branding, invoice_terms: e.target.value})}
+                ></textarea>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div className="form-group">
+                <label>Quotation Footer Text</label>
+                <textarea 
+                  placeholder="We look forward to working with you!" 
+                  value={branding.quotation_footer}
+                  onChange={(e) => setBranding({...branding, quotation_footer: e.target.value})}
+                ></textarea>
+              </div>
+              <div className="form-group">
+                <label>Quotation Terms & Conditions</label>
+                <textarea 
+                  placeholder="Quote valid for 30 days..." 
+                  value={branding.quotation_terms}
+                  onChange={(e) => setBranding({...branding, quotation_terms: e.target.value})}
                 ></textarea>
               </div>
             </div>

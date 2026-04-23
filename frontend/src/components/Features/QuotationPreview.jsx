@@ -180,7 +180,7 @@ const QuotationPreview = ({ quotation }) => {
           <div className="info-block" style={{ textAlign: 'right' }}>
             <h4>Validity</h4>
             <p>Valid Until: {new Date(quotation.valid_until).toLocaleDateString()}</p>
-            <p style={{ color: '#f59e0b' }}>
+            <p className="no-print" style={{ color: '#f59e0b' }}>
               Status: {quotation.status?.toUpperCase() || 'DRAFT'}
             </p>
           </div>
