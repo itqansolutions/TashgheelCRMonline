@@ -33,7 +33,7 @@ exports.getQuotationById = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT q.*, c.name as client_name, c.email as client_email, c.phone as client_phone,
-              u.unit_no, u.project as project_name 
+              u.unit_number, u.project_name 
        FROM quotations q 
        LEFT JOIN customers c ON q.client_id::text = c.id::text 
        LEFT JOIN re_units u ON q.unit_id::text = u.id::text

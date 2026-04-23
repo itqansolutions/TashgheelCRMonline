@@ -166,7 +166,7 @@ const FinanceDashboard = () => {
                             <td>
                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                                     <span style={{ fontWeight: 600 }}>{q.client_name || 'Generic Customer'}</span>
-                                    {q.unit_no && <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>Unit: {q.unit_no}</span>}
+                                    {q.unit_number && <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>Unit: {q.unit_number}</span>}
                                 </div>
                             </td>
                             <td style={{ fontWeight: 700 }}>{parseFloat(q.total_amount).toLocaleString()} EGP</td>
@@ -257,7 +257,7 @@ const FinanceDashboard = () => {
                         <td>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <span style={{ fontWeight: 600 }}>{inv.customer_name || 'N/A'}</span>
-                                {inv.unit_no && <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>Unit: {inv.unit_no}</span>}
+                                {inv.unit_number && <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>Unit: {inv.unit_number}</span>}
                             </div>
                         </td>
                         <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'N/A'}</td>
@@ -429,7 +429,7 @@ const FinanceDashboard = () => {
                                       style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
                                     >
                                         <option value="">-- Select Unit --</option>
-                                        {units.map(u => <option key={u.id} value={u.id} style={{color:'black'}}>{u.unit_no} - {u.project}</option>)}
+                                        {units.map(u => <option key={u.id} value={u.id} style={{color:'black'}}>{u.unit_number} - {u.project_name}</option>)}
                                     </select>
                                 )}
                               </div>

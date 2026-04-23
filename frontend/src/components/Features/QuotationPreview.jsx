@@ -170,9 +170,9 @@ const QuotationPreview = ({ quotation }) => {
             <p>{quotation.client_name || 'Generic Customer'}</p>
             <div style={{ fontSize: '13px', color: '#64748b', marginTop: '8px' }}>
               Deal: {quotation.deal_title || 'Direct Sale'}
-              {quotation.unit_no && (
+              {quotation.unit_number && (
                   <div style={{ marginTop: '4px', fontWeight: '700', color: '#1e293b' }}>
-                      Unit: {quotation.unit_no} ({quotation.project_name})
+                      Unit: {quotation.unit_number} ({quotation.project_name})
                   </div>
               )}
             </div>
