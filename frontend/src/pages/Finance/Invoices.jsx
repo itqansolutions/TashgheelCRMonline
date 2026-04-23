@@ -1,149 +1,207 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, Search, CheckCircle, Activity, CreditCard, Download, DollarSign, Receipt, Tag, User } from 'lucide-react';
-import api from '../../services/api';
-import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
-import toast from 'react-hot-toast';
+import { useData } from '../../context/DataContext';
+import api from '../../services/api';
+import { 
+  Plus, Download, Filter, Search, MoreVertical, 
+  TrendingUp, FileText, DollarSign, Activity,
+  CreditCard, Calendar, User, ArrowUpRight, ArrowDownRight,
+  Settings, CheckCircle, Clock, AlertCircle
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-// Example UI for the unified Invoicing System
 const FinanceDashboard = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const isRealEstate = user?.template_name === 'real_estate';
-
-  const { 
-    customers, fetchCustomers, 
-    products, fetchProducts, 
-    deals, fetchDeals, 
-    quotations, fetchQuotations, 
-    expenses, fetchExpenses, 
-    payments, fetchPayments,
-    units, fetchUnits
-  } = useData();
+  const { customers, products, units, fetchUnits } = useData();
+  const navigate = useNavigate();
+  
   const [activeTab, setActiveTab] = useState('Invoices');
   const [invoices, setInvoices] = useState([]);
+  const [quotations, setQuotations] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showQuickAction, setShowQuickAction] = useState(false);
+  const [quickActionType, setQuickActionType] = useState('Invoice');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const fetchInvoices = async () => {
-    try {
-      const res = await api.get('/finance/invoices');
-      setInvoices(res.data.data);
-    } catch (err) {
-      console.error('Failed to fetch invoices', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Payment Modal State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showQuickAction, setShowQuickAction] = useState(false);
-  const [quickActionType, setQuickActionType] = useState('');
+
   const [formData, setFormData] = useState({
-      title: '', amount: '', category: 'General', date: new Date().toISOString().split('T')[0],
-      customer_id: '', unit_id: '', items: [{ product_id: '', quantity: 1, unit_price: 0 }]
+    customer_id: '',
+    unit_id: '',
+    amount: '',
+    date: new Date().toISOString().split('T')[0],
+    category: 'General',
+    title: '',
+    items: [{ product_id: '', description: '', quantity: 1, unit_price: 0 }]
   });
 
-  const handleQuickActionSubmit = async (e) => {
-      e.preventDefault();
-      setIsSubmitting(true);
-      try {
-          if (quickActionType === 'Expense') {
-              await api.post('/expenses', {
-                  title: formData.title,
-                  amount: formData.amount,
-                  category: formData.category,
-                  expense_date: formData.date
-              });
-              toast.success('Expense recorded successfully');
-              fetchExpenses();
-          } else if (quickActionType === 'Invoice') {
-              await api.post('/finance/invoices', {
-                  customer_id: formData.customer_id,
-                  unit_id: formData.unit_id,
-                  due_date: formData.date,
-                  items: formData.items
-              });
-              toast.success('Invoice created successfully');
-              fetchInvoices();
-          } else if (quickActionType === 'Quotation') {
-              await api.post('/quotations', {
-                  client_id: formData.customer_id,
-                  unit_id: formData.unit_id,
-                  total_amount: formData.amount,
-                  notes: formData.title,
-                  valid_until: formData.date,
-                  items: formData.items
-              });
-              toast.success('Quotation draft saved');
-              fetchQuotations();
-          }
-          setShowQuickAction(false);
-          setFormData({ title: '', amount: '', category: 'General', date: new Date().toISOString().split('T')[0], customer_id: '', items: [{ product_id: '', quantity: 1, unit_price: 0 }] });
-      } catch (err) {
-          toast.error(`Failed to create ${quickActionType}`);
-      } finally {
-          setIsSubmitting(false);
+  const isRealEstate = user?.template_name === 'real_estate';
+
+  useEffect(() => {
+    fetchData();
+    if (isRealEstate) fetchUnits();
+  }, [activeTab]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      if (activeTab === 'Invoices') {
+        const res = await api.get('/finance/invoices');
+        setInvoices(res.data.data);
+      } else if (activeTab === 'Quotations') {
+        const res = await api.get('/quotations');
+        setQuotations(res.data.data);
+      } else if (activeTab === 'Expenses') {
+        const res = await api.get('/finance/expenses');
+        setExpenses(res.data.data);
+      } else if (activeTab === 'Income') {
+        const res = await api.get('/finance/income');
+        setPayments(res.data.data);
       }
+    } catch (err) {
+      console.error(`Failed to fetch ${activeTab}`, err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const openPaymentModal = (invoice) => {
-    setSelectedInvoice(invoice);
-    setPaymentAmount(invoice.remaining_balance);
-    setShowPaymentModal(true);
-  };
-
-  const handlePaymentSubmit = async () => {
-    if (!paymentAmount || isNaN(paymentAmount) || parseFloat(paymentAmount) <= 0) return alert('Invalid Amount');
+  const handleQuickActionSubmit = async (e) => {
+    e.preventDefault();
     setIsSubmitting(true);
     try {
-      await api.post('/finance/payments', {
-         invoice_id: selectedInvoice.id,
-         amount: parseFloat(paymentAmount),
-         payment_method: paymentMethod,
-         notes: paymentNotes
+      if (quickActionType === 'Invoice') {
+        await api.post('/finance/invoices', {
+          client_id: formData.customer_id,
+          unit_id: formData.unit_id,
+          items: formData.items,
+          due_date: formData.date
+        });
+      } else if (quickActionType === 'Quotation') {
+        await api.post('/quotations', {
+          client_id: formData.customer_id,
+          unit_id: formData.unit_id,
+          items: formData.items,
+          valid_until: formData.date,
+          notes: formData.title,
+          total_amount: formData.amount
+        });
+      } else if (quickActionType === 'Expense') {
+        await api.post('/finance/expenses', {
+          title: formData.title,
+          amount: formData.amount,
+          category: formData.category,
+          expense_date: formData.date
+        });
+      }
+      setShowQuickAction(false);
+      fetchData();
+      setFormData({
+        customer_id: '',
+        unit_id: '',
+        amount: '',
+        date: new Date().toISOString().split('T')[0],
+        category: 'General',
+        title: '',
+        items: [{ product_id: '', description: '', quantity: 1, unit_price: 0 }]
       });
-      setShowPaymentModal(false);
-      setPaymentAmount('');
-      setPaymentNotes('');
-      fetchInvoices();
-      fetchPayments();
-      toast.success('Payment registered');
     } catch (err) {
-      toast.error('Failed to register payment.');
+      console.error('Action failed', err);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'paid': return <span className="badge badge-success"><CheckCircle size={12}/> Paid</span>;
-      case 'partial': return <span className="badge badge-warning"><Activity size={12}/> Partial</span>;
-      case 'unpaid': return <span className="badge badge-danger">Unpaid</span>;
-      case 'overdue': return <span className="badge badge-danger">Overdue</span>;
-      default: return <span className="badge badge-gray">{status}</span>;
-    }
+  const openPaymentModal = (invoice) => {
+      setSelectedInvoice(invoice);
+      setPaymentAmount(invoice.remaining_balance);
+      setShowPaymentModal(true);
   };
 
-  useEffect(() => {
-    fetchInvoices();
-    fetchQuotations();
-    fetchExpenses();
-    fetchPayments();
-    if (isRealEstate) fetchUnits();
-    if (customers.length === 0) fetchCustomers();
-    if (products.length === 0) fetchProducts();
-    if (deals.length === 0) fetchDeals();
-  }, []);
+  const handlePaymentSubmit = async () => {
+      if (!paymentAmount || parseFloat(paymentAmount) <= 0) return;
+      setIsSubmitting(true);
+      try {
+          await api.post(`/finance/invoices/${selectedInvoice.id}/payments`, {
+              amount: paymentAmount,
+              payment_method: paymentMethod,
+              notes: paymentNotes
+          });
+          setShowPaymentModal(false);
+          fetchData();
+      } catch (err) {
+          console.error('Payment failed', err);
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
+
+  const getStatusBadge = (status) => {
+    const styles = {
+      paid: 'badge-success',
+      partial: 'badge-warning',
+      pending: 'badge-danger',
+      draft: 'badge-warning',
+      approved: 'badge-success'
+    };
+    return <span className={`badge ${styles[status] || 'badge-warning'}`}>{status}</span>;
+  };
 
   const renderTabContent = () => {
-      switch (activeTab) {
+      switch(activeTab) {
+          case 'Invoices':
+              return (
+                <table className="data-table">
+                    <thead>
+                    <tr>
+                        <th>Invoice No.</th>
+                        <th>Customer</th>
+                        <th>Date</th>
+                        <th>Total Amount</th>
+                        <th>Remaining</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {loading ? (
+                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px' }}>Loading Financial Data...</td></tr>
+                    ) : (invoices || []).length === 0 ? (
+                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No invoices found.</td></tr>
+                    ) : (invoices || []).map(inv => (
+                        <tr key={inv.id}>
+                        <td style={{ fontWeight: 700 }}>{inv.invoice_number}</td>
+                        <td>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontWeight: 600 }}>{inv.customer_name || 'N/A'}</span>
+                                {inv.unit_number && <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>Unit: {inv.unit_number}</span>}
+                            </div>
+                        </td>
+                        <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'N/A'}</td>
+                        <td style={{ fontWeight: 700 }}>{parseFloat(inv.total_amount || 0).toLocaleString()}</td>
+                        <td style={{ fontWeight: 700, color: (inv.remaining_balance || 0) > 0 ? '#ef4444' : '#10b981' }}>
+                            {parseFloat(inv.remaining_balance || 0).toLocaleString()}
+                        </td>
+                        <td>{getStatusBadge(inv.status)}</td>
+                        <td>
+                            <button className="action-btn pay-btn" onClick={() => openPaymentModal(inv)} disabled={inv.status === 'paid'}>
+                            <CreditCard size={14} /> Pay
+                            </button>
+                            <button className="action-btn" onClick={() => navigate(`/finance/invoice-preview/${inv.id}`)}>
+                            <Download size={14} /> PDF
+                            </button>
+                        </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+              );
           case 'Quotations':
               return (
                 <table className="data-table">
@@ -233,52 +291,7 @@ const FinanceDashboard = () => {
                 </table>
               );
           default:
-              return (
-                <table className="data-table">
-                    <thead>
-                    <tr>
-                        <th>Invoice No.</th>
-                        <th>Customer</th>
-                        <th>Date</th>
-                        <th>Total Amount</th>
-                        <th>Remaining</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {loading ? (
-                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px' }}>Loading Financial Data...</td></tr>
-                    ) : (invoices || []).length === 0 ? (
-                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No invoices found.</td></tr>
-                    ) : (invoices || []).map(inv => (
-                        <tr key={inv.id}>
-                        <td style={{ fontWeight: 700 }}>{inv.invoice_number}</td>
-                        <td>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontWeight: 600 }}>{inv.customer_name || 'N/A'}</span>
-                                {inv.unit_number && <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>Unit: {inv.unit_number}</span>}
-                            </div>
-                        </td>
-                        <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'N/A'}</td>
-                        <td style={{ fontWeight: 700 }}>{parseFloat(inv.total_amount || 0).toLocaleString()}</td>
-                        <td style={{ fontWeight: 700, color: (inv.remaining_balance || 0) > 0 ? '#ef4444' : '#10b981' }}>
-                            {parseFloat(inv.remaining_balance || 0).toLocaleString()}
-                        </td>
-                        <td>{getStatusBadge(inv.status)}</td>
-                        <td>
-                            <button className="action-btn pay-btn" onClick={() => openPaymentModal(inv)} disabled={inv.status === 'paid'}>
-                            <CreditCard size={14} /> Pay
-                            </button>
-                            <button className="action-btn" onClick={() => navigate(`/finance/invoice-preview/${inv.id}`)}>
-                            <Download size={14} /> PDF
-                            </button>
-                        </td>
-                        </tr>
-                    ))}
-                    </tbody>
-                </table>
-              );
+              return null;
       }
   };
 
@@ -345,10 +358,10 @@ const FinanceDashboard = () => {
                   <h3 style={{ margin: '0 0 16px 0' }}>Register Payment</h3>
                   
                   <div style={{ background: 'rgba(0,0,0,0.02)', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
-                     <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--text-muted)' }}>Invoice <strong>{selectedInvoice.invoice_number}</strong></p>
+                     <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--text-muted)' }}>Invoice <strong>{selectedInvoice?.invoice_number}</strong></p>
                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                          <span style={{ fontWeight: 600 }}>Remaining Balance:</span>
-                         <span style={{ fontSize: '18px', fontWeight: 800, color: '#ef4444' }}>{parseFloat(selectedInvoice.remaining_balance).toLocaleString()} EGP</span>
+                         <span style={{ fontSize: '18px', fontWeight: 800, color: '#ef4444' }}>{parseFloat(selectedInvoice?.remaining_balance || 0).toLocaleString()} EGP</span>
                      </div>
                   </div>
 
@@ -358,12 +371,9 @@ const FinanceDashboard = () => {
                          type="number" 
                          value={paymentAmount}
                          onChange={(e) => setPaymentAmount(e.target.value)}
-                         max={selectedInvoice.remaining_balance}
+                         max={selectedInvoice?.remaining_balance}
                          style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)', fontSize: '16px', fontWeight: 'bold' }}
                       />
-                      {parseFloat(paymentAmount) < selectedInvoice.remaining_balance && parseFloat(paymentAmount) > 0 && (
-                          <div style={{ fontSize: '12px', color: '#f59e0b', marginTop: '6px' }}>★ This will trigger a Partial Payment status.</div>
-                      )}
                   </div>
 
                   <div style={{ marginBottom: '16px' }}>
@@ -397,20 +407,11 @@ const FinanceDashboard = () => {
       )}
       {showQuickAction && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)'}}>
-              <div style={{ background: 'var(--bg-card)', padding: '32px', borderRadius: '16px', width: '480px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--glass-border)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                      <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {quickActionType === 'Expense' ? <Receipt color="#ef4444" /> : quickActionType === 'Invoice' ? <FileText color="#4f46e5" /> : <Tag color="#f59e0b" />}
-                          New {quickActionType}
-                      </h3>
-                      <button onClick={() => setShowQuickAction(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
-                  </div>
-                  
+              <div style={{ background: 'var(--bg-card)', padding: '32px', borderRadius: '16px', width: '600px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--glass-border)' }}>
+                  <h3 style={{ margin: '0 0 24px 0', fontSize: '20px', fontWeight: '800' }}>Create New {quickActionType}</h3>
                   <form onSubmit={handleQuickActionSubmit}>
                       <div style={{ marginBottom: '16px' }}>
-                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
-                              {(quickActionType === 'Invoice' || quickActionType === 'Quotation') ? 'Bill To Customer' : 'Description / Title'}
-                          </label>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{quickActionType === 'Expense' ? 'Title' : 'Customer & Unit'}</label>
                           {(quickActionType === 'Invoice' || quickActionType === 'Quotation') ? (
                               <div style={{ display: 'flex', gap: '12px' }}>
                                 <select 
@@ -448,20 +449,31 @@ const FinanceDashboard = () => {
                           <div style={{ marginBottom: '16px' }}>
                               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Line Items</label>
                               {formData.items.map((item, index) => (
-                                  <div key={index} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '8px', marginBottom: '8px' }}>
+                                  <div key={index} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr 0.6fr 0.8fr auto', gap: '8px', marginBottom: '8px' }}>
                                       <select 
                                         value={item.product_id} 
                                         onChange={e => {
                                             const newItems = [...formData.items];
                                             const prod = products.find(p => p.id === parseInt(e.target.value));
-                                            newItems[index] = { ...newItems[index], product_id: e.target.value, unit_price: prod ? prod.price : 0, description: prod ? prod.name : '' };
+                                            newItems[index] = { ...newItems[index], product_id: e.target.value, unit_price: prod ? prod.price : (newItems[index].unit_price || 0), description: prod ? prod.name : newItems[index].description };
                                             setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
                                         }}
-                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)' }}
+                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)', fontSize: '12px' }}
                                       >
-                                          <option value="">-- Product --</option>
+                                          <option value="">-- Link Product --</option>
                                           {products.map(p => <option key={p.id} value={p.id} style={{color:'black'}}>{p.name}</option>)}
                                       </select>
+                                      <input 
+                                        type="text"
+                                        placeholder="Manual Service / Item"
+                                        value={item.description || ''}
+                                        onChange={e => {
+                                            const newItems = [...formData.items];
+                                            newItems[index].description = e.target.value;
+                                            setFormData({ ...formData, items: newItems });
+                                        }}
+                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)', fontSize: '12px' }}
+                                      />
                                       <input 
                                         type="number" 
                                         placeholder="Qty"
@@ -471,7 +483,7 @@ const FinanceDashboard = () => {
                                             newItems[index].quantity = parseInt(e.target.value) || 0;
                                             setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
                                         }}
-                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)' }}
+                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)', fontSize: '12px' }}
                                       />
                                       <input 
                                         type="number" 
@@ -482,7 +494,7 @@ const FinanceDashboard = () => {
                                             newItems[index].unit_price = parseFloat(e.target.value) || 0;
                                             setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
                                         }}
-                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)' }}
+                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)', fontSize: '12px' }}
                                       />
                                       <button type="button" onClick={() => {
                                           const newItems = formData.items.filter((_, i) => i !== index);

@@ -71,9 +71,9 @@ exports.createInvoice = async (req, res) => {
         // Insert Items
         for (const item of items) {
             await db.query(`
-                INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, subtotal, tenant_id, branch_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            `, [newInvoiceId, item.product_id || null, item.quantity, item.unit_price, (item.unit_price * item.quantity), tenant_id, branch_id]);
+                INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, subtotal, tenant_id, branch_id, description)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            `, [newInvoiceId, item.product_id || null, item.quantity, item.unit_price, (item.unit_price * item.quantity), tenant_id, branch_id, item.description || '']);
         }
 
         await db.query('COMMIT');
