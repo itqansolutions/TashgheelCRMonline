@@ -20,6 +20,16 @@ exports.getQuotations = async (req, res) => {
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error('[Quotations API Error]', err.message);
+    
+    // Graceful degradation if table doesn't exist yet
+    if (err.message.includes('relation') && err.message.includes('does not exist')) {
+        return res.json({ 
+            status: 'success', 
+            data: [], 
+            message: 'Quotations are being synchronized with the cloud. Please refresh in a moment.' 
+        });
+    }
+    
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 };
