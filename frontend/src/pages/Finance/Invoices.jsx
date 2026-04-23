@@ -528,7 +528,7 @@ const FinanceDashboard = () => {
                                 style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
                             />
                         </div>
-                      </div>
+                      )}
 
                       {quickActionType === 'Expense' && (
                           <div style={{ marginBottom: '24px' }}>
