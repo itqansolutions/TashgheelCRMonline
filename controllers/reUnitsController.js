@@ -176,6 +176,41 @@ exports.updateUnit = async (req, res) => {
 };
 
 
+// @desc    Get single unit details
+// @route   GET /api/re-units/:id
+exports.getUnitById = async (req, res) => {
+    const { id } = req.params;
+    const tenant_id = String(req.user.tenant_id);
+    const branch_id = String(req.branchId || req.user?.branch_id);
+
+    try {
+        const result = await db.query(`
+            SELECT 
+                ru.*,
+                c.name as vendor_name,
+                u.name as responsible_person_name,
+                emp.name as assigned_to_name
+            FROM re_units ru
+            LEFT JOIN customers c ON ru.vendor_id::text = c.id::text
+            LEFT JOIN users u ON ru.responsible_person_id::text = u.id::text
+            LEFT JOIN users emp ON ru.assigned_to::text = emp.id::text
+            WHERE ru.id = $1::uuid 
+              AND ru.tenant_id::text = $2::text 
+              AND ru.branch_id::text = $3::text
+        `, [id, tenant_id, branch_id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+        }
+
+        res.json({ status: 'success', data: result.rows[0] });
+    } catch (err) {
+        console.error('[Unit Detail Error]:', err.message);
+        res.status(500).json({ status: 'error', message: 'Internal server error' });
+    }
+};
+
+
 // @desc    Delete unit (only if Available)
 // @route   DELETE /api/re-units/:id
 exports.deleteUnit = async (req, res) => {

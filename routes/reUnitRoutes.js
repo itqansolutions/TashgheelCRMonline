@@ -10,6 +10,7 @@ router.use(branchScope);
 
 // Routes
 router.get('/', ctrl.getUnits);
+router.get('/:id', ctrl.getUnitById);
 router.post('/', ctrl.createUnit);
 router.put('/:id', ctrl.updateUnit);
 router.delete('/:id', ctrl.deleteUnit);

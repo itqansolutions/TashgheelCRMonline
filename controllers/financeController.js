@@ -134,15 +134,20 @@ exports.createInvoiceFromDeal = async (req, res) => {
         await db.query(`UPDATE deals SET pipeline_stage = 'won' WHERE id = $1`, [deal.id]);
 
         // Real Estate Automation: If deal has a linked unit, mark it as Sold + create payment record
-        if (deal.unit_id) {
-            await db.query(`UPDATE re_units SET status = 'Sold' WHERE id = $1 AND tenant_id::text = $2::text`, [deal.unit_id, tenant_id]);
-            
-            const payCheck = await db.query('SELECT id FROM re_payments_mvp WHERE deal_id::text = $1::text', [deal.id]);
-            if (payCheck.rows.length === 0) {
-                await db.query(`
-                    INSERT INTO re_payments_mvp (tenant_id, branch_id, deal_id, total_amount, status)
-                    VALUES ($1, $2, $3, $4, 'Pending')
-                `, [tenant_id, branch_id, deal.id, deal.value]);
+        if (deal.unit_id && String(deal.unit_id).length > 10) { // Basic check for UUID-like string
+            try {
+                await db.query(`UPDATE re_units SET status = 'Sold' WHERE id = $1::uuid AND tenant_id::text = $2::text`, [deal.unit_id, tenant_id]);
+                
+                const payCheck = await db.query('SELECT id FROM re_payments_mvp WHERE deal_id::text = $1::text AND tenant_id::text = $2::text', [deal.id, tenant_id]);
+                if (payCheck.rows.length === 0) {
+                    await db.query(`
+                        INSERT INTO re_payments_mvp (tenant_id, branch_id, deal_id, total_amount, status)
+                        VALUES ($1, $2, $3, $4, 'Pending')
+                    `, [tenant_id, branch_id, deal.id, deal.value]);
+                }
+            } catch (reErr) {
+                console.error('[Finance Automation Warning]: Real Estate unit update failed:', reErr.message);
+                // Non-fatal for the invoice generation itself
             }
         }
 

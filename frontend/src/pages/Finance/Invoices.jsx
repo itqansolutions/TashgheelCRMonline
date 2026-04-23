@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, Search, CheckCircle, Activity, CreditCard, Download } from 'lucide-react';
+import { FileText, Plus, Search, CheckCircle, Activity, CreditCard, Download, DollarSign, Receipt, Tag, User } from 'lucide-react';
 import api from '../../services/api';
+import { useData } from '../../context/DataContext';
+import toast from 'react-hot-toast';
 
 // Example UI for the unified Invoicing System
 const FinanceDashboard = () => {
   const navigate = useNavigate();
+  const { customers, fetchCustomers, products, fetchProducts, deals, fetchDeals } = useData();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -15,6 +18,13 @@ const FinanceDashboard = () => {
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showQuickAction, setShowQuickAction] = useState(false);
+  const [quickActionType, setQuickActionType] = useState('');
+
+  const [formData, setFormData] = useState({
+      title: '', amount: '', category: 'General', date: new Date().toISOString().split('T')[0],
+      customer_id: '', items: [{ product_id: '', quantity: 1, unit_price: 0 }]
+  });
 
   const fetchInvoices = async () => {
     try {
@@ -29,7 +39,47 @@ const FinanceDashboard = () => {
 
   useEffect(() => {
     fetchInvoices();
+    if (customers.length === 0) fetchCustomers();
+    if (products.length === 0) fetchProducts();
+    if (deals.length === 0) fetchDeals();
   }, []);
+
+  const handleQuickActionSubmit = async (e) => {
+      e.preventDefault();
+      setIsSubmitting(true);
+      try {
+          if (quickActionType === 'Expense') {
+              await api.post('/expenses', {
+                  title: formData.title,
+                  amount: formData.amount,
+                  category: formData.category,
+                  expense_date: formData.date
+              });
+              toast.success('Expense recorded successfully');
+          } else if (quickActionType === 'Invoice') {
+              await api.post('/finance/invoices', {
+                  customer_id: formData.customer_id,
+                  due_date: formData.date,
+                  items: formData.items
+              });
+              toast.success('Invoice created successfully');
+              fetchInvoices();
+          } else if (quickActionType === 'Quotation') {
+              await api.post('/quotations', {
+                  total_amount: formData.amount,
+                  notes: formData.title,
+                  valid_until: formData.date
+              });
+              toast.success('Quotation draft saved');
+          }
+          setShowQuickAction(false);
+          setFormData({ title: '', amount: '', category: 'General', date: new Date().toISOString().split('T')[0], customer_id: '', items: [{ product_id: '', quantity: 1, unit_price: 0 }] });
+      } catch (err) {
+          toast.error(`Failed to create ${quickActionType}`);
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
 
   const openPaymentModal = (invoice) => {
     setSelectedInvoice(invoice);
@@ -95,7 +145,20 @@ const FinanceDashboard = () => {
           <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800' }}>Invoices Ledger</h2>
           <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>Financial engine tracking all billings.</p>
         </div>
-        <button className="btn-primary"><Plus size={18} /> New Invoice</button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+            <button className="action-btn" style={{ borderColor: '#10b981', color: '#10b981' }} onClick={() => { setQuickActionType('Income'); setShowQuickAction(true); }}>
+                <Plus size={16} /> Income
+            </button>
+            <button className="action-btn" style={{ borderColor: '#ef4444', color: '#ef4444' }} onClick={() => { setQuickActionType('Expense'); setShowQuickAction(true); }}>
+                <Plus size={16} /> Expense
+            </button>
+            <button className="action-btn" style={{ borderColor: '#f59e0b', color: '#f59e0b' }} onClick={() => { setQuickActionType('Quotation'); setShowQuickAction(true); }}>
+                <Plus size={16} /> Quotation
+            </button>
+            <button className="btn-primary" onClick={() => { setQuickActionType('Invoice'); setShowQuickAction(true); }}>
+                <Plus size={18} /> New Invoice
+            </button>
+        </div>
       </div>
 
       <table className="data-table">
@@ -191,6 +254,97 @@ const FinanceDashboard = () => {
                           {isSubmitting ? 'Processing...' : 'Confirm Payment'}
                       </button>
                   </div>
+              </div>
+          </div>
+      )}
+      {showQuickAction && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)'}}>
+              <div style={{ background: 'var(--bg-card)', padding: '32px', borderRadius: '16px', width: '480px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--glass-border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                      <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {quickActionType === 'Expense' ? <Receipt color="#ef4444" /> : quickActionType === 'Invoice' ? <FileText color="#4f46e5" /> : <Tag color="#f59e0b" />}
+                          New {quickActionType}
+                      </h3>
+                      <button onClick={() => setShowQuickAction(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+                  </div>
+                  
+                  <form onSubmit={handleQuickActionSubmit}>
+                      <div style={{ marginBottom: '16px' }}>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
+                              {quickActionType === 'Invoice' ? 'Customer' : 'Description / Title'}
+                          </label>
+                          {quickActionType === 'Invoice' ? (
+                              <select 
+                                required
+                                value={formData.customer_id} 
+                                onChange={e => setFormData({...formData, customer_id: e.target.value})}
+                                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
+                              >
+                                  <option value="">-- Select Customer --</option>
+                                  {customers.map(c => <option key={c.id} value={c.id} style={{color:'black'}}>{c.name}</option>)}
+                              </select>
+                          ) : (
+                              <input 
+                                  type="text" 
+                                  required
+                                  value={formData.title}
+                                  onChange={e => setFormData({...formData, title: e.target.value})}
+                                  placeholder={quickActionType === 'Expense' ? 'e.g. Office Rent' : 'e.g. Project Quotation'}
+                                  style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
+                              />
+                          )}
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                          <div>
+                              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Amount (EGP)</label>
+                              <input 
+                                  type="number" 
+                                  required
+                                  value={formData.amount}
+                                  onChange={e => {
+                                      const val = e.target.value;
+                                      setFormData({
+                                          ...formData, 
+                                          amount: val,
+                                          items: [{ ...formData.items[0], unit_price: val }]
+                                      });
+                                  }}
+                                  style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
+                              />
+                          </div>
+                          <div>
+                              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Date</label>
+                              <input 
+                                  type="date" 
+                                  required
+                                  value={formData.date}
+                                  onChange={e => setFormData({...formData, date: e.target.value})}
+                                  style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
+                              />
+                          </div>
+                      </div>
+
+                      {quickActionType === 'Expense' && (
+                          <div style={{ marginBottom: '24px' }}>
+                              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Category</label>
+                              <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}>
+                                  <option value="General" style={{color:'black'}}>General</option>
+                                  <option value="Marketing" style={{color:'black'}}>Marketing</option>
+                                  <option value="Rent" style={{color:'black'}}>Rent</option>
+                                  <option value="Salaries" style={{color:'black'}}>Salaries</option>
+                                  <option value="Utilities" style={{color:'black'}}>Utilities</option>
+                              </select>
+                          </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                          <button type="button" onClick={() => setShowQuickAction(false)} className="action-btn" style={{ flex: 1, justifyContent: 'center' }}>Cancel</button>
+                          <button type="submit" className="btn-primary" style={{ flex: 2, justifyContent: 'center' }} disabled={isSubmitting}>
+                              {isSubmitting ? 'Saving...' : `Create ${quickActionType}`}
+                          </button>
+                      </div>
+                  </form>
               </div>
           </div>
       )}
