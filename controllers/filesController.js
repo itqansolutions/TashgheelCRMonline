@@ -7,7 +7,8 @@ const fs = require('fs');
 // @access  Private
 exports.uploadFile = async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ status: 'error', message: 'Please upload a file' });
+    console.error('[Upload] No file provided in request.');
+    return res.status(400).json({ status: 'error', message: 'No file was uploaded. Please try again.' });
   }
 
   const { linked_type, linked_id } = req.body;
@@ -15,10 +16,13 @@ exports.uploadFile = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
   
-  if (!linked_type || !linked_id) {
+  if (!linked_type || linked_id === undefined || linked_id === null) {
+    console.error(`[Upload] Missing metadata: Type=${linked_type}, ID=${linked_id}`);
     // Remove the uploaded file if entity linkage is missing
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({ status: 'error', message: 'Entity type and ID are required' });
+    if (req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+    }
+    return res.status(400).json({ status: 'error', message: 'Entity linkage information (type/id) is missing.' });
   }
 
   try {

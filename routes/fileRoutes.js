@@ -17,14 +17,14 @@ const storage = multer.diskStorage({
 
 // File Filter (for specific types)
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|pdf|docx|doc/;
+  const allowedTypes = /jpeg|jpg|png|pdf|docx|doc|webp|svg|gif/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
+  const mimetype = allowedTypes.test(file.mimetype.toLowerCase());
 
   if (extname && mimetype) {
     return cb(null, true);
   } else {
-    cb(new Error('Error: File type not supported! (Allowed: JPEG, JPG, PNG, PDF, DOCX, DOC)'));
+    cb(new Error('Error: File type not supported! (Allowed: JPEG, JPG, PNG, WEBP, SVG, GIF, PDF, DOCX, DOC)'));
   }
 };
 
