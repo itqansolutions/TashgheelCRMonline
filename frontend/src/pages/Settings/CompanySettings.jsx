@@ -15,7 +15,8 @@ const CompanySettings = () => {
     name: '', address: '', phone: '', logo_url: '',
     tax_no: '', reg_no: '', currency: 'EGP',
     tax_rate: 0, invoice_prefix: 'INV-',
-    invoice_footer: '', terms: ''
+    invoice_footer: '', terms: '',
+    quotation_prefix: 'QUO-', quotation_footer: '', quotation_terms: ''
   });
   
   const [loading, setLoading] = useState(true);
@@ -217,7 +218,7 @@ const CompanySettings = () => {
 
           <div className="settings-card">
             <div className="card-header">
-              <FileText size={16} color="#f59e0b" />
+              <FileText size={16} color="#6366f1" />
               <h3>Invoice Branding</h3>
             </div>
             <div className="card-body">
@@ -228,6 +229,23 @@ const CompanySettings = () => {
               <div className="form-group">
                 <label>Invoice Footer / Note</label>
                 <textarea style={{ height: '60px' }} value={tenant.invoice_footer || ''} onChange={(e) => setTenant({...tenant, invoice_footer: e.target.value})} placeholder="Thank you for your business!" />
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-card">
+            <div className="card-header">
+              <FileText size={16} color="#f59e0b" />
+              <h3>Quotation Branding</h3>
+            </div>
+            <div className="card-body">
+              <div className="form-group">
+                <label>Quotation Terms & Conditions</label>
+                <textarea style={{ height: '80px' }} value={tenant.quotation_terms || ''} onChange={(e) => setTenant({...tenant, quotation_terms: e.target.value})} placeholder="Validity, payment terms..." />
+              </div>
+              <div className="form-group">
+                <label>Quotation Footer / Note</label>
+                <textarea style={{ height: '60px' }} value={tenant.quotation_footer || ''} onChange={(e) => setTenant({...tenant, quotation_footer: e.target.value})} placeholder="Thank you for the opportunity!" />
               </div>
             </div>
           </div>

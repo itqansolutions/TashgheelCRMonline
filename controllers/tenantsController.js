@@ -78,14 +78,16 @@ exports.updateTenant = async (req, res) => {
     } else {
         const { 
           address, phone, tax_no, reg_no, logo_url, 
-          currency, tax_rate, invoice_prefix, invoice_footer, terms 
+          currency, tax_rate, invoice_prefix, invoice_footer, terms,
+          quotation_prefix, quotation_footer, quotation_terms
         } = req.body;
 
         query = `
           UPDATE tenants 
           SET name = $1, address = $2, phone = $3, tax_no = $4, reg_no = $5, logo_url = $6,
-              currency = $7, tax_rate = $8, invoice_prefix = $9, invoice_footer = $10, terms = $11
-          WHERE id::text = $12::text RETURNING *`;
+              currency = $7, tax_rate = $8, invoice_prefix = $9, invoice_footer = $10, terms = $11,
+              quotation_prefix = $12, quotation_footer = $13, quotation_terms = $14
+          WHERE id::text = $15::text RETURNING *`;
         
         params = [
           name || oldData.name,
@@ -99,6 +101,9 @@ exports.updateTenant = async (req, res) => {
           invoice_prefix !== undefined ? invoice_prefix : oldData.invoice_prefix,
           invoice_footer !== undefined ? invoice_footer : oldData.invoice_footer,
           terms !== undefined ? terms : oldData.terms,
+          quotation_prefix !== undefined ? quotation_prefix : oldData.quotation_prefix,
+          quotation_footer !== undefined ? quotation_footer : oldData.quotation_footer,
+          quotation_terms !== undefined ? quotation_terms : oldData.quotation_terms,
           id
         ];
     }

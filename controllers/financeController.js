@@ -27,10 +27,12 @@ exports.getInvoices = async (req, res) => {
                 i.*,
                 COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text), 0) as total_paid,
                 (i.total_amount - COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text), 0)) as remaining_balance,
-                c.name as customer_name
+                c.name as customer_name,
+                u.unit_no, u.project as project_name
             FROM invoices i
             LEFT JOIN deals d ON i.deal_id::text = d.id::text AND i.tenant_id::text = d.tenant_id::text 
             LEFT JOIN customers c ON i.client_id::text = c.id::text AND i.tenant_id::text = c.tenant_id::text
+            LEFT JOIN re_units u ON i.unit_id::text = u.id::text
             WHERE i.tenant_id::text = $1::text AND i.branch_id::text = $2::text
             ORDER BY i.created_at DESC
         `, [tenant_id, branch_id]);
@@ -48,7 +50,7 @@ exports.getInvoices = async (req, res) => {
 exports.createInvoice = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     const branch_id = req.branchId;
-    const { customer_id, deal_id, due_date, items } = req.body;
+    const { customer_id, deal_id, unit_id, due_date, items } = req.body;
 
     try {
         await db.query('BEGIN'); // Start Transaction
@@ -58,14 +60,11 @@ exports.createInvoice = async (req, res) => {
         let total_amount = items.reduce((sum, item) => sum + (parseFloat(item.unit_price) * parseInt(item.quantity)), 0);
 
         // Insert Invoice
-        // We need to ensure columns exist. customer_id and deal_id were not explicitly in schema.sql invoices definition.
-        // Let's add them dynamically if needed or just insert what we have. 
-        // We will do a generic insert, assuming schema might need a patch for customer_id if it fails, or we patch it beforehand.
         const invRes = await db.query(`
-            INSERT INTO invoices (invoice_number, total_amount, due_date, status, tenant_id, branch_id, client_id, deal_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO invoices (invoice_number, total_amount, due_date, status, tenant_id, branch_id, client_id, deal_id, unit_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *
-        `, [invoiceNumber, total_amount, due_date || null, 'unpaid', tenant_id, branch_id, customer_id, deal_id || null]);
+        `, [invoiceNumber, total_amount, due_date || null, 'unpaid', tenant_id, branch_id, customer_id, deal_id || null, unit_id || null]);
         
         const newInvoiceId = invRes.rows[0].id;
 
@@ -235,9 +234,14 @@ exports.getInvoiceDetails = async (req, res) => {
 
     try {
         const invRes = await db.query(`
-            SELECT i.*, COALESCE(p.total_paid, 0) as total_paid, (i.total_amount - COALESCE(p.total_paid, 0)) as remaining_balance 
+            SELECT i.*, u.unit_no, u.project as project_name,
+                   c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
+                   COALESCE(p.total_paid, 0) as total_paid, 
+                   (i.total_amount - COALESCE(p.total_paid, 0)) as remaining_balance 
             FROM invoices i
             LEFT JOIN (SELECT invoice_id, SUM(amount) as total_paid FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id) p ON i.id::text = p.invoice_id::text
+            LEFT JOIN re_units u ON i.unit_id::text = u.id::text
+            LEFT JOIN customers c ON i.client_id::text = c.id::text
             WHERE i.id = $2 AND i.tenant_id::text = $1::text AND i.branch_id::text = $3::text
         `, [tenant_id, invoice_id, branch_id]);
 

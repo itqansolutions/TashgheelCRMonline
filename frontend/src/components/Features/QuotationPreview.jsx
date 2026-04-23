@@ -154,13 +154,13 @@ const QuotationPreview = ({ quotation }) => {
             ) : null}
             <span className="comp-name">{settings?.company_name || 'Tashgheel CRM'}</span>
           </div>
-          <div className="quotation-title-block">
-            <h1>Price Quotation</h1>
-            <div className="quot-meta">
-              <div>Ref: QUO-{quotation.id}</div>
-              <div>Date: {new Date(quotation.created_at).toLocaleDateString()}</div>
+            <div className="quotation-title-block">
+              <h1>Price Quotation</h1>
+              <div className="quot-meta">
+                <div>Ref: {settings?.quotation_prefix || 'QUO-'}{quotation.id}</div>
+                <div>Date: {new Date(quotation.created_at).toLocaleDateString()}</div>
+              </div>
             </div>
-          </div>
         </div>
 
         {/* Billing Info */}
@@ -170,6 +170,11 @@ const QuotationPreview = ({ quotation }) => {
             <p>{quotation.client_name || 'Generic Customer'}</p>
             <div style={{ fontSize: '13px', color: '#64748b', marginTop: '8px' }}>
               Deal: {quotation.deal_title || 'Direct Sale'}
+              {quotation.unit_no && (
+                  <div style={{ marginTop: '4px', fontWeight: '700', color: '#1e293b' }}>
+                      Unit: {quotation.unit_no} ({quotation.project_name})
+                  </div>
+              )}
             </div>
           </div>
           <div className="info-block" style={{ textAlign: 'right' }}>
@@ -185,23 +190,41 @@ const QuotationPreview = ({ quotation }) => {
         <table className="quotation-table">
           <thead>
             <tr>
-              <th>Description</th>
+              <th>Item / Service</th>
+              <th style={{ textAlign: 'center' }}>Qty</th>
+              <th style={{ textAlign: 'right' }}>Unit Price</th>
               <th style={{ textAlign: 'right' }}>Total</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>
-                <div style={{ fontWeight: '700', marginBottom: '8px' }}>Estimated Services / Proposal</div>
-                <div style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'pre-wrap' }}>
-                    {quotation.notes || 'Professional quotation based on requested requirements.'}
-                </div>
-              </td>
-              <td style={{ textAlign: 'right', verticalAlign: 'top', paddingTop: '22px' }}>{quotation.total_amount} EGP</td>
-            </tr>
+            {(quotation.items && quotation.items.length > 0) ? (
+                quotation.items.map((item, idx) => (
+                    <tr key={idx}>
+                        <td>
+                            <div style={{ fontWeight: '700' }}>{item.product_name || item.description || 'Service Item'}</div>
+                            {item.description && <div style={{ fontSize: '11px', color: '#64748b' }}>{item.description}</div>}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>{item.quantity}</td>
+                        <td style={{ textAlign: 'right' }}>{parseFloat(item.unit_price).toLocaleString()}</td>
+                        <td style={{ textAlign: 'right' }}>{parseFloat(item.subtotal).toLocaleString()} EGP</td>
+                    </tr>
+                ))
+            ) : (
+                <tr>
+                    <td>
+                        <div style={{ fontWeight: '700', marginBottom: '8px' }}>Estimated Services / Proposal</div>
+                        <div style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'pre-wrap' }}>
+                            {quotation.notes || 'Professional quotation based on requested requirements.'}
+                        </div>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>1</td>
+                    <td style={{ textAlign: 'right' }}>{parseFloat(quotation.total_amount).toLocaleString()}</td>
+                    <td style={{ textAlign: 'right' }}>{parseFloat(quotation.total_amount).toLocaleString()} EGP</td>
+                </tr>
+            )}
             <tr className="total-row">
-              <td style={{ textAlign: 'right' }}>Estimated Total:</td>
-              <td style={{ textAlign: 'right' }}>{quotation.total_amount} EGP</td>
+              <td colSpan="3" style={{ textAlign: 'right' }}>Estimated Total:</td>
+              <td style={{ textAlign: 'right' }}>{parseFloat(quotation.total_amount).toLocaleString()} EGP</td>
             </tr>
           </tbody>
         </table>
@@ -211,17 +234,25 @@ const QuotationPreview = ({ quotation }) => {
           {settings?.quotation_terms && (
             <div className="notes-section">
               <h4>Terms & Conditions</h4>
-              <p>{settings.quotation_terms}</p>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{settings.quotation_terms}</div>
             </div>
           )}
           
-          <div className="notes-section">
-            <h4>Notes</h4>
-            <p>This quotation is valid for 30 days from the date of issue. Prices are subject to change after the validity period.</p>
-          </div>
+          {quotation.notes && (quotation.items && quotation.items.length > 0) && (
+             <div className="notes-section">
+               <h4>Proposal Notes</h4>
+               <div style={{ whiteSpace: 'pre-wrap' }}>{quotation.notes}</div>
+             </div>
+          )}
 
-          <div className="branding-footer">
-             © {new Date().getFullYear()} {settings?.company_name || 'Tashgheel CRM'} • Generated via Tashgheel CRM by itqan
+          {settings?.quotation_footer && (
+             <div className="branding-footer" style={{ marginTop: '30px', fontStyle: 'italic', color: '#94a3b8' }}>
+                {settings.quotation_footer}
+             </div>
+          )}
+          
+          <div className="branding-footer" style={{ marginTop: '20px' }}>
+             © {new Date().getFullYear()} {settings?.company_name || 'Tashgheel CRM'} • Professional Business Proposal
           </div>
         </div>
       </div>

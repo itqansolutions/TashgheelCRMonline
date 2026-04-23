@@ -3,12 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, Plus, Search, CheckCircle, Activity, CreditCard, Download, DollarSign, Receipt, Tag, User } from 'lucide-react';
 import api from '../../services/api';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
 // Example UI for the unified Invoicing System
 const FinanceDashboard = () => {
   const navigate = useNavigate();
-  const { customers, fetchCustomers, products, fetchProducts, deals, fetchDeals, quotations, fetchQuotations, expenses, fetchExpenses, payments, fetchPayments } = useData();
+  const { user } = useAuth();
+  const isRealEstate = user?.template_name === 'real_estate';
+
+  const { 
+    customers, fetchCustomers, 
+    products, fetchProducts, 
+    deals, fetchDeals, 
+    quotations, fetchQuotations, 
+    expenses, fetchExpenses, 
+    payments, fetchPayments,
+    units, fetchUnits
+  } = useData();
   const [activeTab, setActiveTab] = useState('Invoices');
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +46,7 @@ const FinanceDashboard = () => {
   const [quickActionType, setQuickActionType] = useState('');
   const [formData, setFormData] = useState({
       title: '', amount: '', category: 'General', date: new Date().toISOString().split('T')[0],
-      customer_id: '', items: [{ product_id: '', quantity: 1, unit_price: 0 }]
+      customer_id: '', unit_id: '', items: [{ product_id: '', quantity: 1, unit_price: 0 }]
   });
 
   const handleQuickActionSubmit = async (e) => {
@@ -53,6 +65,7 @@ const FinanceDashboard = () => {
           } else if (quickActionType === 'Invoice') {
               await api.post('/finance/invoices', {
                   customer_id: formData.customer_id,
+                  unit_id: formData.unit_id,
                   due_date: formData.date,
                   items: formData.items
               });
@@ -60,9 +73,12 @@ const FinanceDashboard = () => {
               fetchInvoices();
           } else if (quickActionType === 'Quotation') {
               await api.post('/quotations', {
+                  client_id: formData.customer_id,
+                  unit_id: formData.unit_id,
                   total_amount: formData.amount,
                   notes: formData.title,
-                  valid_until: formData.date
+                  valid_until: formData.date,
+                  items: formData.items
               });
               toast.success('Quotation draft saved');
               fetchQuotations();
@@ -120,6 +136,7 @@ const FinanceDashboard = () => {
     fetchQuotations();
     fetchExpenses();
     fetchPayments();
+    if (isRealEstate) fetchUnits();
     if (customers.length === 0) fetchCustomers();
     if (products.length === 0) fetchProducts();
     if (deals.length === 0) fetchDeals();
@@ -146,7 +163,12 @@ const FinanceDashboard = () => {
                     ) : (quotations || []).map(q => (
                         <tr key={q.id}>
                             <td style={{ fontWeight: 700 }}>QUO-{q.id}</td>
-                            <td>{q.client_name || 'Generic Customer'}</td>
+                            <td>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ fontWeight: 600 }}>{q.client_name || 'Generic Customer'}</span>
+                                    {q.unit_no && <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>Unit: {q.unit_no}</span>}
+                                </div>
+                            </td>
                             <td style={{ fontWeight: 700 }}>{parseFloat(q.total_amount).toLocaleString()} EGP</td>
                             <td><span className={`badge ${q.status === 'approved' ? 'badge-success' : 'badge-warning'}`}>{q.status}</span></td>
                             <td>{new Date(q.valid_until).toLocaleDateString()}</td>
@@ -232,7 +254,12 @@ const FinanceDashboard = () => {
                     ) : (invoices || []).map(inv => (
                         <tr key={inv.id}>
                         <td style={{ fontWeight: 700 }}>{inv.invoice_number}</td>
-                        <td>{inv.customer_name || 'N/A'}</td>
+                        <td>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontWeight: 600 }}>{inv.customer_name || 'N/A'}</span>
+                                {inv.unit_no && <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 'bold' }}>Unit: {inv.unit_no}</span>}
+                            </div>
+                        </td>
                         <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'N/A'}</td>
                         <td style={{ fontWeight: 700 }}>{parseFloat(inv.total_amount || 0).toLocaleString()}</td>
                         <td style={{ fontWeight: 700, color: (inv.remaining_balance || 0) > 0 ? '#ef4444' : '#10b981' }}>
@@ -382,18 +409,30 @@ const FinanceDashboard = () => {
                   <form onSubmit={handleQuickActionSubmit}>
                       <div style={{ marginBottom: '16px' }}>
                           <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>
-                              {quickActionType === 'Invoice' ? 'Customer' : 'Description / Title'}
+                              {(quickActionType === 'Invoice' || quickActionType === 'Quotation') ? 'Bill To Customer' : 'Description / Title'}
                           </label>
-                          {quickActionType === 'Invoice' ? (
-                              <select 
-                                required
-                                value={formData.customer_id} 
-                                onChange={e => setFormData({...formData, customer_id: e.target.value})}
-                                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
-                              >
-                                  <option value="">-- Select Customer --</option>
-                                  {customers.map(c => <option key={c.id} value={c.id} style={{color:'black'}}>{c.name}</option>)}
-                              </select>
+                          {(quickActionType === 'Invoice' || quickActionType === 'Quotation') ? (
+                              <div style={{ display: 'flex', gap: '12px' }}>
+                                <select 
+                                  required
+                                  value={formData.customer_id} 
+                                  onChange={e => setFormData({...formData, customer_id: e.target.value})}
+                                  style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
+                                >
+                                    <option value="">-- Select Customer --</option>
+                                    {customers.map(c => <option key={c.id} value={c.id} style={{color:'black'}}>{c.name}</option>)}
+                                </select>
+                                {isRealEstate && (
+                                    <select 
+                                      value={formData.unit_id || ''} 
+                                      onChange={e => setFormData({...formData, unit_id: e.target.value})}
+                                      style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
+                                    >
+                                        <option value="">-- Select Unit --</option>
+                                        {units.map(u => <option key={u.id} value={u.id} style={{color:'black'}}>{u.unit_no} - {u.project}</option>)}
+                                    </select>
+                                )}
+                              </div>
                           ) : (
                               <input 
                                   type="text" 
@@ -405,35 +444,90 @@ const FinanceDashboard = () => {
                               />
                           )}
                       </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                          <div>
-                              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Amount (EGP)</label>
-                              <input 
-                                  type="number" 
-                                  required
-                                  value={formData.amount}
-                                  onChange={e => {
-                                      const val = e.target.value;
-                                      setFormData({
-                                          ...formData, 
-                                          amount: val,
-                                          items: [{ ...formData.items[0], unit_price: val }]
-                                      });
-                                  }}
-                                  style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
-                              />
+                      {(quickActionType === 'Invoice' || quickActionType === 'Quotation') ? (
+                          <div style={{ marginBottom: '16px' }}>
+                              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Line Items</label>
+                              {formData.items.map((item, index) => (
+                                  <div key={index} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '8px', marginBottom: '8px' }}>
+                                      <select 
+                                        value={item.product_id} 
+                                        onChange={e => {
+                                            const newItems = [...formData.items];
+                                            const prod = products.find(p => p.id === parseInt(e.target.value));
+                                            newItems[index] = { ...newItems[index], product_id: e.target.value, unit_price: prod ? prod.price : 0, description: prod ? prod.name : '' };
+                                            setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
+                                        }}
+                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)' }}
+                                      >
+                                          <option value="">-- Product --</option>
+                                          {products.map(p => <option key={p.id} value={p.id} style={{color:'black'}}>{p.name}</option>)}
+                                      </select>
+                                      <input 
+                                        type="number" 
+                                        placeholder="Qty"
+                                        value={item.quantity}
+                                        onChange={e => {
+                                            const newItems = [...formData.items];
+                                            newItems[index].quantity = parseInt(e.target.value) || 0;
+                                            setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
+                                        }}
+                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)' }}
+                                      />
+                                      <input 
+                                        type="number" 
+                                        placeholder="Price"
+                                        value={item.unit_price}
+                                        onChange={e => {
+                                            const newItems = [...formData.items];
+                                            newItems[index].unit_price = parseFloat(e.target.value) || 0;
+                                            setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
+                                        }}
+                                        style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)' }}
+                                      />
+                                      <button type="button" onClick={() => {
+                                          const newItems = formData.items.filter((_, i) => i !== index);
+                                          setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
+                                      }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}>✕</button>
+                                  </div>
+                              ))}
+                              <button type="button" onClick={() => setFormData({ ...formData, items: [...formData.items, { product_id: '', quantity: 1, unit_price: 0 }] })} style={{ fontSize: '11px', color: 'var(--primary)', background: 'transparent', border: '1px dashed var(--primary)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>+ Add Item</button>
                           </div>
-                          <div>
-                              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Date</label>
-                              <input 
-                                  type="date" 
-                                  required
-                                  value={formData.date}
-                                  onChange={e => setFormData({...formData, date: e.target.value})}
-                                  style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
-                              />
+                      ) : (
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                              <div>
+                                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Amount (EGP)</label>
+                                  <input 
+                                      type="number" 
+                                      required
+                                      value={formData.amount}
+                                      onChange={e => setFormData({ ...formData, amount: e.target.value })}
+                                      style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
+                                  />
+                              </div>
+                              <div>
+                                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Date</label>
+                                  <input 
+                                      type="date" 
+                                      required
+                                      value={formData.date}
+                                      onChange={e => setFormData({...formData, date: e.target.value})}
+                                      style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
+                                  />
+                              </div>
                           </div>
+                      )}
+                      
+                      {(quickActionType === 'Invoice' || quickActionType === 'Quotation') && (
+                        <div style={{ marginBottom: '16px' }}>
+                           <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Expected Date</label>
+                            <input 
+                                type="date" 
+                                required
+                                value={formData.date}
+                                onChange={e => setFormData({...formData, date: e.target.value})}
+                                style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
+                            />
+                        </div>
                       </div>
 
                       {quickActionType === 'Expense' && (

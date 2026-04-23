@@ -13,6 +13,7 @@ export const DataProvider = ({ children }) => {
   const [users, setUsers] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [units, setUnits] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [leadSources, setLeadSources] = useState([]);
   const [settings, setSettings] = useState({});
@@ -20,6 +21,17 @@ export const DataProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
 
   // Core Data Fetchers
+  const fetchUnits = async (showLoading = true) => {
+      if (showLoading) setLoading(true);
+      try {
+          const res = await api.get('/re-units');
+          setUnits(safeArray(res.data.data));
+      } catch (err) {
+          console.error('Failed to load units');
+      } finally {
+          setLoading(false);
+      }
+  };
   const fetchSettings = async () => {
     try {
       const res = await api.get('/settings');
@@ -152,6 +164,7 @@ export const DataProvider = ({ children }) => {
     leadSources, fetchLeadSources,
     settings, fetchSettings,
     templateConfig,
+    units, fetchUnits,
     loading
   };
 

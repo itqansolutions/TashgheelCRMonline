@@ -9,10 +9,11 @@ exports.getQuotations = async (req, res) => {
   const branch_id = req.branchId || req.user?.branch_id;
   try {
     const result = await db.query(`
-      SELECT q.*, d.title as deal_title, c.name as client_name
+      SELECT q.*, d.title as deal_title, COALESCE(c.name, c2.name, 'Generic Customer') as client_name
       FROM quotations q
       LEFT JOIN deals d ON q.deal_id::text = d.id::text AND q.tenant_id::text = d.tenant_id::text
       LEFT JOIN customers c ON d.client_id::text = c.id::text
+      LEFT JOIN customers c2 ON q.client_id::text = c2.id::text
       WHERE q.tenant_id::text = $1::text AND q.branch_id::text = $2::text
       ORDER BY q.created_at DESC
     `, [tenant_id, branch_id]);
@@ -31,13 +32,32 @@ exports.getQuotationById = async (req, res) => {
   const branch_id = req.branchId || req.user?.branch_id;
   try {
     const result = await db.query(
-      'SELECT * FROM quotations WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text',
+      `SELECT q.*, c.name as client_name, c.email as client_email, c.phone as client_phone,
+              u.unit_no, u.project as project_name 
+       FROM quotations q 
+       LEFT JOIN customers c ON q.client_id::text = c.id::text 
+       LEFT JOIN re_units u ON q.unit_id::text = u.id::text
+       WHERE q.id = $1 AND q.tenant_id::text = $2::text AND q.branch_id::text = $3::text`,
       [req.params.id, tenant_id, branch_id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Quotation not found or unauthorized' });
     }
-    res.json({ status: 'success', data: result.rows[0] });
+    
+    const quotation = result.rows[0];
+    
+    // Fetch items
+    const itemsResult = await db.query(
+      `SELECT qi.*, p.name as product_name 
+       FROM quotation_items qi 
+       LEFT JOIN products p ON qi.product_id::text = p.id::text 
+       WHERE qi.quotation_id = $1`,
+      [quotation.id]
+    );
+    
+    quotation.items = itemsResult.rows;
+    
+    res.json({ status: 'success', data: quotation });
   } catch (err) {
     console.error('[Quotation Detail Error]', err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
@@ -48,19 +68,45 @@ exports.getQuotationById = async (req, res) => {
 // @route   POST /api/quotations
 // @access  Private
 exports.createQuotation = async (req, res) => {
-  const { deal_id, total_amount, valid_until, notes } = req.body;
+  const { deal_id, client_id, total_amount, valid_until, notes, items } = req.body;
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
+  
   try {
+    await db.query('BEGIN');
+
+    // 1. Insert Quotation Header
     const result = await db.query(
-      'INSERT INTO quotations (deal_id, total_amount, valid_until, notes, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [deal_id, total_amount || 0, valid_until, notes, tenant_id, branch_id]
+      'INSERT INTO quotations (deal_id, client_id, total_amount, valid_until, notes, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [deal_id || null, client_id || null, total_amount || 0, valid_until, notes, tenant_id, branch_id]
     );
+    const quotation = result.rows[0];
 
-    logCreate(req, 'Quotation', result.rows[0].id, result.rows[0]);
+    // 2. Insert Items if any
+    if (items && Array.isArray(items)) {
+        for (const item of items) {
+            await db.query(
+                `INSERT INTO quotation_items (quotation_id, product_id, description, quantity, unit_price, subtotal, tenant_id, branch_id) 
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [
+                    quotation.id, 
+                    item.product_id || null, 
+                    item.description || '', 
+                    item.quantity || 1, 
+                    item.unit_price || 0, 
+                    (item.quantity || 1) * (item.unit_price || 0),
+                    tenant_id,
+                    branch_id
+                ]
+            );
+        }
+    }
 
-    res.status(201).json({ status: 'success', data: result.rows[0] });
+    await db.query('COMMIT');
+    logCreate(req, 'Quotation', quotation.id, quotation);
+    res.status(201).json({ status: 'success', data: quotation });
   } catch (err) {
+    await db.query('ROLLBACK');
     console.error('[Quotation Create Error]', err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
