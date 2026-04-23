@@ -8,15 +8,15 @@ exports.getQuotations = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
   try {
-    const result = await db.query(`
-      SELECT q.*, d.title as deal_title, COALESCE(c.name, c2.name, 'Generic Customer') as client_name
+      SELECT q.*, d.title as deal_title, COALESCE(c.name, c2.name, 'Generic Customer') as client_name,
+             u.unit_number, u.project_name
       FROM quotations q
       LEFT JOIN deals d ON q.deal_id::text = d.id::text AND q.tenant_id::text = d.tenant_id::text
       LEFT JOIN customers c ON d.client_id::text = c.id::text
       LEFT JOIN customers c2 ON q.client_id::text = c2.id::text
+      LEFT JOIN re_units u ON q.unit_id::text = u.id::text
       WHERE q.tenant_id::text = $1::text AND q.branch_id::text = $2::text
       ORDER BY q.created_at DESC
-    `, [tenant_id, branch_id]);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error('[Quotations API Error]', err.message);
@@ -43,9 +43,11 @@ exports.getQuotationById = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT q.*, c.name as client_name, c.email as client_email, c.phone as client_phone,
+              d.title as deal_title,
               u.unit_number, u.project_name 
        FROM quotations q 
        LEFT JOIN customers c ON q.client_id::text = c.id::text 
+       LEFT JOIN deals d ON q.deal_id::text = d.id::text
        LEFT JOIN re_units u ON q.unit_id::text = u.id::text
        WHERE q.id = $1 AND q.tenant_id::text = $2::text AND q.branch_id::text = $3::text`,
       [req.params.id, tenant_id, branch_id]
@@ -87,8 +89,8 @@ exports.createQuotation = async (req, res) => {
 
     // 1. Insert Quotation Header
     const result = await db.query(
-      'INSERT INTO quotations (deal_id, client_id, total_amount, valid_until, notes, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [deal_id || null, client_id || null, total_amount || 0, valid_until, notes, tenant_id, branch_id]
+      'INSERT INTO quotations (deal_id, client_id, unit_id, total_amount, valid_until, notes, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [deal_id || null, client_id || null, req.body.unit_id || null, total_amount || 0, valid_until, notes, tenant_id, branch_id]
     );
     const quotation = result.rows[0];
 
