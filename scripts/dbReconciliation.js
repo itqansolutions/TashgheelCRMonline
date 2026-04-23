@@ -128,6 +128,46 @@ const reconcileDatabase = async () => {
             await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_location TEXT`);
             await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_rooms INTEGER DEFAULT 0`);
 
+            // Quotation System Schema
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS quotations (
+                    id SERIAL PRIMARY KEY,
+                    tenant_id VARCHAR(255) NOT NULL,
+                    branch_id VARCHAR(255),
+                    deal_id VARCHAR(255),
+                    client_id VARCHAR(255),
+                    unit_id VARCHAR(255),
+                    total_amount NUMERIC DEFAULT 0,
+                    status VARCHAR(20) DEFAULT 'draft',
+                    notes TEXT,
+                    valid_until DATE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS quotation_items (
+                    id SERIAL PRIMARY KEY,
+                    quotation_id INTEGER REFERENCES quotations(id) ON DELETE CASCADE,
+                    product_id VARCHAR(255),
+                    description TEXT,
+                    quantity NUMERIC DEFAULT 1,
+                    unit_price NUMERIC DEFAULT 0,
+                    subtotal NUMERIC DEFAULT 0,
+                    tenant_id VARCHAR(255) NOT NULL,
+                    branch_id VARCHAR(255)
+                )
+            `);
+
+            // Branding & Prefixes
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_terms TEXT`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_footer TEXT`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_prefix VARCHAR(10) DEFAULT 'QUO-'`);
+
+            // Resilient Fix for Tasks (500 Error Fix)
+            await db.query(`ALTER TABLE tasks ALTER COLUMN parent_id TYPE VARCHAR(255)`);
+
             // RE Payments extended
             await db.query(`ALTER TABLE re_payments_mvp ADD COLUMN IF NOT EXISTS down_payment NUMERIC DEFAULT 0`);
 
