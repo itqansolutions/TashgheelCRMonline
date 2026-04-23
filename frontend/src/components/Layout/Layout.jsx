@@ -46,6 +46,12 @@ const Layout = () => {
             padding: 20px;
           }
         }
+        @media print {
+          .layout-wrapper { display: block; }
+          .main-container { margin-left: 0 !important; }
+          .content-area { padding: 0 !important; }
+          aside, header, nav, .sidebar-container, .header-container { display: none !important; }
+        }
       `}</style>
 
       <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
