@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
-  const { customers, products, units, fetchUnits } = useData();
+  const { customers, products, units, fetchUnits, fetchCustomers, fetchProducts } = useData();
   const navigate = useNavigate();
   
   const [activeTab, setActiveTab] = useState('Invoices');
@@ -46,6 +46,8 @@ const FinanceDashboard = () => {
 
   useEffect(() => {
     fetchData();
+    fetchCustomers();
+    fetchProducts();
     if (isRealEstate) fetchUnits();
   }, [activeTab]);
 
