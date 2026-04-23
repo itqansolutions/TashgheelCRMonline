@@ -8,24 +8,11 @@ import toast from 'react-hot-toast';
 // Example UI for the unified Invoicing System
 const FinanceDashboard = () => {
   const navigate = useNavigate();
-  const { customers, fetchCustomers, products, fetchProducts, deals, fetchDeals } = useData();
+  const { customers, fetchCustomers, products, fetchProducts, deals, fetchDeals, quotations, fetchQuotations, expenses, fetchExpenses, payments, fetchPayments } = useData();
+  const [activeTab, setActiveTab] = useState('Invoices');
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
-
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [paymentNotes, setPaymentNotes] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showQuickAction, setShowQuickAction] = useState(false);
-  const [quickActionType, setQuickActionType] = useState('');
-
-  const [formData, setFormData] = useState({
-      title: '', amount: '', category: 'General', date: new Date().toISOString().split('T')[0],
-      customer_id: '', items: [{ product_id: '', quantity: 1, unit_price: 0 }]
-  });
-
+  
   const fetchInvoices = async () => {
     try {
       const res = await api.get('/finance/invoices');
@@ -37,12 +24,18 @@ const FinanceDashboard = () => {
     }
   };
 
-  useEffect(() => {
-    fetchInvoices();
-    if (customers.length === 0) fetchCustomers();
-    if (products.length === 0) fetchProducts();
-    if (deals.length === 0) fetchDeals();
-  }, []);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showQuickAction, setShowQuickAction] = useState(false);
+  const [quickActionType, setQuickActionType] = useState('');
+  const [formData, setFormData] = useState({
+      title: '', amount: '', category: 'General', date: new Date().toISOString().split('T')[0],
+      customer_id: '', items: [{ product_id: '', quantity: 1, unit_price: 0 }]
+  });
 
   const handleQuickActionSubmit = async (e) => {
       e.preventDefault();
@@ -56,6 +49,7 @@ const FinanceDashboard = () => {
                   expense_date: formData.date
               });
               toast.success('Expense recorded successfully');
+              fetchExpenses();
           } else if (quickActionType === 'Invoice') {
               await api.post('/finance/invoices', {
                   customer_id: formData.customer_id,
@@ -71,6 +65,7 @@ const FinanceDashboard = () => {
                   valid_until: formData.date
               });
               toast.success('Quotation draft saved');
+              fetchQuotations();
           }
           setShowQuickAction(false);
           setFormData({ title: '', amount: '', category: 'General', date: new Date().toISOString().split('T')[0], customer_id: '', items: [{ product_id: '', quantity: 1, unit_price: 0 }] });
@@ -83,14 +78,12 @@ const FinanceDashboard = () => {
 
   const openPaymentModal = (invoice) => {
     setSelectedInvoice(invoice);
-    setPaymentAmount(invoice.remaining_balance); // Default to full remaining balance
+    setPaymentAmount(invoice.remaining_balance);
     setShowPaymentModal(true);
   };
 
   const handlePaymentSubmit = async () => {
     if (!paymentAmount || isNaN(paymentAmount) || parseFloat(paymentAmount) <= 0) return alert('Invalid Amount');
-    if (parseFloat(paymentAmount) > selectedInvoice.remaining_balance) return alert('Cannot exceed remaining balance.');
-
     setIsSubmitting(true);
     try {
       await api.post('/finance/payments', {
@@ -102,10 +95,11 @@ const FinanceDashboard = () => {
       setShowPaymentModal(false);
       setPaymentAmount('');
       setPaymentNotes('');
-      fetchInvoices(); // Refresh smart status
+      fetchInvoices();
+      fetchPayments();
+      toast.success('Payment registered');
     } catch (err) {
-      console.error(err);
-      alert('Failed to register payment.');
+      toast.error('Failed to register payment.');
     } finally {
       setIsSubmitting(false);
     }
@@ -119,6 +113,146 @@ const FinanceDashboard = () => {
       case 'overdue': return <span className="badge badge-danger">Overdue</span>;
       default: return <span className="badge badge-gray">{status}</span>;
     }
+  };
+
+  useEffect(() => {
+    fetchInvoices();
+    fetchQuotations();
+    fetchExpenses();
+    fetchPayments();
+    if (customers.length === 0) fetchCustomers();
+    if (products.length === 0) fetchProducts();
+    if (deals.length === 0) fetchDeals();
+  }, []);
+
+  const renderTabContent = () => {
+      switch (activeTab) {
+          case 'Quotations':
+              return (
+                <table className="data-table">
+                    <thead>
+                    <tr>
+                        <th>Ref</th>
+                        <th>Customer</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Valid Until</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {(quotations || []).length === 0 ? (
+                        <tr><td colSpan="6" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No quotations found.</td></tr>
+                    ) : (quotations || []).map(q => (
+                        <tr key={q.id}>
+                            <td style={{ fontWeight: 700 }}>QUO-{q.id}</td>
+                            <td>{q.client_name || 'Generic Customer'}</td>
+                            <td style={{ fontWeight: 700 }}>{parseFloat(q.total_amount).toLocaleString()} EGP</td>
+                            <td><span className={`badge ${q.status === 'approved' ? 'badge-success' : 'badge-warning'}`}>{q.status}</span></td>
+                            <td>{new Date(q.valid_until).toLocaleDateString()}</td>
+                            <td>
+                                <button className="action-btn" onClick={() => navigate(`/finance/quotation-preview/${q.id}`)}>
+                                    <Download size={14} /> View / Print
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+              );
+          case 'Expenses':
+              return (
+                <table className="data-table">
+                    <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Amount</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {(expenses || []).length === 0 ? (
+                        <tr><td colSpan="4" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No expenses recorded.</td></tr>
+                    ) : (expenses || []).map(e => (
+                        <tr key={e.id}>
+                            <td>{new Date(e.expense_date).toLocaleDateString()}</td>
+                            <td style={{ fontWeight: 600 }}>{e.title}</td>
+                            <td><span className="badge" style={{ background: '#f1f5f9', color: '#475569' }}>{e.category}</span></td>
+                            <td style={{ fontWeight: 700, color: '#ef4444' }}>{parseFloat(e.amount).toLocaleString()} EGP</td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+              );
+          case 'Income':
+              return (
+                <table className="data-table">
+                    <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Source</th>
+                        <th>Method</th>
+                        <th>Amount</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {(payments || []).length === 0 ? (
+                        <tr><td colSpan="4" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No income records found.</td></tr>
+                    ) : (payments || []).map(p => (
+                        <tr key={p.id}>
+                            <td>{new Date(p.payment_date || p.created_at).toLocaleDateString()}</td>
+                            <td style={{ fontWeight: 600 }}>Invoice Payment</td>
+                            <td><span className="badge" style={{ background: '#f0fdf4', color: '#16a34a' }}>{p.payment_method}</span></td>
+                            <td style={{ fontWeight: 700, color: '#10b981' }}>{parseFloat(p.amount).toLocaleString()} EGP</td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+              );
+          default:
+              return (
+                <table className="data-table">
+                    <thead>
+                    <tr>
+                        <th>Invoice No.</th>
+                        <th>Customer</th>
+                        <th>Date</th>
+                        <th>Total Amount</th>
+                        <th>Remaining</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {loading ? (
+                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px' }}>Loading Financial Data...</td></tr>
+                    ) : (invoices || []).length === 0 ? (
+                        <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No invoices found.</td></tr>
+                    ) : (invoices || []).map(inv => (
+                        <tr key={inv.id}>
+                        <td style={{ fontWeight: 700 }}>{inv.invoice_number}</td>
+                        <td>{inv.customer_name || 'N/A'}</td>
+                        <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'N/A'}</td>
+                        <td style={{ fontWeight: 700 }}>{parseFloat(inv.total_amount || 0).toLocaleString()}</td>
+                        <td style={{ fontWeight: 700, color: (inv.remaining_balance || 0) > 0 ? '#ef4444' : '#10b981' }}>
+                            {parseFloat(inv.remaining_balance || 0).toLocaleString()}
+                        </td>
+                        <td>{getStatusBadge(inv.status)}</td>
+                        <td>
+                            <button className="action-btn pay-btn" onClick={() => openPaymentModal(inv)} disabled={inv.status === 'paid'}>
+                            <CreditCard size={14} /> Pay
+                            </button>
+                            <button className="action-btn" onClick={() => navigate(`/finance/invoice-preview/${inv.id}`)}>
+                            <Download size={14} /> PDF
+                            </button>
+                        </td>
+                        </tr>
+                    ))}
+                    </tbody>
+                </table>
+              );
+      }
   };
 
   return (
@@ -138,12 +272,15 @@ const FinanceDashboard = () => {
         .action-btn:hover { background: rgba(0,0,0,0.05); }
         .pay-btn { background: rgba(79, 70, 229, 0.1); color: #4f46e5; border-color: rgba(79, 70, 229, 0.2); }
         .pay-btn:hover { background: rgba(79, 70, 229, 0.2); }
+        .tabs-nav { display: flex; gap: 8px; margin-bottom: 24px; background: rgba(0,0,0,0.02); padding: 4px; border-radius: 10px; width: fit-content; }
+        .tab-item { padding: 8px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; color: var(--text-muted); transition: 0.3s; }
+        .tab-item.active { background: white; color: var(--primary); box-shadow: var(--shadow-sm); }
       `}</style>
       
       <div className="finance-header">
         <div>
-          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800' }}>Invoices Ledger</h2>
-          <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>Financial engine tracking all billings.</p>
+          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800' }}>Financial Hub</h2>
+          <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>Central engine for {activeTab.toLowerCase()} tracking.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
             <button className="action-btn" style={{ borderColor: '#10b981', color: '#10b981' }} onClick={() => { setQuickActionType('Income'); setShowQuickAction(true); }}>
@@ -161,45 +298,19 @@ const FinanceDashboard = () => {
         </div>
       </div>
 
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Invoice No.</th>
-            <th>Customer</th>
-            <th>Date</th>
-            <th>Total Amount</th>
-            <th>Remaining</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px' }}>Loading Financial Data...</td></tr>
-          ) : (invoices || []).length === 0 ? (
-            <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No invoices found in this branch.</td></tr>
-          ) : (invoices || []).map(inv => (
-            <tr key={inv.id}>
-              <td style={{ fontWeight: 700 }}>{inv.invoice_number}</td>
-              <td>{inv.customer_name || 'N/A'}</td>
-              <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'N/A'}</td>
-              <td style={{ fontWeight: 700 }}>{parseFloat(inv.total_amount || 0).toLocaleString()}</td>
-              <td style={{ fontWeight: 700, color: (inv.remaining_balance || 0) > 0 ? '#ef4444' : '#10b981' }}>
-                {parseFloat(inv.remaining_balance || 0).toLocaleString()}
-              </td>
-              <td>{getStatusBadge(inv.status)}</td>
-              <td>
-                <button className="action-btn pay-btn" onClick={() => openPaymentModal(inv)} disabled={inv.status === 'paid'}>
-                  <CreditCard size={14} /> Pay
-                </button>
-                <button className="action-btn" onClick={() => navigate(`/finance/invoice-preview/${inv.id}`)}>
-                  <Download size={14} /> PDF
-                </button>
-              </td>
-            </tr>
+      <div className="tabs-nav">
+          {['Invoices', 'Quotations', 'Expenses', 'Income'].map(tab => (
+              <div 
+                key={tab} 
+                className={`tab-item ${activeTab === tab ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab)}
+              >
+                  {tab}
+              </div>
           ))}
-        </tbody>
-      </table>
+      </div>
+
+      {renderTabContent()}
 
       {showPaymentModal && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000}}>

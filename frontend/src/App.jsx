@@ -19,6 +19,7 @@ import Deals from './pages/Deals';
 import Tasks from './pages/Tasks';
 import Invoices from './pages/Finance/Invoices';
 import InvoicePreview from './pages/Finance/InvoicePreview';
+import QuotationPreview from './pages/Finance/QuotationPreview';
 import Files from './pages/Files';
 import Reports from './pages/Reports';
 import Employees from './pages/Employees';
@@ -108,6 +109,7 @@ function App() {
                   <Route path="units-registry" element={<UnitsRegistry />} />
                   <Route path="finance" element={<Invoices />} />
                   <Route path="finance/invoice-preview/:id" element={<InvoicePreview />} />
+                  <Route path="finance/quotation-preview/:id" element={<QuotationPreview />} />
                   <Route path="accounting" element={<Navigate to="/finance" replace />} />
                   <Route 
                     path="employees" 

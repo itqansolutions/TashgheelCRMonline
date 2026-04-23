@@ -11,6 +11,8 @@ export const DataProvider = ({ children }) => {
   const [deals, setDeals] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [users, setUsers] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [leadSources, setLeadSources] = useState([]);
   const [settings, setSettings] = useState({});
@@ -113,12 +115,38 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const fetchExpenses = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      const res = await api.get('/expenses');
+      setExpenses(safeArray(res.data.data));
+    } catch (err) {
+      toast.error('Failed to load expenses');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPayments = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      const res = await api.get('/finance/payments'); // Assuming this route exists
+      setPayments(safeArray(res.data.data));
+    } catch (err) {
+      toast.error('Failed to load payments');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Shared state and actions
   const value = {
     customers, fetchCustomers,
     products, fetchProducts,
     deals, fetchDeals,
     quotations, fetchQuotations,
+    expenses, fetchExpenses,
+    payments, fetchPayments,
     users, fetchUsers,
     departments, fetchDepartments,
     leadSources, fetchLeadSources,
