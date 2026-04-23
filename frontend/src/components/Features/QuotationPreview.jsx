@@ -31,37 +31,37 @@ const QuotationPreview = ({ quotation }) => {
           padding-bottom: 30px;
         }
         .logo-placeholder {
-          height: 80px;
-          max-width: 250px;
+          height: 60px;
+          max-width: 200px;
           display: flex;
           align-items: center;
-          gap: 15px;
+          gap: 12px;
         }
         .logo-placeholder img {
           max-height: 100%;
           object-fit: contain;
         }
         .comp-name {
-          font-size: 24px;
-          font-weight: 800;
-          color: var(--primary);
-          letter-spacing: -0.02em;
+          font-size: 18px;
+          font-weight: 700;
+          color: #475569;
+          letter-spacing: -0.01em;
         }
         .quotation-title-block {
           text-align: right;
         }
         .quotation-title-block h1 {
-          font-size: 32px;
+          font-size: 28px;
           margin: 0;
           color: #f59e0b;
           text-transform: uppercase;
-          letter-spacing: 0.1em;
+          letter-spacing: 0.05em;
         }
         .quot-meta {
-          margin-top: 10px;
-          color: #94a3b8;
+          margin-top: 8px;
+          color: #64748b;
           font-weight: 600;
-          font-size: 14px;
+          font-size: 13px;
         }
 
         .billing-info {

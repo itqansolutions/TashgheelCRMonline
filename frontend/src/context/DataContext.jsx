@@ -20,6 +20,10 @@ export const DataProvider = ({ children }) => {
   const [templateConfig, setTemplateConfig] = useState({});
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
   // Core Data Fetchers
   const fetchUnits = async (showLoading = true) => {
       if (showLoading) setLoading(true);
