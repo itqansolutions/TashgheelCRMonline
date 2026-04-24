@@ -254,8 +254,35 @@ const Settings = () => {
 
           <div className="settings-card">
             <div className="card-header">
+              <FileText size={16} color="#10b981" />
+              <h3>Finance: Invoices & Payments</h3>
+            </div>
+            <div className="card-body">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Invoice Prefix</label>
+                  <input type="text" value={tenant.invoice_prefix || 'INV-'} onChange={(e) => setTenant({...tenant, invoice_prefix: e.target.value})} />
+                </div>
+                <div className="form-group">
+                   <label>Default Tax Rate (%)</label>
+                   <input type="number" step="0.01" value={tenant.tax_rate || 0} onChange={(e) => setTenant({...tenant, tax_rate: e.target.value})} />
+                </div>
+                <div className="form-group full">
+                  <label>Invoice Terms & Conditions</label>
+                  <textarea style={{ height: '80px' }} value={tenant.terms || ''} onChange={(e) => setTenant({...tenant, terms: e.target.value})} placeholder="Payment is due within..." />
+                </div>
+                <div className="form-group full">
+                  <label>Invoice Footer</label>
+                  <textarea style={{ height: '60px' }} value={tenant.invoice_footer || ''} onChange={(e) => setTenant({...tenant, invoice_footer: e.target.value})} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="settings-card">
+            <div className="card-header">
               <FileText size={16} color="#f59e0b" />
-              <h3>Finance & Branding Defaults</h3>
+              <h3>Finance: Quotation Branding</h3>
             </div>
             <div className="card-body">
               <div className="form-grid">
@@ -268,6 +295,8 @@ const Settings = () => {
                    <select value={tenant.currency || 'EGP'} onChange={(e) => setTenant({...tenant, currency: e.target.value})}>
                       <option value="EGP">EGP</option>
                       <option value="USD">USD</option>
+                      <option value="SAR">SAR</option>
+                      <option value="AED">AED</option>
                    </select>
                 </div>
                 <div className="form-group full">
