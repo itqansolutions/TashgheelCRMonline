@@ -53,11 +53,56 @@ const initDb = async () => {
                     plan VARCHAR(50) DEFAULT 'basic',
                     status VARCHAR(50) DEFAULT 'active',
                     subscription_end TIMESTAMP WITH TIME ZONE,
+                    address TEXT,
+                    phone VARCHAR(50),
+                    tax_no VARCHAR(100),
+                    reg_no VARCHAR(100),
+                    logo_url TEXT,
+                    currency VARCHAR(10) DEFAULT 'EGP',
+                    tax_rate NUMERIC DEFAULT 0,
+                    invoice_prefix VARCHAR(20) DEFAULT 'INV-',
+                    invoice_footer TEXT,
+                    terms TEXT,
+                    quotation_prefix VARCHAR(10) DEFAULT 'QUO-',
+                    quotation_footer TEXT,
+                    quotation_terms TEXT,
+                    primary_color VARCHAR(20) DEFAULT '#f59e0b',
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 )
             `);
             // Migration for existing table
             await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS subscription_end TIMESTAMP WITH TIME ZONE');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS address TEXT');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS phone VARCHAR(50)');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS logo_url TEXT');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS primary_color VARCHAR(20) DEFAULT \'#f59e0b\'');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS invoice_prefix VARCHAR(20) DEFAULT \'INV-\'');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_prefix VARCHAR(10) DEFAULT \'QUO-\'');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_terms TEXT');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_footer TEXT');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS terms TEXT');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS invoice_footer TEXT');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS tax_no VARCHAR(100)');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS reg_no VARCHAR(100)');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT \'EGP\'');
+            await db.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS tax_rate NUMERIC DEFAULT 0');
+
+            // 3. Attachments Table
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS attachments (
+                    id SERIAL PRIMARY KEY,
+                    filename VARCHAR(255) NOT NULL,
+                    original_name VARCHAR(255) NOT NULL,
+                    mime_type VARCHAR(100),
+                    file_path TEXT NOT NULL,
+                    linked_type VARCHAR(50) NOT NULL,
+                    linked_id VARCHAR(255) NOT NULL,
+                    uploaded_by INTEGER,
+                    tenant_id VARCHAR(255),
+                    branch_id VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
 
             const defaultTenant = '00000000-0000-0000-0000-000000000000';
 
