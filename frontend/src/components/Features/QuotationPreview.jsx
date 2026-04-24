@@ -137,13 +137,23 @@ const QuotationPreview = ({ quotation }) => {
         }
 
         @media print {
+          @page { size: A4; margin: 0; }
+          body { background: white; margin: 0; padding: 0; }
+          nav, aside, header, .no-print, button, .sidebar, .navbar { display: none !important; }
+          .quotation-preview-container { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            padding: 0; 
+            margin: 0; 
+          }
           .quotation-box {
             box-shadow: none;
             border: none;
-            padding: 0;
-          }
-          .no-print {
-            display: none !important;
+            padding: 40px;
+            width: 100%;
+            max-width: 100%;
           }
         }
       `}</style>
