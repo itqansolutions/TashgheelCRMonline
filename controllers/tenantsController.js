@@ -125,7 +125,7 @@ exports.updateTenant = async (req, res) => {
           primary_color !== undefined ? primary_color : oldData.primary_color,
           plan || oldData.plan,
           status || oldData.status,
-          subscription_end || oldData.subscription_end,
+          subscription_end: (subscription_end && subscription_end.trim() !== "") ? subscription_end : (oldData.subscription_end || null),
           id
         ];
     } else {
@@ -165,8 +165,8 @@ exports.updateTenant = async (req, res) => {
 
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    console.error('TENANT UPDATE ERROR:', err);
+    res.status(500).json({ status: 'error', message: `Database error: ${err.message}` });
   }
 };
 
