@@ -83,23 +83,34 @@ const Settings = () => {
     }
   };
 
+  const [previewMode, setPreviewMode] = useState('Quotation');
+
   const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (!user?.tenant_id) {
+      toast.error('Identity context missing. Please refresh.');
+      return;
+    }
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('linked_type', 'Tenant');
-    formData.append('linked_id', user.tenant_id);
+    formData.append('linked_id', String(user.tenant_id));
 
     setUploading(true);
     try {
-      const res = await api.post('/files/upload', formData);
+      console.log('UPLOADING LOGO FOR:', user.tenant_id);
+      const res = await api.post('/files/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       const filePath = res.data.data.file_path;
+      console.log('UPLOAD SUCCESS:', filePath);
       setTenant({ ...tenant, logo_url: filePath });
       toast.success('Logo uploaded! Save settings to apply.');
     } catch (err) {
-      toast.error('Upload failed');
+      console.error('UPLOAD ERROR:', err);
+      toast.error(err.response?.data?.message || 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -121,21 +132,6 @@ const Settings = () => {
     }
   };
 
-  const handleUpdateSource = async (id) => {
-    if (!editName) return;
-    setSaving(true);
-    try {
-      await api.put(`/lead-sources/${id}`, { name: editName });
-      toast.success('Source updated');
-      setEditingId(null);
-      fetchSources();
-    } catch (err) {
-      toast.error('Failed to update source');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDeleteSource = async (id) => {
     if (!window.confirm('Delete this lead source?')) return;
     try {
@@ -152,7 +148,7 @@ const Settings = () => {
   return (
     <div className="settings-page">
       <style>{`
-        .settings-page { padding: 24px; max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 1fr 400px; gap: 32px; }
+        .settings-page { padding: 24px; max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 1fr 450px; gap: 32px; }
         .settings-header { grid-column: span 2; margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; }
         .settings-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .card-header { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background: #fbfcfd; display: flex; align-items: center; gap: 10px; }
@@ -177,13 +173,17 @@ const Settings = () => {
 
         .preview-pane { position: sticky; top: 24px; }
         .preview-box { background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .preview-tabs { display: flex; background: #f8fafc; padding: 4px; border-bottom: 1px solid #e2e8f0; }
+        .preview-tab { flex: 1; padding: 8px; font-size: 11px; font-weight: 800; text-align: center; cursor: pointer; border-radius: 6px; color: #64748b; transition: 0.2s; }
+        .preview-tab.active { background: white; color: #6366f1; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
         .a4-preview { width: 100%; aspect-ratio: 1 / 1.414; background: white; padding: 30px; font-size: 10px; color: #1e293b; overflow-y: auto; }
         .preview-header { display: flex; justify-content: space-between; margin-bottom: 30px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px; }
         .preview-logo { max-height: 40px; max-width: 120px; object-fit: contain; }
         .preview-company-name { font-size: 16px; font-weight: 800; color: ${tenant.primary_color || '#6366f1'}; }
         .preview-title { text-align: right; color: #94a3b8; text-transform: uppercase; font-weight: 900; }
         .preview-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        .preview-table th { background: #fbfcfd; text-align: left; padding: 8px; border-bottom: 2px solid #f1f5f9; font-weight: 800; }
+        .preview-table th { background: #fbfcfd; text-align: left; padding: 8px; border-bottom: 2px solid #f1f5f9; font-weight: 800; color: ${tenant.primary_color || '#6366f1'}; }
         .preview-table td { padding: 12px 8px; border-bottom: 1px solid #f8fafc; }
         .preview-totals { margin-left: auto; width: 50%; border-top: 2px solid #1e293b; padding-top: 10px; }
         .preview-footer { margin-top: 40px; border-top: 1px solid #f1f5f9; padding-top: 15px; font-size: 9px; color: #64748b; }
@@ -344,8 +344,9 @@ const Settings = () => {
 
       <div className="preview-pane">
          <div className="preview-box">
-            <div className="card-header">
-               <Eye size={16} /> <h3>Document Preview</h3>
+            <div className="preview-tabs">
+               <div className={`preview-tab ${previewMode === 'Quotation' ? 'active' : ''}`} onClick={() => setPreviewMode('Quotation')}>QUOTATION</div>
+               <div className={`preview-tab ${previewMode === 'Invoice' ? 'active' : ''}`} onClick={() => setPreviewMode('Invoice')}>INVOICE</div>
             </div>
             <div className="a4-preview">
                <div className="preview-header">
@@ -356,17 +357,36 @@ const Settings = () => {
                      </div>
                   </div>
                   <div className="preview-title">
-                     <h2 style={{ fontSize: '18px', margin: 0, color: tenant.primary_color }}>QUOTATION</h2>
-                     <div>{tenant.quotation_prefix || 'QUO-'}001</div>
+                     <h2 style={{ fontSize: '18px', margin: 0, color: tenant.primary_color }}>{previewMode.toUpperCase()}</h2>
+                     <div>{previewMode === 'Quotation' ? (tenant.quotation_prefix || 'QUO-') : (tenant.invoice_prefix || 'INV-')}001</div>
                   </div>
                </div>
-               <div style={{ height: '100px', border: '1px dashed #e2e8f0', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
-                  Table Body Example
-               </div>
+               
+               <table className="preview-table">
+                  <thead>
+                     <tr>
+                        <th>Description</th>
+                        <th style={{ textAlign: 'center' }}>Qty</th>
+                        <th style={{ textAlign: 'right' }}>Total</th>
+                     </tr>
+                  </thead>
+                  <tbody>
+                     <tr>
+                        <td>Sample Professional Service</td>
+                        <td style={{ textAlign: 'center' }}>1</td>
+                        <td style={{ textAlign: 'right' }}>1,000.00</td>
+                     </tr>
+                  </tbody>
+               </table>
+
                <div className="preview-footer">
                   <div style={{ fontWeight: '800' }}>TERMS:</div>
-                  <div style={{ whiteSpace: 'pre-wrap', marginBottom: '10px' }}>{tenant.quotation_terms || 'Standard Terms'}</div>
-                  <div style={{ fontStyle: 'italic' }}>{tenant.quotation_footer || 'Footer Message'}</div>
+                  <div style={{ whiteSpace: 'pre-wrap', marginBottom: '10px' }}>
+                    {previewMode === 'Quotation' ? tenant.quotation_terms : tenant.terms}
+                  </div>
+                  <div style={{ fontStyle: 'italic' }}>
+                    {previewMode === 'Quotation' ? tenant.quotation_footer : tenant.invoice_footer}
+                  </div>
                </div>
             </div>
          </div>
