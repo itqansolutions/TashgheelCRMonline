@@ -22,6 +22,7 @@ export const DataProvider = ({ children }) => {
 
   useEffect(() => {
     fetchSettings();
+    fetchTenant();
   }, []);
 
   // Core Data Fetchers
@@ -155,6 +156,17 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const [tenant, setTenant] = useState({});
+  const fetchTenant = async () => {
+    try {
+      // Use the user's tenant_id from auth if possible, or fetch from /api/me/subscription
+      const res = await api.get('/tenants/my'); // I'll need to create this endpoint or use /api/tenants/:id
+      setTenant(safeObject(res.data.data));
+    } catch (err) {
+      console.error('Failed to load tenant details');
+    }
+  };
+
   // Shared state and actions
   const value = {
     customers, fetchCustomers,
@@ -167,6 +179,7 @@ export const DataProvider = ({ children }) => {
     departments, fetchDepartments,
     leadSources, fetchLeadSources,
     settings, fetchSettings,
+    tenant, fetchTenant,
     templateConfig,
     units, fetchUnits,
     loading

@@ -3,7 +3,10 @@ import { useData } from '../../context/DataContext';
 import { Mail, Phone, MapPin, Globe, CreditCard, Building2, Tag } from 'lucide-react';
 
 const QuotationPreview = ({ quotation }) => {
-  const { settings } = useData();
+  const { tenant } = useData();
+  
+  // Backwards compatibility / Fallback to settings if tenant is empty
+  const branding = tenant?.id ? tenant : {};
 
   if (!quotation) return null;
 
@@ -53,7 +56,7 @@ const QuotationPreview = ({ quotation }) => {
         .quotation-title-block h1 {
           font-size: 28px;
           margin: 0;
-          color: ${settings?.primary_color || '#f59e0b'};
+          color: ${branding?.primary_color || '#f59e0b'};
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
@@ -94,7 +97,7 @@ const QuotationPreview = ({ quotation }) => {
           text-align: left;
           font-size: 12px;
           text-transform: uppercase;
-          color: ${settings?.primary_color || '#d97706'};
+          color: ${branding?.primary_color || '#d97706'};
           border-bottom: 2px solid #fef3c7;
         }
         .quotation-table td {
@@ -108,7 +111,7 @@ const QuotationPreview = ({ quotation }) => {
           font-size: 18px;
         }
         .total-row td {
-          color: ${settings?.primary_color || '#d97706'};
+          color: ${branding?.primary_color || '#d97706'};
         }
 
         .quotation-footer {
@@ -149,16 +152,16 @@ const QuotationPreview = ({ quotation }) => {
         {/* Header */}
         <div className="header-section">
           <div className="logo-placeholder">
-            {settings?.company_logo ? (
-              <img src={`/${settings.company_logo.replace(/\\/g, '/')}`} alt="Logo" />
+            {branding?.logo_url ? (
+              <img src={`/${branding.logo_url.replace(/\\/g, '/')}`} alt="Logo" />
             ) : null}
-            {!settings?.company_logo && <span className="comp-name">{settings?.company_name || 'Tashgheel CRM'}</span>}
-            {settings?.company_logo && settings?.company_name && <span className="comp-name" style={{ fontSize: '14px', color: '#64748b' }}>{settings.company_name}</span>}
+            {!branding?.logo_url && <span className="comp-name">{branding?.name || 'Tashgheel CRM'}</span>}
+            {branding?.logo_url && branding?.name && <span className="comp-name" style={{ fontSize: '14px', color: '#64748b' }}>{branding.name}</span>}
           </div>
             <div className="quotation-title-block">
               <h1>Price Quotation</h1>
               <div className="quot-meta">
-                <div>Ref: {settings?.quotation_prefix || 'QUO-'}{quotation.id}</div>
+                <div>Ref: {branding?.quotation_prefix || 'QUO-'}{quotation.id}</div>
                 <div>Date: {new Date(quotation.created_at).toLocaleDateString()}</div>
               </div>
             </div>
@@ -229,10 +232,10 @@ const QuotationPreview = ({ quotation }) => {
 
         {/* Footer */}
         <div className="quotation-footer">
-          {settings?.quotation_terms && (
+          {branding?.quotation_terms && (
             <div className="notes-section">
               <h4>Terms & Conditions</h4>
-              <div style={{ whiteSpace: 'pre-wrap' }}>{settings.quotation_terms}</div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{branding.quotation_terms}</div>
             </div>
           )}
           
@@ -243,14 +246,14 @@ const QuotationPreview = ({ quotation }) => {
              </div>
           )}
 
-          {settings?.quotation_footer && (
+          {branding?.quotation_footer && (
              <div className="branding-footer" style={{ marginTop: '30px', fontStyle: 'italic', color: '#94a3b8' }}>
-                {settings.quotation_footer}
+                {branding.quotation_footer}
              </div>
           )}
           
           <div className="branding-footer" style={{ marginTop: '20px' }}>
-             © {new Date().getFullYear()} {settings?.company_name || 'Tashgheel CRM'} • Professional Business Proposal
+             © {new Date().getFullYear()} {branding?.name || 'Tashgheel CRM'} • Professional Business Proposal
           </div>
         </div>
       </div>

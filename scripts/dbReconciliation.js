@@ -168,6 +168,7 @@ const reconcileDatabase = async () => {
             await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_terms TEXT`);
             await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_footer TEXT`);
             await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_prefix VARCHAR(10) DEFAULT 'QUO-'`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS primary_color VARCHAR(20) DEFAULT '#f59e0b'`);
 
             // Resilient Fix for Tasks (500 Error Fix)
             await db.query(`ALTER TABLE tasks ALTER COLUMN parent_id TYPE VARCHAR(255)`);
@@ -187,6 +188,23 @@ const reconcileDatabase = async () => {
             await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS probability INTEGER DEFAULT 0`);
             await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS expected_close_date DATE NULL`);
             await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS next_action VARCHAR(255) NULL`);
+
+            // Attachments System (Required for Logo/Files)
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS attachments (
+                    id SERIAL PRIMARY KEY,
+                    filename VARCHAR(255) NOT NULL,
+                    original_name VARCHAR(255) NOT NULL,
+                    mime_type VARCHAR(100),
+                    file_path TEXT NOT NULL,
+                    linked_type VARCHAR(50) NOT NULL,
+                    linked_id VARCHAR(255) NOT NULL,
+                    uploaded_by INTEGER,
+                    tenant_id VARCHAR(255),
+                    branch_id VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
 
         } catch(e) { /* Ignore - Migration already applied or invalid cast */ }
 

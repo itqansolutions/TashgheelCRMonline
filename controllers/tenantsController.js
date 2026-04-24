@@ -3,6 +3,24 @@ const bcrypt = require('bcrypt');
 const { logAction, logUpdate, ACTIONS } = require('../services/loggerService');
 
 const SYSTEM_DEFAULT_TENANT = '00000000-0000-0000-0000-000000000000';
+ 
+// @desc    Get current user's tenant details
+// @route   GET /api/tenants/my
+// @access  Private
+exports.getMyTenant = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  try {
+    const result = await db.query('SELECT * FROM tenants WHERE id::text = $1::text', [tenant_id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Tenant context missing' });
+    }
+    res.json({ status: 'success', data: result.rows[0] });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({ status: 'error', message: 'Server error fetching tenant' });
+  }
+};
+
 
 // @desc    Get all tenants (Super Admin only)
 // @route   GET /api/tenants

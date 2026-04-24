@@ -248,6 +248,21 @@ CREATE TABLE IF NOT EXISTS user_access (
     UNIQUE(user_id, page_path)
 );
 
+-- 16. Attachments Table
+CREATE TABLE IF NOT EXISTS attachments (
+    id SERIAL PRIMARY KEY,
+    filename VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(100),
+    file_path TEXT NOT NULL,
+    linked_type VARCHAR(50) NOT NULL,
+    linked_id VARCHAR(255) NOT NULL,
+    uploaded_by INTEGER,
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    branch_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Default indexes for speed (Existing columns only)
 CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
 CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals(pipeline_stage);
