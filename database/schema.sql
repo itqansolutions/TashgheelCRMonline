@@ -246,7 +246,22 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 14. Global Settings Table
+-- 14. Attachments Table
+CREATE TABLE IF NOT EXISTS attachments (
+    id SERIAL PRIMARY KEY,
+    filename VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(100),
+    file_path TEXT NOT NULL,
+    linked_type VARCHAR(50) NOT NULL,
+    linked_id VARCHAR(255) NOT NULL,
+    uploaded_by INTEGER,
+    tenant_id VARCHAR(255),
+    branch_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 15. Global Settings Table
 CREATE TABLE IF NOT EXISTS settings (
     key VARCHAR(100) PRIMARY KEY,
     value TEXT,

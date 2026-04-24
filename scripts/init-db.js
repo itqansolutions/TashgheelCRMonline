@@ -103,6 +103,9 @@ const initDb = async () => {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             `);
+            // Ensure columns exist if table was created in an older migration
+            await db.query('ALTER TABLE attachments ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255)');
+            await db.query('ALTER TABLE attachments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)');
 
             const defaultTenant = '00000000-0000-0000-0000-000000000000';
 

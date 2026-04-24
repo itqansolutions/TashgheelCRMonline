@@ -28,15 +28,15 @@ exports.uploadFile = async (req, res) => {
   try {
     const result = await db.query(
       'INSERT INTO attachments (filename, original_name, mime_type, file_path, linked_type, linked_id, uploaded_by, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-      [req.file.filename, req.file.originalname, req.file.mimetype, req.file.path, linked_type, linked_id, req.user.id, tenant_id, branch_id]
+      [req.file.filename, req.file.originalname, req.file.mimetype, req.file.path, linked_type, linked_id, req.user?.id || null, tenant_id, branch_id || null]
     );
 
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
-    console.error(err.message);
+    console.error('[Upload DB Error]:', err.message);
     // Cleanup file on DB error
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    res.status(500).json({ status: 'error', message: 'Database failed to link file' });
   }
 };
 
@@ -49,7 +49,7 @@ exports.getAttachments = async (req, res) => {
   const branch_id = req.branchId || req.user?.branch_id;
   try {
     const result = await db.query(
-      'SELECT * FROM attachments WHERE linked_type = $1 AND linked_id = $2 AND tenant_id::text = $3::text AND branch_id::text = $4::text ORDER BY created_at DESC',
+      'SELECT * FROM attachments WHERE linked_type = $1 AND linked_id = $2 AND tenant_id::text = $3::text AND (branch_id::text = $4::text OR branch_id IS NULL) ORDER BY created_at DESC',
       [entityType, entityId, tenant_id, branch_id]
     );
     res.json({ status: 'success', data: result.rows });
@@ -67,7 +67,7 @@ exports.deleteAttachment = async (req, res) => {
   const branch_id = req.branchId || req.user?.branch_id;
   try {
     // 1. Get file details AND enforce Tenant isolation
-    const fileResult = await db.query('SELECT * FROM attachments WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
+    const fileResult = await db.query('SELECT * FROM attachments WHERE id = $1 AND tenant_id::text = $2::text AND (branch_id::text = $3::text OR branch_id IS NULL)', [req.params.id, tenant_id, branch_id]);
     if (fileResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'File not found' });
     }
@@ -101,7 +101,7 @@ exports.getFiles = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
   try {
-    const result = await db.query('SELECT * FROM attachments WHERE tenant_id::text = $1::text AND branch_id::text = $2::text ORDER BY created_at DESC', [tenant_id, branch_id]);
+    const result = await db.query('SELECT * FROM attachments WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR branch_id IS NULL) ORDER BY created_at DESC', [tenant_id, branch_id]);
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error(err.message);
