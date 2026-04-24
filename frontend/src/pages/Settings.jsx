@@ -37,7 +37,13 @@ const Settings = () => {
   const fetchTenantDetails = async () => {
     try {
       const tenantRes = await api.get(`/tenants/my`);
-      setTenant(tenantRes.data.data);
+      const data = tenantRes.data.data;
+      // Normalize null values to empty strings for controlled inputs
+      const normalizedData = { ...data };
+      Object.keys(normalizedData).forEach(key => {
+        if (normalizedData[key] === null) normalizedData[key] = '';
+      });
+      setTenant(prev => ({ ...prev, ...normalizedData }));
     } catch (err) {
       toast.error('Failed to load company details');
     } finally {
