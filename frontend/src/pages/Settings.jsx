@@ -56,12 +56,22 @@ const Settings = () => {
 
   const handleUpdate = async (e) => {
     e.preventDefault();
+    if (!user?.tenant_id) {
+      toast.error('Session expired or invalid tenant context');
+      return;
+    }
     setSaving(true);
     try {
-      await api.put(`/tenants/${user.tenant_id}`, tenant);
-      toast.success('Settings updated successfully');
+      console.log('SAVING SETTINGS:', tenant);
+      const res = await api.put(`/tenants/${user.tenant_id}`, tenant);
+      if (res.data.status === 'success') {
+        toast.success('Settings updated successfully');
+        // Refresh local state with server response
+        setTenant(res.data.data);
+      }
     } catch (err) {
-      toast.error('Failed to update settings');
+      console.error('SAVE ERROR:', err);
+      toast.error(err.response?.data?.message || 'Failed to update settings');
     } finally {
       setSaving(false);
     }
