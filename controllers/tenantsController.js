@@ -104,8 +104,9 @@ exports.updateTenant = async (req, res) => {
           UPDATE tenants 
           SET name = $1, address = $2, phone = $3, tax_no = $4, reg_no = $5, logo_url = $6,
               currency = $7, tax_rate = $8, invoice_prefix = $9, invoice_footer = $10, terms = $11,
-              quotation_prefix = $12, quotation_footer = $13, quotation_terms = $14
-          WHERE id::text = $15::text RETURNING *`;
+              quotation_prefix = $12, quotation_footer = $13, quotation_terms = $14,
+              primary_color = $15
+          WHERE id::text = $16::text RETURNING *`;
         
         params = [
           name || oldData.name,
@@ -122,6 +123,7 @@ exports.updateTenant = async (req, res) => {
           quotation_prefix !== undefined ? quotation_prefix : oldData.quotation_prefix,
           quotation_footer !== undefined ? quotation_footer : oldData.quotation_footer,
           quotation_terms !== undefined ? quotation_terms : oldData.quotation_terms,
+          primary_color !== undefined ? primary_color : oldData.primary_color,
           id
         ];
     }
