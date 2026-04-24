@@ -85,22 +85,51 @@ exports.updateTenant = async (req, res) => {
     }
     const oldData = oldResult.rows[0];
 
-    // 2. Perform Update (Super Admin can update plan/status/date, Tenant Admin only identity/financials)
+    // 2. Perform Update
     let query, params;
+    
+    // Extract branding/financial fields
+    const { 
+      address, phone, tax_no, reg_no, logo_url, 
+      currency, tax_rate, invoice_prefix, invoice_footer, terms,
+      quotation_prefix, quotation_footer, quotation_terms,
+      primary_color,
+      plan, status, subscription_end // Also support these if super admin
+    } = req.body;
+
     if (tenant_id === SYSTEM_DEFAULT_TENANT) {
+        // Super Admin updating either themselves or someone else
         query = `
           UPDATE tenants 
-          SET name = $1, plan = $2, status = $3, subscription_end = $4 
-          WHERE id::text = $5::text RETURNING *`;
-        params = [name || oldData.name, plan || oldData.plan, status || oldData.status, subscription_end || oldData.subscription_end, id];
+          SET name = $1, address = $2, phone = $3, tax_no = $4, reg_no = $5, logo_url = $6,
+              currency = $7, tax_rate = $8, invoice_prefix = $9, invoice_footer = $10, terms = $11,
+              quotation_prefix = $12, quotation_footer = $13, quotation_terms = $14,
+              primary_color = $15, plan = $16, status = $17, subscription_end = $18
+          WHERE id::text = $19::text RETURNING *`;
+        
+        params = [
+          name || oldData.name,
+          address !== undefined ? address : oldData.address,
+          phone !== undefined ? phone : oldData.phone,
+          tax_no !== undefined ? tax_no : oldData.tax_no,
+          reg_no !== undefined ? reg_no : oldData.reg_no,
+          logo_url !== undefined ? logo_url : oldData.logo_url,
+          currency !== undefined ? currency : oldData.currency,
+          tax_rate !== undefined ? tax_rate : oldData.tax_rate,
+          invoice_prefix !== undefined ? invoice_prefix : oldData.invoice_prefix,
+          invoice_footer !== undefined ? invoice_footer : oldData.invoice_footer,
+          terms !== undefined ? terms : oldData.terms,
+          quotation_prefix !== undefined ? quotation_prefix : oldData.quotation_prefix,
+          quotation_footer !== undefined ? quotation_footer : oldData.quotation_footer,
+          quotation_terms !== undefined ? quotation_terms : oldData.quotation_terms,
+          primary_color !== undefined ? primary_color : oldData.primary_color,
+          plan || oldData.plan,
+          status || oldData.status,
+          subscription_end || oldData.subscription_end,
+          id
+        ];
     } else {
-        const { 
-          address, phone, tax_no, reg_no, logo_url, 
-          currency, tax_rate, invoice_prefix, invoice_footer, terms,
-          quotation_prefix, quotation_footer, quotation_terms,
-          primary_color
-        } = req.body;
-
+        // Regular Tenant Admin updating their own profile
         query = `
           UPDATE tenants 
           SET name = $1, address = $2, phone = $3, tax_no = $4, reg_no = $5, logo_url = $6,
