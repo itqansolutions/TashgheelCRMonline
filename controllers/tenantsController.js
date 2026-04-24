@@ -125,7 +125,7 @@ exports.updateTenant = async (req, res) => {
           primary_color !== undefined ? primary_color : oldData.primary_color,
           plan || oldData.plan,
           status || oldData.status,
-          subscription_end: (subscription_end && subscription_end.trim() !== "") ? subscription_end : (oldData.subscription_end || null),
+          (subscription_end && subscription_end.trim() !== "") ? subscription_end : (oldData.subscription_end || null),
           id
         ];
     } else {
