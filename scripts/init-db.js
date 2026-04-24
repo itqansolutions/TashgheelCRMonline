@@ -138,7 +138,10 @@ const initDb = async () => {
                 )
             `);
             
-            const initialKeys = ['company_name', 'company_logo', 'invoice_footer', 'invoice_terms'];
+            const initialKeys = [
+                'company_name', 'company_logo', 'invoice_footer', 'invoice_terms', 
+                'quotation_footer', 'quotation_terms'
+            ];
             for (const key of initialKeys) {
                 await db.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [key, '']);
             }

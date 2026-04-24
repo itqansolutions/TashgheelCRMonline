@@ -150,9 +150,10 @@ const QuotationPreview = ({ quotation }) => {
         <div className="header-section">
           <div className="logo-placeholder">
             {settings?.company_logo ? (
-              <img src={`/${settings.company_logo}`} alt="Company Logo" />
+              <img src={`/${settings.company_logo.replace(/\\/g, '/')}`} alt="Logo" />
             ) : null}
-            <span className="comp-name">{settings?.company_name || 'Tashgheel CRM'}</span>
+            {!settings?.company_logo && <span className="comp-name">{settings?.company_name || 'Tashgheel CRM'}</span>}
+            {settings?.company_logo && settings?.company_name && <span className="comp-name" style={{ fontSize: '14px', color: '#64748b' }}>{settings.company_name}</span>}
           </div>
             <div className="quotation-title-block">
               <h1>Price Quotation</h1>
@@ -180,9 +181,6 @@ const QuotationPreview = ({ quotation }) => {
           <div className="info-block" style={{ textAlign: 'right' }}>
             <h4>Validity</h4>
             <p>Valid Until: {new Date(quotation.valid_until).toLocaleDateString()}</p>
-            <p className="no-print" style={{ color: '#f59e0b' }}>
-              Status: {quotation.status?.toUpperCase() || 'DRAFT'}
-            </p>
           </div>
         </div>
 
