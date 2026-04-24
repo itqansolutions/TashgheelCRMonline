@@ -181,3 +181,17 @@ button {
 .status-glow-success { box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.3); }
 .status-glow-warning { box-shadow: 0 0 15px rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.3); }
 .status-glow-danger { box-shadow: 0 0 15px rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+/* Global Print Resets */
+@media print {
+  body { background: white !important; margin: 0 !important; padding: 0 !important; }
+  .sidebar, .navbar, nav, aside, .no-print, button, header, .settings-header { display: none !important; }
+  .main-content, .content-area, .page-container { 
+    margin: 0 !important; 
+    padding: 0 !important; 
+    width: 100% !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+  }
+}

@@ -26,7 +26,8 @@ const scripts = [
     'fix-departments-tenant-migration.js',
     'fix-lead-sources-migration.js',
     'industry-templates-migration.js',
-    're-units-enhancement-migration.js'
+    're-units-enhancement-migration.js',
+    'dbReconciliation.js'
 ];
 
 console.log('--- [PRE-BOOT] Starting System Synchronization ---');
