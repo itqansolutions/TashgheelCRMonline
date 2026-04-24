@@ -132,15 +132,25 @@ const db = require('./config/db');
 // SPA Catch-all (PUBLIC — serves index.html for all frontend routes)
 // Must be the LAST route defined
 app.get(/.*/, (req, res) => {
+  // If the request starts with /api but didn't match anything above, it's a real API 404
+  if (req.url.startsWith('/api')) {
+    console.warn(`⚠️ [API 404] Unmatched Route: ${req.method} ${req.url} | User: ${req.user?.email || 'Guest'}`);
+    return res.status(404).json({ status: 'error', message: `API Endpoint ${req.url} not found` });
+  }
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // Error handling middleware (Production grade)
 app.use((err, req, res, next) => {
-  console.error('🔥 [Internal Server Error]:', err.stack);
+  console.error('🔥 [Internal Server Error]:', {
+    path: req.url,
+    message: err.message,
+    stack: err.stack
+  });
   res.status(err.status || 500).json({ 
     status: 'error', 
-    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
+    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+    debug: err.message
   });
 });
 

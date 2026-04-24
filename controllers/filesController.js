@@ -16,27 +16,50 @@ exports.uploadFile = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
   
+  console.log('[UPLOAD DEBUG] Metadata:', { linked_type, linked_id, tenant_id, branch_id, userId: req.user?.id });
+
   if (!linked_type || linked_id === undefined || linked_id === null) {
     console.error(`[Upload] Missing metadata: Type=${linked_type}, ID=${linked_id}`);
-    // Remove the uploaded file if entity linkage is missing
-    if (req.file.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-    }
+    if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     return res.status(400).json({ status: 'error', message: 'Entity linkage information (type/id) is missing.' });
   }
 
   try {
+    // Defensive check: Ensure table columns exist (Self-healing)
+    await db.query('ALTER TABLE attachments ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255)');
+    await db.query('ALTER TABLE attachments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)');
+
     const result = await db.query(
       'INSERT INTO attachments (filename, original_name, mime_type, file_path, linked_type, linked_id, uploaded_by, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-      [req.file.filename, req.file.originalname, req.file.mimetype, req.file.path, linked_type, linked_id, req.user?.id || null, tenant_id, branch_id || null]
+      [
+        req.file.filename, 
+        req.file.originalname, 
+        req.file.mimetype, 
+        req.file.path, 
+        linked_type, 
+        linked_id, 
+        req.user?.id || null, 
+        tenant_id || null, 
+        branch_id || null
+      ]
     );
 
+    console.log('[UPLOAD SUCCESS] File linked:', result.rows[0].id);
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
-    console.error('[Upload DB Error]:', err.message);
+    console.error('[Upload DB Error CRITICAL]:', {
+      message: err.message,
+      detail: err.detail,
+      table: err.table,
+      constraint: err.constraint
+    });
     // Cleanup file on DB error
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ status: 'error', message: 'Database failed to link file' });
+    res.status(500).json({ 
+        status: 'error', 
+        message: 'Database failed to link file', 
+        debug: err.message 
+    });
   }
 };
 
