@@ -164,7 +164,17 @@ const reconcileDatabase = async () => {
                 )
             `);
 
-            // Branding & Prefixes
+            // Branding & Identity Columns (Ensuring SaaS capability)
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS address TEXT`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS tax_no VARCHAR(100)`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS reg_no VARCHAR(100)`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS logo_url TEXT`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'EGP'`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS tax_rate NUMERIC DEFAULT 0`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS invoice_prefix VARCHAR(20) DEFAULT 'INV-'`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS invoice_footer TEXT`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS terms TEXT`);
             await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_terms TEXT`);
             await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_footer TEXT`);
             await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_prefix VARCHAR(10) DEFAULT 'QUO-'`);

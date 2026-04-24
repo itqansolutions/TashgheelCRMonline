@@ -18,6 +18,20 @@ CREATE TABLE IF NOT EXISTS tenants (
     status VARCHAR(50) DEFAULT 'active',
     template_name VARCHAR(100) DEFAULT 'general' REFERENCES business_templates(name),
     subscription_end TIMESTAMP WITH TIME ZONE,
+    address TEXT,
+    phone VARCHAR(50),
+    tax_no VARCHAR(100),
+    reg_no VARCHAR(100),
+    logo_url TEXT,
+    currency VARCHAR(10) DEFAULT 'EGP',
+    tax_rate NUMERIC DEFAULT 0,
+    invoice_prefix VARCHAR(20) DEFAULT 'INV-',
+    invoice_footer TEXT,
+    terms TEXT, -- Used for Invoice Terms
+    quotation_prefix VARCHAR(10) DEFAULT 'QUO-',
+    quotation_footer TEXT,
+    quotation_terms TEXT,
+    primary_color VARCHAR(20) DEFAULT '#f59e0b',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
