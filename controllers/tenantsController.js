@@ -97,7 +97,8 @@ exports.updateTenant = async (req, res) => {
         const { 
           address, phone, tax_no, reg_no, logo_url, 
           currency, tax_rate, invoice_prefix, invoice_footer, terms,
-          quotation_prefix, quotation_footer, quotation_terms
+          quotation_prefix, quotation_footer, quotation_terms,
+          primary_color
         } = req.body;
 
         query = `
