@@ -19,7 +19,8 @@ const Settings = () => {
     invoice_footer: '',
     invoice_terms: '',
     quotation_footer: '',
-    quotation_terms: ''
+    quotation_terms: '',
+    primary_color: '#f59e0b'
   });
 
   useEffect(() => {
@@ -187,14 +188,33 @@ const Settings = () => {
             <h3>Company Branding</h3>
           </div>
           <div className="card-content">
-            <div className="form-group">
-              <label>Global Company Name</label>
-              <input 
-                type="text" 
-                placeholder="e.g. Tashgheel Solutions" 
-                value={branding.company_name}
-                onChange={(e) => setBranding({...branding, company_name: e.target.value})}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px' }}>
+              <div className="form-group">
+                <label>Global Company Name</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Tashgheel Solutions" 
+                  value={branding.company_name}
+                  onChange={(e) => setBranding({...branding, company_name: e.target.value})}
+                />
+              </div>
+              <div className="form-group">
+                <label>Brand Primary Color</label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input 
+                    type="color" 
+                    value={branding.primary_color || '#f59e0b'}
+                    onChange={(e) => setBranding({...branding, primary_color: e.target.value})}
+                    style={{ width: '50px', height: '42px', padding: '2px', cursor: 'pointer' }}
+                  />
+                  <input 
+                    type="text" 
+                    value={branding.primary_color || '#f59e0b'}
+                    onChange={(e) => setBranding({...branding, primary_color: e.target.value})}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="form-group">

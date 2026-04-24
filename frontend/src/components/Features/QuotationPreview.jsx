@@ -53,7 +53,7 @@ const QuotationPreview = ({ quotation }) => {
         .quotation-title-block h1 {
           font-size: 28px;
           margin: 0;
-          color: #f59e0b;
+          color: ${settings?.primary_color || '#f59e0b'};
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
@@ -94,7 +94,7 @@ const QuotationPreview = ({ quotation }) => {
           text-align: left;
           font-size: 12px;
           text-transform: uppercase;
-          color: #d97706;
+          color: ${settings?.primary_color || '#d97706'};
           border-bottom: 2px solid #fef3c7;
         }
         .quotation-table td {
@@ -108,7 +108,7 @@ const QuotationPreview = ({ quotation }) => {
           font-size: 18px;
         }
         .total-row td {
-          color: #d97706;
+          color: ${settings?.primary_color || '#d97706'};
         }
 
         .quotation-footer {
