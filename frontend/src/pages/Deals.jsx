@@ -44,8 +44,6 @@ const Deals = () => {
     unit_id: '',
     probability: 0,
     expected_close_date: '',
-    probability: 0,
-    expected_close_date: '',
     next_action: '',
     source_type: '',
     source_id: '',
