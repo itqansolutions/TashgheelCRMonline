@@ -16,6 +16,7 @@ export const DataProvider = ({ children }) => {
   const [units, setUnits] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [leadSources, setLeadSources] = useState([]);
+  const [taskStatuses, setTaskStatuses] = useState([]);
   const [settings, setSettings] = useState({});
   const [templateConfig, setTemplateConfig] = useState({});
   const [loading, setLoading] = useState(false);
@@ -132,6 +133,18 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const fetchTaskStatuses = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    try {
+      const res = await api.get('/task-statuses');
+      setTaskStatuses(safeArray(res.data.data));
+    } catch (err) {
+      toast.error('Failed to load task statuses');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchExpenses = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
@@ -178,6 +191,7 @@ export const DataProvider = ({ children }) => {
     users, fetchUsers,
     departments, fetchDepartments,
     leadSources, fetchLeadSources,
+    taskStatuses, fetchTaskStatuses,
     settings, fetchSettings,
     tenant, fetchTenant,
     templateConfig,

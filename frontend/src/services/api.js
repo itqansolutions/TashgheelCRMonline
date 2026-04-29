@@ -22,6 +22,11 @@ api.interceptors.request.use(
       config.headers['x-branch-id'] = branchId;
     }
 
+    // Remove Content-Type for FormData so the browser sets the correct boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+
     return config;
   },
   (error) => {

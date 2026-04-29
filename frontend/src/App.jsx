@@ -13,6 +13,7 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
+import MyProfile from './pages/MyProfile';
 import Customers from './pages/Customers';
 import Products from './pages/Products';
 import Deals from './pages/Deals';
@@ -99,6 +100,7 @@ function App() {
                 >
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="my-profile" element={<MyProfile />} />
                   <Route path="inventory" element={<Navigate to="/inventory/movements" replace />} />
                   <Route path="pricing" element={<Pricing />} />
                   <Route path="billing" element={<Billing />} />

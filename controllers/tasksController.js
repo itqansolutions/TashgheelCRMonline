@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const notificationService = require('../services/notificationService');
 const { logCreate, logUpdate, logDelete } = require('../services/loggerService');
+const { logActivity } = require('../utils/activityLogger');
 
 // @desc    Get all tasks
 // @route   GET /api/tasks
@@ -14,6 +15,9 @@ exports.getTasks = async (req, res) => {
 
     let query = `
       SELECT t.*, 
+             ts.name as status_name,
+             ts.can_make_deal,
+             ts.color as status_color,
              u1.name as in_charge_name, 
              u2.name as director_name, 
              u3.name as creator_name,
@@ -27,6 +31,7 @@ exports.getTasks = async (req, res) => {
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.director_id = u2.id
       LEFT JOIN users u3 ON t.created_by = u3.id
+      LEFT JOIN task_statuses ts ON t.status_id = ts.id
       WHERE t.tenant_id::text = $1::text AND t.branch_id::text = $2::text
     `;
 
@@ -74,6 +79,9 @@ exports.getTaskById = async (req, res) => {
   try {
     const result = await db.query(`
       SELECT t.*, 
+             ts.name as status_name,
+             ts.can_make_deal,
+             ts.color as status_color,
              u1.name as in_charge_name, 
              u2.name as director_name, 
              u3.name as creator_name,
@@ -87,6 +95,7 @@ exports.getTaskById = async (req, res) => {
       LEFT JOIN users u1 ON t.assigned_to = u1.id
       LEFT JOIN users u2 ON t.director_id = u2.id
       LEFT JOIN users u3 ON t.created_by = u3.id
+      LEFT JOIN task_statuses ts ON t.status_id = ts.id
       WHERE t.id = $1 AND t.tenant_id::text = $2::text AND t.branch_id::text = $3::text
     `, [req.params.id, tenant_id, req.branchId || req.user?.branch_id]);
 
@@ -105,7 +114,7 @@ exports.getTaskById = async (req, res) => {
 // @route   POST /api/tasks
 // @access  Private
 exports.createTask = async (req, res) => {
-  const { title, description, priority, status, assigned_to, director_id, follower_ids, parent_type, parent_id, due_date } = req.body;
+  const { title, description, priority, status, status_id, assigned_to, director_id, follower_ids, parent_type, parent_id, due_date } = req.body;
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
   const client = await db.pool.connect();
@@ -113,8 +122,8 @@ exports.createTask = async (req, res) => {
     await client.query('BEGIN');
     
     const result = await client.query(
-      'INSERT INTO tasks (title, description, priority, status, assigned_to, director_id, created_by, parent_type, parent_id, due_date, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *',
-      [title, description, priority || 'medium', status || 'todo', assigned_to || null, director_id || null, req.user.id, parent_type, parent_id, due_date || null, tenant_id, branch_id]
+      'INSERT INTO tasks (title, description, priority, status, status_id, assigned_to, director_id, created_by, parent_type, parent_id, due_date, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *',
+      [title, description, priority || 'medium', status || 'todo', status_id || null, assigned_to || null, director_id || null, req.user.id, parent_type, parent_id, due_date || null, tenant_id, branch_id]
     );
 
     const taskId = result.rows[0].id;
@@ -143,6 +152,11 @@ exports.createTask = async (req, res) => {
     // Audit Logging
     logCreate(req, 'Task', result.rows[0].id, result.rows[0]);
 
+    // Activity Timeline Logging
+    await logActivity(tenant_id, req.user, 'task', taskId, 'created', { 
+        title: { to: title } 
+    });
+
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -157,7 +171,7 @@ exports.createTask = async (req, res) => {
 // @route   PUT /api/tasks/:id
 // @access  Private
 exports.updateTask = async (req, res) => {
-  const { title, description, priority, status, assigned_to, director_id, follower_ids, parent_type, parent_id, due_date } = req.body;
+  const { title, description, priority, status, status_id, assigned_to, director_id, follower_ids, parent_type, parent_id, due_date } = req.body;
   const tenant_id = req.user.tenant_id;
   const client = await db.pool.connect();
   try {
@@ -166,15 +180,15 @@ exports.updateTask = async (req, res) => {
     // Verify task belongs to tenant
     const branch_id = req.branchId || req.user?.branch_id;
 
-    const verifyResult = await client.query('SELECT id FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
+    const verifyResult = await client.query('SELECT id, status_id FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
     if (verifyResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
     }
 
     const result = await client.query(
-      'UPDATE tasks SET title = $1, description = $2, priority = $3, status = $4, assigned_to = $5, director_id = $6, parent_type = $7, parent_id = $8, due_date = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 AND tenant_id::text = $11::text AND branch_id::text = $12::text RETURNING *',
-      [title, description, priority, status, assigned_to || null, director_id || null, parent_type, parent_id, due_date || null, req.params.id, tenant_id, branch_id]
+      'UPDATE tasks SET title = $1, description = $2, priority = $3, status = $4, status_id = $5, assigned_to = $6, director_id = $7, parent_type = $8, parent_id = $9, due_date = $10, updated_at = CURRENT_TIMESTAMP WHERE id = $11 AND tenant_id::text = $12::text AND branch_id::text = $13::text RETURNING *',
+      [title, description, priority, status, status_id || null, assigned_to || null, director_id || null, parent_type, parent_id, due_date || null, req.params.id, tenant_id, branch_id]
     );
 
     // Update followers: Delete then Insert (simple sync)
@@ -186,6 +200,19 @@ exports.updateTask = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // Detect status change for specific activity logging
+    if (req.body.status_id && req.body.status_id !== verifyResult.rows[0].status_id) {
+        await logActivity(tenant_id, req.user, 'task', req.params.id, 'status_changed', { 
+            status_id: { from: verifyResult.rows[0].status_id, to: req.body.status_id },
+            status: { to: req.body.status }
+        });
+    } else {
+        await logActivity(tenant_id, req.user, 'task', req.params.id, 'updated', { 
+            fields_updated: { to: Object.keys(req.body) } 
+        });
+    }
+
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');

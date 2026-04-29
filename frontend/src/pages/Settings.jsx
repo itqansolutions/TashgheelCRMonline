@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { 
   Building2, Image as ImageIcon, Globe, Receipt, 
   MapPin, Phone, Hash, FileText, Save, Eye, Upload, 
-  Plus, Trash2, Edit2, X, Megaphone, Settings as AdminSettingsIcon 
+  Plus, Trash2, Edit2, X, Megaphone, Settings as AdminSettingsIcon, CheckSquare
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,16 +22,19 @@ const Settings = () => {
   });
   
   const [sources, setSources] = useState([]);
+  const [taskStatuses, setTaskStatuses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [newSourceName, setNewSourceName] = useState('');
+  const [newTaskStatus, setNewTaskStatus] = useState({ name: '', can_make_deal: false, is_final: false, color: '#64748b', order_index: 0 });
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
 
   useEffect(() => {
     fetchTenantDetails();
     fetchSources();
+    fetchTaskStatuses();
   }, []);
 
   const fetchTenantDetails = async () => {
@@ -57,6 +60,15 @@ const Settings = () => {
       setSources(res.data?.data || []);
     } catch (err) {
       toast.error('Failed to load lead sources');
+    }
+  };
+
+  const fetchTaskStatuses = async () => {
+    try {
+      const res = await api.get('/task-statuses');
+      setTaskStatuses(res.data?.data || []);
+    } catch (err) {
+      toast.error('Failed to load task statuses');
     }
   };
 
@@ -143,6 +155,33 @@ const Settings = () => {
     }
   };
 
+  const handleAddTaskStatus = async (e) => {
+    e.preventDefault();
+    if (!newTaskStatus.name) return;
+    setSaving(true);
+    try {
+      await api.post('/task-statuses', newTaskStatus);
+      toast.success('Task status added');
+      setNewTaskStatus({ name: '', can_make_deal: false, is_final: false, color: '#64748b', order_index: 0 });
+      fetchTaskStatuses();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add task status');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteTaskStatus = async (id) => {
+    if (!window.confirm('Delete this task status?')) return;
+    try {
+      await api.delete(`/task-statuses/${id}`);
+      toast.success('Task status removed');
+      fetchTaskStatuses();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Cannot delete status (it might be in use)');
+    }
+  };
+
   if (loading) return <div className="loading-state">Loading Settings Hub...</div>;
 
   return (
@@ -194,6 +233,7 @@ const Settings = () => {
         .source-form { display: flex; gap: 10px; margin-bottom: 16px; }
         .source-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #f1f5f9; }
         .source-item:last-child { border-bottom: none; }
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; color: white; margin-left: 8px; }
       `}</style>
 
       <div className="settings-header">
@@ -333,6 +373,46 @@ const Settings = () => {
                 <div key={s.id} className="source-item">
                   <span>{s.name}</span>
                   <button onClick={() => handleDeleteSource(s.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-card" style={{ marginTop: '24px' }}>
+          <div className="card-header">
+            <CheckSquare size={16} color="#10b981" />
+            <h3>Task Pipeline Statuses</h3>
+          </div>
+          <div className="card-body">
+            <form className="source-form" style={{ flexWrap: 'wrap' }} onSubmit={handleAddTaskStatus}>
+              <input type="text" placeholder="Status Name (e.g. Qualified)" style={{ flex: '1 1 200px' }} value={newTaskStatus.name} onChange={(e) => setNewTaskStatus({...newTaskStatus, name: e.target.value})} />
+              <input type="color" value={newTaskStatus.color} onChange={(e) => setNewTaskStatus({...newTaskStatus, color: e.target.value})} style={{ width: '45px', padding: '2px', height: '40px' }} title="Status Color" />
+              <input type="number" placeholder="Order" value={newTaskStatus.order_index} onChange={(e) => setNewTaskStatus({...newTaskStatus, order_index: parseInt(e.target.value) || 0})} style={{ width: '80px' }} title="Display Order" />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={newTaskStatus.can_make_deal} onChange={(e) => setNewTaskStatus({...newTaskStatus, can_make_deal: e.target.checked})} />
+                Can Make Deal
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={newTaskStatus.is_final} onChange={(e) => setNewTaskStatus({...newTaskStatus, is_final: e.target.checked})} />
+                Final Status
+              </label>
+              <button type="submit" className="upload-btn" style={{ background: '#10b981', color: 'white' }}>
+                <Plus size={14} /> Add
+              </button>
+            </form>
+            <div className="source-list">
+              {taskStatuses.map(s => (
+                <div key={s.id} className="source-item" style={{ background: '#f8fafc', margin: '4px 0', borderRadius: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="status-badge" style={{ background: s.color || '#64748b' }}>{s.name}</span>
+                    <span style={{ fontSize: '12px', color: '#94a3b8', marginLeft: '12px' }}>Order: {s.order_index}</span>
+                    {s.can_make_deal && <span style={{ fontSize: '11px', background: '#dbeafe', color: '#1e40af', padding: '2px 6px', borderRadius: '4px', marginLeft: '12px' }}>Deals Enabled</span>}
+                    {s.is_final && <span style={{ fontSize: '11px', background: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px' }}>Final</span>}
+                  </div>
+                  <button onClick={() => handleDeleteTaskStatus(s.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
                     <Trash2 size={14} />
                   </button>
                 </div>

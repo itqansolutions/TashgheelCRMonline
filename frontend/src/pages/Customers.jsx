@@ -6,6 +6,7 @@ import { Plus, User, Building, Mail, Phone, MapPin } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 import FileUploader from '../components/Common/FileUploader';
+import ActivityTimeline from '../components/Common/ActivityTimeline';
 
 import { useAuth } from '../context/AuthContext';
 
@@ -463,6 +464,12 @@ const Customers = () => {
                         </div>
 
                     </div>
+                </div>
+
+                {/* Activity Timeline */}
+                <div style={{ marginTop: '32px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+                    <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)', marginBottom: '16px' }}>Activity Timeline</h4>
+                    <ActivityTimeline entityType="customer" entityId={editingCustomer.id} />
                 </div>
 
                 <div style={{ marginTop: '32px', display: 'flex', gap: '10px' }}>

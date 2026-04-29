@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { logCreate, logUpdate, logDelete } = require('../services/loggerService');
+const { logActivity } = require('../utils/activityLogger');
 
 // @desc    Get all customers
 // @route   GET /api/customers
@@ -144,6 +145,12 @@ exports.createCustomer = async (req, res) => {
     // NEW Audit Logging (Async)
     logCreate(req, 'Customer', result.rows[0].id, result.rows[0]);
 
+    // Activity Timeline Logging
+    await logActivity(tenant_id, req.user, 'customer', result.rows[0].id, 'created', { 
+        name: { to: name },
+        company_name: { to: company_name }
+    });
+
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error('[Create Customer Error]', err.message);
@@ -195,6 +202,17 @@ exports.updateCustomer = async (req, res) => {
 
     // NEW Audit Logging with automated Diff Calculation
     logUpdate(req, 'Customer', req.params.id, oldData, result.rows[0]);
+
+    // Activity Timeline Logging
+    if (assigned_to && assigned_to !== oldData.assigned_to) {
+        await logActivity(tenant_id, req.user, 'customer', req.params.id, 'assigned', { 
+            assigned_to: { from: oldData.assigned_to, to: assigned_to } 
+        });
+    } else {
+        await logActivity(tenant_id, req.user, 'customer', req.params.id, 'updated', { 
+            fields_updated: { to: Object.keys(req.body) } 
+        });
+    }
 
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {

@@ -10,6 +10,7 @@ import {
   Building, Briefcase, Tag, Trash2, Edit3, X, Users
 } from 'lucide-react';
 import Modal from '../components/Common/Modal';
+import ActivityTimeline from '../components/Common/ActivityTimeline';
 
 const PRIORITY_CONFIG = {
   urgent: { bg: '#fef2f2', color: '#dc2626', border: '#fecaca', label: 'Urgent', icon: '🔴' },
@@ -36,9 +37,9 @@ const getDueDateStatus = (due_date) => {
   return { label: `${diffDays}d`, color: '#64748b', bg: '#f1f5f9' };
 };
 
-const TaskCard = ({ task, onEdit, onDelete, onStatusChange }) => {
+const TaskCard = ({ task, onEdit, onDelete, onStatusChange, taskStatuses, onCreateDeal }) => {
   const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
-  const status = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
+  const status = taskStatuses.find(s => s.id === task.status_id) || { name: 'Todo', color: '#64748b' };
   const dueStat = getDueDateStatus(task.due_date);
 
   return (
@@ -59,6 +60,12 @@ const TaskCard = ({ task, onEdit, onDelete, onStatusChange }) => {
           <h4 style={{ margin: '4px 0 0', fontSize: '14px', fontWeight: 700, color: '#1e293b', lineHeight: 1.3 }}>{task.title}</h4>
         </div>
         <div style={{ display: 'flex', gap: '4px', marginLeft: '8px' }}>
+          {task.can_make_deal && (
+            <button onClick={(e) => { e.stopPropagation(); onCreateDeal(task); }} 
+              style={{ padding: '4px', background: '#dbeafe', color: '#1e40af', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 700 }} title="Convert to Deal">
+              <Briefcase size={13} style={{ marginRight: '4px' }}/> Deal
+            </button>
+          )}
           <button onClick={(e) => { e.stopPropagation(); onEdit(task); }} 
             style={{ padding: '4px', background: 'transparent', color: '#94a3b8', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
             <Edit3 size={13}/>
@@ -100,13 +107,14 @@ const TaskCard = ({ task, onEdit, onDelete, onStatusChange }) => {
             </span>
           )}
           <select
-            value={task.status}
-            onChange={(e) => { e.stopPropagation(); onStatusChange(task.id, e.target.value); }}
+            value={task.status_id || ''}
+            onChange={(e) => { e.stopPropagation(); onStatusChange(task.id, parseInt(e.target.value)); }}
             onClick={(e) => e.stopPropagation()}
-            style={{ fontSize: '10px', fontWeight: 800, color: status.color, background: status.bg, border: 'none', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer' }}
+            style={{ fontSize: '10px', fontWeight: 800, color: 'white', background: status.color, border: 'none', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer' }}
           >
-            {Object.entries(STATUS_CONFIG).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
+            <option value="" disabled>Select Status</option>
+            {taskStatuses.map(ts => (
+              <option key={ts.id} value={ts.id}>{ts.name}</option>
             ))}
           </select>
         </div>
@@ -117,7 +125,7 @@ const TaskCard = ({ task, onEdit, onDelete, onStatusChange }) => {
 
 const Tasks = () => {
   const { user } = useAuth();
-  const { customers, deals, users, fetchCustomers, fetchDeals, fetchUsers } = useData();
+  const { customers, deals, users, taskStatuses, fetchCustomers, fetchDeals, fetchUsers, fetchTaskStatuses } = useData();
   const [tasks, setTasks] = useState([]);
   const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -129,7 +137,7 @@ const Tasks = () => {
   const [filterAssignee, setFilterAssignee] = useState('all');
 
   const [formData, setFormData] = useState({
-    title: '', description: '', priority: 'medium', status: 'todo',
+    title: '', description: '', priority: 'medium', status_id: '',
     due_date: '', assigned_to: '', director_id: '', follower_ids: [],
     parent_type: '', parent_id: ''
   });
@@ -151,6 +159,7 @@ const Tasks = () => {
     if (customers.length === 0) fetchCustomers(false);
     if (deals.length === 0) fetchDeals(false);
     if (users.length === 0) fetchUsers(false);
+    if (taskStatuses.length === 0) fetchTaskStatuses(false);
     // Fetch units for the unit selector
     api.get('/re-units').then(r => setUnits(r.data?.data || [])).catch(() => {});
   }, []);
@@ -160,7 +169,7 @@ const Tasks = () => {
       setEditingTask(task);
       setFormData({
         title: task.title || '', description: task.description || '',
-        priority: task.priority || 'medium', status: task.status || 'todo',
+        priority: task.priority || 'medium', status_id: task.status_id || '',
         due_date: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] : '',
         assigned_to: task.assigned_to || '', director_id: task.director_id || '',
         follower_ids: task.followers ? task.followers.map(f => f.user_id) : [],
@@ -168,7 +177,8 @@ const Tasks = () => {
       });
     } else {
       setEditingTask(null);
-      setFormData({ title: '', description: '', priority: 'medium', status: 'todo', due_date: '', assigned_to: '', director_id: '', follower_ids: [], parent_type: '', parent_id: '' });
+      const defaultStatus = taskStatuses.find(s => s.order_index === 0) || taskStatuses[0];
+      setFormData({ title: '', description: '', priority: 'medium', status_id: defaultStatus ? defaultStatus.id : '', due_date: '', assigned_to: '', director_id: '', follower_ids: [], parent_type: '', parent_id: '' });
     }
     setIsModalOpen(true);
   };
@@ -205,31 +215,40 @@ const Tasks = () => {
     toast.success('Task deleted');
   };
 
-  const handleStatusChange = async (id, newStatus) => {
+  const handleStatusChange = async (id, newStatusId) => {
     try {
-      await api.put(`/tasks/${id}`, { status: newStatus });
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+      await api.put(`/tasks/${id}`, { status_id: newStatusId });
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, status_id: newStatusId } : t));
     } catch (err) {
       toast.error('Failed to update status');
     }
   };
 
+  const handleCreateDealFromTask = (task) => {
+    // Save to local storage for Deals page to pick up
+    localStorage.setItem('convert_task_to_deal', JSON.stringify(task));
+    window.location.href = '/deals';
+  };
+
   // Filtered data
   const filteredTasks = useMemo(() => tasks.filter(t => {
-    if (filterStatus !== 'all' && t.status !== filterStatus) return false;
+    if (filterStatus !== 'all' && String(t.status_id) !== filterStatus) return false;
     if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
-    if (filterAssignee !== 'all' && t.assigned_to !== filterAssignee) return false;
+    if (filterAssignee !== 'all' && String(t.assigned_to) !== filterAssignee) return false;
     return true;
   }), [tasks, filterStatus, filterPriority, filterAssignee]);
 
   // Stats
-  const stats = useMemo(() => ({
-    total: tasks.length,
-    todo: tasks.filter(t => t.status === 'todo').length,
-    in_progress: tasks.filter(t => t.status === 'in_progress').length,
-    done: tasks.filter(t => t.status === 'done').length,
-    overdue: tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'done').length,
-  }), [tasks]);
+  const stats = useMemo(() => {
+    const finalStatuses = taskStatuses.filter(ts => ts.is_final).map(ts => ts.id);
+    const firstStatus = taskStatuses.find(ts => ts.order_index === 0)?.id;
+    return {
+      total: tasks.length,
+      todo: tasks.filter(t => t.status_id === firstStatus).length,
+      done: tasks.filter(t => finalStatuses.includes(t.status_id)).length,
+      overdue: tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && !finalStatuses.includes(t.status_id)).length,
+    }
+  }, [tasks, taskStatuses]);
 
   const roleLabel = user?.role === 'admin' ? 'All Organization Tasks' 
                   : user?.role === 'manager' ? 'My Team Tasks' 
@@ -283,8 +302,7 @@ const Tasks = () => {
         {[
           { label: 'Total Tasks', value: stats.total, color: '#6366f1', bg: '#eef2ff' },
           { label: 'To Do', value: stats.todo, color: '#64748b', bg: '#f1f5f9' },
-          { label: 'In Progress', value: stats.in_progress, color: '#2563eb', bg: '#eff6ff' },
-          { label: 'Completed', value: stats.done, color: '#16a34a', bg: '#f0fdf4' },
+          { label: 'Completed', value: stats.done, color: '#10b981', bg: '#d1fae5' },
           { label: 'Overdue', value: stats.overdue, color: '#dc2626', bg: '#fef2f2' },
         ].map((stat) => (
           <div key={stat.label} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -304,7 +322,7 @@ const Tasks = () => {
         <Filter size={16} color="#94a3b8"/>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600, color: '#475569', background: '#f8fafc' }}>
           <option value="all">All Statuses</option>
-          {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          {taskStatuses.map(ts => <option key={ts.id} value={ts.id}>{ts.name}</option>)}
         </select>
         <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600, color: '#475569', background: '#f8fafc' }}>
           <option value="all">All Priorities</option>
@@ -332,16 +350,16 @@ const Tasks = () => {
       ) : viewMode === 'kanban' ? (
         /* KANBAN VIEW */
         <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', overflowX: 'auto', paddingBottom: '16px' }}>
-          {Object.entries(STATUS_CONFIG).map(([statusKey, statusCfg]) => {
-            const colTasks = filteredTasks.filter(t => t.status === statusKey);
+          {taskStatuses.map(statusCfg => {
+            const colTasks = filteredTasks.filter(t => t.status_id === statusCfg.id);
             return (
-              <div key={statusKey} className="kanban-col">
+              <div key={statusCfg.id} className="kanban-col">
                 <div className="kanban-col-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: statusCfg.color }}>{statusCfg.icon}</span>
-                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>{statusCfg.label}</span>
+                    <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: statusCfg.color || '#64748b' }}></span>
+                    <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>{statusCfg.name}</span>
                   </div>
-                  <span style={{ background: statusCfg.bg, color: statusCfg.color, padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
+                  <span style={{ background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
                     {colTasks.length}
                   </span>
                 </div>
@@ -352,7 +370,7 @@ const Tasks = () => {
                   </div>
                 ) : (
                   colTasks.map(task => (
-                    <TaskCard key={task.id} task={task} onEdit={handleOpenModal} onDelete={handleDelete} onStatusChange={handleStatusChange}/>
+                    <TaskCard key={task.id} task={task} taskStatuses={taskStatuses} onEdit={handleOpenModal} onDelete={handleDelete} onStatusChange={handleStatusChange} onCreateDeal={handleCreateDealFromTask}/>
                   ))
                 )}
               </div>
@@ -375,7 +393,7 @@ const Tasks = () => {
                 <tr><td colSpan={6} style={{ textAlign: 'center', padding: '48px', color: '#94a3b8' }}>No tasks found</td></tr>
               ) : filteredTasks.map((task, i) => {
                 const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
-                const status = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
+                const status = taskStatuses.find(s => s.id === task.status_id) || { name: 'Todo', color: '#64748b' };
                 const dueStat = getDueDateStatus(task.due_date);
                 return (
                   <tr key={task.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
@@ -395,13 +413,16 @@ const Tasks = () => {
                       <span style={{ background: priority.bg, color: priority.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>{priority.icon} {priority.label}</span>
                     </td>
                     <td style={{ padding: '14px 16px' }}>
-                      <span style={{ background: status.bg, color: status.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>{status.label}</span>
+                      <span style={{ background: status.color, color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>{status.name}</span>
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       {dueStat ? <span style={{ background: dueStat.bg, color: dueStat.color, padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>{dueStat.label}</span> : <span style={{ color: '#cbd5e1', fontSize: '12px' }}>—</span>}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
+                        {task.can_make_deal && (
+                          <button onClick={() => handleCreateDealFromTask(task)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1e40af', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Deal</button>
+                        )}
                         <button onClick={() => handleOpenModal(task)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#475569', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Edit</button>
                         <button onClick={() => handleDelete(task.id)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Delete</button>
                       </div>
@@ -483,6 +504,12 @@ const Tasks = () => {
             <textarea rows="3" placeholder="Task details and instructions..." value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} style={{ resize: 'vertical' }}></textarea>
           </div>
         </div>
+        {editingTask && (
+          <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', marginBottom: '16px' }}>Activity Timeline</h3>
+            <ActivityTimeline entityType="task" entityId={editingTask.id} />
+          </div>
+        )}
       </Modal>
     </div>
   );

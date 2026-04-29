@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, ShoppingBag, Handshake, CheckSquare, Wallet, 
   Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, 
   Settings as AdminSettingsIcon, ShieldAlert, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard,
-  Building2
+  Building2, UserCircle
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
@@ -25,6 +25,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   const navItems = [
     { name: 'Dashboard',       icon: <LayoutDashboard />, path: '/dashboard' },
+    { name: 'My Profile',      icon: <UserCircle />,      path: '/my-profile' },
     { name: 'Customers',       icon: <Users />,           path: '/customers' },
     { 
       name: user?.template_name === 'real_estate' ? 'Units Registry' : 'Products', 

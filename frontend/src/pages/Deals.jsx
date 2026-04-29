@@ -7,6 +7,7 @@ import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRigh
 import DataTable from '../components/Common/DataTable';
 import KanbanBoard from '../components/Deals/KanbanBoard';
 import Modal from '../components/Common/Modal';
+import ActivityTimeline from '../components/Common/ActivityTimeline';
 import { useAuth } from '../context/AuthContext';
 
 const Deals = () => {
@@ -43,7 +44,11 @@ const Deals = () => {
     unit_id: '',
     probability: 0,
     expected_close_date: '',
+    probability: 0,
+    expected_close_date: '',
     next_action: '',
+    source_type: '',
+    source_id: '',
     custom_fields: {}
   });
 
@@ -60,6 +65,26 @@ const Deals = () => {
     if (customers.length === 0) fetchCustomers();
     if (products.length === 0) fetchProducts();
     if (users.length === 0) fetchUsers();
+
+    // Check for Task-to-Deal conversion
+    const convertTask = localStorage.getItem('convert_task_to_deal');
+    if (convertTask) {
+        try {
+            const task = JSON.parse(convertTask);
+            setFormData(prev => ({
+                ...prev,
+                title: `Deal from: ${task.title}`,
+                source_type: 'task',
+                source_id: task.id,
+                client_id: task.parent_type === 'customer' ? task.parent_id : '',
+                assigned_to: task.assigned_to || ''
+            }));
+            setIsModalOpen(true);
+            localStorage.removeItem('convert_task_to_deal');
+        } catch (e) {
+            console.error('Failed to parse conversion task', e);
+        }
+    }
   }, [isRealEstate]);
 
   // Initialize pipeline stage once template config is loaded
@@ -83,6 +108,8 @@ const Deals = () => {
         probability: deal.probability || 0,
         expected_close_date: deal.expected_close_date ? deal.expected_close_date.split('T')[0] : '',
         next_action: deal.next_action || '',
+        source_type: deal.source_type || '',
+        source_id: deal.source_id || '',
         custom_fields: deal.custom_fields || {}
       });
     } else {
@@ -98,6 +125,8 @@ const Deals = () => {
         probability: 0,
         expected_close_date: '',
         next_action: '',
+        source_type: '',
+        source_id: '',
         custom_fields: {} 
       });
     }
@@ -244,6 +273,11 @@ const Deals = () => {
                 )
               ))}
             </div>
+          )}
+          {item.source_type === 'task' && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', background: '#f1f5f9', color: '#475569', padding: '2px 6px', borderRadius: '4px', marginLeft: '30px', marginTop: '4px' }}>
+                  Converted from Task
+              </div>
           )}
         </div>
       )
@@ -620,6 +654,12 @@ const Deals = () => {
               </div>
           )}
         </form>
+        {editingDeal && (
+          <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
+            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', marginBottom: '16px' }}>Deal Activity Timeline</h3>
+            <ActivityTimeline entityType="deal" entityId={editingDeal.id} />
+          </div>
+        )}
       </Modal>
     </div>
   );

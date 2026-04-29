@@ -52,6 +52,8 @@ const reportRoutes = require('./routes/reportRoutes');
 const logRoutes = require('./routes/logRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const leadSourceRoutes = require('./routes/leadSourceRoutes');
+const taskStatusRoutes = require('./routes/taskStatusRoutes');
+const profileRoutes = require('./routes/profileRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const tenantRoutes = require('./routes/tenantRoutes');
 const branchRoutes = require('./routes/branchRoutes');
@@ -63,6 +65,7 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 const workflowRoutes = require('./routes/workflowRoutes');
 const rulesRoutes = require('./routes/rulesRoutes');
 const superAdminRoutes = require('./routes/superAdminRoutes');
+const activityRoutes = require('./routes/activityRoutes');
 
 // SaaS Middleware
 const authMiddleware = require('./middleware/auth');
@@ -118,6 +121,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/lead-sources', leadSourceRoutes);
+app.use('/api/task-statuses', taskStatusRoutes);
+app.use('/api/profile', profileRoutes);
 app.use('/api/lead-statuses', require('./routes/leadStatusRoutes'));
 app.use('/api/settings', settingsRoutes);
 app.use('/api/tenants', tenantRoutes);
@@ -125,6 +130,7 @@ app.use('/api/branches', branchRoutes);
 app.use('/api/re-units', reUnitRoutes);
 app.use('/api/re-payments', rePaymentRoutes);
 app.use('/api/super-admin', superAdminRoutes);
+app.use('/api/activities', activityRoutes);
 
 
 const db = require('./config/db');

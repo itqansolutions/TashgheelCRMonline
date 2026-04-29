@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const notificationService = require('../services/notificationService');
 const { logAction, logCreate, logUpdate, logDelete, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
+const { logActivity } = require('../utils/activityLogger');
 const { getTenantTemplate } = require('../services/templateService');
 const templateAutomationService = require('../services/templateAutomationService');
 
@@ -77,7 +78,7 @@ exports.getDealById = async (req, res) => {
 // @route   POST /api/deals
 // @access  Private
 exports.createDeal = async (req, res) => {
-  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields, unit_id, probability, expected_close_date, next_action } = req.body;
+  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields, unit_id, probability, expected_close_date, next_action, source_type, source_id } = req.body;
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
 
@@ -99,11 +100,31 @@ exports.createDeal = async (req, res) => {
     const cleanAssignedTo = (assigned_to && assigned_to !== '') ? assigned_to : req.user.id;
     const cleanProbability = (probability && probability !== '') ? parseInt(probability) : 0;
     const cleanExpectedDate = (expected_close_date && expected_close_date !== '') ? expected_close_date : null;
+    const cleanSourceType = (source_type && source_type !== '') ? source_type : null;
+    const cleanSourceId = (source_id && source_id !== '') ? String(source_id) : null;
+
+    // Phase 8: Task to Deal Conversion Validation & Auto-Transition
+    if (cleanSourceType === 'task' && cleanSourceId) {
+        // Validate if task belongs to tenant and status permits deal creation
+        const taskRes = await db.query(\`
+            SELECT t.id, ts.can_make_deal 
+            FROM tasks t 
+            LEFT JOIN task_statuses ts ON t.status_id = ts.id 
+            WHERE t.id = $1 AND t.tenant_id::text = $2::text AND t.branch_id::text = $3::text
+        \`, [cleanSourceId, tenant_id, branch_id]);
+
+        if (taskRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Source task not found.' });
+        }
+        if (taskRes.rows[0].can_make_deal !== true) {
+            return res.status(400).json({ status: 'error', message: 'This task status does not permit conversion to a deal.' });
+        }
+    }
 
     // 2. Insert Deal (With branch_id injection and new Phase 2 schema)
     const result = await db.query(
-      'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, branch_id, custom_fields, unit_id, probability, expected_close_date, next_action) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *',
-      [title, value || 0, pipeline_stage || 'discovery', cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, tenant_id, branch_id, custom_fields || {}, cleanUnitId, cleanProbability, cleanExpectedDate, next_action || '']
+      'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, branch_id, custom_fields, unit_id, probability, expected_close_date, next_action, source_type, source_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *',
+      [title, value || 0, pipeline_stage || 'discovery', cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, tenant_id, branch_id, custom_fields || {}, cleanUnitId, cleanProbability, cleanExpectedDate, next_action || '', cleanSourceType, cleanSourceId]
     );
 
     const newDeal = result.rows[0];
@@ -124,6 +145,24 @@ exports.createDeal = async (req, res) => {
 
     // Audit Logging
     logCreate(req, 'Deal', newDeal.id, newDeal);
+
+    // Activity Timeline Logging
+    await logActivity(tenant_id, req.user, 'deal', newDeal.id, 'created', { 
+        title: { to: title },
+        value: { to: value },
+        pipeline_stage: { to: pipeline_stage }
+    });
+
+    // Auto Transition Task if converted
+    if (cleanSourceType === 'task' && cleanSourceId) {
+        // Find a "Converted" or final status for the tenant
+        const statusRes = await db.query('SELECT id FROM task_statuses WHERE tenant_id::text = $1::text AND (name ILIKE $2 OR is_final = true) ORDER BY is_final DESC LIMIT 1', [tenant_id, '%converted%']);
+        if (statusRes.rows.length > 0) {
+             const convertedStatusId = statusRes.rows[0].id;
+             await db.query('UPDATE tasks SET status_id = $1 WHERE id = $2', [convertedStatusId, cleanSourceId]);
+             logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Task', entityId: cleanSourceId, details: { deal_id: newDeal.id, status_change: 'Converted' } });
+        }
+    }
 
     // Phase 7 Workflow Engine: Auto-Assign if no explicit assignee was given
     if (!assigned_to) {
@@ -162,7 +201,7 @@ exports.createDeal = async (req, res) => {
 // @route   PUT /api/deals/:id
 // @access  Private
 exports.updateDeal = async (req, res) => {
-  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields, probability, expected_close_date, next_action } = req.body;
+  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields, probability, expected_close_date, next_action, source_type, source_id } = req.body;
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
 
@@ -181,13 +220,15 @@ exports.updateDeal = async (req, res) => {
     const cleanAssignedTo = (assigned_to && assigned_to !== '') ? assigned_to : oldData.assigned_to;
     const cleanProbability = (probability && probability !== '') ? parseInt(probability) : 0;
     const cleanExpectedDate = (expected_close_date && expected_close_date !== '') ? expected_close_date : null;
+    const cleanSourceType = (source_type && source_type !== '') ? source_type : oldData.source_type;
+    const cleanSourceId = (source_id && source_id !== '') ? String(source_id) : oldData.source_id;
 
     // 2. Perform Update (With phase 2 metrics)
     const result = await db.query(
       `UPDATE deals 
-       SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, probability = $9, expected_close_date = $10, next_action = $11, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $12 AND tenant_id::text = $13::text AND branch_id::text = $14::text RETURNING *`,
-      [title, value, pipeline_stage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, custom_fields || oldData.custom_fields, cleanProbability, cleanExpectedDate, next_action || '', req.params.id, tenant_id, branch_id]
+       SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, probability = $9, expected_close_date = $10, next_action = $11, source_type = $12, source_id = $13, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $14 AND tenant_id::text = $15::text AND branch_id::text = $16::text RETURNING *`,
+      [title, value, pipeline_stage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, custom_fields || oldData.custom_fields, cleanProbability, cleanExpectedDate, next_action || '', cleanSourceType, cleanSourceId, req.params.id, tenant_id, branch_id]
     );
 
     // Audit Logging
@@ -206,6 +247,17 @@ exports.updateDeal = async (req, res) => {
               branch_id: branch_id
           }
       });
+    }
+
+    // Activity Timeline Logging
+    if (oldData.pipeline_stage !== pipeline_stage) {
+        await logActivity(tenant_id, req.user, 'deal', req.params.id, 'stage_changed', { 
+            pipeline_stage: { from: oldData.pipeline_stage, to: pipeline_stage }
+        });
+    } else {
+        await logActivity(tenant_id, req.user, 'deal', req.params.id, 'updated', { 
+            fields_updated: { to: Object.keys(req.body) } 
+        });
     }
 
     res.json({ status: 'success', data: result.rows[0] });
@@ -284,6 +336,11 @@ exports.updateDealStatus = async (req, res) => {
               assigned_to: assigned_to,
               branch_id: branch_id
           }
+      });
+      
+      // Activity Timeline Logging
+      await logActivity(tenant_id, req.user, 'deal', req.params.id, 'stage_changed', { 
+          pipeline_stage: { from: oldStage, to: pipeline_stage }
       });
     }
 
