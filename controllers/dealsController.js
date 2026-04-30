@@ -106,12 +106,13 @@ exports.createDeal = async (req, res) => {
     // Phase 8: Task to Deal Conversion Validation & Auto-Transition
     if (cleanSourceType === 'task' && cleanSourceId) {
         // Validate if task belongs to tenant and status permits deal creation
-        const taskRes = await db.query(`
-            SELECT t.id, ts.can_make_deal 
-            FROM tasks t 
-            LEFT JOIN task_statuses ts ON t.status_id = ts.id 
-            WHERE t.id = $1 AND t.tenant_id::text = $2::text AND t.branch_id::text = $3::text
-        `, [cleanSourceId, tenant_id, branch_id]);
+        const taskRes = await db.query(
+            "SELECT t.id, ts.can_make_deal " +
+            "FROM tasks t " +
+            "LEFT JOIN task_statuses ts ON t.status_id = ts.id " +
+            "WHERE t.id = $1 AND t.tenant_id::text = $2::text AND t.branch_id::text = $3::text",
+            [cleanSourceId, tenant_id, branch_id]
+        );
 
         if (taskRes.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Source task not found.' });
