@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const taskStatusController = require('../controllers/taskStatusController');
 const authMiddleware = require('../middleware/auth');
-const roleMiddleware = require('../middleware/role');
+const roleMiddleware = require('../middleware/roleGuard');
 
 // Apply auth middleware to all routes
 router.use(authMiddleware);
