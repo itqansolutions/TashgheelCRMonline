@@ -208,33 +208,44 @@ const eventStoreRepository = require('./src/infrastructure/events/EventStoreRepo
 const moduleRegistry = require('./src/infrastructure/plugins/ModuleRegistry');
 const registerGlobalSubscribers = require('./src/domains/shared/subscribers/eventSubscribers');
 
+// Process-level Error Safety Guards (Prevent Railway 502 Crashes)
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 [UnhandledRejection]:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('🔥 [UncaughtException]:', err.message, err.stack);
+});
+
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
 
-  // ── Failsafe inline migration: ensure re_units has all required columns ──
   try {
-    await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS assigned_to UUID`);
-    await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS vendor_id UUID`);
-    console.log('✅ [Boot] re_units columns verified (assigned_to, vendor_id).');
-  } catch (e) {
-    // Table may not exist yet — pre-boot will handle full creation
-    console.warn('⚠️ [Boot] re_units column check:', e.message);
+    // ── Failsafe inline migration: ensure re_units has all required columns ──
+    try {
+      await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS assigned_to UUID`);
+      await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS vendor_id UUID`);
+      console.log('✅ [Boot] re_units columns verified (assigned_to, vendor_id).');
+    } catch (e) {
+      console.warn('⚠️ [Boot] re_units column check:', e.message);
+    }
+
+    await reconcileDatabase();
+    
+    // 🚀 Initialize Enterprise Event Bus, Event Store & Outbox Engine
+    eventBus.setEventStore(eventStoreRepository);
+    registerGlobalSubscribers(eventBus);
+    moduleRegistry.bootstrapEvents(eventBus);
+    const outboxService = require('./src/infrastructure/events/OutboxService');
+    outboxService.startOutboxPoller(10000);
+    console.log('⚡ [Boot] Enterprise Event Bus, Event Store & Outbox Engine initialized.');
+
+    startReservationScanner(10);
+    await promoteOnStartup();
+    await seedDemoAccount();
+  } catch (bootErr) {
+    console.error('⚠️ [Boot Warning] Post-launch initialization encountered an error (non-fatal):', bootErr.message);
   }
-  // ─────────────────────────────────────────────────────────────────────────
-
-  await reconcileDatabase();
-  
-  // 🚀 Initialize Enterprise Event Bus, Event Store & Outbox Engine
-  eventBus.setEventStore(eventStoreRepository);
-  registerGlobalSubscribers(eventBus);
-  moduleRegistry.bootstrapEvents(eventBus);
-  const outboxService = require('./src/infrastructure/events/OutboxService');
-  outboxService.startOutboxPoller(10000);
-  console.log('⚡ [Boot] Enterprise Event Bus, Event Store & Outbox Engine initialized.');
-
-  startReservationScanner(10); // Run reservation garbage collection every 10 minutes
-  await promoteOnStartup();
-  await seedDemoAccount();
 });
 
 
