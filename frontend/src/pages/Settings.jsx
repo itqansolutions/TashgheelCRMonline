@@ -238,9 +238,31 @@ const Settings = () => {
 
       <div className="settings-header">
         <h2 style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '-0.02em', color: '#1e293b' }}>
-           Control Panel & Identity
+           Control Panel & Domain Settings Hub
         </h2>
-        <p style={{ color: '#64748b', fontSize: '14px' }}>Unify your brand, marketing channels, and financial document defaults.</p>
+        <p style={{ color: '#64748b', fontSize: '14px' }}>Unify your brand, domain rules, marketing channels, and financial document defaults.</p>
+        
+        {/* Domain Tab Navigation */}
+        <div style={{ display: 'flex', gap: '8px', marginTop: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', flexWrap: 'wrap' }}>
+          {['Branding & Identity', 'CRM & Leads', 'Sales & Pipeline', 'Real Estate Vertical', 'Finance & Billing', 'Automation & Rules', 'Integrations'].map((tab, idx) => (
+            <button 
+              key={tab}
+              onClick={() => toast.success(`Active Domain: ${tab}`)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '20px',
+                fontSize: '12px',
+                fontWeight: '700',
+                background: idx === 0 ? '#6366f1' : '#f1f5f9',
+                color: idx === 0 ? 'white' : '#64748b',
+                border: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="settings-forms">

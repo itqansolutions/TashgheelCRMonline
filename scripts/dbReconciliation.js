@@ -234,7 +234,60 @@ const reconcileDatabase = async () => {
             )
         `);
 
-        console.log('✅ [DB-RECON] Modular tables verified.');
+        // Event Store Table for Domain Events
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS domain_events (
+                id UUID PRIMARY KEY,
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                aggregate_type VARCHAR(100) NOT NULL,
+                aggregate_id VARCHAR(255) NOT NULL,
+                event_name VARCHAR(100) NOT NULL,
+                version VARCHAR(20) DEFAULT 'v1',
+                payload JSONB DEFAULT '{}',
+                actor_id VARCHAR(255) DEFAULT 'SYSTEM',
+                occurred_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Universal Polymorphic Activity Feed Table
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS activities (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                entity_type VARCHAR(100) NOT NULL,
+                entity_id VARCHAR(255) NOT NULL,
+                activity_type VARCHAR(100) NOT NULL,
+                actor_id VARCHAR(255) DEFAULT 'SYSTEM',
+                actor_name VARCHAR(255),
+                title VARCHAR(255) NOT NULL,
+                details JSONB DEFAULT '{}',
+                visibility VARCHAR(20) DEFAULT 'internal',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Transactional Outbox Pattern Table
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS outbox_events (
+                id UUID PRIMARY KEY,
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                aggregate_type VARCHAR(100) NOT NULL,
+                aggregate_id VARCHAR(255) NOT NULL,
+                event_name VARCHAR(100) NOT NULL,
+                version VARCHAR(20) DEFAULT 'v1',
+                payload JSONB DEFAULT '{}',
+                actor_id VARCHAR(255) DEFAULT 'SYSTEM',
+                status VARCHAR(20) DEFAULT 'pending',
+                retry_count INTEGER DEFAULT 0,
+                processed_at TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 
         // 2. SEED GOLD DEMO (Showcase Data)
         const demoEmail = 'demo@tashgheel.com';

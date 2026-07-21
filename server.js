@@ -18,8 +18,10 @@ app.use(cors({
   origin: '*', // Adjust to specific domain for extra security later
   credentials: true
 }));
+const { tracingMiddleware } = require('./src/infrastructure/observability/tracer');
 app.use(morgan('dev'));
 app.use(express.json());
+app.use(tracingMiddleware);
 
 // Serve static files from uploads folder
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -131,6 +133,11 @@ app.use('/api/re-units', reUnitRoutes);
 app.use('/api/re-payments', rePaymentRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/activities', activityRoutes);
+app.use('/api/search', require('./routes/searchRoutes'));
+
+// Load Domain Modules (Plugin Architecture)
+require('./src/domains/realestate');
+moduleRegistry.mountRoutes(app);
 
 
 const db = require('./config/db');
@@ -196,6 +203,10 @@ const promoteOnStartup = async () => {
 
 const reconcileDatabase = require('./scripts/dbReconciliation');
 const { startReservationScanner } = require('./services/reservationService');
+const { eventBus } = require('./src/infrastructure/events/LocalEventBus');
+const eventStoreRepository = require('./src/infrastructure/events/EventStoreRepository');
+const moduleRegistry = require('./src/infrastructure/plugins/ModuleRegistry');
+const registerGlobalSubscribers = require('./src/domains/shared/subscribers/eventSubscribers');
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
@@ -212,6 +223,15 @@ app.listen(PORT, async () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   await reconcileDatabase();
+  
+  // 🚀 Initialize Enterprise Event Bus, Event Store & Outbox Engine
+  eventBus.setEventStore(eventStoreRepository);
+  registerGlobalSubscribers(eventBus);
+  moduleRegistry.bootstrapEvents(eventBus);
+  const outboxService = require('./src/infrastructure/events/OutboxService');
+  outboxService.startOutboxPoller(10000);
+  console.log('⚡ [Boot] Enterprise Event Bus, Event Store & Outbox Engine initialized.');
+
   startReservationScanner(10); // Run reservation garbage collection every 10 minutes
   await promoteOnStartup();
   await seedDemoAccount();
