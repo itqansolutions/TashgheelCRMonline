@@ -68,6 +68,7 @@ const workflowRoutes = require('./routes/workflowRoutes');
 const rulesRoutes = require('./routes/rulesRoutes');
 const superAdminRoutes = require('./routes/superAdminRoutes');
 const activityRoutes = require('./routes/activityRoutes');
+const moduleRegistry = require('./src/infrastructure/plugins/ModuleRegistry');
 
 // SaaS Middleware
 const authMiddleware = require('./middleware/auth');
@@ -205,7 +206,6 @@ const reconcileDatabase = require('./scripts/dbReconciliation');
 const { startReservationScanner } = require('./services/reservationService');
 const { eventBus } = require('./src/infrastructure/events/LocalEventBus');
 const eventStoreRepository = require('./src/infrastructure/events/EventStoreRepository');
-const moduleRegistry = require('./src/infrastructure/plugins/ModuleRegistry');
 const registerGlobalSubscribers = require('./src/domains/shared/subscribers/eventSubscribers');
 
 // Process-level Error Safety Guards (Prevent Railway 502 Crashes)
