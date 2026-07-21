@@ -217,8 +217,8 @@ process.on('uncaughtException', (err) => {
   console.error('🔥 [UncaughtException]:', err.message, err.stack);
 });
 
-app.listen(PORT, async () => {
-  console.log(`Server is running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', async () => {
+  console.log(`Server is running on port ${PORT} (host: 0.0.0.0)`);
 
   try {
     // ── Failsafe inline migration: ensure re_units has all required columns ──
