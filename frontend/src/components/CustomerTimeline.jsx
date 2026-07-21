@@ -13,6 +13,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+import api from '../services/api';
+
 export default function CustomerTimeline({ entityType = 'Customer', entityId }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,13 +28,9 @@ export default function CustomerTimeline({ entityType = 'Customer', entityId }) 
   const fetchActivities = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/activities/${entityType}/${entityId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const json = await response.json();
-      if (json.status === 'success') {
-        setActivities(json.data || []);
+      const response = await api.get(`/activities/${entityType}/${entityId}`);
+      if (response.data && response.data.status === 'success') {
+        setActivities(response.data.data || []);
       } else {
         setActivities([]);
       }
