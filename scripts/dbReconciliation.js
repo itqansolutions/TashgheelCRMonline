@@ -420,6 +420,115 @@ const reconcileDatabase = async () => {
 
         console.log('✅ [DB-RECON] ERP Core Week 1 tables verified (document_sequences, fiscal_years, fiscal_periods, financial_permissions, sod_rules).');
 
+        // ── ERP CORE FOUNDATION (Stage 0 - Week 2 Schema) ──
+
+        // Chart of Accounts (COA)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS accounts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                code VARCHAR(50) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                type VARCHAR(30) NOT NULL,
+                sub_type VARCHAR(50),
+                parent_id UUID REFERENCES accounts(id) ON DELETE RESTRICT,
+                is_group BOOLEAN DEFAULT false,
+                currency VARCHAR(10) DEFAULT 'EGP',
+                is_active BOOLEAN DEFAULT true,
+                branch_id VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, code)
+            )
+        `);
+
+        // Cost Centers
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS cost_centers (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                code VARCHAR(50) NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                type VARCHAR(30) DEFAULT 'department',
+                parent_id UUID REFERENCES cost_centers(id) ON DELETE RESTRICT,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, code)
+            )
+        `);
+
+        // GL Opening Balances Header
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS opening_balances (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                fiscal_year_id UUID REFERENCES fiscal_years(id) ON DELETE CASCADE,
+                account_id UUID REFERENCES accounts(id) ON DELETE RESTRICT,
+                debit NUMERIC(15,2) DEFAULT 0 CHECK (debit >= 0),
+                credit NUMERIC(15,2) DEFAULT 0 CHECK (credit >= 0),
+                is_posted BOOLEAN DEFAULT false,
+                posted_at TIMESTAMP,
+                posted_by VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT chk_ob_not_both_zero CHECK (debit > 0 OR credit > 0),
+                CONSTRAINT chk_ob_no_mixed CHECK (NOT (debit > 0 AND credit > 0))
+            )
+        `);
+
+        // Customer Invoice Opening Balances (AR Detail)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS opening_customer_invoices (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                opening_balance_id UUID REFERENCES opening_balances(id) ON DELETE CASCADE,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE RESTRICT,
+                invoice_reference VARCHAR(100) NOT NULL,
+                invoice_date DATE NOT NULL,
+                due_date DATE,
+                amount NUMERIC(15,2) NOT NULL CHECK (amount > 0),
+                currency VARCHAR(10) DEFAULT 'EGP',
+                is_posted BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Supplier Invoice Opening Balances (AP Detail)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS opening_supplier_invoices (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                opening_balance_id UUID REFERENCES opening_balances(id) ON DELETE CASCADE,
+                supplier_id UUID,
+                invoice_reference VARCHAR(100) NOT NULL,
+                invoice_date DATE NOT NULL,
+                due_date DATE,
+                amount NUMERIC(15,2) NOT NULL CHECK (amount > 0),
+                currency VARCHAR(10) DEFAULT 'EGP',
+                is_posted BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Inventory Opening Balances (Stock Detail)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS opening_inventory (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                opening_balance_id UUID REFERENCES opening_balances(id) ON DELETE CASCADE,
+                product_id INTEGER REFERENCES products(id) ON DELETE RESTRICT,
+                warehouse_id UUID,
+                quantity NUMERIC(12,3) NOT NULL CHECK (quantity > 0),
+                unit_cost NUMERIC(12,2) NOT NULL CHECK (unit_cost >= 0),
+                total_value NUMERIC(15,2) GENERATED ALWAYS AS (quantity * unit_cost) STORED,
+                batch_number VARCHAR(100),
+                expiry_date DATE,
+                is_posted BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        console.log('✅ [DB-RECON] ERP Core Week 2 tables verified (accounts, cost_centers, opening_balances, opening_customer_invoices, opening_supplier_invoices, opening_inventory).');
+
 
         console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 

@@ -134,8 +134,10 @@ app.use('/api/re-units', reUnitRoutes);
 app.use('/api/re-payments', rePaymentRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/activities', activityRoutes);
-app.use('/api/search', require('./routes/searchRoutes'));
 app.use('/api/erp/fiscal-years', require('./routes/erpFiscalYearRoutes'));
+app.use('/api/erp/accounts', require('./routes/accountRoutes'));
+app.use('/api/erp/cost-centers', require('./routes/costCenterRoutes'));
+app.use('/api/erp/opening-balances', require('./routes/openingBalanceRoutes'));
 
 // Load Domain Modules (Plugin Architecture)
 require('./src/domains/realestate');
