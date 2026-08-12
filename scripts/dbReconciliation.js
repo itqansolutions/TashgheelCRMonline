@@ -772,6 +772,136 @@ const reconcileDatabase = async () => {
 
         console.log('✅ [DB-RECON] ERP Core Week 6 tables & views verified (payment_allocations, v_ar_subledger, v_ar_gl_reconciliation).');
 
+        // ── ERP STAGE 1 — SALES CYCLE SCHEMA ──
+
+        // Sales Orders
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS sales_orders (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                number VARCHAR(50) NOT NULL,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE RESTRICT,
+                deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL,
+                quotation_id INTEGER REFERENCES quotations(id) ON DELETE SET NULL,
+                order_date DATE DEFAULT CURRENT_DATE,
+                expected_delivery DATE,
+                status VARCHAR(30) DEFAULT 'draft',
+                accounting_status VARCHAR(20) DEFAULT 'unposted',
+                total_amount NUMERIC(15,2) DEFAULT 0,
+                tax_amount NUMERIC(15,2) DEFAULT 0,
+                discount_amount NUMERIC(15,2) DEFAULT 0,
+                currency VARCHAR(10) DEFAULT 'EGP',
+                exchange_rate NUMERIC(12,6) DEFAULT 1.000000,
+                local_value NUMERIC(15,2) DEFAULT 0,
+                notes TEXT,
+                assigned_to INTEGER REFERENCES users(id),
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, number)
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS sales_order_items (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                sales_order_id UUID REFERENCES sales_orders(id) ON DELETE CASCADE,
+                product_id INTEGER REFERENCES products(id) ON DELETE RESTRICT,
+                description TEXT,
+                quantity NUMERIC(12,3) NOT NULL CHECK (quantity > 0),
+                unit_price NUMERIC(12,2) NOT NULL CHECK (unit_price >= 0),
+                discount_pct NUMERIC(5,2) DEFAULT 0,
+                tax_rate_id UUID REFERENCES tax_components(id),
+                tax_amount NUMERIC(12,2) DEFAULT 0,
+                subtotal NUMERIC(15,2) NOT NULL,
+                quantity_delivered NUMERIC(12,3) DEFAULT 0,
+                quantity_invoiced NUMERIC(12,3) DEFAULT 0,
+                tenant_id VARCHAR(255) NOT NULL
+            )
+        `);
+
+        // Delivery Notes
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS delivery_notes (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                number VARCHAR(50) NOT NULL,
+                sales_order_id UUID REFERENCES sales_orders(id) ON DELETE RESTRICT,
+                customer_id INTEGER REFERENCES customers(id) ON DELETE RESTRICT,
+                delivery_date DATE DEFAULT CURRENT_DATE,
+                warehouse_id UUID,
+                status VARCHAR(30) DEFAULT 'draft',
+                accounting_status VARCHAR(20) DEFAULT 'unposted',
+                journal_entry_id UUID REFERENCES journal_entries(id),
+                notes TEXT,
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, number)
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS delivery_note_items (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                delivery_note_id UUID REFERENCES delivery_notes(id) ON DELETE CASCADE,
+                sales_order_item_id UUID REFERENCES sales_order_items(id),
+                product_id INTEGER REFERENCES products(id) ON DELETE RESTRICT,
+                quantity_delivered NUMERIC(12,3) NOT NULL CHECK (quantity_delivered > 0),
+                unit_cost NUMERIC(12,2) DEFAULT 0,
+                tenant_id VARCHAR(255) NOT NULL
+            )
+        `);
+
+        // Sales Returns
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS sales_returns (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                number VARCHAR(50) NOT NULL,
+                delivery_note_id UUID REFERENCES delivery_notes(id),
+                customer_id INTEGER REFERENCES customers(id),
+                return_date DATE DEFAULT CURRENT_DATE,
+                status VARCHAR(30) DEFAULT 'draft',
+                accounting_status VARCHAR(20) DEFAULT 'unposted',
+                journal_entry_id UUID REFERENCES journal_entries(id),
+                total_amount NUMERIC(15,2) DEFAULT 0,
+                notes TEXT,
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, number)
+            )
+        `);
+
+        // Credit Notes
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS credit_notes (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                number VARCHAR(50) NOT NULL,
+                customer_id INTEGER REFERENCES customers(id),
+                invoice_id VARCHAR(255),
+                amount NUMERIC(15,2) NOT NULL CHECK (amount > 0),
+                reason TEXT,
+                status VARCHAR(30) DEFAULT 'draft',
+                accounting_status VARCHAR(20) DEFAULT 'unposted',
+                journal_entry_id UUID REFERENCES journal_entries(id),
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, number)
+            )
+        `);
+
+        // Column extension on invoices table
+        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sales_order_id VARCHAR(255)`);
+        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS accounting_status VARCHAR(20) DEFAULT 'unposted'`);
+        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS journal_entry_id UUID REFERENCES journal_entries(id)`);
+
+        console.log('✅ [DB-RECON] ERP Stage 1 Sales Cycle tables verified (sales_orders, delivery_notes, sales_returns, credit_notes).');
+
 
         console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 

@@ -51,9 +51,18 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Handle global errors (401, etc)
+    // Handle global errors (401 Unauthorized)
     if (error.response?.status === 401) {
-      // Optional: auto-logout on token expiry
+      if (localStorage.getItem('token')) {
+        console.warn('[API] 401 Unauthorized captured — clearing stale session.');
+        localStorage.removeItem('token');
+        localStorage.removeItem('subscription');
+        localStorage.removeItem('branch_id');
+        // Only redirect if not already on login/register pages
+        if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
+          window.location.href = '/login';
+        }
+      }
     }
     return Promise.reject(error);
   }

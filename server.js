@@ -141,6 +141,7 @@ app.use('/api/erp/opening-balances', require('./routes/openingBalanceRoutes'));
 app.use('/api/erp/taxes', require('./routes/taxRoutes'));
 app.use('/api/erp/journals', require('./routes/journalRoutes'));
 app.use('/api/erp/reconciliation', require('./routes/reconciliationRoutes'));
+app.use('/api/erp/sales', require('./routes/salesRoutes'));
 
 // Load Domain Modules (Plugin Architecture)
 require('./src/domains/realestate');
