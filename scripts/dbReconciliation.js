@@ -333,6 +333,94 @@ const reconcileDatabase = async () => {
             )
         `);
 
+        // ── ERP CORE FOUNDATION (Stage 0 - Week 1 Schema) ──
+        
+        // Tenant Configuration Extensions
+        await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS fiscal_year_start_month INTEGER DEFAULT 1`);
+        await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS fiscal_year_start_day INTEGER DEFAULT 1`);
+        await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS allow_negative_stock BOOLEAN DEFAULT false`);
+        await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS ppv_tolerance_pct NUMERIC(5,2) DEFAULT 2.00`);
+        await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS ppv_auto_approve BOOLEAN DEFAULT true`);
+
+        // Document Sequences (Centralized Document Numbering Engine)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS document_sequences (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                doc_type VARCHAR(50) NOT NULL,
+                fiscal_year INTEGER NOT NULL,
+                prefix VARCHAR(20) NOT NULL,
+                last_sequence INTEGER DEFAULT 0,
+                reset_yearly BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, branch_id, doc_type, fiscal_year)
+            )
+        `);
+
+        // Fiscal Calendar (Years & Periods)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS fiscal_years (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                name VARCHAR(50) NOT NULL,
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
+                status VARCHAR(20) DEFAULT 'open',
+                closed_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, name)
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS fiscal_periods (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                fiscal_year_id UUID REFERENCES fiscal_years(id) ON DELETE CASCADE,
+                tenant_id VARCHAR(255) NOT NULL,
+                period_number INTEGER NOT NULL,
+                name VARCHAR(50) NOT NULL,
+                start_date DATE NOT NULL,
+                end_date DATE NOT NULL,
+                status VARCHAR(20) DEFAULT 'open',
+                closed_at TIMESTAMP,
+                closed_by VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(fiscal_year_id, period_number)
+            )
+        `);
+
+        // Financial Permissions Table
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS financial_permissions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                role VARCHAR(50),
+                permission VARCHAR(100) NOT NULL,
+                granted BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, user_id, permission)
+            )
+        `);
+
+        // Segregation of Duties (SOD) Rules Table
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS sod_rules (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                document_type VARCHAR(50) NOT NULL,
+                action_create VARCHAR(100) NOT NULL,
+                action_approve VARCHAR(100) NOT NULL,
+                enforce BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, document_type)
+            )
+        `);
+
+        console.log('✅ [DB-RECON] ERP Core Week 1 tables verified (document_sequences, fiscal_years, fiscal_periods, financial_permissions, sod_rules).');
+
+
         console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 
         // 2. SEED GOLD DEMO (Showcase Data)

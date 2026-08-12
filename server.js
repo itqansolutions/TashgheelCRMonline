@@ -135,6 +135,7 @@ app.use('/api/re-payments', rePaymentRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/search', require('./routes/searchRoutes'));
+app.use('/api/erp/fiscal-years', require('./routes/erpFiscalYearRoutes'));
 
 // Load Domain Modules (Plugin Architecture)
 require('./src/domains/realestate');
