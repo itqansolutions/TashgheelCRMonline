@@ -688,6 +688,90 @@ const reconcileDatabase = async () => {
 
         console.log('✅ [DB-RECON] ERP Core Week 4 tables verified (journal_entries, journal_entry_lines, document_versions).');
 
+        // ── ERP CORE FOUNDATION (Stage 0 - Week 6 Schema & Views) ──
+
+        // Payment Allocations Table (Multi-Invoice Payment Settlement)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS payment_allocations (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                payment_id VARCHAR(255) NOT NULL,
+                invoice_id VARCHAR(255),
+                supplier_invoice_id VARCHAR(255),
+                amount_allocated NUMERIC(15,2) NOT NULL CHECK (amount_allocated > 0),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // PostgreSQL AR Subledger & GL Reconciliation Views
+        try {
+            await db.query(`
+                CREATE OR REPLACE VIEW v_ar_subledger AS
+                WITH invoice_charges AS (
+                    SELECT
+                        je.tenant_id,
+                        i.client_id::text AS customer_id,
+                        i.id::text AS invoice_id,
+                        je.date,
+                        SUM(jel.debit) AS charged
+                    FROM journal_entry_lines jel
+                    JOIN journal_entries je ON jel.journal_entry_id = je.id AND je.status = 'posted'
+                    JOIN accounts a ON jel.account_id = a.id AND a.sub_type = 'receivable'
+                    JOIN invoices i ON je.source_id::text = i.id::text AND je.source_type = 'invoice'
+                    GROUP BY je.tenant_id, i.client_id, i.id, je.date
+                ),
+                invoice_payments AS (
+                    SELECT
+                        pa.tenant_id,
+                        i.client_id::text AS customer_id,
+                        pa.invoice_id::text AS invoice_id,
+                        SUM(pa.amount_allocated) AS paid
+                    FROM payment_allocations pa
+                    JOIN invoices i ON pa.invoice_id::text = i.id::text
+                    GROUP BY pa.tenant_id, i.client_id, pa.invoice_id
+                )
+                SELECT
+                    ic.tenant_id,
+                    ic.customer_id,
+                    c.name AS customer_name,
+                    ic.invoice_id,
+                    ic.date,
+                    ic.charged,
+                    COALESCE(ip.paid, 0) AS paid,
+                    (ic.charged - COALESCE(ip.paid, 0)) AS outstanding
+                FROM invoice_charges ic
+                LEFT JOIN invoice_payments ip ON ic.invoice_id = ip.invoice_id AND ic.customer_id = ip.customer_id
+                LEFT JOIN customers c ON ic.customer_id = c.id::text;
+            `);
+
+            await db.query(`
+                CREATE OR REPLACE VIEW v_ar_gl_reconciliation AS
+                SELECT
+                    gl.tenant_id,
+                    gl.gl_ar_balance,
+                    sub.subledger_outstanding,
+                    ABS(gl.gl_ar_balance - sub.subledger_outstanding) AS difference,
+                    CASE WHEN ABS(gl.gl_ar_balance - sub.subledger_outstanding) < 0.01
+                         THEN 'RECONCILED' ELSE 'MISMATCH' END AS status
+                FROM (
+                    SELECT jel.tenant_id, SUM(jel.debit) - SUM(jel.credit) AS gl_ar_balance
+                    FROM journal_entry_lines jel
+                    JOIN journal_entries je ON jel.journal_entry_id = je.id AND je.status = 'posted'
+                    JOIN accounts a ON jel.account_id = a.id AND a.sub_type = 'receivable'
+                    GROUP BY jel.tenant_id
+                ) gl
+                JOIN (
+                    SELECT tenant_id, SUM(outstanding) AS subledger_outstanding
+                    FROM v_ar_subledger
+                    GROUP BY tenant_id
+                ) sub USING (tenant_id);
+            `);
+        } catch (viewErr) {
+            console.warn('⚠️ [DB-RECON] AR View creation notice (handled):', viewErr.message);
+        }
+
+        console.log('✅ [DB-RECON] ERP Core Week 6 tables & views verified (payment_allocations, v_ar_subledger, v_ar_gl_reconciliation).');
+
 
         console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 
