@@ -1313,6 +1313,31 @@ const reconcileDatabase = async () => {
 
         console.log('✅ [DB-RECON] SaaS Plans and Subscriptions tables verified.');
 
+        // ── SAAS MULTI-BRANCH LAYER ──
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS branches (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(255) NOT NULL,
+                address TEXT,
+                phone VARCHAR(50),
+                tenant_id VARCHAR(255),
+                is_main BOOLEAN DEFAULT false,
+                timezone VARCHAR(50) DEFAULT 'Africa/Cairo',
+                currency VARCHAR(10) DEFAULT 'EGP',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS user_branches (
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                branch_id UUID REFERENCES branches(id) ON DELETE CASCADE,
+                PRIMARY KEY (user_id, branch_id)
+            )
+        `);
+
+        console.log('✅ [DB-RECON] SaaS Branches and User Branches tables verified.');
+
 
         console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 

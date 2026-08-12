@@ -63,40 +63,47 @@ exports.register = async (req, res) => {
     // Seed Departments
     const departments = ['General', 'Sales', 'Accounting'];
     for (const dep of departments) {
-      await db.query('INSERT INTO departments (name, tenant_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [dep, tenantId]);
+      try {
+        await db.query(`
+          INSERT INTO departments (name, tenant_id)
+          SELECT $1, $2
+          WHERE NOT EXISTS (SELECT 1 FROM departments WHERE name = $1 AND tenant_id::text = $2::text)
+        `, [dep, tenantId]);
+      } catch (depErr) {}
     }
 
     // Seed Lead Sources
     const leadSources = ['Facebook', 'Google', 'Referral', 'Direct'];
     for (const src of leadSources) {
-      await db.query(`
-        INSERT INTO lead_sources (name, tenant_id) 
-        VALUES ($1, $2) 
-        ON CONFLICT DO NOTHING
-      `, [src, tenantId]);
+      try {
+        await db.query(`
+          INSERT INTO lead_sources (name, tenant_id) 
+          SELECT $1, $2
+          WHERE NOT EXISTS (SELECT 1 FROM lead_sources WHERE name = $1 AND tenant_id::text = $2::text)
+        `, [src, tenantId]);
+      } catch (srcErr) {}
     }
 
     // 🔥 Seed First Branch (The "Main Branch")
-    console.log(`🏢 Creating Main Branch for Tenant: ${tenantId}`);
-    const branchResult = await db.query(
-      'INSERT INTO branches (name, address, tenant_id) VALUES ($1, $2, $3) RETURNING id',
-      ['Main Branch', 'Corporate Headquarters', tenantId]
-    );
-    const mainBranchId = branchResult.rows[0].id;
-
-    // Link Admin to this branch
-    await db.query('INSERT INTO user_branches (user_id, branch_id) VALUES ($1, $2)', [user.id, mainBranchId]);
-    await db.query('UPDATE users SET branch_id::text = $1::text WHERE id = $2', [mainBranchId, user.id]);
-
-    // Seed Settings (Note: settings table is global in current schema, need to make it tenant-aware if needed, 
-    // but schema.sql says it lacks tenant_id. For now, we seed global keys if missing, 
-    // but in a real SaaS we'd have a tenant_settings table. 
-    // As per user request, we'll assume settings should be set.)
-    // Note: The global settings table keys are unique. We'll skip per-tenant settings for Now 
-    // unless the customer has a tenant_settings table.
+    try {
+      console.log(`🏢 Creating Main Branch for Tenant: ${tenantId}`);
+      const branchResult = await db.query(
+        'INSERT INTO branches (name, address, tenant_id, is_main) VALUES ($1, $2, $3, true) RETURNING id',
+        ['Main Branch', 'Corporate Headquarters', tenantId]
+      );
+      if (branchResult.rows.length > 0) {
+        const mainBranchId = branchResult.rows[0].id;
+        await db.query('INSERT INTO user_branches (user_id, branch_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [user.id, mainBranchId]);
+        await db.query('UPDATE users SET branch_id::text = $1::text WHERE id = $2', [String(mainBranchId), user.id]);
+      }
+    } catch (branchErr) {
+      console.warn('⚠️ [Register Warning] Main branch seeding notice (non-fatal):', branchErr.message);
+    }
     
     // Audit Logging
-    logAction({ req, action: ACTIONS.REGISTER, entityType: 'Tenant', entityId: tenantId, userId: user.id });
+    try {
+      logAction({ req, action: ACTIONS.REGISTER, entityType: 'Tenant', entityId: tenantId, userId: user.id });
+    } catch (logErr) {}
 
     // ── AUTO-CREATE 14-DAY TRIAL SUBSCRIPTION ──
     const planName = selectedPlan || 'basic';
