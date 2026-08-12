@@ -593,6 +593,101 @@ const reconcileDatabase = async () => {
 
         console.log('✅ [DB-RECON] ERP Core Week 3 tables verified (tax_components, tax_groups, tax_group_components, document_line_taxes).');
 
+        // ── ERP CORE FOUNDATION (Stage 0 - Week 4 Schema) ──
+
+        // Journal Entries Header (with Idempotency Unique Constraint)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS journal_entries (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                number VARCHAR(50) NOT NULL,
+                date DATE NOT NULL DEFAULT CURRENT_DATE,
+                fiscal_period_id UUID REFERENCES fiscal_periods(id),
+                description TEXT,
+                source_type VARCHAR(50) NOT NULL,
+                source_id VARCHAR(255) NOT NULL,
+                entry_purpose VARCHAR(50) NOT NULL,
+                status VARCHAR(20) DEFAULT 'posted',
+                reversal_of UUID REFERENCES journal_entries(id),
+                posted_by VARCHAR(255),
+                posted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (tenant_id, source_type, source_id, entry_purpose)
+            )
+        `);
+
+        // Journal Entry Lines (Double Entry + Multi-Currency + DB Financial Constraints)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS journal_entry_lines (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                journal_entry_id UUID REFERENCES journal_entries(id) ON DELETE CASCADE,
+                account_id UUID REFERENCES accounts(id) ON DELETE RESTRICT,
+                debit NUMERIC(15,2) DEFAULT 0 CHECK (debit >= 0),
+                credit NUMERIC(15,2) DEFAULT 0 CHECK (credit >= 0),
+                transaction_currency VARCHAR(10) DEFAULT 'EGP',
+                exchange_rate NUMERIC(12,6) DEFAULT 1.000000,
+                foreign_debit NUMERIC(15,2) DEFAULT 0 CHECK (foreign_debit >= 0),
+                foreign_credit NUMERIC(15,2) DEFAULT 0 CHECK (foreign_credit >= 0),
+                cost_center_id UUID REFERENCES cost_centers(id),
+                description TEXT,
+                tenant_id VARCHAR(255) NOT NULL,
+                CONSTRAINT chk_no_mixed_dr_cr CHECK (NOT (debit > 0 AND credit > 0)),
+                CONSTRAINT chk_not_both_zero CHECK (debit > 0 OR credit > 0)
+            )
+        `);
+
+        // Deferred Journal Entry Balance Check Trigger (PostgreSQL Constraint Trigger)
+        try {
+            await db.query(`
+                CREATE OR REPLACE FUNCTION check_journal_balance()
+                RETURNS TRIGGER AS $$
+                DECLARE
+                    total_dr NUMERIC;
+                    total_cr NUMERIC;
+                BEGIN
+                    SELECT COALESCE(SUM(debit), 0), COALESCE(SUM(credit), 0)
+                    INTO total_dr, total_cr
+                    FROM journal_entry_lines
+                    WHERE journal_entry_id = NEW.journal_entry_id;
+
+                    IF ABS(total_dr - total_cr) > 0.01 THEN
+                        RAISE EXCEPTION 'Journal entry % is imbalanced: DR=% CR=%',
+                            NEW.journal_entry_id, total_dr, total_cr;
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
+            `);
+
+            await db.query(`
+                DROP TRIGGER IF EXISTS trg_journal_balance ON journal_entry_lines;
+                CREATE CONSTRAINT TRIGGER trg_journal_balance
+                AFTER INSERT OR UPDATE ON journal_entry_lines
+                DEFERRABLE INITIALLY DEFERRED
+                FOR EACH ROW EXECUTE FUNCTION check_journal_balance();
+            `);
+        } catch (trigErr) {
+            console.warn('⚠️ [DB-RECON] Trigger creation notice (handled):', trigErr.message);
+        }
+
+        // Document Snapshots & Versioning
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS document_versions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                document_type VARCHAR(50) NOT NULL,
+                document_id VARCHAR(255) NOT NULL,
+                version_number INTEGER NOT NULL,
+                snapshot JSONB NOT NULL,
+                changed_by VARCHAR(255),
+                changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                change_reason TEXT
+            )
+        `);
+
+        console.log('✅ [DB-RECON] ERP Core Week 4 tables verified (journal_entries, journal_entry_lines, document_versions).');
+
 
         console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 
