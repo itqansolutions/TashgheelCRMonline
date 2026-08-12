@@ -5,6 +5,7 @@ const db = require('../config/db');
 // @access  Private (Admin, Manager)
 exports.getTopProducts = async (req, res) => {
     const tenant_id = req.tenant_id || req.user?.tenant_id;
+    const branch_id = req.branchId || req.user?.branch_id;
     if (!tenant_id) {
         return res.status(400).json({ status: 'error', message: 'Tenant context missing' });
     }
@@ -16,18 +17,22 @@ exports.getTopProducts = async (req, res) => {
                 COALESCE(SUM(ii.quantity), 0) as total_sold, 
                 COALESCE(SUM(ii.subtotal), 0) as total_revenue
             FROM invoice_items ii
-            JOIN products p ON ii.product_id::text = p.id::text AND ii.tenant_id::text = p.tenant_id::text
-            WHERE ii.tenant_id::text = $1::text
+            JOIN products p 
+                ON ii.product_id::text = p.id::text 
+                AND COALESCE(ii.tenant_id::text, $1::text) = p.tenant_id::text
+            WHERE COALESCE(ii.tenant_id::text, $1::text) = $1::text
+              AND ($2::text IS NULL OR COALESCE(ii.branch_id::text, $2::text) = $2::text)
             GROUP BY p.id, p.name, p.category
             ORDER BY total_revenue DESC
             LIMIT 10
-        `, [tenant_id]);
+        `, [tenant_id, branch_id || null]);
         res.json({ status: 'success', data: result.rows });
     } catch (err) {
         console.error('[REPORTS] Top Products Error:', err.message);
         res.status(500).json({ status: 'error', message: 'Failed to aggregate product metrics' });
     }
 };
+
 
 // @desc    Get Financial Trends (Monthly Revenue vs Expenses)
 // @route   GET /api/reports/financial-trends

@@ -1,5 +1,5 @@
 import React from 'react';
-import { MoreHorizontal, Calendar, Zap, AlertCircle, TrendingUp, Handshake, Mail, User } from 'lucide-react';
+import { MoreHorizontal, Calendar, Zap, AlertCircle, TrendingUp, Handshake, Mail, User, Target } from 'lucide-react';
 import { safeArray } from '../../utils/dataUtils';
 
 const KanbanBoard = ({ deals, pipelineStages, onEdit }) => {

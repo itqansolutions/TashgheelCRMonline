@@ -218,6 +218,52 @@ const reconcileDatabase = async () => {
 
         } catch(e) { /* Ignore - Migration already applied or invalid cast */ }
 
+        // ── Task Statuses (OUTSIDE swallowed try/catch — must always run) ──
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS task_statuses (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                color VARCHAR(20) DEFAULT '#64748b',
+                order_index INTEGER DEFAULT 0,
+                can_make_deal BOOLEAN DEFAULT false,
+                is_final BOOLEAN DEFAULT false,
+                tenant_id VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(name, tenant_id)
+            )
+        `);
+
+        // Add status_id & can_make_deal to tasks (idempotent)
+        await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS status_id INTEGER REFERENCES task_statuses(id) ON DELETE SET NULL`);
+        await db.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS can_make_deal BOOLEAN DEFAULT false`);
+
+        // Seed default statuses for every tenant that has none yet
+        await db.query(`
+            INSERT INTO task_statuses (name, color, order_index, can_make_deal, is_final, tenant_id)
+            SELECT 'To Do', '#64748b', 0, false, false, t.id::text
+            FROM tenants t
+            WHERE NOT EXISTS (
+                SELECT 1 FROM task_statuses ts WHERE ts.tenant_id = t.id::text
+            )
+            ON CONFLICT (name, tenant_id) DO NOTHING
+        `);
+        await db.query(`
+            INSERT INTO task_statuses (name, color, order_index, can_make_deal, is_final, tenant_id)
+            SELECT 'In Progress', '#f59e0b', 1, false, false, t.id::text
+            FROM tenants t
+            WHERE EXISTS (SELECT 1 FROM task_statuses ts WHERE ts.tenant_id = t.id::text AND ts.name = 'To Do')
+            ON CONFLICT (name, tenant_id) DO NOTHING
+        `);
+        await db.query(`
+            INSERT INTO task_statuses (name, color, order_index, can_make_deal, is_final, tenant_id)
+            SELECT 'Done', '#10b981', 2, true, true, t.id::text
+            FROM tenants t
+            WHERE EXISTS (SELECT 1 FROM task_statuses ts WHERE ts.tenant_id = t.id::text AND ts.name = 'To Do')
+            ON CONFLICT (name, tenant_id) DO NOTHING
+        `);
+        console.log('✅ [DB-RECON] task_statuses table verified and default statuses seeded.');
+
+
         await db.query(`
             CREATE TABLE IF NOT EXISTS system_notifications (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

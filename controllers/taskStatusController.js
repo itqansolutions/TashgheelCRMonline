@@ -13,6 +13,11 @@ exports.getStatuses = async (req, res) => {
     );
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
+    // Graceful degradation: table may not exist yet (migration pending)
+    if (err.message && err.message.includes('relation') && err.message.includes('task_statuses')) {
+      console.warn('[TaskStatuses] Table not yet migrated — returning empty list.');
+      return res.json({ status: 'success', data: [] });
+    }
     console.error('[TaskStatuses GET Error]', err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
   }

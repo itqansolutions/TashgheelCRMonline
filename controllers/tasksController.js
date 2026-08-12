@@ -35,34 +35,71 @@ exports.getTasks = async (req, res) => {
       WHERE t.tenant_id::text = $1::text AND t.branch_id::text = $2::text
     `;
 
+    // Fallback query (no task_statuses join) used if table doesn't exist yet
+    let fallbackQuery = `
+      SELECT t.*,
+             NULL as status_name,
+             false as can_make_deal,
+             NULL as status_color,
+             u1.name as in_charge_name, 
+             u2.name as director_name, 
+             u3.name as creator_name,
+             COALESCE((
+               SELECT json_agg(json_build_object('user_id', tf.user_id, 'name', u.name))
+               FROM task_followers tf
+               JOIN users u ON tf.user_id = u.id
+               WHERE tf.task_id = t.id
+             ), '[]'::json) as followers
+      FROM tasks t
+      LEFT JOIN users u1 ON t.assigned_to = u1.id
+      LEFT JOIN users u2 ON t.director_id = u2.id
+      LEFT JOIN users u3 ON t.created_by = u3.id
+      WHERE t.tenant_id::text = $1::text AND t.branch_id::text = $2::text
+    `;
+
     const queryParams = [tenant_id, branch_id];
 
     if (userRole === 'admin') {
       // Admin sees ALL tasks in the tenant/branch - no extra filter needed
     } else if (userRole === 'manager') {
-      // Manager sees their own tasks + tasks assigned to users they manage (director_id = manager)
-      query += ` 
+      const managerFilter = ` 
         AND (t.assigned_to = $3 
              OR t.director_id = $3 
              OR t.created_by = $3
              OR t.assigned_to IN (SELECT id FROM users WHERE manager_id = $3 AND tenant_id::text = $1::text)
              OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id = t.id AND tf.user_id = $3))
       `;
+      query += managerFilter;
+      fallbackQuery += managerFilter;
       queryParams.push(userId);
     } else {
-      // Employee sees only tasks they are directly involved in
-      query += ` 
+      const employeeFilter = ` 
         AND (t.assigned_to = $3 
              OR t.director_id = $3 
              OR t.created_by = $3 
              OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id = t.id AND tf.user_id = $3))
       `;
+      query += employeeFilter;
+      fallbackQuery += employeeFilter;
       queryParams.push(userId);
     }
 
     query += ` ORDER BY t.due_date ASC NULLS LAST`;
+    fallbackQuery += ` ORDER BY t.due_date ASC NULLS LAST`;
 
-    const result = await db.query(query, queryParams);
+    let result;
+    try {
+      result = await db.query(query, queryParams);
+    } catch (joinErr) {
+      // task_statuses table not migrated yet — degrade gracefully
+      if (joinErr.message && joinErr.message.includes('task_statuses')) {
+        console.warn('[Tasks] task_statuses not yet migrated, using fallback query.');
+        result = await db.query(fallbackQuery, queryParams);
+      } else {
+        throw joinErr; // re-throw unrelated errors
+      }
+    }
+
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error('getTasks Error:', err.message);
