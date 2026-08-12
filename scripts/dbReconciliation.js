@@ -902,6 +902,270 @@ const reconcileDatabase = async () => {
 
         console.log('✅ [DB-RECON] ERP Stage 1 Sales Cycle tables verified (sales_orders, delivery_notes, sales_returns, credit_notes).');
 
+        // ── ERP STAGE 2 — PURCHASING CYCLE SCHEMA ──
+
+        // Suppliers
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS suppliers (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                name VARCHAR(255) NOT NULL,
+                company_name VARCHAR(255),
+                email VARCHAR(255),
+                phone VARCHAR(50),
+                address TEXT,
+                tax_no VARCHAR(100),
+                payment_terms INTEGER DEFAULT 30,
+                credit_limit NUMERIC(15,2) DEFAULT 0,
+                currency VARCHAR(10) DEFAULT 'EGP',
+                ap_account_id UUID REFERENCES accounts(id),
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, name)
+            )
+        `);
+
+        // Purchase Requests
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS purchase_requests (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                number VARCHAR(50) NOT NULL,
+                requested_by INTEGER REFERENCES users(id),
+                status VARCHAR(30) DEFAULT 'draft',
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, number)
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS purchase_request_items (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                purchase_request_id UUID REFERENCES purchase_requests(id) ON DELETE CASCADE,
+                product_id INTEGER REFERENCES products(id) ON DELETE RESTRICT,
+                description TEXT,
+                quantity NUMERIC(12,3) NOT NULL CHECK (quantity > 0),
+                estimated_cost NUMERIC(12,2) DEFAULT 0,
+                tenant_id VARCHAR(255) NOT NULL
+            )
+        `);
+
+        // Purchase Orders (NO ACCOUNTING ENTRY ON PO — commitment document only)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS purchase_orders (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                number VARCHAR(50) NOT NULL,
+                supplier_id UUID REFERENCES suppliers(id) ON DELETE RESTRICT,
+                purchase_request_id UUID REFERENCES purchase_requests(id) ON DELETE SET NULL,
+                order_date DATE DEFAULT CURRENT_DATE,
+                expected_date DATE,
+                status VARCHAR(30) DEFAULT 'draft',
+                total_amount NUMERIC(15,2) DEFAULT 0,
+                tax_amount NUMERIC(15,2) DEFAULT 0,
+                currency VARCHAR(10) DEFAULT 'EGP',
+                exchange_rate NUMERIC(12,6) DEFAULT 1.000000,
+                local_value NUMERIC(15,2) DEFAULT 0,
+                approval_status VARCHAR(30) DEFAULT 'pending',
+                approved_by INTEGER REFERENCES users(id),
+                notes TEXT,
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, number)
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS purchase_order_items (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                purchase_order_id UUID REFERENCES purchase_orders(id) ON DELETE CASCADE,
+                product_id INTEGER REFERENCES products(id) ON DELETE RESTRICT,
+                description TEXT,
+                quantity NUMERIC(12,3) NOT NULL CHECK (quantity > 0),
+                unit_cost NUMERIC(12,2) NOT NULL CHECK (unit_cost >= 0),
+                tax_rate_id UUID REFERENCES tax_components(id),
+                tax_amount NUMERIC(12,2) DEFAULT 0,
+                subtotal NUMERIC(15,2) NOT NULL,
+                quantity_received NUMERIC(12,3) DEFAULT 0,
+                tenant_id VARCHAR(255) NOT NULL
+            )
+        `);
+
+        // Goods Receipt Notes (GRN) — Posts DR Inventory / CR GRNI
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS goods_receipts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                number VARCHAR(50) NOT NULL,
+                purchase_order_id UUID REFERENCES purchase_orders(id) ON DELETE RESTRICT,
+                supplier_id UUID REFERENCES suppliers(id) ON DELETE RESTRICT,
+                receipt_date DATE DEFAULT CURRENT_DATE,
+                warehouse_id UUID,
+                status VARCHAR(30) DEFAULT 'draft',
+                accounting_status VARCHAR(20) DEFAULT 'unposted',
+                journal_entry_id UUID REFERENCES journal_entries(id),
+                notes TEXT,
+                received_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, number)
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS goods_receipt_items (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                goods_receipt_id UUID REFERENCES goods_receipts(id) ON DELETE CASCADE,
+                purchase_order_item_id UUID REFERENCES purchase_order_items(id),
+                product_id INTEGER REFERENCES products(id) ON DELETE RESTRICT,
+                quantity_ordered NUMERIC(12,3) NOT NULL,
+                quantity_received NUMERIC(12,3) NOT NULL CHECK (quantity_received > 0),
+                unit_cost NUMERIC(12,2) NOT NULL CHECK (unit_cost >= 0),
+                tenant_id VARCHAR(255) NOT NULL
+            )
+        `);
+
+        // Supplier Invoices (AP) — Posts DR GRNI [+ DR PPV] / CR Accounts Payable
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS supplier_invoices (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                number VARCHAR(50) NOT NULL,
+                supplier_id UUID REFERENCES suppliers(id) ON DELETE RESTRICT,
+                purchase_order_id UUID REFERENCES purchase_orders(id),
+                goods_receipt_id UUID REFERENCES goods_receipts(id),
+                invoice_date DATE DEFAULT CURRENT_DATE,
+                due_date DATE,
+                total_amount NUMERIC(15,2) NOT NULL CHECK (total_amount >= 0),
+                tax_amount NUMERIC(15,2) DEFAULT 0,
+                currency VARCHAR(10) DEFAULT 'EGP',
+                exchange_rate NUMERIC(12,6) DEFAULT 1.000000,
+                local_value NUMERIC(15,2) DEFAULT 0,
+                status VARCHAR(30) DEFAULT 'unpaid',
+                accounting_status VARCHAR(20) DEFAULT 'unposted',
+                three_way_matched BOOLEAN DEFAULT false,
+                ppv_amount NUMERIC(15,2) DEFAULT 0,
+                journal_entry_id UUID REFERENCES journal_entries(id),
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, number)
+            )
+        `);
+
+        // Purchase Returns & Debit Notes
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS purchase_returns (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                number VARCHAR(50) NOT NULL,
+                goods_receipt_id UUID REFERENCES goods_receipts(id),
+                supplier_id UUID REFERENCES suppliers(id),
+                return_date DATE DEFAULT CURRENT_DATE,
+                status VARCHAR(30) DEFAULT 'draft',
+                accounting_status VARCHAR(20) DEFAULT 'unposted',
+                journal_entry_id UUID REFERENCES journal_entries(id),
+                total_amount NUMERIC(15,2) DEFAULT 0,
+                notes TEXT,
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, number)
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS debit_notes (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                number VARCHAR(50) NOT NULL,
+                supplier_id UUID REFERENCES suppliers(id),
+                supplier_invoice_id UUID REFERENCES supplier_invoices(id),
+                amount NUMERIC(15,2) NOT NULL CHECK (amount > 0),
+                reason TEXT,
+                status VARCHAR(30) DEFAULT 'draft',
+                accounting_status VARCHAR(20) DEFAULT 'unposted',
+                journal_entry_id UUID REFERENCES journal_entries(id),
+                created_by INTEGER REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, number)
+            )
+        `);
+
+        // PostgreSQL AP Subledger & GL Reconciliation Views
+        try {
+            await db.query(`
+                CREATE OR REPLACE VIEW v_ap_subledger AS
+                WITH invoice_credits AS (
+                    SELECT
+                        je.tenant_id,
+                        si.supplier_id::text AS supplier_id,
+                        si.id::text AS supplier_invoice_id,
+                        je.date,
+                        SUM(jel.credit) AS charged
+                    FROM journal_entry_lines jel
+                    JOIN journal_entries je ON jel.journal_entry_id = je.id AND je.status = 'posted'
+                    JOIN accounts a ON jel.account_id = a.id AND a.sub_type = 'payable'
+                    JOIN supplier_invoices si ON je.source_id::text = si.id::text AND je.source_type = 'supplier_invoice'
+                    GROUP BY je.tenant_id, si.supplier_id, si.id, je.date
+                ),
+                invoice_payments AS (
+                    SELECT
+                        pa.tenant_id,
+                        si.supplier_id::text AS supplier_id,
+                        pa.supplier_invoice_id::text AS supplier_invoice_id,
+                        SUM(pa.amount_allocated) AS paid
+                    FROM payment_allocations pa
+                    JOIN supplier_invoices si ON pa.supplier_invoice_id::text = si.id::text
+                    GROUP BY pa.tenant_id, si.supplier_id, pa.supplier_invoice_id
+                )
+                SELECT
+                    ic.tenant_id,
+                    ic.supplier_id,
+                    s.name AS supplier_name,
+                    ic.supplier_invoice_id,
+                    ic.date,
+                    ic.charged,
+                    COALESCE(ip.paid, 0) AS paid,
+                    (ic.charged - COALESCE(ip.paid, 0)) AS outstanding
+                FROM invoice_credits ic
+                LEFT JOIN invoice_payments ip ON ic.supplier_invoice_id = ip.supplier_invoice_id AND ic.supplier_id = ip.supplier_id
+                LEFT JOIN suppliers s ON ic.supplier_id = s.id::text;
+            `);
+
+            await db.query(`
+                CREATE OR REPLACE VIEW v_ap_gl_reconciliation AS
+                SELECT
+                    gl.tenant_id,
+                    gl.gl_ap_balance,
+                    sub.subledger_outstanding,
+                    ABS(gl.gl_ap_balance - sub.subledger_outstanding) AS difference,
+                    CASE WHEN ABS(gl.gl_ap_balance - sub.subledger_outstanding) < 0.01
+                         THEN 'RECONCILED' ELSE 'MISMATCH' END AS status
+                FROM (
+                    SELECT jel.tenant_id, SUM(jel.credit) - SUM(jel.debit) AS gl_ap_balance
+                    FROM journal_entry_lines jel
+                    JOIN journal_entries je ON jel.journal_entry_id = je.id AND je.status = 'posted'
+                    JOIN accounts a ON jel.account_id = a.id AND a.sub_type = 'payable'
+                    GROUP BY jel.tenant_id
+                ) gl
+                JOIN (
+                    SELECT tenant_id, SUM(outstanding) AS subledger_outstanding
+                    FROM v_ap_subledger
+                    GROUP BY tenant_id
+                ) sub USING (tenant_id);
+            `);
+        } catch (apViewErr) {
+            console.warn('⚠️ [DB-RECON] AP View creation notice (handled):', apViewErr.message);
+        }
+
+        console.log('✅ [DB-RECON] ERP Stage 2 Purchasing Cycle tables & views verified (suppliers, purchase_orders, goods_receipts, supplier_invoices, v_ap_subledger).');
+
 
         console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 
