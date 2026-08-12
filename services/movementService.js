@@ -154,12 +154,32 @@ class MovementService {
                 }
             }
 
+            // Apply Approval & Calculate Valuation (WAC + GL Posting)
+            const InventoryValuationService = require('../src/domains/inventory/InventoryValuationService');
+
+            // 1. Negative stock check
+            if (movement.type === 'out' || movement.type === 'transfer') {
+                await InventoryValuationService.validateNegativeStock(client, movement.product_id, movement.quantity, tenant_id);
+            }
+
+            // 2. Fetch current product average cost
+            const pRes = await client.query('SELECT avg_cost FROM products WHERE id::text = $1::text', [String(movement.product_id)]);
+            let unitCost = Number(pRes.rows[0]?.avg_cost || 0);
+
+            // 3. Update WAC if inbound receipt
+            if (movement.type === 'in' && movement.unit_cost) {
+                unitCost = await InventoryValuationService.updateCompanyWAC(client, movement.product_id, tenant_id, movement.quantity, movement.unit_cost);
+            }
+
             // Apply Approval
             const finalRes = await client.query(`
                 UPDATE stock_movements 
                 SET status = 'approved', approved_by = $1
                 WHERE id = $2 RETURNING *
             `, [user_id, movement_id]);
+
+            // 4. Auto-post GL Journal Entry for inventory asset adjustment
+            await InventoryValuationService.postMovementJournal(client, finalRes.rows[0], unitCost, user_id);
 
             await client.query('COMMIT');
             return finalRes.rows[0];
