@@ -1166,6 +1166,45 @@ const reconcileDatabase = async () => {
 
         console.log('✅ [DB-RECON] ERP Stage 2 Purchasing Cycle tables & views verified (suppliers, purchase_orders, goods_receipts, supplier_invoices, v_ap_subledger).');
 
+        // ── ERP STAGE 4 — BANKING SCHEMA ──
+
+        // Bank Accounts
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS bank_accounts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                name VARCHAR(255) NOT NULL,
+                account_number VARCHAR(100),
+                bank_name VARCHAR(255),
+                currency VARCHAR(10) DEFAULT 'EGP',
+                gl_account_id UUID REFERENCES accounts(id),
+                opening_balance NUMERIC(15,2) DEFAULT 0,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, account_number)
+            )
+        `);
+
+        // Bank Statement Transactions
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS bank_transactions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                bank_account_id UUID REFERENCES bank_accounts(id) ON DELETE CASCADE,
+                transaction_date DATE NOT NULL,
+                description TEXT,
+                debit NUMERIC(15,2) DEFAULT 0 CHECK (debit >= 0),
+                credit NUMERIC(15,2) DEFAULT 0 CHECK (credit >= 0),
+                reference VARCHAR(100),
+                is_reconciled BOOLEAN DEFAULT false,
+                matched_journal_entry_id UUID REFERENCES journal_entries(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        console.log('✅ [DB-RECON] ERP Stage 4 Banking tables verified (bank_accounts, bank_transactions).');
+
 
         console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 
