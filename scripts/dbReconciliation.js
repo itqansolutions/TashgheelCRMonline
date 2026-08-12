@@ -1205,6 +1205,75 @@ const reconcileDatabase = async () => {
 
         console.log('✅ [DB-RECON] ERP Stage 4 Banking tables verified (bank_accounts, bank_transactions).');
 
+        // ── ERP STAGE 5 — FIXED ASSETS & BUDGETING SCHEMA ──
+
+        // Fixed Assets
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS fixed_assets (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                name VARCHAR(255) NOT NULL,
+                asset_code VARCHAR(50) NOT NULL,
+                category VARCHAR(100),
+                acquisition_date DATE NOT NULL,
+                acquisition_cost NUMERIC(15,2) NOT NULL CHECK (acquisition_cost > 0),
+                useful_life_months INTEGER NOT NULL CHECK (useful_life_months > 0),
+                depreciation_method VARCHAR(30) DEFAULT 'straight_line',
+                residual_value NUMERIC(15,2) DEFAULT 0,
+                accumulated_depreciation NUMERIC(15,2) DEFAULT 0,
+                net_book_value NUMERIC(15,2),
+                status VARCHAR(30) DEFAULT 'active',
+                gl_account_id UUID REFERENCES accounts(id),
+                accumulated_depreciation_account_id UUID REFERENCES accounts(id),
+                depreciation_expense_account_id UUID REFERENCES accounts(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, asset_code)
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS asset_depreciation_schedule (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                asset_id UUID REFERENCES fixed_assets(id) ON DELETE CASCADE,
+                period_date DATE NOT NULL,
+                depreciation_amount NUMERIC(15,2) NOT NULL CHECK (depreciation_amount > 0),
+                accumulated_total NUMERIC(15,2) NOT NULL,
+                journal_entry_id UUID REFERENCES journal_entries(id),
+                is_posted BOOLEAN DEFAULT false,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Budgets
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS budgets (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                name VARCHAR(255) NOT NULL,
+                fiscal_year_id UUID REFERENCES fiscal_years(id) ON DELETE CASCADE,
+                status VARCHAR(20) DEFAULT 'draft',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, name, fiscal_year_id)
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS budget_lines (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                budget_id UUID REFERENCES budgets(id) ON DELETE CASCADE,
+                account_id UUID REFERENCES accounts(id) ON DELETE CASCADE,
+                cost_center_id UUID REFERENCES cost_centers(id),
+                month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+                budgeted_amount NUMERIC(15,2) DEFAULT 0,
+                tenant_id VARCHAR(255) NOT NULL
+            )
+        `);
+
+        console.log('✅ [DB-RECON] ERP Stage 5 tables verified (fixed_assets, asset_depreciation_schedule, budgets, budget_lines).');
+
 
         console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 
