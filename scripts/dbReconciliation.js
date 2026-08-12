@@ -529,6 +529,70 @@ const reconcileDatabase = async () => {
 
         console.log('✅ [DB-RECON] ERP Core Week 2 tables verified (accounts, cost_centers, opening_balances, opening_customer_invoices, opening_supplier_invoices, opening_inventory).');
 
+        // ── ERP CORE FOUNDATION (Stage 0 - Week 3 Schema) ──
+
+        // Tax Components (VAT, WHT, Stamp Duty, etc.)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS tax_components (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                code VARCHAR(20) NOT NULL,
+                rate NUMERIC(5,2) NOT NULL,
+                type VARCHAR(30) DEFAULT 'percentage',
+                applies_to VARCHAR(20) DEFAULT 'both',
+                is_inclusive BOOLEAN DEFAULT false,
+                is_withholding BOOLEAN DEFAULT false,
+                gl_account_id UUID REFERENCES accounts(id),
+                country_code VARCHAR(10) DEFAULT 'EG',
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, code)
+            )
+        `);
+
+        // Tax Groups (Bundle multiple components like VAT 14% + WHT 1%)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS tax_groups (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                code VARCHAR(20) NOT NULL,
+                description TEXT,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tenant_id, code)
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS tax_group_components (
+                tax_group_id UUID REFERENCES tax_groups(id) ON DELETE CASCADE,
+                tax_component_id UUID REFERENCES tax_components(id) ON DELETE CASCADE,
+                PRIMARY KEY (tax_group_id, tax_component_id)
+            )
+        `);
+
+        // Document Line Tax Breakdown Storage
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS document_line_taxes (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id VARCHAR(255) NOT NULL,
+                document_type VARCHAR(50) NOT NULL,
+                document_line_id UUID NOT NULL,
+                tax_component_id UUID REFERENCES tax_components(id),
+                taxable_amount NUMERIC(15,2) NOT NULL,
+                tax_rate NUMERIC(5,2) NOT NULL,
+                tax_amount NUMERIC(15,2) NOT NULL,
+                is_inclusive BOOLEAN DEFAULT false,
+                is_withholding BOOLEAN DEFAULT false,
+                wht_account_id UUID REFERENCES accounts(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        console.log('✅ [DB-RECON] ERP Core Week 3 tables verified (tax_components, tax_groups, tax_group_components, document_line_taxes).');
+
 
         console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 
