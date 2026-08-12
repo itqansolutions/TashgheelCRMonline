@@ -171,9 +171,9 @@ export const DataProvider = ({ children }) => {
 
   const [tenant, setTenant] = useState({});
   const fetchTenant = async () => {
+    if (!localStorage.getItem('token')) return;
     try {
-      // Use the user's tenant_id from auth if possible, or fetch from /api/me/subscription
-      const res = await api.get('/tenants/my'); // I'll need to create this endpoint or use /api/tenants/:id
+      const res = await api.get('/tenants/my');
       setTenant(safeObject(res.data.data));
     } catch (err) {
       console.error('Failed to load tenant details');

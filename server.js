@@ -86,6 +86,7 @@ app.use('/api/auth', authRoutes);
 
 // Public SaaS endpoints (no auth required)
 app.get('/api/plans', plansController.getPlans);
+app.use('/api/settings', settingsRoutes);
 
 // Protected SaaS subscription endpoint
 app.get('/api/me/subscription', authMiddleware, subscriptionGuard, plansController.getMySubscription);
@@ -127,7 +128,6 @@ app.use('/api/lead-sources', leadSourceRoutes);
 app.use('/api/task-statuses', taskStatusRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/lead-statuses', require('./routes/leadStatusRoutes'));
-app.use('/api/settings', settingsRoutes);
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/re-units', reUnitRoutes);

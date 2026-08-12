@@ -100,21 +100,25 @@ exports.register = async (req, res) => {
 
     // ── AUTO-CREATE 14-DAY TRIAL SUBSCRIPTION ──
     const planName = selectedPlan || 'basic';
-    const planRes = await db.query('SELECT id, modules FROM plans WHERE name = $1', [planName]);
     let planId = null;
     let modules = { crm: true, finance: true };
-
-    if (planRes.rows.length > 0) {
-      planId = planRes.rows[0].id;
-      modules = planRes.rows[0].modules;
-    }
-
     const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-    await db.query(`
-      INSERT INTO subscriptions (tenant_id, plan_id, status, trial_ends_at, expires_at)
-      VALUES ($1, $2, 'trial', $3, $3)
-      ON CONFLICT (tenant_id) DO NOTHING
-    `, [tenantId, planId, trialEnd]);
+
+    try {
+      const planRes = await db.query('SELECT id, modules FROM plans WHERE name = $1', [planName]);
+      if (planRes.rows.length > 0) {
+        planId = planRes.rows[0].id;
+        modules = planRes.rows[0].modules;
+      }
+
+      await db.query(`
+        INSERT INTO subscriptions (tenant_id, plan_id, status, trial_ends_at, expires_at)
+        VALUES ($1, $2, 'trial', $3, $3)
+        ON CONFLICT (tenant_id) DO NOTHING
+      `, [String(tenantId), planId, trialEnd]);
+    } catch (subErr) {
+      console.warn('⚠️ [Register Warning] Subscription binding (non-fatal):', subErr.message);
+    }
 
     // Generate JWT
     const payload = { user: { id: user.id, role: user.role, tenant_id: user.tenant_id } };

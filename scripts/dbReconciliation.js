@@ -1274,6 +1274,45 @@ const reconcileDatabase = async () => {
 
         console.log('✅ [DB-RECON] ERP Stage 5 tables verified (fixed_assets, asset_depreciation_schedule, budgets, budget_lines).');
 
+        // ── SAAS ACTIVATION LAYER (Plans & Subscriptions) ──
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS plans (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(50) UNIQUE NOT NULL,
+                display_name VARCHAR(100),
+                price_monthly DECIMAL(10,2) DEFAULT 0,
+                max_users INTEGER DEFAULT 5,
+                max_branches INTEGER DEFAULT 1,
+                modules JSONB DEFAULT '{}',
+                is_active BOOLEAN DEFAULT TRUE,
+                sort_order INTEGER DEFAULT 0
+            )
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                id SERIAL PRIMARY KEY,
+                tenant_id VARCHAR(255) UNIQUE NOT NULL,
+                plan_id INTEGER REFERENCES plans(id),
+                status VARCHAR(50) DEFAULT 'trial',
+                trial_ends_at TIMESTAMP WITH TIME ZONE,
+                expires_at TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await db.query(`
+            INSERT INTO plans (name, display_name, price_monthly, max_users, max_branches, modules, sort_order)
+            VALUES
+            ('basic', 'Basic', 29.00, 10, 1, '{"crm": true, "finance": true, "hr": false, "inventory": false, "automation": false}', 1),
+            ('pro', 'Pro', 79.00, 50, 5, '{"crm": true, "finance": true, "hr": true, "inventory": true, "automation": false}', 2),
+            ('enterprise', 'Enterprise', 199.00, -1, -1, '{"crm": true, "finance": true, "hr": true, "inventory": true, "automation": true}', 3)
+            ON CONFLICT (name) DO NOTHING
+        `);
+
+        console.log('✅ [DB-RECON] SaaS Plans and Subscriptions tables verified.');
+
 
         console.log('✅ [DB-RECON] Modular tables verified (domain_events, activities, outbox_events, notifications).');
 
