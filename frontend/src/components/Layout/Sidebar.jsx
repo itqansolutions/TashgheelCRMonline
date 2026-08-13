@@ -34,7 +34,14 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     },
     { name: 'Deals',           icon: <Handshake />,       path: '/deals' },
     { name: 'Tasks',           icon: <CheckSquare />,     path: '/tasks' },
-    { name: 'Accounting',      icon: <Wallet />,          path: '/accounting' },
+    // ERP Core System Modules
+    { name: 'Chart of Accounts',icon: <Wallet />,         path: '/erp/accounts' },
+    { name: 'General Ledger',   icon: <FileText />,        path: '/erp/journals' },
+    { name: 'Sales Orders',    icon: <ShoppingBag />,     path: '/erp/sales' },
+    { name: 'Purchasing (AP)', icon: <Package />,         path: '/erp/purchasing' },
+    { name: 'Financial Reports',icon: <BarChart3 />,       path: '/erp/reports' },
+    { name: 'Bank Reconciliation',icon: <CreditCard />,   path: '/erp/banking' },
+    { name: 'Period Closing',   icon: <Lock />,            path: '/erp/closing' },
     { name: 'Employees',       icon: <Users2 />,          path: '/employees' },
     // Module-gated items
     { name: 'HR & Attendance', icon: <Users2 />,          path: '/hr',        module: 'hr' },
@@ -42,7 +49,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Automation',      icon: <Zap />,             path: '/automation',module: 'automation' },
     // Always visible
     { name: 'Files',           icon: <FileText />,        path: '/files' },
-    { name: 'Reports',         icon: <BarChart3 />,       path: '/reports' },
     { name: 'System Logs',     icon: <History />,         path: '/logs' },
     { name: 'Admin Settings',  icon: <AdminSettingsIcon />, path: '/settings' },
     { name: 'Billing',         icon: <CreditCard />,        path: '/billing' },

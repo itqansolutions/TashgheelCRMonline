@@ -44,6 +44,15 @@ import Billing from './pages/Billing/Billing';
 import PlatformWrapper from './pages/SuperAdmin/PlatformWrapper';
 import SecretPortalHUD from './pages/SuperAdmin/SecretPortalHUD';
 
+// ERP Suite Pages
+import ChartOfAccounts from './pages/ERP/ChartOfAccounts';
+import JournalEntries from './pages/ERP/JournalEntries';
+import SalesCycle from './pages/ERP/SalesCycle';
+import PurchasingCycle from './pages/ERP/PurchasingCycle';
+import FinancialReports from './pages/ERP/FinancialReports';
+import BankReconciliation from './pages/ERP/BankReconciliation';
+import PeriodClosing from './pages/ERP/PeriodClosing';
+
 // Corporate Pages
 import CorporateLayout from './pages/Corporate/CorporateLayout';
 import CorporateHome from './pages/Corporate/Home';
@@ -112,7 +121,17 @@ function App() {
                   <Route path="finance" element={<Invoices />} />
                   <Route path="finance/invoice-preview/:id" element={<InvoicePreview />} />
                   <Route path="finance/quotation-preview/:id" element={<QuotationPreview />} />
-                  <Route path="accounting" element={<Navigate to="/finance" replace />} />
+
+                  {/* ERP Core System Routes */}
+                  <Route path="erp/accounts" element={<ChartOfAccounts />} />
+                  <Route path="erp/journals" element={<JournalEntries />} />
+                  <Route path="erp/sales" element={<SalesCycle />} />
+                  <Route path="erp/purchasing" element={<PurchasingCycle />} />
+                  <Route path="erp/reports" element={<FinancialReports />} />
+                  <Route path="erp/banking" element={<BankReconciliation />} />
+                  <Route path="erp/closing" element={<PeriodClosing />} />
+                  <Route path="accounting" element={<Navigate to="/erp/accounts" replace />} />
+                  <Route path="reports" element={<Navigate to="/erp/reports" replace />} />
                   <Route 
                     path="employees" 
                     element={
