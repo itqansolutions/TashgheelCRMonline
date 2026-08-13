@@ -214,16 +214,16 @@ const Dashboard = () => {
                   <>
                     <KPICard 
                       title="Available Units" 
-                      value={stats.industrySpecific.inventory?.available ?? 0}
+                      value={stats?.industrySpecific?.inventory?.available ?? 0}
                       icon={<MapPin size={20} />}
                       color="green"
                       trend="up"
                       trendValue="Live"
-                      subtitle={`Out of ${stats.industrySpecific.inventory?.total ?? 0} total`}
+                      subtitle={`Out of ${stats?.industrySpecific?.inventory?.total ?? 0} total`}
                     />
                     <KPICard 
                       title="Expected Collections" 
-                      value={`${(stats.industrySpecific.collectionForecast ?? 0).toLocaleString()} EGP`}
+                      value={`${(stats?.industrySpecific?.collectionForecast ?? 0).toLocaleString()} EGP`}
                       icon={<Coins size={20} />}
                       color="purple"
                       trend="up"

@@ -36,8 +36,8 @@ const MyProfile = () => {
       setData(prev => ({ ...prev, [activeTab]: res.data.data }));
       setPagination(prev => ({ 
         ...prev, 
-        total: res.data.meta.total,
-        page: res.data.meta.page
+        total: res.data?.meta?.total ?? (res.data?.data?.length || 0),
+        page: res.data?.meta?.page ?? 1
       }));
     } catch (err) {
       toast.error(`Failed to load ${activeTab}`);

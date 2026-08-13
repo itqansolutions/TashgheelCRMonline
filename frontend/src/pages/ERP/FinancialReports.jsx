@@ -113,11 +113,11 @@ const FinancialReports = () => {
               <div style={{ marginBottom: '20px', display: 'flex', gap: '20px' }}>
                 <div style={{ flex: 1, backgroundColor: '#f0fdf4', padding: '16px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
                   <span style={{ fontSize: '12px', color: '#166534', fontWeight: '700' }}>TOTAL ASSETS</span>
-                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#15803d', marginTop: '4px' }}>{reportData.assets?.total?.toLocaleString()} EGP</h2>
+                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#15803d', marginTop: '4px' }}>{(reportData?.assets?.total ?? 0).toLocaleString()} EGP</h2>
                 </div>
                 <div style={{ flex: 1, backgroundColor: '#fef2f2', padding: '16px', borderRadius: '8px', border: '1px solid #fecaca' }}>
                   <span style={{ fontSize: '12px', color: '#991b1b', fontWeight: '700' }}>TOTAL LIABILITIES & EQUITY</span>
-                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#b91c1c', marginTop: '4px' }}>{reportData.total_liabilities_and_equity?.toLocaleString()} EGP</h2>
+                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#b91c1c', marginTop: '4px' }}>{(reportData?.total_liabilities_and_equity ?? 0).toLocaleString()} EGP</h2>
                 </div>
               </div>
             </div>
@@ -128,15 +128,15 @@ const FinancialReports = () => {
               <div style={{ marginBottom: '20px', display: 'flex', gap: '20px' }}>
                 <div style={{ flex: 1, backgroundColor: '#f0fdf4', padding: '16px', borderRadius: '8px' }}>
                   <span style={{ fontSize: '12px', color: '#166534', fontWeight: '700' }}>TOTAL REVENUE</span>
-                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#15803d', marginTop: '4px' }}>{reportData.revenue?.total?.toLocaleString()} EGP</h2>
+                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#15803d', marginTop: '4px' }}>{(reportData?.revenue?.total ?? 0).toLocaleString()} EGP</h2>
                 </div>
                 <div style={{ flex: 1, backgroundColor: '#fff7ed', padding: '16px', borderRadius: '8px' }}>
                   <span style={{ fontSize: '12px', color: '#9a3412', fontWeight: '700' }}>TOTAL EXPENSES</span>
-                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#c2410c', marginTop: '4px' }}>{reportData.expenses?.total?.toLocaleString()} EGP</h2>
+                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#c2410c', marginTop: '4px' }}>{(reportData?.expenses?.total ?? 0).toLocaleString()} EGP</h2>
                 </div>
                 <div style={{ flex: 1, backgroundColor: '#e0e7ff', padding: '16px', borderRadius: '8px' }}>
                   <span style={{ fontSize: '12px', color: '#3730a3', fontWeight: '700' }}>NET PROFIT / LOSS</span>
-                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#4338ca', marginTop: '4px' }}>{reportData.net_profit?.toLocaleString()} EGP</h2>
+                  <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#4338ca', marginTop: '4px' }}>{(reportData?.net_profit ?? 0).toLocaleString()} EGP</h2>
                 </div>
               </div>
             </div>
