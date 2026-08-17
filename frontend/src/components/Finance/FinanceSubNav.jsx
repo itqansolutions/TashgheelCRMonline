@@ -1,0 +1,40 @@
+import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { Wallet, BookOpen, BarChart3, CreditCard, Lock, FileSpreadsheet } from 'lucide-react';
+
+const FinanceSubNav = () => {
+  const links = [
+    { path: '/erp/accounts', label: 'Chart of Accounts', icon: <Wallet size={16} /> },
+    { path: '/erp/journals', label: 'General Ledger', icon: <BookOpen size={16} /> },
+    { path: '/erp/reports', label: 'Financial Reports', icon: <BarChart3 size={16} /> },
+    { path: '/erp/banking', label: 'Bank Reconciliation', icon: <CreditCard size={16} /> },
+    { path: '/erp/closing', label: 'Period Closing', icon: <Lock size={16} /> },
+    { path: '/erp/entries', label: 'Entries', icon: <FileSpreadsheet size={16} /> },
+  ];
+
+  return (
+    <div style={{
+      display: 'flex', gap: '6px', overflowX: 'auto', padding: '12px 24px',
+      background: 'white', borderBottom: '1px solid #e2e8f0', marginBottom: '16px'
+    }}>
+      {links.map((link) => (
+        <NavLink
+          key={link.path}
+          to={link.path}
+          style={({ isActive }) => ({
+            display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
+            borderRadius: '10px', fontSize: '13px', fontWeight: 800, textDecoration: 'none',
+            whiteSpace: 'nowrap', transition: 'all 0.2s',
+            background: isActive ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : '#f8fafc',
+            color: isActive ? 'white' : '#64748b',
+            boxShadow: isActive ? '0 4px 12px rgba(99,102,241,0.25)' : 'none',
+          })}
+        >
+          {link.icon} {link.label}
+        </NavLink>
+      ))}
+    </div>
+  );
+};
+
+export default FinanceSubNav;

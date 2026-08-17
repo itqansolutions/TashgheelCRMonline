@@ -61,6 +61,14 @@ import PurchasingCycle from './pages/ERP/PurchasingCycle';
 import FinancialReports from './pages/ERP/FinancialReports';
 import BankReconciliation from './pages/ERP/BankReconciliation';
 import PeriodClosing from './pages/ERP/PeriodClosing';
+import Entries from './pages/ERP/Entries';
+
+// Warehouse & Inventory Pages
+import Warehouses from './pages/Inventory/Warehouses';
+import WarehouseKeepers from './pages/Inventory/WarehouseKeepers';
+import TransactionImpact from './pages/Inventory/TransactionImpact';
+import StockBalances from './pages/Inventory/StockBalances';
+import ItemCard from './pages/Inventory/ItemCard';
 
 // Corporate Pages
 import CorporateLayout from './pages/Corporate/CorporateLayout';
@@ -142,8 +150,16 @@ function App() {
                   <Route path="erp/reports" element={<FinancialReports />} />
                   <Route path="erp/banking" element={<BankReconciliation />} />
                   <Route path="erp/closing" element={<PeriodClosing />} />
+                  <Route path="erp/entries" element={<Entries />} />
                   <Route path="accounting" element={<Navigate to="/erp/accounts" replace />} />
                   <Route path="reports" element={<Navigate to="/erp/reports" replace />} />
+
+                  {/* Warehouse & Inventory Sub-Routes */}
+                  <Route path="inventory/warehouses" element={<Warehouses />} />
+                  <Route path="inventory/keepers" element={<WarehouseKeepers />} />
+                  <Route path="inventory/transaction-impact" element={<TransactionImpact />} />
+                  <Route path="inventory/balances" element={<StockBalances />} />
+                  <Route path="inventory/item-card" element={<ItemCard />} />
                   <Route 
                     path="employees" 
                     element={
