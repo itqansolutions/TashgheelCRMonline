@@ -70,6 +70,13 @@ import TransactionImpact from './pages/Inventory/TransactionImpact';
 import StockBalances from './pages/Inventory/StockBalances';
 import ItemCard from './pages/Inventory/ItemCard';
 
+// Sales Suite Pages
+import Salesmen from './pages/Sales/Salesmen';
+import Target from './pages/Sales/Target';
+import SalesOrder from './pages/Sales/SalesOrder';
+import Documents from './pages/Sales/Documents';
+import PriceTiers from './pages/Sales/PriceTiers';
+
 // Corporate Pages
 import CorporateLayout from './pages/Corporate/CorporateLayout';
 import CorporateHome from './pages/Corporate/Home';
@@ -160,6 +167,14 @@ function App() {
                   <Route path="inventory/transaction-impact" element={<TransactionImpact />} />
                   <Route path="inventory/balances" element={<StockBalances />} />
                   <Route path="inventory/item-card" element={<ItemCard />} />
+
+                  {/* Sales Suite Sub-Routes */}
+                  <Route path="sales" element={<Navigate to="/sales/orders" replace />} />
+                  <Route path="sales/salesmen" element={<Salesmen />} />
+                  <Route path="sales/target" element={<Target />} />
+                  <Route path="sales/orders" element={<SalesOrder />} />
+                  <Route path="sales/documents" element={<Documents />} />
+                  <Route path="sales/price-tiers" element={<PriceTiers />} />
                   <Route 
                     path="employees" 
                     element={

@@ -5,7 +5,8 @@ import {
   Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, 
   Settings as AdminSettingsIcon, ShieldAlert, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard,
   Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase, Sliders, Clock, Cpu,
-  Building, ShieldCheck, TrendingUp, ArrowLeftRight, Scale, FileSpreadsheet, BookOpen
+  Building, ShieldCheck, TrendingUp, ArrowLeftRight, Scale, FileSpreadsheet, BookOpen,
+  Target as TargetIcon, Layers, TrendingUp as SalesIcon
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
@@ -18,6 +19,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   // Collapsible Group States
   const [contactsOpen, setContactsOpen] = useState(true);
+  const [salesOpen, setSalesOpen] = useState(true);
   const [hrOpen, setHrOpen] = useState(true);
   const [warehouseOpen, setWarehouseOpen] = useState(true);
   const [financeOpen, setFinanceOpen] = useState(true);
@@ -28,13 +30,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Dashboard',       icon: <LayoutDashboard />, path: '/dashboard' },
     { name: 'My Profile',      icon: <UserCircle />,      path: '/my-profile' },
     // Contacts group handled separately
+    // Sales group handled separately
     // HR group handled separately
     // Warehouse group handled separately
     // Finance group handled separately
     ...(isRealEstate ? [{ name: 'Units Registry', icon: <Building2 />, path: '/units-registry' }] : []),
     { name: 'Deals',           icon: <Handshake />,       path: '/deals' },
     { name: 'Tasks',           icon: <CheckSquare />,     path: '/tasks' },
-    { name: 'Sales Orders',    icon: <ShoppingBag />,     path: '/erp/sales' },
     { name: 'Purchasing (AP)', icon: <Package />,         path: '/erp/purchasing' },
     { name: 'Automation',      icon: <Zap />,             path: '/automation', module: 'automation' },
     { name: 'Files',           icon: <FileText />,        path: '/files' },
@@ -50,6 +52,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Customers',  icon: <Users size={18} />,    path: '/contacts/customers' },
     { name: 'Vendors',    icon: <Truck size={18} />,    path: '/contacts/vendors' },
     { name: 'Employees',  icon: <Briefcase size={18} />, path: '/contacts/employees' },
+  ];
+
+  // Sales sub-items
+  const salesItems = [
+    { name: 'Salesmen',         icon: <Users size={18} />,       path: '/sales/salesmen' },
+    { name: 'Target & Goals',   icon: <TargetIcon size={18} />,  path: '/sales/target' },
+    { name: 'Sales Orders',     icon: <ShoppingBag size={18} />, path: '/sales/orders' },
+    { name: 'Documents',        icon: <FileText size={18} />,    path: '/sales/documents' },
+    { name: 'Price Tiers',      icon: <Layers size={18} />,      path: '/sales/price-tiers' },
   ];
 
   // HR sub-items
@@ -208,8 +219,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         .trial-banner .tb-row { display: flex; align-items: center; gap: 8px; }
         .trial-banner .tb-title { font-size: 12px; font-weight: 800; flex: 1; transition: opacity 0.2s; }
         .trial-banner .tb-sub { font-size: 11px; margin-top: 4px; transition: opacity 0.2s; }
-        .sidebar.closed .trial-banner .tb-title,
-        .sidebar.closed .trial-banner .tb-sub { opacity: 0; }
+        .sidebar.closed .trial-banner .tb-title,\n        .sidebar.closed .trial-banner .tb-sub { opacity: 0; }
         .trial-banner .tb-icon { font-size: 16px; flex-shrink: 0; }
 
         .sidebar-footer {
@@ -254,6 +264,29 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         </div>
         <div className={`group-sub-items ${isOpen && contactsOpen ? 'expanded' : 'collapsed'}`}>
           {contactItems.map(item => (
+            <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+              {item.icon}
+              <span>{item.name}</span>
+            </NavLink>
+          ))}
+        </div>
+
+        {/* Sales Group */}
+        <div
+          className="group-header"
+          onClick={() => isOpen && setSalesOpen(prev => !prev)}
+          title={!isOpen ? 'Sales' : undefined}
+        >
+          <ShoppingBag size={20} className="main-icon" />
+          <span className="group-label">Sales</span>
+          {isOpen && (
+            salesOpen 
+              ? <ChevronDown size={14} className="group-chevron" />
+              : <ChevronUp size={14} className="group-chevron" />
+          )}
+        </div>
+        <div className={`group-sub-items ${isOpen && salesOpen ? 'expanded' : 'collapsed'}`}>
+          {salesItems.map(item => (
             <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
               {item.icon}
               <span>{item.name}</span>
