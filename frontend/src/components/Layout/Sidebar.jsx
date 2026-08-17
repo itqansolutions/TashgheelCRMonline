@@ -1,16 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, ShoppingBag, Handshake, CheckSquare, Wallet, 
   Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, 
   Settings as AdminSettingsIcon, ShieldAlert, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard,
-  Building2, UserCircle
+  Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
 import { safeArray } from '../../utils/dataUtils';
 
-// Module key mapping: path → module name
 const MODULE_MAP = {
   '/hr':        'hr',
   '/inventory': 'inventory',
@@ -22,19 +21,21 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { user } = useAuth();
   const { can, planName, trialDaysLeft } = useModule();
   const navigate = useNavigate();
+  const [contactsOpen, setContactsOpen] = useState(true);
+
+  const isRealEstate = user?.template_name === 'real_estate';
 
   const navItems = [
     { name: 'Dashboard',       icon: <LayoutDashboard />, path: '/dashboard' },
     { name: 'My Profile',      icon: <UserCircle />,      path: '/my-profile' },
-    { name: 'Customers',       icon: <Users />,           path: '/customers' },
+    // Contacts group handled separately
     { 
-      name: user?.template_name === 'real_estate' ? 'Units Registry' : 'Products', 
-      icon: user?.template_name === 'real_estate' ? <Building2 /> : <ShoppingBag />, 
-      path: user?.template_name === 'real_estate' ? '/units-registry' : '/products' 
+      name: isRealEstate ? 'Units Registry' : 'Products', 
+      icon: isRealEstate ? <Building2 /> : <ShoppingBag />, 
+      path: isRealEstate ? '/units-registry' : '/products'
     },
     { name: 'Deals',           icon: <Handshake />,       path: '/deals' },
     { name: 'Tasks',           icon: <CheckSquare />,     path: '/tasks' },
-    // ERP Core System Modules
     { name: 'Chart of Accounts',icon: <Wallet />,         path: '/erp/accounts' },
     { name: 'General Ledger',   icon: <FileText />,        path: '/erp/journals' },
     { name: 'Sales Orders',    icon: <ShoppingBag />,     path: '/erp/sales' },
@@ -42,16 +43,22 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Financial Reports',icon: <BarChart3 />,       path: '/erp/reports' },
     { name: 'Bank Reconciliation',icon: <CreditCard />,   path: '/erp/banking' },
     { name: 'Period Closing',   icon: <Lock />,            path: '/erp/closing' },
-    { name: 'Employees',       icon: <Users2 />,          path: '/employees' },
-    // Module-gated items
     { name: 'HR & Attendance', icon: <Users2 />,          path: '/hr',        module: 'hr' },
-    { name: 'Inventory',       icon: <Package />,         path: '/inventory/movements', module: 'inventory', hidden: user?.template_name === 'real_estate' },
+    { name: 'Inventory',       icon: <Package />,         path: '/inventory/movements', module: 'inventory', hidden: isRealEstate },
     { name: 'Automation',      icon: <Zap />,             path: '/automation',module: 'automation' },
-    // Always visible
     { name: 'Files',           icon: <FileText />,        path: '/files' },
     { name: 'System Logs',     icon: <History />,         path: '/logs' },
     { name: 'Admin Settings',  icon: <AdminSettingsIcon />, path: '/settings' },
     { name: 'Billing',         icon: <CreditCard />,        path: '/billing' },
+  ];
+
+  // Contacts sub-items (General template only)
+  const contactItems = isRealEstate ? [
+    { name: 'Customers',  icon: <Users />,    path: '/customers' },
+  ] : [
+    { name: 'Customers',  icon: <Users />,    path: '/contacts/customers' },
+    { name: 'Vendors',    icon: <Truck />,    path: '/contacts/vendors' },
+    { name: 'Employees',  icon: <Briefcase />, path: '/contacts/employees' },
   ];
 
   const filteredItems = (navItems || []).filter(item => {
@@ -63,10 +70,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     return allowed.includes(checkPath);
   });
 
-  // SYSTEM_DEFAULT_TENANT logic removed for SOP (Secluded Platform Owner Portal)
-
-
-  // Trial urgency color
   const trialColor = trialDaysLeft !== null
     ? trialDaysLeft <= 3 ? '#ef4444' : trialDaysLeft <= 7 ? '#f59e0b' : '#10b981'
     : null;
@@ -101,7 +104,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         .toggle-btn:hover { background: rgba(79,70,229,0.1); transform: scale(1.05); }
         .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; overflow-x: hidden; }
 
-        /* Normal nav items */
         .sidebar-nav a {
           display: flex; align-items: center; padding: 12px 16px; color: var(--text-muted);
           transition: all 0.3s cubic-bezier(0.4,0,0.2,1); gap: 16px; border-radius: 12px;
@@ -117,7 +119,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         .sidebar-nav a span { white-space: nowrap; font-weight: 600; font-size: 15px; transition: opacity 0.2s; }
         .sidebar.closed .sidebar-nav a span { opacity: 0; pointer-events: none; }
 
-        /* LOCKED nav items */
         .nav-locked {
           display: flex; align-items: center; padding: 12px 16px; gap: 16px;
           border-radius: 12px; margin-bottom: 4px; cursor: pointer;
@@ -133,8 +134,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           transition: opacity 0.2s;
         }
         .sidebar.closed .lock-badge { opacity: 0; }
-
-        /* Hover unlock tooltip */
         .nav-locked .lock-tooltip {
           position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%);
           background: #1e1b4b; color: white; padding: 8px 14px; border-radius: 10px;
@@ -143,12 +142,38 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         }
         .nav-locked:hover .lock-tooltip { opacity: 1; }
 
-        /* Section label */
         .nav-section { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-muted);
           text-transform: uppercase; padding: 12px 16px 4px; transition: opacity 0.2s; }
         .sidebar.closed .nav-section { opacity: 0; }
 
-        /* Trial banner */
+        /* Contacts group header */
+        .contacts-group-header {
+          display: flex; align-items: center; padding: 10px 16px; gap: 14px;
+          border-radius: 12px; margin-bottom: 2px; cursor: pointer;
+          color: var(--text-muted); transition: all 0.25s;
+          border: 1px solid transparent;
+        }
+        .contacts-group-header:hover {
+          background: rgba(79,70,229,0.04); color: var(--primary);
+          border-color: rgba(79,70,229,0.1);
+        }
+        .contacts-group-header svg.main-icon { min-width: 20px; width: 20px; height: 20px; }
+        .contacts-group-label { flex: 1; font-weight: 700; font-size: 14px; white-space: nowrap; transition: opacity 0.2s; letter-spacing: 0.01em; }
+        .sidebar.closed .contacts-group-label { opacity: 0; }
+        .contacts-chevron { transition: all 0.25s; flex-shrink: 0; }
+        .sidebar.closed .contacts-chevron { opacity: 0; }
+        .contacts-sub-items {
+          overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease;
+          padding-left: 12px;
+        }
+        .contacts-sub-items.collapsed { max-height: 0; opacity: 0; }
+        .contacts-sub-items.expanded { max-height: 300px; opacity: 1; }
+        .contacts-sub-items a {
+          padding: 10px 16px;
+          font-size: 14px !important;
+        }
+        .sidebar.closed .contacts-sub-items { padding-left: 0; }
+
         .trial-banner {
           margin: 0 12px 12px; border-radius: 12px; padding: 12px 14px;
           cursor: pointer; transition: all 0.2s;
@@ -179,33 +204,54 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
       {/* Nav */}
       <nav className="sidebar-nav">
-        {filteredItems.map((item) => {
+        {/* Dashboard & Profile */}
+        {filteredItems.slice(0, 2).map((item) => (
+          <NavLink key={item.name} to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>
+            {item.icon}
+            <span>{item.name}</span>
+          </NavLink>
+        ))}
+
+        {/* Contacts Group */}
+        <div
+          className="contacts-group-header"
+          onClick={() => isOpen && setContactsOpen(prev => !prev)}
+          title={!isOpen ? 'Contacts' : undefined}
+        >
+          <Phone size={20} className="main-icon" />
+          <span className="contacts-group-label">Contacts</span>
+          {isOpen && (
+            contactsOpen 
+              ? <ChevronDown size={14} className="contacts-chevron" />
+              : <ChevronUp size={14} className="contacts-chevron" />
+          )}
+        </div>
+        <div className={`contacts-sub-items ${isOpen && contactsOpen ? 'expanded' : 'collapsed'}`}>
+          {contactItems.map(item => (
+            <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+              {item.icon}
+              <span>{item.name}</span>
+            </NavLink>
+          ))}
+        </div>
+
+        {/* Remaining items */}
+        {filteredItems.slice(2).map((item) => {
           const isModuleLocked = item.module && !can(item.module);
 
           if (isModuleLocked) {
             return (
-              <div
-                key={item.name}
-                className="nav-locked"
-                onClick={() => navigate('/pricing')}
-                title={`Upgrade to access ${item.name}`}
-              >
+              <div key={item.name} className="nav-locked" onClick={() => navigate('/pricing')} title={`Upgrade to access ${item.name}`}>
                 {item.icon}
                 <span className="nav-label">{item.name}</span>
                 <span className="lock-badge"><Lock size={9}/> PRO</span>
-                <div className="lock-tooltip">
-                  🔒 Upgrade to unlock {item.name} <ArrowRight size={11}/>
-                </div>
+                <div className="lock-tooltip">🔒 Upgrade to unlock {item.name} <ArrowRight size={11}/></div>
               </div>
             );
           }
 
           return (
-            <NavLink
-              key={item.name}
-              to={item.path}
-              className={({ isActive }) => (isActive ? 'active' : '')}
-            >
+            <NavLink key={item.name} to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>
               {item.icon}
               <span>{item.name}</span>
             </NavLink>
@@ -215,11 +261,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
       {/* Trial Banner */}
       {trialDaysLeft !== null && (
-        <div
-          className="trial-banner"
-          style={{ background: `${trialColor}18`, border: `1px solid ${trialColor}40` }}
-          onClick={() => navigate('/pricing')}
-        >
+        <div className="trial-banner" style={{ background: `${trialColor}18`, border: `1px solid ${trialColor}40` }} onClick={() => navigate('/pricing')}>
           <div className="tb-row">
             <span className="tb-icon">⏳</span>
             <span className="tb-title" style={{ color: trialColor }}>

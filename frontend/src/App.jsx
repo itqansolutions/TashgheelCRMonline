@@ -34,6 +34,10 @@ import UnitsRegistry from './pages/RealEstate/UnitsRegistry';
 import MyRequests from './pages/HR/MyRequests';
 import ApprovalCenter from './pages/HR/ApprovalCenter';
 import PayrollEngine from './pages/HR/PayrollEngine';
+import ActivityDefinition from './pages/HR/ActivityDefinition';
+import ActivityBalance from './pages/HR/ActivityBalance';
+import Shifts from './pages/HR/Shifts';
+import AttendanceDevices from './pages/HR/AttendanceDevices';
 import InventoryControl from './pages/Inventory/InventoryControl';
 import AutomationControl from './pages/Automation/AutomationControl';
 import RuleBuilder from './pages/Automation/RuleBuilder';
@@ -43,6 +47,11 @@ import AdminUpgradeRequests from './pages/Admin/AdminUpgradeRequests';
 import Billing from './pages/Billing/Billing';
 import PlatformWrapper from './pages/SuperAdmin/PlatformWrapper';
 import SecretPortalHUD from './pages/SuperAdmin/SecretPortalHUD';
+
+// Contacts Module Pages
+import ContactsCustomers from './pages/Contacts/ContactsCustomers';
+import ContactsVendors from './pages/Contacts/ContactsVendors';
+import ContactsEmployees from './pages/Contacts/ContactsEmployees';
 
 // ERP Suite Pages
 import ChartOfAccounts from './pages/ERP/ChartOfAccounts';
@@ -114,6 +123,9 @@ function App() {
                   <Route path="pricing" element={<Pricing />} />
                   <Route path="billing" element={<Billing />} />
                   <Route path="customers" element={<Customers />} />
+                  <Route path="contacts/customers" element={<ContactsCustomers />} />
+                  <Route path="contacts/vendors" element={<ContactsVendors />} />
+                  <Route path="contacts/employees" element={<ContactsEmployees />} />
                   <Route path="products" element={<Products />} />
                   <Route path="deals" element={<Deals />} />
                   <Route path="tasks" element={<Tasks />} />
@@ -164,6 +176,38 @@ function App() {
                     element={
                       <ProtectedRoute allowedRoles={['admin', 'manager']}>
                         <PayrollEngine />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="hr/activity-definition" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <ActivityDefinition />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="hr/activity-balance" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <ActivityBalance />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="hr/shifts" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <Shifts />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="hr/devices" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <AttendanceDevices />
                       </ProtectedRoute>
                     } 
                   />

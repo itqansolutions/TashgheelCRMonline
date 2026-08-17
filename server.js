@@ -68,6 +68,13 @@ const workflowRoutes = require('./routes/workflowRoutes');
 const rulesRoutes = require('./routes/rulesRoutes');
 const superAdminRoutes = require('./routes/superAdminRoutes');
 const activityRoutes = require('./routes/activityRoutes');
+const vendorRoutes = require('./routes/vendorRoutes');
+const jobTitleRoutes = require('./routes/jobTitleRoutes');
+const hrActivityRoutes = require('./routes/hrActivityRoutes');
+const hrActivityBalanceRoutes = require('./routes/hrActivityBalanceRoutes');
+const hrShiftsRoutes = require('./routes/hrShiftsRoutes');
+const hrDevicesRoutes = require('./routes/hrDevicesRoutes');
+const ZkAdmsService = require('./services/ZkAdmsService');
 const moduleRegistry = require('./src/infrastructure/plugins/ModuleRegistry');
 
 // SaaS Middleware
@@ -79,6 +86,9 @@ const usageLimits = require('./middleware/usageLimits');
 const plansController = require('./controllers/plansController');
 const adminPlanRoutes = require('./routes/adminPlanRoutes');
 const billingRoutes = require('./routes/billingRoutes');
+
+// Register ZKTeco ADMS Push Endpoints (PUBLIC - no auth header sent by ZK devices)
+ZkAdmsService(app);
 
 // API Routes — must be registered BEFORE static file serving
 const frontendPath = path.join(__dirname, 'frontend', 'dist');
@@ -134,6 +144,14 @@ app.use('/api/re-units', reUnitRoutes);
 app.use('/api/re-payments', rePaymentRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/activities', activityRoutes);
+app.use('/api/vendors', vendorRoutes);
+app.use('/api/job-titles', jobTitleRoutes);
+
+// HR Extension Modules
+app.use('/api/hr/activity-types', hrActivityRoutes);
+app.use('/api/hr/activity-balances', hrActivityBalanceRoutes);
+app.use('/api/hr/shifts', hrShiftsRoutes);
+app.use('/api/hr/devices', hrDevicesRoutes);
 app.use('/api/erp/fiscal-years', require('./routes/erpFiscalYearRoutes'));
 app.use('/api/erp/accounts', require('./routes/accountRoutes'));
 app.use('/api/erp/cost-centers', require('./routes/costCenterRoutes'));

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Users, Filter, Clock, Search, ExternalLink } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import HRSubNav from '../../components/HR/HRSubNav';
 
 const AttendanceAdmin = () => {
     const [logs, setLogs] = useState([]);
@@ -33,7 +34,9 @@ const AttendanceAdmin = () => {
     }, [dateFilter]);
 
     return (
-        <div className="attendance-admin-page">
+    <div>
+      <HRSubNav />
+      <div className="attendance-admin-page" style={{ padding: '0 24px 24px' }}>
             <style>{`
                 .admin-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; }
                 .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
@@ -138,7 +141,8 @@ const AttendanceAdmin = () => {
                 </tbody>
             </table>
         </div>
-    );
+    </div>
+  );
 };
 
 export default AttendanceAdmin;

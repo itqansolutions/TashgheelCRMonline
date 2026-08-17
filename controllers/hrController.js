@@ -27,15 +27,38 @@ exports.checkIn = async (req, res) => {
             throw new Error('Already checked in today.');
         }
 
-        // 2. Status Engine: Late Logic (9:15 AM threshold based on Server local time for MVP)
+        // 2. Status Engine: Shift-Aware Late Logic
         let status = 'present';
         let late_minutes = 0;
         const now = new Date();
-        const startHour = 9;
-        const startMinute = 15;
-        
-        // Convert to minutes for easy diff
         const currentMins = (now.getHours() * 60) + now.getMinutes();
+
+        // Fetch active assigned shift for employee
+        let startHour = 9;
+        let startMinute = 15;
+        try {
+            const shiftRes = await db.query(`
+                SELECT s.start_time, s.grace_minutes 
+                FROM hr_user_shifts us
+                JOIN hr_shifts s ON us.shift_id = s.id
+                WHERE us.user_id = $1 AND us.effective_from <= CURRENT_DATE
+                  AND (us.effective_to IS NULL OR us.effective_to >= CURRENT_DATE)
+                  AND s.is_active = TRUE
+                ORDER BY us.effective_from DESC LIMIT 1
+            `, [user_id]);
+
+            if (shiftRes.rows.length > 0) {
+                const shift = shiftRes.rows[0];
+                const [sH, sM] = (shift.start_time || '09:00').split(':').map(Number);
+                const grace = parseInt(shift.grace_minutes) || 0;
+                const totalShiftStartMins = (sH * 60) + sM + grace;
+                startHour = Math.floor(totalShiftStartMins / 60);
+                startMinute = totalShiftStartMins % 60;
+            }
+        } catch (e) {
+            console.warn('Failed to fetch user shift, using default 9:15 AM:', e.message);
+        }
+
         const startTotalMins = (startHour * 60) + startMinute;
 
         if (currentMins > startTotalMins) {
