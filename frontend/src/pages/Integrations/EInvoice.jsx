@@ -178,8 +178,8 @@ const EInvoice = () => {
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Customer & Tax Reg No</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Total Amount</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>ETA Status</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight 800, color: '#475569' }}>ETA Document UUID</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight 800, color: '#475569', textAlign: 'center' }}>Action</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>ETA Document UUID</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569', textAlign: 'center' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
