@@ -77,6 +77,9 @@ import SalesOrder from './pages/Sales/SalesOrder';
 import Documents from './pages/Sales/Documents';
 import PriceTiers from './pages/Sales/PriceTiers';
 
+// Integrations Pages
+import EInvoice from './pages/Integrations/EInvoice';
+
 // Corporate Pages
 import CorporateLayout from './pages/Corporate/CorporateLayout';
 import CorporateHome from './pages/Corporate/Home';
@@ -175,6 +178,10 @@ function App() {
                   <Route path="sales/orders" element={<SalesOrder />} />
                   <Route path="sales/documents" element={<Documents />} />
                   <Route path="sales/price-tiers" element={<PriceTiers />} />
+
+                  {/* Integrations Sub-Routes */}
+                  <Route path="integrations" element={<Navigate to="/integrations/einvoice" replace />} />
+                  <Route path="integrations/einvoice" element={<EInvoice />} />
                   <Route 
                     path="employees" 
                     element={

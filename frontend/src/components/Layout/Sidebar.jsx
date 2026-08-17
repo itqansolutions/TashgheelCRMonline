@@ -6,7 +6,7 @@ import {
   Settings as AdminSettingsIcon, ShieldAlert, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard,
   Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase, Sliders, Clock, Cpu,
   Building, ShieldCheck, TrendingUp, ArrowLeftRight, Scale, FileSpreadsheet, BookOpen,
-  Target as TargetIcon, Layers, TrendingUp as SalesIcon
+  Target as TargetIcon, Layers, TrendingUp as SalesIcon, Share2, FileCheck
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
@@ -23,6 +23,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const [hrOpen, setHrOpen] = useState(true);
   const [warehouseOpen, setWarehouseOpen] = useState(true);
   const [financeOpen, setFinanceOpen] = useState(true);
+  const [integrationsOpen, setIntegrationsOpen] = useState(true);
 
   const isRealEstate = user?.template_name === 'real_estate';
 
@@ -34,6 +35,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     // HR group handled separately
     // Warehouse group handled separately
     // Finance group handled separately
+    // Integrations group handled separately
     ...(isRealEstate ? [{ name: 'Units Registry', icon: <Building2 />, path: '/units-registry' }] : []),
     { name: 'Deals',           icon: <Handshake />,       path: '/deals' },
     { name: 'Tasks',           icon: <CheckSquare />,     path: '/tasks' },
@@ -93,6 +95,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Bank Reconciliation',icon: <CreditCard size={18} />,    path: '/erp/banking' },
     { name: 'Period Closing',     icon: <Lock size={18} />,          path: '/erp/closing' },
     { name: 'Entries',            icon: <FileSpreadsheet size={18} />,path: '/erp/entries' },
+  ];
+
+  // Integrations sub-items
+  const integrationsItems = [
+    { name: 'EInvoice',           icon: <FileCheck size={18} />,     path: '/integrations/einvoice' },
   ];
 
   const filteredItems = (navItems || []).filter(item => {
@@ -219,7 +226,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         .trial-banner .tb-row { display: flex; align-items: center; gap: 8px; }
         .trial-banner .tb-title { font-size: 12px; font-weight: 800; flex: 1; transition: opacity 0.2s; }
         .trial-banner .tb-sub { font-size: 11px; margin-top: 4px; transition: opacity 0.2s; }
-        .sidebar.closed .trial-banner .tb-title,\n        .sidebar.closed .trial-banner .tb-sub { opacity: 0; }
+        .sidebar.closed .trial-banner .tb-title,
+        .sidebar.closed .trial-banner .tb-sub { opacity: 0; }
         .trial-banner .tb-icon { font-size: 16px; flex-shrink: 0; }
 
         .sidebar-footer {
@@ -378,6 +386,29 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         </div>
         <div className={`group-sub-items ${isOpen && financeOpen ? 'expanded' : 'collapsed'}`}>
           {financeItems.map(item => (
+            <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+              {item.icon}
+              <span>{item.name}</span>
+            </NavLink>
+          ))}
+        </div>
+
+        {/* Integrations Group */}
+        <div
+          className="group-header"
+          onClick={() => isOpen && setIntegrationsOpen(prev => !prev)}
+          title={!isOpen ? 'Integrations' : undefined}
+        >
+          <Share2 size={20} className="main-icon" />
+          <span className="group-label">Integrations</span>
+          {isOpen && (
+            integrationsOpen 
+              ? <ChevronDown size={14} className="group-chevron" />
+              : <ChevronUp size={14} className="group-chevron" />
+          )}
+        </div>
+        <div className={`group-sub-items ${isOpen && integrationsOpen ? 'expanded' : 'collapsed'}`}>
+          {integrationsItems.map(item => (
             <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
               {item.icon}
               <span>{item.name}</span>
