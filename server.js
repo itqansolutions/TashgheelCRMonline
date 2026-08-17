@@ -250,13 +250,127 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Server is running on port ${PORT} (host: 0.0.0.0)`);
 
   try {
-    // ── Failsafe inline migration: ensure re_units has all required columns ──
+    // ── Failsafe inline migration: ensure required tables and columns exist ──
     try {
-      await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS assigned_to UUID`);
-      await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS vendor_id UUID`);
-      console.log('✅ [Boot] re_units columns verified (assigned_to, vendor_id).');
+      await db.query(`
+        -- 1. Vendors table
+        CREATE TABLE IF NOT EXISTS vendors (
+          id SERIAL PRIMARY KEY,
+          tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+          branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+          name VARCHAR(255) NOT NULL,
+          phone VARCHAR(50),
+          email VARCHAR(255),
+          address TEXT,
+          tax_no VARCHAR(100),
+          reg_no VARCHAR(100),
+          contact_person VARCHAR(255),
+          notes TEXT,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- 2. Job Titles table
+        CREATE TABLE IF NOT EXISTS job_titles (
+          id SERIAL PRIMARY KEY,
+          tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- 3. Customers extra fields
+        ALTER TABLE customers ADD COLUMN IF NOT EXISTS tax_no VARCHAR(100);
+        ALTER TABLE customers ADD COLUMN IF NOT EXISTS reg_no VARCHAR(100);
+        ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+        ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT FALSE;
+
+        -- 4. Users HR extra fields
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS national_id VARCHAR(50);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title_id INTEGER REFERENCES job_titles(id) ON DELETE SET NULL;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS salary NUMERIC DEFAULT 0;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS hire_date DATE;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS badge_number VARCHAR(50);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS device_code VARCHAR(50);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS is_working BOOLEAN DEFAULT TRUE;
+
+        -- 5. Departments manager_id
+        ALTER TABLE departments ADD COLUMN IF NOT EXISTS manager_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+
+        -- 6. HR Activity Types & Balances
+        CREATE TABLE IF NOT EXISTS hr_activity_types (
+          id SERIAL PRIMARY KEY,
+          tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+          name VARCHAR(150) NOT NULL,
+          unit VARCHAR(20) NOT NULL DEFAULT 'hours',
+          start_post INTEGER DEFAULT 0,
+          end_post INTEGER DEFAULT 0,
+          min_value DECIMAL(8,2) DEFAULT 0,
+          max_value DECIMAL(8,2) DEFAULT 30,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS hr_activity_balances (
+          id SERIAL PRIMARY KEY,
+          tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+          branch_id UUID REFERENCES branches(id) ON DELETE CASCADE,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          activity_type_id INTEGER REFERENCES hr_activity_types(id) ON DELETE CASCADE,
+          period_month INTEGER NOT NULL CHECK (period_month BETWEEN 1 AND 12),
+          period_year INTEGER NOT NULL,
+          allocated DECIMAL(8,2) NOT NULL DEFAULT 0,
+          used DECIMAL(8,2) DEFAULT 0,
+          notes TEXT,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        -- 7. HR Shifts & User Shifts
+        CREATE TABLE IF NOT EXISTS hr_shifts (
+          id SERIAL PRIMARY KEY,
+          tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+          name VARCHAR(100) NOT NULL,
+          start_time TIME NOT NULL,
+          end_time TIME NOT NULL,
+          off_days INTEGER[] DEFAULT '{5,6}',
+          grace_minutes INTEGER DEFAULT 15,
+          deduction_rules JSONB DEFAULT '[]'::jsonb,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS hr_user_shifts (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+          shift_id INTEGER REFERENCES hr_shifts(id) ON DELETE CASCADE,
+          effective_from DATE NOT NULL DEFAULT CURRENT_DATE,
+          effective_to DATE,
+          tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE
+        );
+
+        -- 8. HR Attendance Devices
+        CREATE TABLE IF NOT EXISTS hr_attendance_devices (
+          id SERIAL PRIMARY KEY,
+          tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+          branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+          name VARCHAR(100) NOT NULL,
+          serial_number VARCHAR(100),
+          ip_address VARCHAR(50),
+          location TEXT,
+          is_active BOOLEAN DEFAULT TRUE,
+          last_seen TIMESTAMPTZ,
+          total_pushes INTEGER DEFAULT 0,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        -- 9. Real estate units assigned_to & vendor_id
+        ALTER TABLE re_units ADD COLUMN IF NOT EXISTS assigned_to UUID;
+        ALTER TABLE re_units ADD COLUMN IF NOT EXISTS vendor_id UUID;
+      `);
+      console.log('✅ [Boot] Failsafe auto-migration executed: vendors, job_titles, HR tables & columns verified.');
     } catch (e) {
-      console.warn('⚠️ [Boot] re_units column check:', e.message);
+      console.warn('⚠️ [Boot] Failsafe auto-migration warning:', e.message);
     }
 
     await reconcileDatabase();
