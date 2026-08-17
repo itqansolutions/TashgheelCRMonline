@@ -4,13 +4,13 @@ import { LayoutDashboard, CheckCircle2, DollarSign, Sliders, Wallet, Clock, Cpu 
 
 const HRSubNav = () => {
   const links = [
-    { path: '/hr/dashboard', label: 'حضور وانصراف', icon: <LayoutDashboard size={16} /> },
-    { path: '/hr/approvals', label: 'مركز الموافقات', icon: <CheckCircle2 size={16} /> },
-    { path: '/hr/payroll', label: 'مسيرات الراتب', icon: <DollarSign size={16} /> },
-    { path: '/hr/activity-definition', label: 'تعريف الأنشطة', icon: <Sliders size={16} /> },
-    { path: '/hr/activity-balance', label: 'أرصدة الأنشطة', icon: <Wallet size={16} /> },
-    { path: '/hr/shifts', label: 'الشيفتات وقواعد الخصم', icon: <Clock size={16} /> },
-    { path: '/hr/devices', label: 'ماكينات البصمة (ZKTeco)', icon: <Cpu size={16} /> },
+    { path: '/hr/dashboard', label: 'Attendance', icon: <LayoutDashboard size={16} /> },
+    { path: '/hr/approvals', label: 'Approvals', icon: <CheckCircle2 size={16} /> },
+    { path: '/hr/payroll', label: 'Payroll Engine', icon: <DollarSign size={16} /> },
+    { path: '/hr/activity-definition', label: 'Activity Definition', icon: <Sliders size={16} /> },
+    { path: '/hr/activity-balance', label: 'Activity Balance', icon: <Wallet size={16} /> },
+    { path: '/hr/shifts', label: 'Shifts & Rules', icon: <Clock size={16} /> },
+    { path: '/hr/devices', label: 'ZkTeco Devices', icon: <Cpu size={16} /> },
   ];
 
   return (

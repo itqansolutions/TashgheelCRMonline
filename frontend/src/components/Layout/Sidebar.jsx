@@ -4,24 +4,18 @@ import {
   LayoutDashboard, Users, ShoppingBag, Handshake, CheckSquare, Wallet, 
   Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, 
   Settings as AdminSettingsIcon, ShieldAlert, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard,
-  Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase
+  Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase, Sliders, Clock, Cpu
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
 import { safeArray } from '../../utils/dataUtils';
-
-const MODULE_MAP = {
-  '/hr':        'hr',
-  '/inventory': 'inventory',
-  '/automation': 'automation',
-  '/automation/rules': 'automation',
-};
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { user } = useAuth();
   const { can, planName, trialDaysLeft } = useModule();
   const navigate = useNavigate();
   const [contactsOpen, setContactsOpen] = useState(true);
+  const [hrOpen, setHrOpen] = useState(true);
 
   const isRealEstate = user?.template_name === 'real_estate';
 
@@ -29,6 +23,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Dashboard',       icon: <LayoutDashboard />, path: '/dashboard' },
     { name: 'My Profile',      icon: <UserCircle />,      path: '/my-profile' },
     // Contacts group handled separately
+    // HR group handled separately
     { 
       name: isRealEstate ? 'Units Registry' : 'Products', 
       icon: isRealEstate ? <Building2 /> : <ShoppingBag />, 
@@ -43,7 +38,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Financial Reports',icon: <BarChart3 />,       path: '/erp/reports' },
     { name: 'Bank Reconciliation',icon: <CreditCard />,   path: '/erp/banking' },
     { name: 'Period Closing',   icon: <Lock />,            path: '/erp/closing' },
-    { name: 'HR & Attendance', icon: <Users2 />,          path: '/hr',        module: 'hr' },
     { name: 'Inventory',       icon: <Package />,         path: '/inventory/movements', module: 'inventory', hidden: isRealEstate },
     { name: 'Automation',      icon: <Zap />,             path: '/automation',module: 'automation' },
     { name: 'Files',           icon: <FileText />,        path: '/files' },
@@ -52,13 +46,24 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Billing',         icon: <CreditCard />,        path: '/billing' },
   ];
 
-  // Contacts sub-items (General template only)
+  // Contacts sub-items
   const contactItems = isRealEstate ? [
     { name: 'Customers',  icon: <Users />,    path: '/customers' },
   ] : [
     { name: 'Customers',  icon: <Users />,    path: '/contacts/customers' },
     { name: 'Vendors',    icon: <Truck />,    path: '/contacts/vendors' },
     { name: 'Employees',  icon: <Briefcase />, path: '/contacts/employees' },
+  ];
+
+  // HR sub-items
+  const hrItems = [
+    { name: 'Attendance',         icon: <Users2 size={18} />,     path: '/hr/dashboard' },
+    { name: 'Approvals',          icon: <CheckSquare size={18} />,path: '/hr/approvals' },
+    { name: 'Payroll',            icon: <DollarSign size={18} />, path: '/hr/payroll' },
+    { name: 'Activity Definition',icon: <Sliders size={18} />,   path: '/hr/activity-definition' },
+    { name: 'Activity Balance',   icon: <Wallet size={18} />,    path: '/hr/activity-balance' },
+    { name: 'Shifts',             icon: <Clock size={18} />,     path: '/hr/shifts' },
+    { name: 'ZkTeco Devices',     icon: <Cpu size={18} />,       path: '/hr/devices' },
   ];
 
   const filteredItems = (navItems || []).filter(item => {
@@ -69,6 +74,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     const allowed = safeArray(user?.allowedPages);
     return allowed.includes(checkPath);
   });
+
+  const isHrLocked = !can('hr');
 
   const trialColor = trialDaysLeft !== null
     ? trialDaysLeft <= 3 ? '#ef4444' : trialDaysLeft <= 7 ? '#f59e0b' : '#10b981'
@@ -146,33 +153,33 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           text-transform: uppercase; padding: 12px 16px 4px; transition: opacity 0.2s; }
         .sidebar.closed .nav-section { opacity: 0; }
 
-        /* Contacts group header */
-        .contacts-group-header {
+        /* Group Headers */
+        .group-header {
           display: flex; align-items: center; padding: 10px 16px; gap: 14px;
           border-radius: 12px; margin-bottom: 2px; cursor: pointer;
           color: var(--text-muted); transition: all 0.25s;
           border: 1px solid transparent;
         }
-        .contacts-group-header:hover {
+        .group-header:hover {
           background: rgba(79,70,229,0.04); color: var(--primary);
           border-color: rgba(79,70,229,0.1);
         }
-        .contacts-group-header svg.main-icon { min-width: 20px; width: 20px; height: 20px; }
-        .contacts-group-label { flex: 1; font-weight: 700; font-size: 14px; white-space: nowrap; transition: opacity 0.2s; letter-spacing: 0.01em; }
-        .sidebar.closed .contacts-group-label { opacity: 0; }
-        .contacts-chevron { transition: all 0.25s; flex-shrink: 0; }
-        .sidebar.closed .contacts-chevron { opacity: 0; }
-        .contacts-sub-items {
+        .group-header svg.main-icon { min-width: 20px; width: 20px; height: 20px; }
+        .group-label { flex: 1; font-weight: 700; font-size: 14px; white-space: nowrap; transition: opacity 0.2s; letter-spacing: 0.01em; }
+        .sidebar.closed .group-label { opacity: 0; }
+        .group-chevron { transition: all 0.25s; flex-shrink: 0; }
+        .sidebar.closed .group-chevron { opacity: 0; }
+        .group-sub-items {
           overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease;
           padding-left: 12px;
         }
-        .contacts-sub-items.collapsed { max-height: 0; opacity: 0; }
-        .contacts-sub-items.expanded { max-height: 300px; opacity: 1; }
-        .contacts-sub-items a {
-          padding: 10px 16px;
-          font-size: 14px !important;
+        .group-sub-items.collapsed { max-height: 0; opacity: 0; }
+        .group-sub-items.expanded { max-height: 400px; opacity: 1; }
+        .group-sub-items a {
+          padding: 9px 14px;
+          font-size: 13px !important;
         }
-        .sidebar.closed .contacts-sub-items { padding-left: 0; }
+        .sidebar.closed .group-sub-items { padding-left: 0; }
 
         .trial-banner {
           margin: 0 12px 12px; border-radius: 12px; padding: 12px 14px;
@@ -214,19 +221,19 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
         {/* Contacts Group */}
         <div
-          className="contacts-group-header"
+          className="group-header"
           onClick={() => isOpen && setContactsOpen(prev => !prev)}
           title={!isOpen ? 'Contacts' : undefined}
         >
           <Phone size={20} className="main-icon" />
-          <span className="contacts-group-label">Contacts</span>
+          <span className="group-label">Contacts</span>
           {isOpen && (
             contactsOpen 
-              ? <ChevronDown size={14} className="contacts-chevron" />
-              : <ChevronUp size={14} className="contacts-chevron" />
+              ? <ChevronDown size={14} className="group-chevron" />
+              : <ChevronUp size={14} className="group-chevron" />
           )}
         </div>
-        <div className={`contacts-sub-items ${isOpen && contactsOpen ? 'expanded' : 'collapsed'}`}>
+        <div className={`group-sub-items ${isOpen && contactsOpen ? 'expanded' : 'collapsed'}`}>
           {contactItems.map(item => (
             <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
               {item.icon}
@@ -234,6 +241,40 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             </NavLink>
           ))}
         </div>
+
+        {/* HR Group */}
+        {isHrLocked ? (
+          <div className="nav-locked" onClick={() => navigate('/pricing')} title="Upgrade to access HR & Attendance">
+            <Users2 size={20} />
+            <span className="nav-label">HR & Attendance</span>
+            <span className="lock-badge"><Lock size={9}/> PRO</span>
+            <div className="lock-tooltip">🔒 Upgrade to unlock HR Module <ArrowRight size={11}/></div>
+          </div>
+        ) : (
+          <>
+            <div
+              className="group-header"
+              onClick={() => isOpen && setHrOpen(prev => !prev)}
+              title={!isOpen ? 'HR & Attendance' : undefined}
+            >
+              <Users2 size={20} className="main-icon" />
+              <span className="group-label">HR & Attendance</span>
+              {isOpen && (
+                hrOpen 
+                  ? <ChevronDown size={14} className="group-chevron" />
+                  : <ChevronUp size={14} className="group-chevron" />
+              )}
+            </div>
+            <div className={`group-sub-items ${isOpen && hrOpen ? 'expanded' : 'collapsed'}`}>
+              {hrItems.map(item => (
+                <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Remaining items */}
         {filteredItems.slice(2).map((item) => {
