@@ -1,22 +1,24 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
+const authMiddleware = require('../middleware/auth');
 const {
   getShifts, getShiftById, createShift, updateShift, deleteShift,
   getUserShifts, getUserShiftSummary, assignUserShift, removeUserShift
 } = require('../controllers/hrShiftsController');
 
+router.use(authMiddleware);
+
 // Shifts
-router.get('/', protect, getShifts);
-router.get('/user-assignments', protect, getUserShifts);
-router.get('/user-summary', protect, getUserShiftSummary);
-router.get('/:id', protect, getShiftById);
-router.post('/', protect, createShift);
-router.put('/:id', protect, updateShift);
-router.delete('/:id', protect, deleteShift);
+router.get('/', getShifts);
+router.get('/user-assignments', getUserShifts);
+router.get('/user-summary', getUserShiftSummary);
+router.get('/:id', getShiftById);
+router.post('/', createShift);
+router.put('/:id', updateShift);
+router.delete('/:id', deleteShift);
 
 // User Shift Assignments
-router.post('/assign', protect, assignUserShift);
-router.delete('/assign/:id', protect, removeUserShift);
+router.post('/assign', assignUserShift);
+router.delete('/assign/:id', removeUserShift);
 
 module.exports = router;

@@ -1,22 +1,24 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
+const authMiddleware = require('../middleware/auth');
 const {
   getDevices, createDevice, updateDevice, deleteDevice,
   getBadgeNumbers, updateBadgeNumber, claimDevice, getDeviceRecentAttendance
 } = require('../controllers/hrDevicesController');
 
-router.get('/', protect, getDevices);
-router.post('/', protect, createDevice);
-router.put('/:id', protect, updateDevice);
-router.delete('/:id', protect, deleteDevice);
+router.use(authMiddleware);
+
+router.get('/', getDevices);
+router.post('/', createDevice);
+router.put('/:id', updateDevice);
+router.delete('/:id', deleteDevice);
 
 // Badge Numbers
-router.get('/badge-numbers', protect, getBadgeNumbers);
-router.put('/badge-numbers/:user_id', protect, updateBadgeNumber);
+router.get('/badge-numbers', getBadgeNumbers);
+router.put('/badge-numbers/:user_id', updateBadgeNumber);
 
 // Device-specific actions
-router.post('/:id/claim', protect, claimDevice);
-router.get('/:id/recent', protect, getDeviceRecentAttendance);
+router.post('/:id/claim', claimDevice);
+router.get('/:id/recent', getDeviceRecentAttendance);
 
 module.exports = router;

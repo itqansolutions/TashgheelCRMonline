@@ -1,15 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/authMiddleware');
+const authMiddleware = require('../middleware/auth');
 const {
-  getActivityTypes, createActivityType, updateActivityType, deleteActivityType,
-  getActivityBalances, createActivityBalance, updateActivityBalance, deleteActivityBalance
+  getActivityTypes, createActivityType, updateActivityType, deleteActivityType
 } = require('../controllers/hrActivityController');
 
+router.use(authMiddleware);
+
 // Activity Types
-router.get('/', protect, getActivityTypes);
-router.post('/', protect, createActivityType);
-router.put('/:id', protect, updateActivityType);
-router.delete('/:id', protect, deleteActivityType);
+router.get('/', getActivityTypes);
+router.post('/', createActivityType);
+router.put('/:id', updateActivityType);
+router.delete('/:id', deleteActivityType);
 
 module.exports = router;
