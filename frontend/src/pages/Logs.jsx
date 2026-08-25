@@ -3,13 +3,16 @@ import api from '../services/api';
 import { 
   History, User, Tag, Clock, Info, Shield, Search, Filter, 
   Download, ChevronDown, Eye, AlertCircle, CheckCircle, Activity,
-  ArrowRight, X, Terminal, Fingerprint, Globe, Cpu, RefreshCw
+  ArrowRight, ArrowLeft, X, Terminal, Fingerprint, Globe, Cpu, RefreshCw
 } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 import toast from 'react-hot-toast';
 
 const Logs = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -169,9 +172,20 @@ const Logs = () => {
             `}</style>
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-                <div className="section-header">
-                    <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-main)]">Forensic Audit Feed</h2>
-                    <p className="text-[var(--text-muted)] mt-1 font-medium">Real-time action monitoring and security trace across all system nodes.</p>
+                <div className="flex items-center gap-4">
+                    {location.pathname.startsWith('/itqan-crm-hud') && (
+                        <button 
+                            onClick={() => navigate('/itqan-crm-hud')} 
+                            className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-[var(--border)] text-[var(--text-muted)] hover:text-indigo-600 transition-colors shadow-sm"
+                            title="Back to Cockpit HUD"
+                        >
+                            <ArrowLeft size={20} />
+                        </button>
+                    )}
+                    <div className="section-header">
+                        <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-main)]">Forensic Audit Feed</h2>
+                        <p className="text-[var(--text-muted)] mt-1 font-medium">Real-time action monitoring and security trace across all system nodes.</p>
+                    </div>
                 </div>
                 <div className="flex items-center gap-3">
                      <button onClick={fetchLogs} className="w-12 h-12 flex items-center justify-center bg-white dark:bg-slate-900 border border-[var(--border)] rounded-xl text-[var(--text-muted)] hover:text-[var(--primary)] transition-all">
