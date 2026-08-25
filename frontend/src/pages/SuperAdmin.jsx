@@ -107,27 +107,71 @@ const SuperAdmin = () => {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col">
+        <div className="min-h-screen bg-slate-50 dark:bg-[#070B14] flex flex-col font-sans antialiased text-slate-800 dark:text-slate-100">
             {/* TOP NAV */}
-            <header className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between shadow-sm">
+            <header className="bg-white dark:bg-[#0B101D] border-b border-slate-200 dark:border-slate-800 px-6 py-3.5 flex items-center justify-between shadow-sm sticky top-0 z-40">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => navigate('/itqan-crm-hud')} className="flex items-center gap-2 text-slate-400 hover:text-slate-700 transition-colors mr-2">
+                    <button 
+                        onClick={() => navigate('/itqan-crm-hud')} 
+                        className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-indigo-600 transition-colors"
+                        title="Back to HUD Cockpit"
+                    >
                         <ArrowLeft size={18} />
                     </button>
-                    <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center">
+                    <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-md shadow-blue-600/30">
                         <Building2 size={18} className="text-white" />
                     </div>
                     <div>
-                        <h1 className="text-base font-bold text-slate-800">Command Center</h1>
-                        <p className="text-xs text-slate-400">All Registered Companies</p>
+                        <h1 className="text-base font-bold text-slate-800 dark:text-white">Companies Command Center</h1>
+                        <p className="text-xs text-slate-400">All Registered Multi-Tenant Workspaces</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-4">
-                    <button onClick={() => navigate('/itqan-crm-hud/pricing')} className="text-sm font-medium text-indigo-600 hover:underline">
-                        Manage Plans
+
+                {/* Sub-portal Navigation Pills */}
+                <div className="hidden lg:flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <button 
+                        onClick={() => navigate('/itqan-crm-hud')} 
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 transition-all flex items-center gap-1.5"
+                    >
+                        <LayoutDashboard size={13} />
+                        Cockpit HUD
                     </button>
-                    <button onClick={handleExit} className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-red-600 transition-colors">
-                        <LogOut size={16} /> Exit to App
+                    <button 
+                        onClick={() => navigate('/itqan-crm-hud/hub')} 
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-blue-600 text-white shadow-sm flex items-center gap-1.5"
+                    >
+                        <Building2 size={13} />
+                        Companies ({stats.total})
+                    </button>
+                    <button 
+                        onClick={() => navigate('/itqan-crm-hud/pricing')} 
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 transition-all flex items-center gap-1.5"
+                    >
+                        <CreditCard size={13} />
+                        Subscription Plans
+                    </button>
+                    <button 
+                        onClick={() => navigate('/itqan-crm-hud/upgrades')} 
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 transition-all flex items-center gap-1.5"
+                    >
+                        <Zap size={13} />
+                        Upgrades
+                    </button>
+                    <button 
+                        onClick={() => navigate('/itqan-crm-hud/audit')} 
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 transition-all flex items-center gap-1.5"
+                    >
+                        <History size={13} />
+                        Audit Logs
+                    </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={handleExit} 
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 text-xs font-bold transition-colors"
+                    >
+                        <LogOut size={14} /> Exit to App
                     </button>
                 </div>
             </header>
@@ -135,10 +179,10 @@ const SuperAdmin = () => {
             <main className="flex-1 px-6 py-8 max-w-7xl mx-auto w-full space-y-8">
                 {/* STATS */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <StatCard label="Total Companies" value={stats.total} icon={<Building2 size={20} className="text-blue-600" />} color="bg-blue-50" />
-                    <StatCard label="Active" value={stats.active} icon={<CheckCircle size={20} className="text-emerald-600" />} color="bg-emerald-50" />
-                    <StatCard label="On Trial" value={stats.trial} icon={<Clock size={20} className="text-amber-600" />} color="bg-amber-50" />
-                    <StatCard label="Suspended" value={stats.suspended} icon={<XCircle size={20} className="text-red-500" />} color="bg-red-50" />
+                    <StatCard label="Total Companies" value={stats.total} icon={<Building2 size={20} className="text-blue-600" />} color="bg-blue-50 dark:bg-blue-500/10" />
+                    <StatCard label="Active" value={stats.active} icon={<CheckCircle size={20} className="text-emerald-600" />} color="bg-emerald-50 dark:bg-emerald-500/10" />
+                    <StatCard label="On Trial" value={stats.trial} icon={<Clock size={20} className="text-amber-600" />} color="bg-amber-50 dark:bg-amber-500/10" />
+                    <StatCard label="Suspended" value={stats.suspended} icon={<XCircle size={20} className="text-red-500" />} color="bg-red-50 dark:bg-red-500/10" />
                 </div>
 
                 {/* TABLE */}
@@ -234,7 +278,7 @@ const SuperAdmin = () => {
                                                 }
                                             </td>
                                             <td className="px-5 py-4 text-right">
-                                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center justify-end gap-2">
                                                     <button
                                                         onClick={() => setEditingSubscription(tenant)}
                                                         className="px-3 py-1.5 text-xs font-semibold bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1"
