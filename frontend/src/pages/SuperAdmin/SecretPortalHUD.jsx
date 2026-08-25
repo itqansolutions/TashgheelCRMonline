@@ -35,18 +35,18 @@ const formatCurrency = (val) => {
 };
 
 const PLAN_COLORS = {
-    enterprise: { bg: 'bg-indigo-500/10', border: 'border-indigo-500/30', text: 'text-indigo-400', glow: 'shadow-indigo-500/20' },
-    pro:        { bg: 'bg-violet-500/10', border: 'border-violet-500/30', text: 'text-violet-400', glow: 'shadow-violet-500/20' },
-    basic:      { bg: 'bg-blue-500/10',   border: 'border-blue-500/30',   text: 'text-blue-400',   glow: 'shadow-blue-500/20' },
-    trial:      { bg: 'bg-amber-500/10',  border: 'border-amber-500/30',  text: 'text-amber-400',  glow: 'shadow-amber-500/20' },
-    custom:     { bg: 'bg-emerald-500/10',border: 'border-emerald-500/30',text: 'text-emerald-400',glow: 'shadow-emerald-500/20' },
+    enterprise: { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' },
+    pro:        { bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700' },
+    basic:      { bg: 'bg-blue-50',   border: 'border-blue-200',   text: 'text-blue-700' },
+    trial:      { bg: 'bg-amber-50',  border: 'border-amber-200',  text: 'text-amber-700' },
+    custom:     { bg: 'bg-emerald-50',border: 'border-emerald-200',text: 'text-emerald-700' },
 };
 
 const STATUS_CONFIG = {
-    active:    { label: 'Active',    bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30', dot: 'bg-emerald-400' },
-    trial:     { label: 'Trial',     bg: 'bg-amber-500/10',   text: 'text-amber-400',   border: 'border-amber-500/30',   dot: 'bg-amber-400' },
-    suspended: { label: 'Suspended', bg: 'bg-rose-500/10',    text: 'text-rose-400',    border: 'border-rose-500/30',    dot: 'bg-rose-400' },
-    inactive:  { label: 'Inactive',  bg: 'bg-slate-500/10',   text: 'text-slate-400',   border: 'border-slate-500/30',   dot: 'bg-slate-400' },
+    active:    { label: 'Active',    bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+    trial:     { label: 'Trial',     bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-500' },
+    suspended: { label: 'Suspended', bg: 'bg-rose-50',    text: 'text-rose-700',    border: 'border-rose-200',    dot: 'bg-rose-500' },
+    inactive:  { label: 'Inactive',  bg: 'bg-slate-100',  text: 'text-slate-600',   border: 'border-slate-200',   dot: 'bg-slate-400' },
 };
 
 const MODULE_ICONS = {
@@ -78,7 +78,6 @@ const SecretPortalHUD = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [planFilter, setPlanFilter] = useState('all');
-    const [viewMode, setViewMode] = useState('table'); // 'table' | 'cards'
     const [copiedKey, setCopiedKey] = useState(null);
 
     // Modal / Drawer states
@@ -108,7 +107,6 @@ const SecretPortalHUD = () => {
             if (tenantsRes.status === 'fulfilled' && tenantsRes.value?.data?.data) {
                 setTenants(safeArray(tenantsRes.value.data.data));
             } else {
-                // Fallback to /tenants if /admin/tenants is unavailable
                 const fallbackTenants = await api.get('/tenants').catch(() => ({ data: { data: [] } }));
                 setTenants(safeArray(fallbackTenants.data?.data));
             }
@@ -153,7 +151,7 @@ const SecretPortalHUD = () => {
         if (!text) return;
         navigator.clipboard.writeText(text);
         setCopiedKey(key);
-        toast.success(`Copied to clipboard: ${text}`);
+        toast.success(`Copied: ${text}`);
         setTimeout(() => setCopiedKey(null), 2000);
     };
 
@@ -169,7 +167,7 @@ const SecretPortalHUD = () => {
         try {
             setActionLoading(true);
             await api.put(`/tenants/${tenant.id}`, { status: nextStatus });
-            toast.success(`Tenant status updated to ${nextStatus.toUpperCase()}`);
+            toast.success(`Company status updated to ${nextStatus.toUpperCase()}`);
             setTenants(prev => prev.map(t => t.id === tenant.id ? { ...t, status: nextStatus } : t));
             if (selectedTenantDossier && selectedTenantDossier.id === tenant.id) {
                 setSelectedTenantDossier(prev => ({ ...prev, status: nextStatus }));
@@ -194,7 +192,7 @@ const SecretPortalHUD = () => {
                 status: 'active',
                 expires_at: targetPlanExpire || null
             });
-            toast.success('Subscription plan updated successfully!');
+            toast.success('Subscription plan assigned successfully!');
             setQuickPlanModal(null);
             fetchPlatformData(true);
         } catch (err) {
@@ -228,7 +226,7 @@ const SecretPortalHUD = () => {
         try {
             setActionLoading(true);
             await api.post(`/admin/upgrade-requests/${id}/approve`);
-            toast.success('Upgrade request approved and plan assigned!');
+            toast.success('Upgrade request approved!');
             fetchPlatformData(true);
         } catch (err) {
             toast.error(err.response?.data?.message || 'Approval failed.');
@@ -318,98 +316,87 @@ const SecretPortalHUD = () => {
     }, [tenants, plans, upgradeRequests, insights]);
 
     return (
-        <div className="min-h-screen bg-[#070B14] text-slate-100 flex flex-col font-sans antialiased selection:bg-indigo-500 selection:text-white relative overflow-x-hidden">
-            {/* CYBER HUD AMBIENT GLOWS & BACKGROUND GRID */}
-            <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-                <div className="absolute top-[-10%] left-[15%] w-[600px] h-[600px] bg-indigo-600/15 rounded-full blur-[140px]" />
-                <div className="absolute top-[40%] right-[-5%] w-[500px] h-[500px] bg-violet-600/10 rounded-full blur-[160px]" />
-                <div className="absolute bottom-[-10%] left-[30%] w-[700px] h-[700px] bg-cyan-600/10 rounded-full blur-[180px]" />
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b10_1px,transparent_1px),linear-gradient(to_bottom,#1e293b10_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-30" />
-            </div>
-
-            {/* TOP COCKPIT HEADER */}
-            <header className="sticky top-0 z-40 bg-[#0B101D]/80 backdrop-blur-2xl border-b border-slate-800/80 px-6 py-3.5 shadow-2xl transition-all">
+        <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans antialiased">
+            {/* TOP HEADER */}
+            <header className="sticky top-0 z-40 bg-white border-b border-slate-200 px-6 py-3.5 shadow-sm">
                 <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
                     {/* Brand & Live Beacon */}
-                    <div className="flex items-center gap-4">
-                        <div className="relative group">
-                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 flex items-center justify-center shadow-lg shadow-indigo-600/30 border border-indigo-400/30">
-                                <Cpu size={20} className="text-white" />
-                            </div>
-                            <div className="absolute -inset-1 bg-indigo-500/20 rounded-2xl blur-sm group-hover:bg-indigo-500/40 transition-all" />
+                    <div className="flex items-center gap-3.5">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-md shadow-indigo-600/20 text-white">
+                            <LayoutDashboard size={20} />
                         </div>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h1 className="text-base font-black tracking-tight text-white uppercase flex items-center gap-2">
-                                    ITQAN GENESIS <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold tracking-wider">HUD v2.5</span>
+                                <h1 className="text-base font-bold text-slate-900">
+                                    Platform Command HUD
                                 </h1>
-                                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                                    LIVE TELEMETRY
+                                <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                    Live Sync
                                 </span>
                             </div>
-                            <p className="text-[11px] text-slate-400 font-medium">Sovereign Multi-Tenant Command & Revenue Cockpit</p>
+                            <p className="text-xs text-slate-500">Executive Multi-Tenant Intelligence & Operations</p>
                         </div>
                     </div>
 
-                    {/* Quick Portal Switcher Pills */}
-                    <div className="hidden lg:flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-2xl border border-slate-800/80 shadow-inner">
+                    {/* Sub-Portal Navigation Pills */}
+                    <div className="hidden lg:flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200">
                         <button 
                             onClick={() => navigate('/itqan-crm-hud')} 
-                            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-md shadow-indigo-600/30 flex items-center gap-2"
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-sm flex items-center gap-1.5"
                         >
                             <LayoutDashboard size={13} />
                             Cockpit HUD
                         </button>
                         <button 
                             onClick={() => navigate('/itqan-crm-hud/hub')} 
-                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all flex items-center gap-2"
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-all flex items-center gap-1.5"
                         >
                             <Building2 size={13} />
                             Companies ({metrics.total})
                         </button>
                         <button 
                             onClick={() => navigate('/itqan-crm-hud/pricing')} 
-                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all flex items-center gap-2"
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-all flex items-center gap-1.5"
                         >
                             <CreditCard size={13} />
                             Subscription Plans
                         </button>
                         <button 
                             onClick={() => navigate('/itqan-crm-hud/upgrades')} 
-                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all flex items-center gap-2 relative"
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-all flex items-center gap-1.5 relative"
                         >
-                            <Zap size={13} className={metrics.pendingUpgrades > 0 ? 'text-amber-400' : ''} />
+                            <Zap size={13} className={metrics.pendingUpgrades > 0 ? 'text-amber-500' : ''} />
                             Upgrades
                             {metrics.pendingUpgrades > 0 && (
-                                <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] flex items-center justify-center animate-pulse">
+                                <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold text-[10px]">
                                     {metrics.pendingUpgrades}
                                 </span>
                             )}
                         </button>
                         <button 
                             onClick={() => navigate('/itqan-crm-hud/audit')} 
-                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all flex items-center gap-2"
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-all flex items-center gap-1.5"
                         >
                             <History size={13} />
                             Audit Logs
                         </button>
                     </div>
 
-                    {/* Right Toolbar */}
+                    {/* Right Controls */}
                     <div className="flex items-center gap-3">
                         {/* Auto-refresh selector */}
-                        <div className="flex items-center gap-1.5 bg-slate-900/80 border border-slate-800/80 rounded-xl px-2.5 py-1.5 text-xs text-slate-400">
-                            <Clock size={13} className="text-indigo-400" />
+                        <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-600">
+                            <Clock size={13} className="text-indigo-600" />
                             <select 
                                 value={autoRefreshInterval} 
                                 onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
-                                className="bg-transparent text-slate-200 text-xs font-semibold outline-none cursor-pointer"
+                                className="bg-transparent text-slate-800 text-xs font-medium outline-none cursor-pointer"
                             >
-                                <option value={0} className="bg-slate-900 text-slate-200">Manual</option>
-                                <option value={15} className="bg-slate-900 text-slate-200">Auto 15s</option>
-                                <option value={30} className="bg-slate-900 text-slate-200">Auto 30s</option>
-                                <option value={60} className="bg-slate-900 text-slate-200">Auto 60s</option>
+                                <option value={0}>Manual</option>
+                                <option value={15}>15s Auto</option>
+                                <option value={30}>30s Auto</option>
+                                <option value={60}>60s Auto</option>
                             </select>
                         </div>
 
@@ -417,63 +404,63 @@ const SecretPortalHUD = () => {
                         <button 
                             onClick={() => fetchPlatformData(false)}
                             disabled={refreshing}
-                            className="p-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-indigo-400 border border-slate-800/80 transition-all active:scale-95 disabled:opacity-50"
-                            title="Sync Telemetry"
+                            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors disabled:opacity-50"
+                            title="Sync Data"
                         >
-                            <RefreshCw size={15} className={refreshing ? 'animate-spin text-indigo-400' : ''} />
+                            <RefreshCw size={15} className={refreshing ? 'animate-spin text-indigo-600' : ''} />
                         </button>
 
                         {/* Exit button */}
                         <button 
                             onClick={handleExit}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition-all active:scale-95"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold transition-colors"
                         >
                             <LogOut size={14} />
-                            <span className="hidden sm:inline">Exit HUD</span>
+                            <span className="hidden sm:inline">Exit to App</span>
                         </button>
                     </div>
                 </div>
             </header>
 
-            {/* MAIN HUD CONTENT */}
-            <main className="relative z-10 flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
+            {/* MAIN CONTENT */}
+            <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6">
 
-                {/* 1. EXECUTIVE KPI TELEMETRY GRID */}
+                {/* 1. EXECUTIVE KPI GRID */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* TOTAL WORKSPACES */}
-                    <div className="group relative bg-[#0C1222]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 hover:border-indigo-500/40 hover:shadow-xl hover:shadow-indigo-500/10 transition-all">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-start justify-between">
                             <div>
-                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Total Workspaces</p>
-                                <h3 className="text-3xl font-black text-white mt-1 tracking-tight">{metrics.total}</h3>
+                                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Companies</p>
+                                <h3 className="text-3xl font-extrabold text-slate-900 mt-1">{metrics.total}</h3>
                             </div>
-                            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 group-hover:scale-110 transition-transform">
+                            <div className="p-3 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600">
                                 <Building2 size={22} />
                             </div>
                         </div>
-                        <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs">
-                            <span className="text-emerald-400 font-bold flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <span className="text-emerald-600 font-bold flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
                                 {metrics.active} Active ({metrics.activeRate}%)
                             </span>
-                            <span className="text-amber-400 font-medium">{metrics.trial} Trials</span>
+                            <span className="text-amber-600 font-medium">{metrics.trial} on Trial</span>
                         </div>
                     </div>
 
                     {/* MONTHLY RECURRING REVENUE */}
-                    <div className="group relative bg-[#0C1222]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 hover:border-emerald-500/40 hover:shadow-xl hover:shadow-emerald-500/10 transition-all">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-start justify-between">
                             <div>
-                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Estimated MRR</p>
-                                <h3 className="text-3xl font-black text-emerald-400 mt-1 tracking-tight">{formatCurrency(metrics.mrr)}</h3>
+                                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Estimated MRR</p>
+                                <h3 className="text-3xl font-extrabold text-emerald-600 mt-1">{formatCurrency(metrics.mrr)}</h3>
                             </div>
-                            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 group-hover:scale-110 transition-transform">
+                            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600">
                                 <DollarSign size={22} />
                             </div>
                         </div>
-                        <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs">
-                            <span className="text-slate-400 font-medium">Conversion: <strong className="text-slate-200">{metrics.conversionRate}%</strong></span>
-                            <span className="text-emerald-400 font-bold flex items-center gap-0.5">
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <span className="text-slate-500 font-medium">Conversion: <strong className="text-slate-800">{metrics.conversionRate}%</strong></span>
+                            <span className="text-emerald-600 font-bold flex items-center gap-0.5">
                                 <ArrowUpRight size={13} />
                                 +{metrics.growthVelocity}% 7d
                             </span>
@@ -481,43 +468,43 @@ const SecretPortalHUD = () => {
                     </div>
 
                     {/* PLATFORM HEALTH INDEX */}
-                    <div className="group relative bg-[#0C1222]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 hover:border-cyan-500/40 hover:shadow-xl hover:shadow-cyan-500/10 transition-all">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-start justify-between">
                             <div>
-                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Platform Health</p>
+                                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">System Health</p>
                                 <div className="flex items-baseline gap-2 mt-1">
-                                    <h3 className="text-3xl font-black text-cyan-400 tracking-tight">{metrics.healthScore}%</h3>
-                                    <span className="text-xs font-bold text-slate-400 uppercase">{metrics.healthScore >= 80 ? 'Optimal' : 'Attention'}</span>
+                                    <h3 className="text-3xl font-extrabold text-indigo-600">{metrics.healthScore}%</h3>
+                                    <span className="text-xs font-bold text-slate-500 uppercase">{metrics.healthScore >= 80 ? 'Optimal' : 'Needs Review'}</span>
                                 </div>
                             </div>
-                            <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 group-hover:scale-110 transition-transform">
+                            <div className="p-3 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600">
                                 <Activity size={22} />
                             </div>
                         </div>
-                        <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs">
-                            <span className="text-slate-400">Suspended: <strong className="text-rose-400">{metrics.suspended}</strong></span>
-                            <span className="text-slate-400">Expiring &lt;7d: <strong className="text-amber-400">{metrics.expiringSoon}</strong></span>
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <span className="text-slate-500">Suspended: <strong className="text-rose-600">{metrics.suspended}</strong></span>
+                            <span className="text-slate-500">Expiring &lt;7d: <strong className="text-amber-600">{metrics.expiringSoon}</strong></span>
                         </div>
                     </div>
 
                     {/* ACTION & UPGRADE QUEUE */}
-                    <div className="group relative bg-[#0C1222]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 hover:border-amber-500/40 hover:shadow-xl hover:shadow-amber-500/10 transition-all">
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-start justify-between">
                             <div>
-                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Pending Actions</p>
-                                <h3 className="text-3xl font-black text-amber-400 mt-1 tracking-tight">
+                                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Pending Actions</p>
+                                <h3 className="text-3xl font-extrabold text-amber-600 mt-1">
                                     {metrics.pendingUpgrades + metrics.expiringSoon}
                                 </h3>
                             </div>
-                            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 group-hover:scale-110 transition-transform">
+                            <div className="p-3 rounded-2xl bg-amber-50 border border-amber-100 text-amber-600">
                                 <Zap size={22} />
                             </div>
                         </div>
-                        <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs">
-                            <span className="text-amber-300 font-bold">{metrics.pendingUpgrades} Upgrade Requests</span>
+                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                            <span className="text-amber-700 font-semibold">{metrics.pendingUpgrades} Upgrade Requests</span>
                             <button 
                                 onClick={() => navigate('/itqan-crm-hud/upgrades')}
-                                className="text-indigo-400 hover:text-indigo-300 font-semibold flex items-center gap-0.5"
+                                className="text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-0.5"
                             >
                                 Process <ChevronRight size={12} />
                             </button>
@@ -525,33 +512,31 @@ const SecretPortalHUD = () => {
                     </div>
                 </div>
 
-                {/* 2. STRATEGIC INTELLIGENCE & ANOMALY RADAR */}
+                {/* 2. STRATEGIC INTELLIGENCE ALERTS */}
                 {insights?.alerts?.length > 0 && (
-                    <div className="bg-gradient-to-r from-slate-900/90 via-indigo-950/40 to-slate-900/90 backdrop-blur-xl border border-indigo-500/20 rounded-2xl p-5 shadow-2xl space-y-3">
+                    <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-5 shadow-sm space-y-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <ShieldAlert size={18} className="text-indigo-400 animate-pulse" />
-                                <h3 className="text-sm font-black uppercase tracking-wider text-white">Genesis Intelligence Alerts</h3>
+                                <ShieldAlert size={18} className="text-indigo-600" />
+                                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900">Platform Intelligence Insights</h3>
                             </div>
-                            <span className="text-[11px] font-bold text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-full border border-indigo-500/30">
-                                {insights.alerts.length} Tactical Actionable Insights
+                            <span className="text-xs font-bold text-indigo-700 bg-white px-3 py-1 rounded-full border border-indigo-200 shadow-sm">
+                                {insights.alerts.length} Actionable Items
                             </span>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             {insights.alerts.map((alert, idx) => (
-                                <div key={idx} className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between gap-3">
+                                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between gap-3 shadow-sm">
                                     <div className="space-y-1">
-                                        <div className="flex items-center justify-between">
-                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${
-                                                alert.level === 'high' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
-                                                alert.level === 'medium' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
-                                                'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
-                                            }`}>
-                                                {alert.level || 'info'} priority
-                                            </span>
-                                        </div>
-                                        <h4 className="text-sm font-bold text-slate-100">{alert.message}</h4>
-                                        <p className="text-xs text-slate-400 leading-relaxed">{alert.suggestion}</p>
+                                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${
+                                            alert.level === 'high' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                            alert.level === 'medium' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                            'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                        }`}>
+                                            {alert.level || 'info'} priority
+                                        </span>
+                                        <h4 className="text-sm font-bold text-slate-900 mt-2">{alert.message}</h4>
+                                        <p className="text-xs text-slate-600 leading-relaxed">{alert.suggestion}</p>
                                     </div>
                                     <button 
                                         onClick={() => {
@@ -563,7 +548,7 @@ const SecretPortalHUD = () => {
                                                 toast.success(`Protocol initiated: ${alert.action}`);
                                             }
                                         }}
-                                        className="w-full py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/60 border border-indigo-500/40 text-indigo-200 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                                        className="w-full py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
                                     >
                                         <Sparkles size={13} />
                                         {alert.action || 'Execute Action'}
@@ -574,27 +559,27 @@ const SecretPortalHUD = () => {
                     </div>
                 )}
 
-                {/* 3. CORE TENANT / COMPANY EXPLORER & LIVE PREVIEW */}
-                <div className="bg-[#0C1222]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl shadow-2xl overflow-hidden">
+                {/* 3. CORE TENANT EXPLORER & LIVE PREVIEW TABLE */}
+                <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
                     {/* Header & Controls */}
-                    <div className="p-5 border-b border-slate-800/80 space-y-4">
+                    <div className="p-5 border-b border-slate-100 space-y-4">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div>
-                                <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2.5">
-                                    <Building2 size={20} className="text-indigo-400" />
-                                    Live Company Directory & Subscription Dossiers
+                                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                    <Building2 size={20} className="text-indigo-600" />
+                                    Company Directory & Subscription Dossiers
                                 </h3>
-                                <p className="text-xs text-slate-400 mt-0.5">
-                                    Real-time overview of active tenants, resource allocation, and direct control tools.
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Directly view, preview, and manage all tenant workspaces, plans, and credentials.
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
                                 <button 
                                     onClick={() => navigate('/itqan-crm-hud/hub')}
-                                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700 transition-all flex items-center gap-1.5"
+                                    className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 border border-slate-200 transition-colors flex items-center gap-1.5"
                                 >
                                     <Maximize2 size={13} />
-                                    Full Command View
+                                    Open Full Directory
                                 </button>
                             </div>
                         </div>
@@ -609,12 +594,12 @@ const SecretPortalHUD = () => {
                                     placeholder="Search company, admin, email, slug..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-9 pr-4 py-2 bg-slate-950/70 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 outline-none focus:bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                                 />
                                 {searchTerm && (
                                     <button 
                                         onClick={() => setSearchTerm('')} 
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                                     >
                                         <X size={13} />
                                     </button>
@@ -623,17 +608,17 @@ const SecretPortalHUD = () => {
 
                             {/* Filter Pills */}
                             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 mr-1">
+                                <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 mr-1">
                                     <Filter size={12} /> Filter:
                                 </span>
                                 {['all', 'active', 'trial', 'expiring', 'suspended'].map(s => (
                                     <button
                                         key={s}
                                         onClick={() => setStatusFilter(s)}
-                                        className={`px-3 py-1 rounded-xl text-xs font-bold capitalize transition-all ${
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all ${
                                             statusFilter === s 
-                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 border border-indigo-500' 
-                                                : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border border-slate-800/80'
+                                                ? 'bg-indigo-600 text-white shadow-sm' 
+                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
                                         }`}
                                     >
                                         {s === 'expiring' ? 'Expiring (<7d)' : s}
@@ -647,23 +632,23 @@ const SecretPortalHUD = () => {
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse text-xs">
                             <thead>
-                                <tr className="bg-slate-950/80 border-b border-slate-800/80 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                                <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
                                     <th className="py-3.5 px-5">Company / Workspace</th>
                                     <th className="py-3.5 px-4">Primary Admin</th>
                                     <th className="py-3.5 px-4">Current Plan</th>
                                     <th className="py-3.5 px-4">Subscription Status</th>
                                     <th className="py-3.5 px-4">Capacity / Users</th>
                                     <th className="py-3.5 px-4">Modules</th>
-                                    <th className="py-3.5 px-5 text-right">HUD Actions</th>
+                                    <th className="py-3.5 px-5 text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-800/60">
+                            <tbody className="divide-y divide-slate-100">
                                 {loading ? (
                                     <tr>
                                         <td colSpan={7} className="py-12 text-center text-slate-400">
                                             <div className="flex flex-col items-center justify-center gap-3">
-                                                <RefreshCw size={24} className="animate-spin text-indigo-500" />
-                                                <span className="font-bold text-sm tracking-wide">Syncing Tenant Directory...</span>
+                                                <RefreshCw size={24} className="animate-spin text-indigo-600" />
+                                                <span className="font-bold text-sm">Loading companies...</span>
                                             </div>
                                         </td>
                                     </tr>
@@ -671,9 +656,9 @@ const SecretPortalHUD = () => {
                                     <tr>
                                         <td colSpan={7} className="py-12 text-center text-slate-400">
                                             <div className="flex flex-col items-center justify-center gap-2">
-                                                <AlertCircle size={28} className="text-slate-600" />
-                                                <span className="font-bold text-sm text-slate-300">No companies found</span>
-                                                <p className="text-xs text-slate-500">Try adjusting your search query or status filter.</p>
+                                                <AlertCircle size={28} className="text-slate-300" />
+                                                <span className="font-bold text-sm text-slate-700">No companies found</span>
+                                                <p className="text-xs text-slate-400">Try adjusting your search query or status filter.</p>
                                             </div>
                                         </td>
                                     </tr>
@@ -687,23 +672,23 @@ const SecretPortalHUD = () => {
                                         return (
                                             <tr 
                                                 key={t.id} 
-                                                className="hover:bg-slate-800/40 transition-colors group cursor-pointer"
+                                                className="hover:bg-slate-50 transition-colors group cursor-pointer"
                                                 onClick={() => setSelectedTenantDossier(t)}
                                             >
                                                 {/* Company Name & Slug */}
                                                 <td className="py-3.5 px-5">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500/20 to-slate-800 border border-slate-700/60 flex items-center justify-center font-black text-indigo-400 text-xs shadow-inner">
+                                                        <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-indigo-700 text-sm">
                                                             {t.name ? t.name.charAt(0).toUpperCase() : 'C'}
                                                         </div>
                                                         <div>
-                                                            <span className="font-bold text-white text-sm group-hover:text-indigo-400 transition-colors flex items-center gap-1.5">
+                                                            <span className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">
                                                                 {t.name}
                                                             </span>
-                                                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
-                                                                <span className="font-mono text-slate-400">/{t.slug || t.id.slice(0, 8)}</span>
+                                                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">
+                                                                <span className="font-mono">{t.slug || t.id.slice(0, 8)}</span>
                                                                 <span>•</span>
-                                                                <span>Joined {formatTimeAgo(t.created_at)}</span>
+                                                                <span>{formatTimeAgo(t.created_at)}</span>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -712,16 +697,16 @@ const SecretPortalHUD = () => {
                                                 {/* Admin Contact */}
                                                 <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                                                     <div>
-                                                        <p className="font-semibold text-slate-200 text-xs">{t.admin_name || 'Admin User'}</p>
+                                                        <p className="font-medium text-slate-800 text-xs">{t.admin_name || 'Admin User'}</p>
                                                         {t.admin_email && (
-                                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-indigo-400 mt-0.5">
+                                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-indigo-600 mt-0.5">
                                                                 <span className="truncate max-w-[150px]">{t.admin_email}</span>
                                                                 <button 
                                                                     onClick={() => handleCopy(t.admin_email, `email-${t.id}`)}
                                                                     title="Copy email"
-                                                                    className="text-slate-500 hover:text-slate-300"
+                                                                    className="text-slate-400 hover:text-slate-600"
                                                                 >
-                                                                    {copiedKey === `email-${t.id}` ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+                                                                    {copiedKey === `email-${t.id}` ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
                                                                 </button>
                                                             </div>
                                                         )}
@@ -730,12 +715,12 @@ const SecretPortalHUD = () => {
 
                                                 {/* Plan & Price */}
                                                 <td className="py-3.5 px-4">
-                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black uppercase border ${planStyle.bg} ${planStyle.border} ${planStyle.text} shadow-sm`}>
+                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold uppercase border ${planStyle.bg} ${planStyle.border} ${planStyle.text}`}>
                                                         <CreditCard size={11} />
                                                         {t.display_name || t.plan_name || t.plan || 'Free Plan'}
                                                     </span>
                                                     {t.price_monthly && (
-                                                        <p className="text-[10px] text-slate-500 font-bold mt-1">
+                                                        <p className="text-[11px] text-slate-500 font-semibold mt-1">
                                                             {formatCurrency(t.price_monthly)}/mo
                                                         </p>
                                                     )}
@@ -744,12 +729,12 @@ const SecretPortalHUD = () => {
                                                 {/* Status & Expiry */}
                                                 <td className="py-3.5 px-4">
                                                     <div className="space-y-1">
-                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${statusStyle.bg} ${statusStyle.border} ${statusStyle.text}`}>
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusStyle.bg} ${statusStyle.border} ${statusStyle.text}`}>
                                                             <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
                                                             {statusStyle.label}
                                                         </span>
                                                         {t.expires_at && (
-                                                            <p className={`text-[10px] font-semibold flex items-center gap-1 ${isExpiring ? 'text-amber-400' : 'text-slate-500'}`}>
+                                                            <p className={`text-[11px] font-medium flex items-center gap-1 ${isExpiring ? 'text-amber-600' : 'text-slate-400'}`}>
                                                                 <Calendar size={10} />
                                                                 {new Date(t.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                                                             </p>
@@ -761,14 +746,14 @@ const SecretPortalHUD = () => {
                                                 <td className="py-3.5 px-4">
                                                     <div className="space-y-1 w-28">
                                                         <div className="flex items-center justify-between text-[11px]">
-                                                            <span className="text-slate-400 font-semibold flex items-center gap-1">
+                                                            <span className="text-slate-600 font-semibold flex items-center gap-1">
                                                                 <Users size={11} /> {t.user_count || 1}
                                                             </span>
-                                                            <span className="text-slate-500 text-[10px]">max {t.max_users || 10}</span>
+                                                            <span className="text-slate-400 text-[10px]">max {t.max_users || 10}</span>
                                                         </div>
-                                                        <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                                             <div 
-                                                                className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full"
+                                                                className="h-full bg-indigo-600 rounded-full"
                                                                 style={{ width: `${Math.min(100, ((t.user_count || 1) / (t.max_users || 10)) * 100)}%` }}
                                                             />
                                                         </div>
@@ -790,10 +775,10 @@ const SecretPortalHUD = () => {
                                                                 <span 
                                                                     key={k}
                                                                     title={`${m.label}: ${isEnabled ? 'Enabled' : 'Disabled'}`}
-                                                                    className={`p-1 rounded-md border ${
+                                                                    className={`p-1.5 rounded-md border ${
                                                                         isEnabled 
-                                                                            ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' 
-                                                                            : 'bg-slate-900 border-slate-800/80 text-slate-600 opacity-40'
+                                                                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' 
+                                                                            : 'bg-slate-50 border-slate-200 text-slate-300 opacity-40'
                                                                     }`}
                                                                 >
                                                                     {m.icon}
@@ -808,7 +793,7 @@ const SecretPortalHUD = () => {
                                                     <div className="flex items-center justify-end gap-1.5">
                                                         <button 
                                                             onClick={() => setSelectedTenantDossier(t)}
-                                                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white border border-slate-700 transition-all"
+                                                            className="p-2 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors"
                                                             title="Inspect Full Dossier"
                                                         >
                                                             <Eye size={14} />
@@ -819,7 +804,7 @@ const SecretPortalHUD = () => {
                                                                 setTargetPlanId(t.plan_id || '');
                                                                 setTargetPlanExpire(t.expires_at ? t.expires_at.slice(0, 10) : '');
                                                             }}
-                                                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-violet-600 text-slate-300 hover:text-white border border-slate-700 transition-all"
+                                                            className="p-2 rounded-xl bg-slate-100 hover:bg-violet-50 text-slate-600 hover:text-violet-600 border border-slate-200 transition-colors"
                                                             title="Change Subscription Plan"
                                                         >
                                                             <CreditCard size={14} />
@@ -829,19 +814,19 @@ const SecretPortalHUD = () => {
                                                                 setResetPassModal(t);
                                                                 setNewPassword('');
                                                             }}
-                                                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-amber-600 text-slate-300 hover:text-white border border-slate-700 transition-all"
+                                                            className="p-2 rounded-xl bg-slate-100 hover:bg-amber-50 text-slate-600 hover:text-amber-600 border border-slate-200 transition-colors"
                                                             title="Reset Admin Password"
                                                         >
                                                             <Key size={14} />
                                                         </button>
                                                         <button 
                                                             onClick={() => handleToggleTenantStatus(t)}
-                                                            className={`p-1.5 rounded-lg border transition-all ${
+                                                            className={`p-2 rounded-xl border transition-colors ${
                                                                 t.status === 'active' 
-                                                                    ? 'bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white border-slate-700' 
-                                                                    : 'bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 border-emerald-500/30'
+                                                                    ? 'bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border-slate-200' 
+                                                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
                                                             }`}
-                                                            title={t.status === 'active' ? 'Suspend Tenant' : 'Activate Tenant'}
+                                                            title={t.status === 'active' ? 'Suspend Company' : 'Activate Company'}
                                                         >
                                                             {t.status === 'active' ? <Lock size={14} /> : <Unlock size={14} />}
                                                         </button>
@@ -855,60 +840,58 @@ const SecretPortalHUD = () => {
                         </table>
                     </div>
 
-                    {/* Table Footer info */}
-                    <div className="p-4 bg-slate-950/70 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-                        <span>Showing <strong className="text-slate-200">{filteredTenants.length}</strong> of <strong className="text-slate-200">{tenants.length}</strong> registered companies</span>
-                        <div className="flex items-center gap-4">
-                            <span className="text-[11px] text-slate-500">Tip: Click any company row to open full live dossier</span>
-                        </div>
+                    {/* Table Footer */}
+                    <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                        <span>Showing <strong className="text-slate-800">{filteredTenants.length}</strong> of <strong className="text-slate-800">{tenants.length}</strong> companies</span>
+                        <span className="text-xs text-slate-400">Click any row to open the full company dossier</span>
                     </div>
                 </div>
 
-                {/* 4. DUAL SECTION: PENDING UPGRADE QUEUE & LIVE AUDIT STREAM */}
+                {/* 4. DUAL SECTION: UPGRADE QUEUE & AUDIT STREAM */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                    {/* LEFT: PENDING UPGRADE QUEUE WIDGET */}
-                    <div className="bg-[#0C1222]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-2xl flex flex-col justify-between space-y-4">
+                    {/* LEFT: PENDING UPGRADE QUEUE */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-4">
                         <div>
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-2.5">
-                                    <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                                    <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-600">
                                         <Zap size={18} />
                                     </div>
                                     <div>
-                                        <h3 className="font-black text-sm text-white uppercase tracking-wider">Subscription Upgrade Queue</h3>
-                                        <p className="text-xs text-slate-400">Incoming monetization upgrade requests</p>
+                                        <h3 className="font-bold text-sm text-slate-900">Upgrade Requests Queue</h3>
+                                        <p className="text-xs text-slate-500">Pending customer tier upgrades</p>
                                     </div>
                                 </div>
-                                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-black">
+                                <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
                                     {upgradeRequests.filter(r => r.status === 'pending').length} Pending
                                 </span>
                             </div>
 
                             {upgradeRequests.filter(r => r.status === 'pending').length === 0 ? (
-                                <div className="py-8 text-center bg-slate-950/40 rounded-xl border border-slate-800/60 text-slate-500 space-y-1">
-                                    <CheckCircle2 size={24} className="mx-auto text-emerald-400 mb-1" />
-                                    <p className="text-xs font-bold text-slate-300">Upgrade Queue is Clear</p>
-                                    <p className="text-[11px]">All subscription requests have been reviewed.</p>
+                                <div className="py-8 text-center bg-slate-50 rounded-xl border border-slate-200 text-slate-500 space-y-1">
+                                    <CheckCircle2 size={24} className="mx-auto text-emerald-500 mb-1" />
+                                    <p className="text-xs font-bold text-slate-800">All caught up!</p>
+                                    <p className="text-xs text-slate-400">No pending upgrade requests.</p>
                                 </div>
                             ) : (
                                 <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
                                     {upgradeRequests.filter(r => r.status === 'pending').map(req => (
                                         <div 
                                             key={req.id}
-                                            className="bg-slate-950/80 border border-slate-800/90 rounded-xl p-3.5 flex items-center justify-between gap-3 hover:border-amber-500/40 transition-all"
+                                            className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex items-center justify-between gap-3 hover:border-amber-300 transition-colors"
                                         >
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-white text-xs">{req.tenant_name || 'Company'}</span>
-                                                    <span className="text-[10px] text-slate-500">• {formatTimeAgo(req.created_at)}</span>
+                                                    <span className="font-bold text-slate-900 text-xs">{req.tenant_name || 'Company'}</span>
+                                                    <span className="text-[10px] text-slate-400">• {formatTimeAgo(req.created_at)}</span>
                                                 </div>
                                                 <div className="flex items-center gap-2 text-xs">
-                                                    <span className="text-slate-400">{req.current_plan || 'Free'}</span>
-                                                    <ChevronRight size={12} className="text-amber-400" />
-                                                    <span className="text-amber-400 font-bold uppercase">{req.requested_plan}</span>
+                                                    <span className="text-slate-500">{req.current_plan || 'Free'}</span>
+                                                    <ChevronRight size={12} className="text-amber-500" />
+                                                    <span className="text-amber-700 font-bold uppercase">{req.requested_plan}</span>
                                                     {req.billing_cycle && (
-                                                        <span className="text-[10px] text-slate-500 uppercase">({req.billing_cycle})</span>
+                                                        <span className="text-[10px] text-slate-400 uppercase">({req.billing_cycle})</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -916,14 +899,14 @@ const SecretPortalHUD = () => {
                                                 <button
                                                     onClick={() => handleApproveUpgrade(req.id)}
                                                     disabled={actionLoading}
-                                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1"
+                                                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-colors disabled:opacity-50 flex items-center gap-1"
                                                 >
                                                     <Check size={13} /> Approve
                                                 </button>
                                                 <button
                                                     onClick={() => handleRejectUpgrade(req.id)}
                                                     disabled={actionLoading}
-                                                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white font-bold text-xs transition-all active:scale-95 disabled:opacity-50"
+                                                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 font-bold text-xs border border-slate-200 transition-colors disabled:opacity-50"
                                                 >
                                                     <X size={13} />
                                                 </button>
@@ -936,59 +919,59 @@ const SecretPortalHUD = () => {
 
                         <button 
                             onClick={() => navigate('/itqan-crm-hud/upgrades')}
-                            className="w-full py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center justify-center gap-1.5"
+                            className="w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-indigo-600 transition-colors flex items-center justify-center gap-1.5"
                         >
-                            Open Full Upgrade Processing Hub <ChevronRight size={14} />
+                            Open Upgrades Manager <ChevronRight size={14} />
                         </button>
                     </div>
 
-                    {/* RIGHT: LIVE AUDIT & SECURITY FEED */}
-                    <div className="bg-[#0C1222]/90 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-5 shadow-2xl flex flex-col justify-between space-y-4">
+                    {/* RIGHT: LIVE AUDIT FEED */}
+                    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-4">
                         <div>
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-2.5">
-                                    <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
-                                        <Shield size={18} />
+                                    <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600">
+                                        <History size={18} />
                                     </div>
                                     <div>
-                                        <h3 className="font-black text-sm text-white uppercase tracking-wider">Live Security & Audit Pulse</h3>
-                                        <p className="text-xs text-slate-400">Real-time platform activity stream</p>
+                                        <h3 className="font-bold text-sm text-slate-900">Recent Audit Activity</h3>
+                                        <p className="text-xs text-slate-500">Live platform operations feed</p>
                                     </div>
                                 </div>
-                                <span className="flex items-center gap-1 text-[11px] font-bold text-cyan-400 bg-cyan-500/10 px-2.5 py-0.5 rounded-full border border-cyan-500/30">
-                                    <Terminal size={12} /> Live Feed
+                                <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                                    Live Stream
                                 </span>
                             </div>
 
                             {recentLogs.length === 0 ? (
-                                <div className="py-8 text-center bg-slate-950/40 rounded-xl border border-slate-800/60 text-slate-500">
-                                    <p className="text-xs font-bold text-slate-300">No Recent Audit Logs</p>
-                                    <p className="text-[11px]">System events are monitored in real time.</p>
+                                <div className="py-8 text-center bg-slate-50 rounded-xl border border-slate-200 text-slate-500">
+                                    <p className="text-xs font-bold text-slate-700">No Recent Logs</p>
+                                    <p className="text-xs text-slate-400">Activity is logged in real-time.</p>
                                 </div>
                             ) : (
                                 <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                                     {recentLogs.map((log, idx) => (
                                         <div 
                                             key={log.id || idx}
-                                            className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 flex items-center justify-between gap-3 text-xs hover:border-slate-700 transition-all"
+                                            className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3 text-xs hover:border-slate-300 transition-colors"
                                         >
-                                            <div className="flex items-center gap-3 overflow-hidden">
-                                                <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
+                                            <div className="flex items-center gap-2.5 overflow-hidden">
+                                                <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />
                                                 <div className="overflow-hidden">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="font-mono font-bold text-white text-[11px] uppercase tracking-wider truncate">
+                                                        <span className="font-mono font-bold text-slate-800 text-[11px] uppercase tracking-wider truncate">
                                                             {log.action || 'SYSTEM_EVENT'}
                                                         </span>
-                                                        <span className="text-[10px] text-slate-500 px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800">
+                                                        <span className="text-[10px] text-slate-500 px-1.5 py-0.2 rounded bg-white border border-slate-200">
                                                             {log.entity_type || 'Platform'}
                                                         </span>
                                                     </div>
-                                                    <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                                                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
                                                         {log.user_email || log.details || 'System Kernel'}
                                                     </p>
                                                 </div>
                                             </div>
-                                            <span className="text-[10px] text-slate-500 font-mono shrink-0">
+                                            <span className="text-[10px] text-slate-400 font-mono shrink-0">
                                                 {formatTimeAgo(log.created_at)}
                                             </span>
                                         </div>
@@ -999,9 +982,9 @@ const SecretPortalHUD = () => {
 
                         <button 
                             onClick={() => navigate('/itqan-crm-hud/audit')}
-                            className="w-full py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-bold text-cyan-400 hover:text-cyan-300 transition-colors flex items-center justify-center gap-1.5"
+                            className="w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-indigo-600 transition-colors flex items-center justify-center gap-1.5"
                         >
-                            Open Global Audit Console <ChevronRight size={14} />
+                            Open Audit Console <ChevronRight size={14} />
                         </button>
                     </div>
 
@@ -1010,27 +993,27 @@ const SecretPortalHUD = () => {
             </main>
 
             {/* ========================================================================= */}
-            {/* 5. SLIDE-OUT COMPANY DOSSIER INSPECTION MODAL */}
+            {/* 5. SLIDE-OUT COMPANY DOSSIER MODAL */}
             {/* ========================================================================= */}
             {selectedTenantDossier && (
                 <div 
-                    className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+                    className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4"
                     onClick={() => setSelectedTenantDossier(null)}
                 >
                     <div 
-                        className="bg-[#0D1322] border border-slate-700/80 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6 text-slate-200 relative animate-in zoom-in-95 duration-200"
+                        className="bg-white border border-slate-200 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6 text-slate-800 relative"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Dossier Header */}
-                        <div className="flex items-start justify-between pb-4 border-b border-slate-800">
+                        <div className="flex items-start justify-between pb-4 border-b border-slate-100">
                             <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-700 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-600/30">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-extrabold text-xl shadow-sm">
                                     {selectedTenantDossier.name ? selectedTenantDossier.name.charAt(0).toUpperCase() : 'C'}
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <h2 className="text-xl font-black text-white">{selectedTenantDossier.name}</h2>
-                                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${STATUS_CONFIG[selectedTenantDossier.status]?.bg} ${STATUS_CONFIG[selectedTenantDossier.status]?.text}`}>
+                                        <h2 className="text-xl font-bold text-slate-900">{selectedTenantDossier.name}</h2>
+                                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${STATUS_CONFIG[selectedTenantDossier.status]?.bg} ${STATUS_CONFIG[selectedTenantDossier.status]?.text} border ${STATUS_CONFIG[selectedTenantDossier.status]?.border}`}>
                                             {selectedTenantDossier.status}
                                         </span>
                                     </div>
@@ -1041,7 +1024,7 @@ const SecretPortalHUD = () => {
                             </div>
                             <button 
                                 onClick={() => setSelectedTenantDossier(null)}
-                                className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors"
                             >
                                 <X size={18} />
                             </button>
@@ -1050,23 +1033,23 @@ const SecretPortalHUD = () => {
                         {/* Dossier Body */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Contact Card */}
-                            <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
-                                <h4 className="text-xs font-black uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
                                     <Users size={14} /> Primary Administrator
                                 </h4>
                                 <div className="space-y-2 text-xs">
                                     <div>
-                                        <span className="text-slate-500 text-[11px] block">Name:</span>
-                                        <strong className="text-slate-100">{selectedTenantDossier.admin_name || 'Admin'}</strong>
+                                        <span className="text-slate-400 text-[11px] block">Name:</span>
+                                        <strong className="text-slate-800">{selectedTenantDossier.admin_name || 'Admin'}</strong>
                                     </div>
                                     <div>
-                                        <span className="text-slate-500 text-[11px] block">Email:</span>
+                                        <span className="text-slate-400 text-[11px] block">Email:</span>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-slate-200 font-mono">{selectedTenantDossier.admin_email || '—'}</span>
+                                            <span className="text-slate-700 font-mono">{selectedTenantDossier.admin_email || '—'}</span>
                                             {selectedTenantDossier.admin_email && (
                                                 <button 
                                                     onClick={() => handleCopy(selectedTenantDossier.admin_email, 'dossier-email')}
-                                                    className="text-slate-400 hover:text-indigo-400"
+                                                    className="text-slate-400 hover:text-indigo-600"
                                                 >
                                                     <Copy size={12} />
                                                 </button>
@@ -1074,42 +1057,42 @@ const SecretPortalHUD = () => {
                                         </div>
                                     </div>
                                     <div>
-                                        <span className="text-slate-500 text-[11px] block">Phone:</span>
-                                        <span className="text-slate-200">{selectedTenantDossier.admin_phone || '—'}</span>
+                                        <span className="text-slate-400 text-[11px] block">Phone:</span>
+                                        <span className="text-slate-700">{selectedTenantDossier.admin_phone || '—'}</span>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Subscription Card */}
-                            <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
-                                <h4 className="text-xs font-black uppercase tracking-wider text-violet-400 flex items-center gap-1.5">
+                            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-violet-700 flex items-center gap-1.5">
                                     <CreditCard size={14} /> Subscription & Limits
                                 </h4>
                                 <div className="space-y-2 text-xs">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-slate-500 text-[11px]">Active Plan:</span>
-                                        <strong className="text-violet-300 font-black uppercase">{selectedTenantDossier.display_name || selectedTenantDossier.plan_name || selectedTenantDossier.plan || 'Free'}</strong>
+                                        <span className="text-slate-400 text-[11px]">Active Plan:</span>
+                                        <strong className="text-violet-700 font-bold uppercase">{selectedTenantDossier.display_name || selectedTenantDossier.plan_name || selectedTenantDossier.plan || 'Free'}</strong>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-slate-500 text-[11px]">Monthly Rate:</span>
-                                        <span className="text-slate-200 font-bold">{formatCurrency(selectedTenantDossier.price_monthly || 0)}</span>
+                                        <span className="text-slate-400 text-[11px]">Monthly Rate:</span>
+                                        <span className="text-slate-800 font-bold">{formatCurrency(selectedTenantDossier.price_monthly || 0)}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-slate-500 text-[11px]">User Capacity:</span>
-                                        <span className="text-slate-200">{selectedTenantDossier.user_count || 1} / {selectedTenantDossier.max_users || 10} Users</span>
+                                        <span className="text-slate-400 text-[11px]">User Capacity:</span>
+                                        <span className="text-slate-800">{selectedTenantDossier.user_count || 1} / {selectedTenantDossier.max_users || 10} Users</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-slate-500 text-[11px]">Subscription End:</span>
-                                        <span className="text-slate-200">{selectedTenantDossier.expires_at ? new Date(selectedTenantDossier.expires_at).toLocaleDateString() : 'Continuous'}</span>
+                                        <span className="text-slate-400 text-[11px]">Subscription End:</span>
+                                        <span className="text-slate-800">{selectedTenantDossier.expires_at ? new Date(selectedTenantDossier.expires_at).toLocaleDateString() : 'Continuous'}</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         {/* Module Matrix */}
-                        <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3">
-                            <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                                <Layers size={14} className="text-indigo-400" /> Module Access Entitlements
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                <Layers size={14} className="text-indigo-600" /> Module Access Entitlements
                             </h4>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                                 {Object.entries(MODULE_ICONS).map(([key, info]) => {
@@ -1122,10 +1105,10 @@ const SecretPortalHUD = () => {
                                     }
                                     return (
                                         <div key={key} className={`p-2.5 rounded-xl border flex items-center gap-2 ${
-                                            isEnabled ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300' : 'bg-slate-900 border-slate-800 text-slate-600'
+                                            isEnabled ? 'bg-indigo-50 border-indigo-200 text-indigo-800' : 'bg-white border-slate-200 text-slate-400'
                                         }`}>
-                                            {isEnabled ? <CheckCircle2 size={14} className="text-emerald-400" /> : <XCircle size={14} className="text-slate-600" />}
-                                            <span className="font-bold">{info.label}</span>
+                                            {isEnabled ? <CheckCircle2 size={14} className="text-emerald-600" /> : <XCircle size={14} className="text-slate-400" />}
+                                            <span className="font-semibold">{info.label}</span>
                                         </div>
                                     );
                                 })}
@@ -1133,7 +1116,7 @@ const SecretPortalHUD = () => {
                         </div>
 
                         {/* Dossier Action Buttons */}
-                        <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-2">
                                 <button 
                                     onClick={() => {
@@ -1142,7 +1125,7 @@ const SecretPortalHUD = () => {
                                         setTargetPlanExpire(selectedTenantDossier.expires_at ? selectedTenantDossier.expires_at.slice(0, 10) : '');
                                         setSelectedTenantDossier(null);
                                     }}
-                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/30 flex items-center gap-1.5"
+                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
                                 >
                                     <CreditCard size={14} /> Change Plan
                                 </button>
@@ -1151,7 +1134,7 @@ const SecretPortalHUD = () => {
                                         setResetPassModal(selectedTenantDossier);
                                         setSelectedTenantDossier(null);
                                     }}
-                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all border border-slate-700 flex items-center gap-1.5"
+                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors border border-slate-200 flex items-center gap-1.5"
                                 >
                                     <Key size={14} /> Reset Password
                                 </button>
@@ -1160,10 +1143,10 @@ const SecretPortalHUD = () => {
                             <button 
                                 onClick={() => handleToggleTenantStatus(selectedTenantDossier)}
                                 disabled={actionLoading}
-                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
                                     selectedTenantDossier.status === 'active' 
-                                        ? 'bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30' 
-                                        : 'bg-emerald-500/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30'
+                                        ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200' 
+                                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
                                 }`}
                             >
                                 {selectedTenantDossier.status === 'active' ? (
@@ -1186,30 +1169,30 @@ const SecretPortalHUD = () => {
             {/* ========================================================================= */}
             {quickPlanModal && (
                 <div 
-                    className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+                    className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4"
                     onClick={() => setQuickPlanModal(null)}
                 >
                     <div 
-                        className="bg-[#0D1322] border border-slate-700/80 rounded-3xl max-w-md w-full shadow-2xl p-6 space-y-5 text-slate-200 relative animate-in zoom-in-95 duration-200"
+                        className="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl p-6 space-y-5 text-slate-800 relative"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                             <div>
-                                <h3 className="text-base font-black text-white">Assign Subscription Plan</h3>
-                                <p className="text-xs text-slate-400 mt-0.5">Target Company: <strong className="text-indigo-300">{quickPlanModal.name}</strong></p>
+                                <h3 className="text-base font-bold text-slate-900">Assign Subscription Plan</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">Target: <strong className="text-indigo-600">{quickPlanModal.name}</strong></p>
                             </div>
-                            <button onClick={() => setQuickPlanModal(null)} className="text-slate-400 hover:text-white">
+                            <button onClick={() => setQuickPlanModal(null)} className="text-slate-400 hover:text-slate-600">
                                 <X size={18} />
                             </button>
                         </div>
 
                         <div className="space-y-4 text-xs">
                             <div>
-                                <label className="block text-slate-400 font-bold mb-1.5">Select Subscription Tier</label>
+                                <label className="block text-slate-700 font-bold mb-1.5">Select Subscription Tier</label>
                                 <select 
                                     value={targetPlanId}
                                     onChange={(e) => setTargetPlanId(e.target.value)}
-                                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500 font-semibold"
+                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 outline-none focus:bg-white focus:border-indigo-500 font-medium"
                                 >
                                     <option value="">-- Choose a Plan --</option>
                                     {plans.map(p => (
@@ -1221,28 +1204,28 @@ const SecretPortalHUD = () => {
                             </div>
 
                             <div>
-                                <label className="block text-slate-400 font-bold mb-1.5">Expiration / Renewal Date</label>
+                                <label className="block text-slate-700 font-bold mb-1.5">Expiration / Renewal Date</label>
                                 <input 
                                     type="date"
                                     value={targetPlanExpire}
                                     onChange={(e) => setTargetPlanExpire(e.target.value)}
-                                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-indigo-500"
+                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 outline-none focus:bg-white focus:border-indigo-500"
                                 />
-                                <span className="text-[10px] text-slate-500 mt-1 block">Leave blank for ongoing recurring subscription.</span>
+                                <span className="text-[11px] text-slate-400 mt-1 block">Leave blank for continuous subscription.</span>
                             </div>
                         </div>
 
-                        <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                             <button 
                                 onClick={() => setQuickPlanModal(null)}
-                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold"
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
                             >
                                 Cancel
                             </button>
                             <button 
                                 onClick={handleSaveQuickPlan}
                                 disabled={actionLoading}
-                                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black shadow-lg shadow-indigo-600/30 transition-all disabled:opacity-50"
+                                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors disabled:opacity-50"
                             >
                                 Confirm Plan Assignment
                             </button>
@@ -1256,33 +1239,33 @@ const SecretPortalHUD = () => {
             {/* ========================================================================= */}
             {resetPassModal && (
                 <div 
-                    className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+                    className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4"
                     onClick={() => setResetPassModal(null)}
                 >
                     <div 
-                        className="bg-[#0D1322] border border-slate-700/80 rounded-3xl max-w-md w-full shadow-2xl p-6 space-y-5 text-slate-200 relative animate-in zoom-in-95 duration-200"
+                        className="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl p-6 space-y-5 text-slate-800 relative"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                             <div>
-                                <h3 className="text-base font-black text-white">Reset Super-Admin Password</h3>
-                                <p className="text-xs text-slate-400 mt-0.5">Company: <strong className="text-amber-300">{resetPassModal.name}</strong></p>
+                                <h3 className="text-base font-bold text-slate-900">Reset Admin Password</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">Company: <strong className="text-amber-600">{resetPassModal.name}</strong></p>
                             </div>
-                            <button onClick={() => setResetPassModal(null)} className="text-slate-400 hover:text-white">
+                            <button onClick={() => setResetPassModal(null)} className="text-slate-400 hover:text-slate-600">
                                 <X size={18} />
                             </button>
                         </div>
 
                         <div className="space-y-4 text-xs">
                             <div>
-                                <label className="block text-slate-400 font-bold mb-1.5">New Administrator Password</label>
+                                <label className="block text-slate-700 font-bold mb-1.5">New Administrator Password</label>
                                 <div className="relative">
                                     <input 
                                         type="text"
                                         placeholder="Enter secure password..."
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value)}
-                                        className="w-full pl-3.5 pr-20 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-amber-500 font-mono font-bold"
+                                        className="w-full pl-3.5 pr-20 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 outline-none focus:bg-white focus:border-indigo-500 font-mono font-bold"
                                     />
                                     <button 
                                         type="button"
@@ -1290,28 +1273,28 @@ const SecretPortalHUD = () => {
                                             const rand = 'Tashgheel@' + Math.random().toString(36).slice(-6) + '!';
                                             setNewPassword(rand);
                                         }}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded bg-slate-800 text-[10px] font-bold text-amber-400 hover:bg-slate-700"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-[11px] font-bold text-indigo-700 border border-indigo-200"
                                     >
                                         Generate
                                     </button>
                                 </div>
                             </div>
-                            <p className="text-[11px] text-slate-500 leading-relaxed">
-                                This will immediately update the primary admin login credentials for this tenant across the entire platform.
+                            <p className="text-[11px] text-slate-500 leading-relaxed bg-amber-50 border border-amber-100 rounded-xl p-3">
+                                ⚠️ This will immediately update the primary login credentials for this company administrator.
                             </p>
                         </div>
 
-                        <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                             <button 
                                 onClick={() => setResetPassModal(null)}
-                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold"
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
                             >
                                 Cancel
                             </button>
                             <button 
                                 onClick={handleExecutePasswordReset}
                                 disabled={actionLoading}
-                                className="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-black shadow-lg shadow-amber-600/30 transition-all disabled:opacity-50"
+                                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors disabled:opacity-50"
                             >
                                 Reset Password
                             </button>

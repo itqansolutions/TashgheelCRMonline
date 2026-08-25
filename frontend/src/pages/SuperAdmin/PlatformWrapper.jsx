@@ -5,23 +5,19 @@ import { useAuth } from '../../context/AuthContext';
 import { Cpu, Shield, Loader2 } from 'lucide-react';
 
 const HandshakeLoader = () => (
-    <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 z-[1000]">
-        <div className="relative mb-12 animate-pulse">
-            <div className="p-6 bg-indigo-600/20 rounded-[2.5rem] border border-indigo-500/30">
-                <Cpu size={48} className="text-indigo-400" />
-            </div>
-            <div className="absolute -inset-4 bg-indigo-500/10 rounded-full blur-2xl animate-pulse" />
-        </div>
-        <div className="flex flex-col items-center gap-4">
-            <h2 className="text-xl font-black text-white uppercase tracking-[0.5em] animate-in fade-in slide-in-from-bottom-2 duration-1000">Genesis Handshake</h2>
-            <div className="flex items-center gap-3">
-                <Loader2 size={14} className="animate-spin text-indigo-500" />
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Verifying Sovereign Identity...</span>
+    <div className="fixed inset-0 bg-slate-50 flex flex-col items-center justify-center p-6 z-[1000]">
+        <div className="relative mb-6">
+            <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100 shadow-md">
+                <Cpu size={40} className="text-indigo-600 animate-pulse" />
             </div>
         </div>
-        
-        {/* CRT Scanline effect also here for consistency */}
-        <div className="fixed inset-0 pointer-events-none opacity-5 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.01),rgba(0,255,0,0.005),rgba(0,0,255,0.01))] bg-[length:100%_4px,3px_100%]" />
+        <div className="flex flex-col items-center gap-3 text-center">
+            <h2 className="text-lg font-bold text-slate-800 tracking-wide">ITQAN Platform Nexus</h2>
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                <Loader2 size={14} className="animate-spin text-indigo-600" />
+                <span>Verifying Administrator Session...</span>
+            </div>
+        </div>
     </div>
 );
 

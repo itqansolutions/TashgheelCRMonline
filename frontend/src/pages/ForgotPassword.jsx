@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, ArrowLeft, Send } from 'lucide-react';
+import { Mail, ArrowLeft, Send, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
