@@ -16,7 +16,7 @@ module.exports = (limitType) => async (req, res, next) => {
             SELECT p.max_users, p.max_branches, p.modules, p.name as plan_name
             FROM subscriptions s
             JOIN plans p ON s.plan_id = p.id
-            WHERE s.tenant_id = $1
+            WHERE s.tenant_id::text = $1::text
         `, [tenant_id]);
 
         if (subRes.rows.length === 0) return next(); // No subscription = no limits
@@ -28,7 +28,7 @@ module.exports = (limitType) => async (req, res, next) => {
             if (plan.max_users === -1) return next();
 
             const countRes = await db.query(
-                `SELECT COUNT(*) FROM users WHERE tenant_id = $1`, [tenant_id]
+                `SELECT COUNT(*) FROM users WHERE tenant_id::text = $1::text`, [tenant_id]
             );
             const currentCount = parseInt(countRes.rows[0].count);
 
@@ -49,7 +49,7 @@ module.exports = (limitType) => async (req, res, next) => {
             if (plan.max_branches === -1) return next();
 
             const countRes = await db.query(
-                `SELECT COUNT(*) FROM branches WHERE tenant_id = $1`, [tenant_id]
+                `SELECT COUNT(*) FROM branches WHERE tenant_id::text = $1::text`, [tenant_id]
             );
             const currentCount = parseInt(countRes.rows[0].count);
 
