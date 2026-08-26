@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Users, Plus, Edit2, Trash2, Award, Phone, Mail, MapPin, DollarSign } from 'lucide-react';
-import SalesSubNav from '../../components/Sales/SalesSubNav';
 
 const Salesmen = () => {
   const [salesmen, setSalesmen] = useState([]);
@@ -87,10 +86,8 @@ const Salesmen = () => {
   };
 
   return (
-    <div>
-      <SalesSubNav />
-      <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
-        {/* Header */}
+    <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
+      {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -254,7 +251,6 @@ const Salesmen = () => {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 };

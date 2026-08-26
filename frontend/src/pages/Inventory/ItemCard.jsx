@@ -48,7 +48,7 @@ const ItemCard = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <CreditCard size={24} style={{ color: '#0ea5e9' }} /> Item Movement Card (كارت الصنف)
+              <CreditCard size={24} style={{ color: '#0ea5e9' }} /> Item Movement Card
             </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
               Detailed audit trail, chronological movement ledger, and historical valuation per item

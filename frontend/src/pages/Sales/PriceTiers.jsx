@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Layers, Plus, Edit2, Trash2, Tag, Percent, Users, CheckCircle2 } from 'lucide-react';
-import SalesSubNav from '../../components/Sales/SalesSubNav';
 
 const PriceTiers = () => {
   const [tiers, setTiers] = useState([]);
@@ -63,8 +62,13 @@ const PriceTiers = () => {
       setTiers(tiers.map(t => t.id === editingId ? { ...t, ...form } : t));
       toast.success('Price tier updated successfully');
     } else {
-      setTiers([...tiers, { id: Date.now(), assigned_customers_count: 0, ...form }]);
-      toast.success('Price tier created successfully');
+      const newTier = {
+        id: Date.now(),
+        ...form,
+        assigned_customers_count: 0
+      };
+      setTiers([...tiers, newTier]);
+      toast.success('Price tier added successfully');
     }
     setShowModal(false);
   };
@@ -87,31 +91,29 @@ const PriceTiers = () => {
   };
 
   return (
-    <div>
-      <SalesSubNav />
-      <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Layers size={24} style={{ color: '#10b981' }} /> Customer Price Tiers & Lists (شرائح الأسعار)
-            </h2>
-            <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
-              Define wholesale, retail, contractor, and VIP volume pricing levels
-            </p>
-          </div>
-          <button
-            onClick={() => handleOpenModal()}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
-              background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white',
-              border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(16,185,129,0.25)'
-            }}
-          >
-            <Plus size={18} /> Add Price Tier
-          </button>
+    <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Layers size={24} style={{ color: '#10b981' }} /> Customer Price Tiers & Lists
+          </h2>
+          <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
+            Define wholesale, retail, contractor, and VIP volume pricing levels
+          </p>
         </div>
+        <button
+          onClick={() => handleOpenModal()}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
+            background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white',
+            border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(16,185,129,0.25)'
+          }}
+        >
+          <Plus size={18} /> Add Price Tier
+        </button>
+      </div>
 
         {/* Tiers Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
@@ -249,7 +251,6 @@ const PriceTiers = () => {
             </div>
           </div>
         )}
-      </div>
     </div>
   );
 };

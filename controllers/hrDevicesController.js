@@ -31,7 +31,7 @@ exports.createDevice = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
   const { name, serial_number, ip_address, location } = req.body;
-  if (!name?.trim()) return res.status(400).json({ status: 'error', message: 'اسم الجهاز مطلوب' });
+  if (!name?.trim()) return res.status(400).json({ status: 'error', message: 'Device name is required' });
   try {
     const result = await db.query(`
       INSERT INTO hr_attendance_devices (tenant_id, branch_id, name, serial_number, ip_address, location)
@@ -58,7 +58,7 @@ exports.updateDevice = async (req, res) => {
       WHERE id = $7 AND tenant_id = $8 RETURNING *
     `, [name?.trim(), serial_number || null, ip_address || null, location || null,
         is_active !== false, branch_id, req.params.id, tenant_id]);
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'الجهاز غير موجود' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Device not found' });
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ status: 'error', message: 'Server error' });
@@ -74,8 +74,8 @@ exports.deleteDevice = async (req, res) => {
       `DELETE FROM hr_attendance_devices WHERE id = $1 AND tenant_id = $2 RETURNING id`,
       [req.params.id, tenant_id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'الجهاز غير موجود' });
-    res.json({ status: 'success', message: 'تم الحذف' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Device not found' });
+    res.json({ status: 'success', message: 'Deleted successfully' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
@@ -117,14 +117,14 @@ exports.updateBadgeNumber = async (req, res) => {
         [badge_number, tenant_id, req.params.user_id]
       );
       if (dup.rows.length > 0) {
-        return res.status(400).json({ status: 'error', message: 'هذا الـ Badge Number مستخدم بالفعل من موظف آخر' });
+        return res.status(400).json({ status: 'error', message: 'This Badge Number is already in use by another employee' });
       }
     }
     const result = await db.query(
       `UPDATE users SET badge_number = $1 WHERE id = $2 AND tenant_id::text = $3::text RETURNING id, name, badge_number`,
       [badge_number || null, req.params.user_id, tenant_id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'الموظف غير موجود' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Employee not found' });
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error('[updateBadgeNumber]', err.message);
@@ -145,7 +145,7 @@ exports.claimDevice = async (req, res) => {
       WHERE id = $5 AND (tenant_id IS NULL OR tenant_id = $1)
       RETURNING *
     `, [tenant_id, branch_id, name || null, location || null, req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'الجهاز غير موجود أو مرتبط بمستأجر آخر' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Device not found or claimed by another tenant' });
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ status: 'error', message: 'Server error' });
@@ -161,7 +161,7 @@ exports.getDeviceRecentAttendance = async (req, res) => {
       `SELECT * FROM hr_attendance_devices WHERE id = $1 AND tenant_id = $2`,
       [req.params.id, tenant_id]
     );
-    if (deviceRes.rows.length === 0) return res.status(404).json({ status: 'error', message: 'الجهاز غير موجود' });
+    if (deviceRes.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Device not found' });
 
     const result = await db.query(`
       SELECT a.*, u.name as employee_name, u.badge_number

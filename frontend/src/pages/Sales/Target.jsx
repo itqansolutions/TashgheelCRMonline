@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Target as TargetIcon, Plus, Edit2, TrendingUp, Award, DollarSign, Calendar, CheckCircle2 } from 'lucide-react';
-import SalesSubNav from '../../components/Sales/SalesSubNav';
 
 const Target = () => {
   const [targets, setTargets] = useState([]);
@@ -24,15 +23,13 @@ const Target = () => {
   const overallPercentage = totalTargetSum > 0 ? Math.round((totalAchievedSum / totalTargetSum) * 100) : 0;
 
   return (
-    <div>
-      <SalesSubNav />
-      <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <TargetIcon size={24} style={{ color: '#10b981' }} /> Sales Targets & Goals (الأهداف البيعية)
-            </h2>
+    <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <TargetIcon size={24} style={{ color: '#10b981' }} /> Sales Targets & Goals
+          </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
               Track sales volume quotas, target achievement progress, and incentive bonuses
             </p>
@@ -120,7 +117,6 @@ const Target = () => {
           })}
         </div>
       </div>
-    </div>
   );
 };
 

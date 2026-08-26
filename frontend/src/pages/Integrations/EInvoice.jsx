@@ -93,7 +93,7 @@ const EInvoice = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <FileCheck size={24} style={{ color: '#0ea5e9' }} /> ETA E-Invoicing Integration (مصلحة الضرائب المصرية)
+              <FileCheck size={24} style={{ color: '#0ea5e9' }} /> ETA E-Invoicing Integration
             </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
               Submit, digitally sign, and track commercial invoices on the Egyptian Tax Authority Portal
@@ -255,7 +255,7 @@ const EInvoice = () => {
 
               <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Tax Registration Number (الرقم الضريبي)</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Tax Registration Number</label>
                   <input
                     type="text"
                     value={etaConfig.tax_registration_no}

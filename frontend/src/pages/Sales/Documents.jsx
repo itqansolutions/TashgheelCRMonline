@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { FileText, Download, Eye, Plus, Search, Filter, CheckCircle2, AlertCircle } from 'lucide-react';
-import SalesSubNav from '../../components/Sales/SalesSubNav';
 
 const Documents = () => {
   const [documents, setDocuments] = useState([]);
@@ -30,15 +29,13 @@ const Documents = () => {
   });
 
   return (
-    <div>
-      <SalesSubNav />
-      <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <FileText size={24} style={{ color: '#10b981' }} /> Sales Documents Hub (وثائق ومستندات المبيعات)
-            </h2>
+    <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <FileText size={24} style={{ color: '#10b981' }} /> Sales Documents Hub
+          </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
               Central repository for quotations, commercial invoices, delivery notes, and sales contracts
             </p>
@@ -129,7 +126,6 @@ const Documents = () => {
           )}
         </div>
       </div>
-    </div>
   );
 };
 

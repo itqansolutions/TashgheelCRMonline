@@ -27,7 +27,7 @@ exports.getActivityTypes = async (req, res) => {
 exports.createActivityType = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const { name, unit, start_post, end_post, min_value, max_value, is_active } = req.body;
-  if (!name?.trim()) return res.status(400).json({ status: 'error', message: 'اسم النشاط مطلوب' });
+  if (!name?.trim()) return res.status(400).json({ status: 'error', message: 'Activity name is required' });
   try {
     const result = await db.query(
       `INSERT INTO hr_activity_types (tenant_id, name, unit, start_post, end_post, min_value, max_value, is_active)
@@ -68,7 +68,7 @@ exports.updateActivityType = async (req, res) => {
         req.params.id, tenant_id
       ]
     );
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'النشاط غير موجود' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Activity type not found' });
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error('[updateActivityType]', err.message);
@@ -85,12 +85,12 @@ exports.deleteActivityType = async (req, res) => {
       `DELETE FROM hr_activity_types WHERE id = $1 AND tenant_id = $2 RETURNING id`,
       [req.params.id, tenant_id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'النشاط غير موجود' });
-    res.json({ status: 'success', message: 'تم الحذف' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Activity type not found' });
+    res.json({ status: 'success', message: 'Deleted successfully' });
   } catch (err) {
     // FK constraint — balances exist
     if (err.code === '23503') {
-      return res.status(400).json({ status: 'error', message: 'لا يمكن الحذف — يوجد أرصدة مرتبطة بهذا النشاط' });
+      return res.status(400).json({ status: 'error', message: 'Cannot delete — balances are linked to this activity' });
     }
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
@@ -151,7 +151,7 @@ exports.createActivityBalance = async (req, res) => {
   const { user_id, activity_type_id, period_month, period_year, allocated, notes } = req.body;
 
   if (!user_id || !activity_type_id || !period_month || !period_year) {
-    return res.status(400).json({ status: 'error', message: 'الموظف، النشاط، والفترة مطلوبة' });
+    return res.status(400).json({ status: 'error', message: 'Employee, activity, and period are required' });
   }
   try {
     const result = await db.query(
@@ -183,7 +183,7 @@ exports.updateActivityBalance = async (req, res) => {
        WHERE id = $4 AND tenant_id = $5 RETURNING *`,
       [parseFloat(allocated) || 0, parseFloat(used) || 0, notes || null, req.params.id, tenant_id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'الرصيد غير موجود' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Balance record not found' });
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error('[updateActivityBalance]', err.message);
@@ -200,8 +200,8 @@ exports.deleteActivityBalance = async (req, res) => {
       `DELETE FROM hr_activity_balances WHERE id = $1 AND tenant_id = $2 RETURNING id`,
       [req.params.id, tenant_id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'الرصيد غير موجود' });
-    res.json({ status: 'success', message: 'تم الحذف' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Balance record not found' });
+    res.json({ status: 'success', message: 'Deleted successfully' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: 'Server error' });
   }

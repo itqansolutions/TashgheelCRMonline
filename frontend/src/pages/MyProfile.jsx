@@ -10,9 +10,9 @@ import {
 } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 
-const fmt = (n) => Number(n || 0).toLocaleString('en-EG', { minimumFractionDigits: 2 });
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('ar-EG') : '—';
-const fmtDateTime = (d) => d ? new Date(d).toLocaleString('ar-EG') : '—';
+const fmt = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US') : '—';
+const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-US') : '—';
 
 // ─── Leave Request Form ───────────────────────────────────────────────────────
 const LeaveRequestForm = ({ onSuccess }) => {
@@ -21,15 +21,15 @@ const LeaveRequestForm = ({ onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.start_date || !form.end_date) return toast.error('يرجى تحديد تواريخ الإجازة');
+    if (!form.start_date || !form.end_date) return toast.error('Please select leave dates');
     setSaving(true);
     try {
       await api.post('/hr/leaves', form);
-      toast.success('تم تقديم الطلب بنجاح');
+      toast.success('Request submitted successfully');
       setForm({ type: 'annual', start_date: '', end_date: '', notes: '' });
       onSuccess?.();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'فشل إرسال الطلب');
+      toast.error(err.response?.data?.message || 'Failed to submit request');
     } finally { setSaving(false); }
   };
 
@@ -41,33 +41,33 @@ const LeaveRequestForm = ({ onSuccess }) => {
 
   return (
     <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '500px' }}>
-      <h3 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>تقديم طلب جديد</h3>
+      <h3 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>Submit New Request</h3>
       <div>
-        <label style={{ display: 'block', fontWeight: 700, fontSize: '12px', color: '#374151', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>نوع الطلب</label>
+        <label style={{ display: 'block', fontWeight: 700, fontSize: '12px', color: '#374151', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Request Type</label>
         <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} style={inputStyle}>
-          <option value="annual">إجازة سنوية</option>
-          <option value="sick">إجازة مرضية</option>
-          <option value="emergency">إجازة طارئة</option>
-          <option value="unpaid">إجازة بدون راتب</option>
-          <option value="delay">تأخير</option>
+          <option value="annual">Annual Leave</option>
+          <option value="sick">Sick Leave</option>
+          <option value="emergency">Emergency Leave</option>
+          <option value="unpaid">Unpaid Leave</option>
+          <option value="delay">Late Permission (Delay)</option>
         </select>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
         <div>
-          <label style={{ display: 'block', fontWeight: 700, fontSize: '12px', color: '#374151', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>من تاريخ</label>
+          <label style={{ display: 'block', fontWeight: 700, fontSize: '12px', color: '#374151', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>From Date</label>
           <input type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} style={inputStyle} required />
         </div>
         <div>
-          <label style={{ display: 'block', fontWeight: 700, fontSize: '12px', color: '#374151', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>إلى تاريخ</label>
+          <label style={{ display: 'block', fontWeight: 700, fontSize: '12px', color: '#374151', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>To Date</label>
           <input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} style={inputStyle} required />
         </div>
       </div>
       <div>
-        <label style={{ display: 'block', fontWeight: 700, fontSize: '12px', color: '#374151', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>ملاحظات (اختياري)</label>
-        <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="سبب الطلب..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+        <label style={{ display: 'block', fontWeight: 700, fontSize: '12px', color: '#374151', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes (Optional)</label>
+        <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Reason for request..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
       </div>
       <button type="submit" disabled={saving} style={{ padding: '12px 24px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, alignSelf: 'flex-start' }}>
-        {saving ? 'جاري الإرسال...' : 'إرسال الطلب'}
+        {saving ? 'Submitting...' : 'Submit Request'}
       </button>
     </form>
   );
@@ -91,11 +91,11 @@ const MyProfile = () => {
     { id: 'deals', label: 'Deals', icon: <Handshake size={15} /> },
     { id: 'customers', label: 'Customers', icon: <Users size={15} /> },
     ...(isRealEstate ? [{ id: 'units', label: 'My Units', icon: <Building2 size={15} /> }] : []),
-    { id: 'activity', label: 'Activity', icon: <Clock size={15} />, desc: 'الحضور والانصراف' },
-    { id: 'balance', label: 'Activity Balance', icon: <Wallet size={15} />, desc: 'الأرصدة' },
-    { id: 'requests', label: 'Requests', icon: <FileText size={15} />, desc: 'طلباتي' },
-    ...(isManager ? [{ id: 'approvals', label: 'Requests Approve', icon: <CheckCircle size={15} />, desc: 'موافقات' }] : []),
-    { id: 'payroll', label: 'Payroll Slips', icon: <DollarSign size={15} />, desc: 'الراتب' },
+    { id: 'activity', label: 'Activity', icon: <Clock size={15} />, desc: 'Attendance & Logs' },
+    { id: 'balance', label: 'Activity Balance', icon: <Wallet size={15} />, desc: 'Leave Balances' },
+    { id: 'requests', label: 'Requests', icon: <FileText size={15} />, desc: 'My Requests' },
+    ...(isManager ? [{ id: 'approvals', label: 'Requests Approve', icon: <CheckCircle size={15} />, desc: 'Pending Approvals' }] : []),
+    { id: 'payroll', label: 'Payroll Slips', icon: <DollarSign size={15} />, desc: 'Salary Slips' },
   ];
 
   useEffect(() => {
@@ -148,13 +148,13 @@ const MyProfile = () => {
   const handleLeaveApproval = async (id, status) => {
     try {
       await api.put(`/hr/leaves/${id}/status`, { status });
-      toast.success(status === 'approved' ? 'تمت الموافقة' : 'تم الرفض');
+      toast.success(status === 'approved' ? 'Request approved' : 'Request rejected');
       fetchTabData();
-    } catch { toast.error('فشلت العملية'); }
+    } catch { toast.error('Operation failed'); }
   };
 
   const statusColor = { approved: '#10b981', pending: '#f59e0b', rejected: '#ef4444' };
-  const statusLabel = { approved: 'موافق عليه', pending: 'قيد المراجعة', rejected: 'مرفوض' };
+  const statusLabel = { approved: 'Approved', pending: 'Pending Review', rejected: 'Rejected' };
 
   // ── Tab Content ──
   const renderContent = () => {
@@ -162,7 +162,7 @@ const MyProfile = () => {
       return (
         <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
           <div style={{ display: 'inline-block', width: '32px', height: '32px', border: '3px solid #e2e8f0', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          <p style={{ marginTop: '16px', fontWeight: 600 }}>جاري التحميل...</p>
+          <p style={{ marginTop: '16px', fontWeight: 600 }}>Loading...</p>
         </div>
       );
     }
@@ -213,28 +213,28 @@ const MyProfile = () => {
           {data.activity.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
               <Clock size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
-              <p style={{ fontWeight: 700 }}>لا توجد سجلات حضور</p>
-              <p style={{ fontSize: '13px', color: '#cbd5e1' }}>يظهر هنا سجل حضورك وانصرافك عند ربط ماكينة البصمة</p>
+              <p style={{ fontWeight: 700 }}>No attendance records</p>
+              <p style={{ fontSize: '13px', color: '#cbd5e1' }}>Your check-in and check-out logs will appear here once connected to attendance devices</p>
             </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  {['التاريخ', 'وقت الحضور', 'وقت الانصراف', 'المدة'].map(h => (
-                    <th key={h} style={{ padding: '12px 16px', textAlign: 'right', fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>{h}</th>
+                  {['Date', 'Check In', 'Check Out', 'Duration'].map(h => (
+                    <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {data.activity.map((a, i) => {
                   const duration = a.check_out && a.check_in
-                    ? Math.round((new Date(a.check_out) - new Date(a.check_in)) / 60000) + ' دقيقة'
+                    ? Math.round((new Date(a.check_out) - new Date(a.check_in)) / 60000) + ' min'
                     : '—';
                   return (
                     <tr key={a.id || i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={{ padding: '12px 16px', fontWeight: 700, color: '#1e293b' }}>{fmtDate(a.check_in)}</td>
-                      <td style={{ padding: '12px 16px', color: '#10b981', fontWeight: 700 }}>{a.check_in ? new Date(a.check_in).toLocaleTimeString('ar-EG') : '—'}</td>
-                      <td style={{ padding: '12px 16px', color: '#ef4444', fontWeight: 700 }}>{a.check_out ? new Date(a.check_out).toLocaleTimeString('ar-EG') : '⏳ جاري'}</td>
+                      <td style={{ padding: '12px 16px', color: '#10b981', fontWeight: 700 }}>{a.check_in ? new Date(a.check_in).toLocaleTimeString('en-US') : '—'}</td>
+                      <td style={{ padding: '12px 16px', color: '#ef4444', fontWeight: 700 }}>{a.check_out ? new Date(a.check_out).toLocaleTimeString('en-US') : '⏳ Ongoing'}</td>
                       <td style={{ padding: '12px 16px', color: '#64748b' }}>{duration}</td>
                     </tr>
                   );
@@ -252,22 +252,22 @@ const MyProfile = () => {
       leaveTypes.forEach(t => {
         counts[t] = data.leaves.filter(l => l.type === t && l.status === 'approved').length;
       });
-      const typeLabel = { annual: 'سنوية', sick: 'مرضية', emergency: 'طارئة', unpaid: 'بدون راتب', delay: 'تأخير' };
+      const typeLabel = { annual: 'Annual', sick: 'Sick', emergency: 'Emergency', unpaid: 'Unpaid', delay: 'Delay' };
       const typeColor = { annual: '#4f46e5', sick: '#ef4444', emergency: '#f59e0b', unpaid: '#64748b', delay: '#06b6d4' };
       return (
         <div style={{ padding: '24px' }}>
-          <h3 style={{ margin: '0 0 20px', fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>ملخص أرصدة الإجازات المعتمدة</h3>
+          <h3 style={{ margin: '0 0 20px', fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>Approved Leave Balances Summary</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px' }}>
             {leaveTypes.map(t => (
               <div key={t} style={{ background: 'white', border: `2px solid ${typeColor[t]}30`, borderRadius: '14px', padding: '20px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                 <div style={{ fontSize: '36px', fontWeight: 900, color: typeColor[t], lineHeight: 1 }}>{counts[t]}</div>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', marginTop: '6px', textTransform: 'uppercase' }}>إجازة {typeLabel[t]}</div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', marginTop: '6px', textTransform: 'uppercase' }}>{typeLabel[t]} Leave</div>
               </div>
             ))}
           </div>
           <div style={{ marginTop: '24px', background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0' }}>
             <p style={{ margin: 0, fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
-              ⚠️ الأرصدة المعروضة هي عدد الأيام المعتمدة الفعلية. لحساب رصيد الإجازات المتبقية، يلزم ربط السياسة الخاصة بشركتك.
+              ⚠️ Displayed balances reflect actual approved days. To calculate remaining annual quotas, link your company leave policy.
             </p>
           </div>
         </div>
@@ -280,13 +280,13 @@ const MyProfile = () => {
           <LeaveRequestForm onSuccess={fetchTabData} />
           {data.leaves.length > 0 && (
             <div style={{ padding: '0 24px 24px' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#1e293b', marginBottom: '12px' }}>طلباتي السابقة</h4>
+              <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#1e293b', marginBottom: '12px' }}>My Previous Requests</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {data.leaves.map(l => (
                   <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                     <div>
-                      <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>{l.type === 'annual' ? 'إجازة سنوية' : l.type === 'sick' ? 'إجازة مرضية' : l.type}</span>
-                      <span style={{ color: '#94a3b8', fontSize: '12px', marginRight: '12px' }}>{fmtDate(l.start_date)} — {fmtDate(l.end_date)}</span>
+                      <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>{l.type === 'annual' ? 'Annual Leave' : l.type === 'sick' ? 'Sick Leave' : l.type}</span>
+                      <span style={{ color: '#94a3b8', fontSize: '12px', marginLeft: '12px' }}>{fmtDate(l.start_date)} — {fmtDate(l.end_date)}</span>
                     </div>
                     <span style={{ background: `${statusColor[l.status]}18`, color: statusColor[l.status], padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
                       {statusLabel[l.status]}
@@ -305,27 +305,27 @@ const MyProfile = () => {
       return (
         <div style={{ padding: '20px' }}>
           <h3 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-            الطلبات المعلقة ({pending.length})
+            Pending Requests ({pending.length})
           </h3>
           {pending.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
               <CheckCircle size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
-              <p style={{ fontWeight: 700 }}>لا توجد طلبات معلقة</p>
+              <p style={{ fontWeight: 700 }}>No pending requests</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {pending.map(l => (
                 <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
                   <div>
-                    <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '14px', marginBottom: '4px' }}>{l.user_name || 'موظف'}</div>
+                    <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '14px', marginBottom: '4px' }}>{l.user_name || 'Employee'}</div>
                     <div style={{ fontSize: '13px', color: '#64748b' }}>
                       {l.type} · {fmtDate(l.start_date)} — {fmtDate(l.end_date)}
                     </div>
                     {l.notes && <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>{l.notes}</div>}
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => handleLeaveApproval(l.id, 'approved')} style={{ padding: '8px 16px', background: '#dcfce7', color: '#16a34a', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>✅ موافقة</button>
-                    <button onClick={() => handleLeaveApproval(l.id, 'rejected')} style={{ padding: '8px 16px', background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>❌ رفض</button>
+                    <button onClick={() => handleLeaveApproval(l.id, 'approved')} style={{ padding: '8px 16px', background: '#dcfce7', color: '#16a34a', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>✅ Approve</button>
+                    <button onClick={() => handleLeaveApproval(l.id, 'rejected')} style={{ padding: '8px 16px', background: '#fef2f2', color: '#dc2626', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>❌ Reject</button>
                   </div>
                 </div>
               ))}
@@ -333,15 +333,15 @@ const MyProfile = () => {
           )}
 
           {/* All requests history */}
-          <h4 style={{ margin: '24px 0 12px', fontSize: '14px', fontWeight: 800, color: '#1e293b' }}>جميع الطلبات</h4>
+          <h4 style={{ margin: '24px 0 12px', fontSize: '14px', fontWeight: 800, color: '#1e293b' }}>All Requests History</h4>
           {data.pendingLeaves.length === 0 ? (
-            <p style={{ color: '#94a3b8', fontSize: '13px' }}>لا توجد طلبات</p>
+            <p style={{ color: '#94a3b8', fontSize: '13px' }}>No requests</p>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  {['الموظف', 'النوع', 'من', 'إلى', 'الحالة'].map(h => (
-                    <th key={h} style={{ padding: '10px 14px', textAlign: 'right', fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>{h}</th>
+                  {['Employee', 'Type', 'From', 'To', 'Status'].map(h => (
+                    <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -372,8 +372,8 @@ const MyProfile = () => {
           {data.payrolls.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
               <DollarSign size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
-              <p style={{ fontWeight: 700 }}>لا توجد بيانات راتب</p>
-              <p style={{ fontSize: '13px', color: '#cbd5e1' }}>يظهر هنا تفاصيل راتبك عند إضافتها من الإدارة</p>
+              <p style={{ fontWeight: 700 }}>No payroll data found</p>
+              <p style={{ fontSize: '13px', color: '#cbd5e1' }}>Your salary details will appear here once published by management</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -382,24 +382,24 @@ const MyProfile = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                     <div>
                       <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                        راتب {new Date(p.period_start || p.created_at).toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' })}
+                        Salary for {new Date(p.period_start || p.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                       </h4>
-                      {isManager && <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>الموظف: {p.user_name || '—'}</p>}
+                      {isManager && <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>Employee: {p.user_name || '—'}</p>}
                     </div>
                     <span style={{
                       background: p.status === 'finalized' ? '#dcfce7' : '#fffbeb',
                       color: p.status === 'finalized' ? '#16a34a' : '#d97706',
                       padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 800
                     }}>
-                      {p.status === 'finalized' ? '✅ معتمد' : '⏳ مسودة'}
+                      {p.status === 'finalized' ? '✅ Finalized' : '⏳ Draft'}
                     </span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
                     {[
-                      { label: 'الراتب الأساسي', value: fmt(p.basic_salary), color: '#4f46e5' },
-                      { label: 'البدلات', value: fmt(p.allowances), color: '#10b981' },
-                      { label: 'الخصومات', value: fmt(p.deductions), color: '#ef4444' },
-                      { label: 'صافي الراتب', value: fmt(p.net_salary), color: '#1e293b' },
+                      { label: 'Basic Salary', value: fmt(p.basic_salary), color: '#4f46e5' },
+                      { label: 'Allowances', value: fmt(p.allowances), color: '#10b981' },
+                      { label: 'Deductions', value: fmt(p.deductions), color: '#ef4444' },
+                      { label: 'Net Salary', value: fmt(p.net_salary), color: '#1e293b' },
                     ].map(s => (
                       <div key={s.label} style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px', border: '1px solid #e2e8f0' }}>
                         <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>{s.label}</div>
@@ -495,7 +495,7 @@ const MyProfile = () => {
           </h3>
           {showPagination && (
             <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', background: '#f1f5f9', padding: '4px 12px', borderRadius: '20px' }}>
-              {pagination.total} سجل
+              {pagination.total} records
             </span>
           )}
         </div>
@@ -506,7 +506,7 @@ const MyProfile = () => {
         {showPagination && !loading && pagination.total > pagination.limit && (
           <div style={{ padding: '14px 20px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fbfcfd' }}>
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-              صفحة {pagination.page} من {Math.ceil(pagination.total / pagination.limit)}
+              Page {pagination.page} of {Math.ceil(pagination.total / pagination.limit)}
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={() => handlePageChange(pagination.page - 1)} disabled={pagination.page === 1}

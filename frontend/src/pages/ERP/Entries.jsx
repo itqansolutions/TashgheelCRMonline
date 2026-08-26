@@ -44,7 +44,7 @@ const Entries = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <FileSpreadsheet size={24} style={{ color: '#6366f1' }} /> Accounting Entries & Vouchers (قيود اليومية)
+              <FileSpreadsheet size={24} style={{ color: '#6366f1' }} /> Accounting Entries & Vouchers
             </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
               Create, review, and post double-entry financial journal vouchers

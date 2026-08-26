@@ -36,7 +36,7 @@ exports.getShiftById = async (req, res) => {
       `SELECT * FROM hr_shifts WHERE id = $1 AND tenant_id = $2`,
       [req.params.id, tenant_id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'الشيفت غير موجود' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Shift not found' });
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     res.status(500).json({ status: 'error', message: 'Server error' });
@@ -49,9 +49,9 @@ exports.createShift = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const { name, start_time, end_time, off_days, grace_minutes, deduction_rules, is_active } = req.body;
 
-  if (!name?.trim()) return res.status(400).json({ status: 'error', message: 'اسم الشيفت مطلوب' });
-  if (!start_time)   return res.status(400).json({ status: 'error', message: 'وقت البداية مطلوب' });
-  if (!end_time)     return res.status(400).json({ status: 'error', message: 'وقت النهاية مطلوب' });
+  if (!name?.trim()) return res.status(400).json({ status: 'error', message: 'Shift name is required' });
+  if (!start_time)   return res.status(400).json({ status: 'error', message: 'Start time is required' });
+  if (!end_time)     return res.status(400).json({ status: 'error', message: 'End time is required' });
 
   try {
     const result = await db.query(`
@@ -90,7 +90,7 @@ exports.updateShift = async (req, res) => {
       is_active !== false,
       req.params.id, tenant_id
     ]);
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'الشيفت غير موجود' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Shift not found' });
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error('[updateShift]', err.message);
@@ -109,14 +109,14 @@ exports.deleteShift = async (req, res) => {
       [req.params.id]
     );
     if (parseInt(assigned.rows[0].count) > 0) {
-      return res.status(400).json({ status: 'error', message: 'لا يمكن الحذف — يوجد موظفون مرتبطون بهذا الشيفت' });
+      return res.status(400).json({ status: 'error', message: 'Cannot delete — employees are currently assigned to this shift' });
     }
     const result = await db.query(
       `DELETE FROM hr_shifts WHERE id = $1 AND tenant_id = $2 RETURNING id`,
       [req.params.id, tenant_id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'الشيفت غير موجود' });
-    res.json({ status: 'success', message: 'تم الحذف' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Shift not found' });
+    res.json({ status: 'success', message: 'Deleted successfully' });
   } catch (err) {
     console.error('[deleteShift]', err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
@@ -179,7 +179,7 @@ exports.getUserShiftSummary = async (req, res) => {
 exports.assignUserShift = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const { user_id, shift_id, effective_from, effective_to } = req.body;
-  if (!user_id || !shift_id) return res.status(400).json({ status: 'error', message: 'الموظف والشيفت مطلوبان' });
+  if (!user_id || !shift_id) return res.status(400).json({ status: 'error', message: 'Employee and shift are required' });
   try {
     // Close any existing open assignment for this employee
     await db.query(
@@ -214,8 +214,8 @@ exports.removeUserShift = async (req, res) => {
       `DELETE FROM hr_user_shifts WHERE id = $1 AND tenant_id = $2 RETURNING id`,
       [req.params.id, tenant_id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'التعيين غير موجود' });
-    res.json({ status: 'success', message: 'تم إلغاء التعيين' });
+    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Shift assignment not found' });
+    res.json({ status: 'success', message: 'Assignment removed successfully' });
   } catch (err) {
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
