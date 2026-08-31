@@ -160,6 +160,7 @@ app.use('/api/erp/taxes', require('./routes/taxRoutes'));
 app.use('/api/erp/journals', require('./routes/journalRoutes'));
 app.use('/api/erp/reconciliation', require('./routes/reconciliationRoutes'));
 app.use('/api/erp/sales', require('./routes/salesRoutes'));
+app.use('/api/sales', require('./routes/salesRoutes'));
 app.use('/api/erp/purchasing', require('./routes/purchasingRoutes'));
 app.use('/api/erp/reports', require('./routes/glReportRoutes'));
 app.use('/api/erp/banking', require('./routes/bankingRoutes'));
@@ -399,6 +400,83 @@ app.listen(PORT, '0.0.0.0', async () => {
     // 9. Real estate units assigned_to & vendor_id
     await execSql(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS assigned_to UUID;`, 're_units.assigned_to');
     await execSql(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS vendor_id UUID;`, 're_units.vendor_id');
+
+    // 10. Sales Orders & Items
+    await execSql(`
+      CREATE TABLE IF NOT EXISTS sales_orders (
+        id SERIAL PRIMARY KEY,
+        tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+        branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+        number VARCHAR(50),
+        order_number VARCHAR(50),
+        customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+        deal_id INTEGER REFERENCES deals(id) ON DELETE SET NULL,
+        quotation_id INTEGER REFERENCES quotations(id) ON DELETE SET NULL,
+        order_date DATE DEFAULT CURRENT_DATE,
+        expected_delivery DATE,
+        status VARCHAR(50) DEFAULT 'draft',
+        total_amount NUMERIC DEFAULT 0,
+        tax_amount NUMERIC DEFAULT 0,
+        currency VARCHAR(10) DEFAULT 'EGP',
+        exchange_rate NUMERIC DEFAULT 1.0,
+        local_value NUMERIC DEFAULT 0,
+        notes TEXT,
+        assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `, 'sales_orders table');
+    await execSql(`ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS quotation_id INTEGER;`, 'sales_orders.quotation_id');
+    await execSql(`ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS number VARCHAR(50);`, 'sales_orders.number');
+
+    await execSql(`
+      CREATE TABLE IF NOT EXISTS sales_order_items (
+        id SERIAL PRIMARY KEY,
+        sales_order_id INTEGER REFERENCES sales_orders(id) ON DELETE CASCADE,
+        product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        description TEXT,
+        quantity NUMERIC DEFAULT 1,
+        unit_price NUMERIC DEFAULT 0,
+        subtotal NUMERIC DEFAULT 0,
+        quantity_delivered NUMERIC DEFAULT 0,
+        quantity_invoiced NUMERIC DEFAULT 0,
+        tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE
+      );
+    `, 'sales_order_items table');
+
+    // 11. Sales Targets & Price Tiers
+    await execSql(`
+      CREATE TABLE IF NOT EXISTS sales_targets (
+        id SERIAL PRIMARY KEY,
+        tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+        branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        period VARCHAR(50) NOT NULL,
+        target_amount NUMERIC NOT NULL DEFAULT 0,
+        achieved_amount NUMERIC DEFAULT 0,
+        commission_rate NUMERIC DEFAULT 0,
+        bonus_threshold NUMERIC DEFAULT 0,
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `, 'sales_targets table');
+
+    await execSql(`
+      CREATE TABLE IF NOT EXISTS sales_price_tiers (
+        id SERIAL PRIMARY KEY,
+        tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+        name VARCHAR(150) NOT NULL,
+        code VARCHAR(50),
+        discount_percentage NUMERIC DEFAULT 0,
+        min_order_quantity INTEGER DEFAULT 1,
+        description TEXT,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `, 'sales_price_tiers table');
 
     await reconcileDatabase();
     

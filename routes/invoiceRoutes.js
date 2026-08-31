@@ -26,6 +26,11 @@ router.post('/from-quotation/:quotationId', invoicesController.createInvoiceFrom
 // @access  Private
 router.post('/from-deal/:dealId', invoicesController.createInvoiceFromDeal);
 
+// @route   POST api/invoices/from-sales-order/:orderId
+// @desc    Create invoice from sales order
+// @access  Private
+router.post('/from-sales-order/:orderId', invoicesController.createInvoiceFromSalesOrder);
+
 // @route   POST api/invoices/:id/payments
 // @desc    Add Payment to Invoice
 // @access  Private

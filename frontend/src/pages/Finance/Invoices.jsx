@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import api from '../../services/api';
+import toast from 'react-hot-toast';
 import { 
   Plus, Download, Filter, Search, MoreVertical, 
   TrendingUp, FileText, DollarSign, Activity,
   CreditCard, Calendar, User, ArrowUpRight, ArrowDownRight,
-  Settings, CheckCircle, Clock, AlertCircle
+  Settings, CheckCircle, Clock, AlertCircle, ShoppingBag
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -233,9 +234,46 @@ const FinanceDashboard = () => {
                             <td><span className={`badge ${q.status === 'approved' ? 'badge-success' : 'badge-warning'}`}>{q.status}</span></td>
                             <td>{new Date(q.valid_until).toLocaleDateString()}</td>
                             <td>
-                                <button className="action-btn" onClick={() => navigate(`/finance/quotation-preview/${q.id}`)}>
-                                    <Download size={14} /> View / Print
-                                </button>
+                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <button className="action-btn" onClick={() => navigate(`/finance/quotation-preview/${q.id}`)}>
+                                        <Download size={14} /> View / Print
+                                    </button>
+                                    <button
+                                        className="action-btn"
+                                        style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}
+                                        title="Convert this Quotation to a Sales Order"
+                                        onClick={async () => {
+                                            try {
+                                                await api.post(`/erp/sales/orders/from-quotation/${q.id}`);
+                                                toast.success('Quotation converted to Sales Order!');
+                                                navigate('/sales/orders');
+                                            } catch (err) {
+                                                toast.error(err.response?.data?.message || 'Failed to convert to sales order');
+                                            }
+                                        }}
+                                    >
+                                        <ShoppingBag size={14} /> Sales Order
+                                    </button>
+                                    <button
+                                        className="action-btn"
+                                        style={{ background: '#f3e8ff', color: '#7e22ce', border: '1px solid #ddd6fe' }}
+                                        title="Convert this Quotation directly to an Invoice"
+                                        onClick={async () => {
+                                            try {
+                                                const res = await api.post(`/invoices/from-quotation/${q.id}`);
+                                                toast.success('Invoice created from Quotation!');
+                                                fetchData();
+                                                if (res.data?.data?.id) {
+                                                    navigate(`/finance/invoice-preview/${res.data.data.id}`);
+                                                }
+                                            } catch (err) {
+                                                toast.error(err.response?.data?.message || 'Failed to convert to invoice');
+                                            }
+                                        }}
+                                    >
+                                        <FileText size={14} /> Invoice
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     ))}

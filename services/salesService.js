@@ -30,6 +30,43 @@ exports.convertQuotationToInvoice = async (quotationId, tenant_id) => {
 };
 
 /**
+ * Converts a Sales Order into an Invoice
+ * @param {number} salesOrderId 
+ * @param {string} tenant_id 
+ * @returns {Promise<object>} The new invoice
+ */
+exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id) => {
+  const soRes = await db.query('SELECT * FROM sales_orders WHERE id = $1 AND tenant_id::text = $2::text', [salesOrderId, String(tenant_id)]);
+  if (soRes.rows.length === 0) throw new Error('Sales Order not found or unauthorized');
+
+  const so = soRes.rows[0];
+
+  const invoiceNumber = `INV-${Date.now()}`;
+  const invRes = await db.query(
+    `INSERT INTO invoices (client_id, invoice_number, total_amount, due_date, status, notes, tenant_id, branch_id, deal_id, quotation_id)
+     VALUES ($1, $2, $3, CURRENT_DATE + INTERVAL '15 days', 'unpaid', $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [
+      so.customer_id,
+      invoiceNumber,
+      so.total_amount || 0,
+      `Generated from Sales Order #${so.order_number || so.number || so.id}. ${so.notes || ''}`.trim(),
+      tenant_id,
+      so.branch_id || null,
+      so.deal_id || null,
+      so.quotation_id || null
+    ]
+  );
+
+  const invoice = invRes.rows[0];
+
+  // Mark Sales Order status as invoiced if not delivered
+  await db.query(`UPDATE sales_orders SET status = 'invoiced', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND tenant_id::text = $2::text`, [salesOrderId, String(tenant_id)]);
+
+  return invoice;
+};
+
+/**
  * Converts a Deal into an Invoice
  * @param {number} dealId 
  * @param {string} tenant_id

@@ -83,6 +83,24 @@ exports.createInvoiceFromDeal = async (req, res) => {
   }
 };
 
+// @desc    Create invoice from sales order
+// @route   POST /api/invoices/from-sales-order/:orderId
+// @access  Private
+exports.createInvoiceFromSalesOrder = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  try {
+    const invoice = await salesService.convertSalesOrderToInvoice(req.params.orderId, tenant_id);
+
+    // Log Billing Event
+    logAction({ req, action: ACTIONS.BILLING, entityType: 'Invoice', entityId: invoice.id, details: { source: 'sales_order', sourceId: req.params.orderId } });
+
+    res.status(201).json({ status: 'success', message: 'Invoice created successfully from Sales Order', data: invoice });
+  } catch (err) {
+    console.error('[createInvoiceFromSalesOrder]', err.message);
+    res.status(400).json({ status: 'error', message: err.message });
+  }
+};
+
 // @desc    Add Payment to Invoice
 // @route   POST /api/invoices/:id/payments
 // @access  Private
