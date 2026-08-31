@@ -23,13 +23,8 @@ const Warehouses = () => {
   const fetchWarehouses = async () => {
     setLoading(true);
     try {
-      // Endpoint fallback or mock structure if API not ready
-      const res = await api.get('/inventory/warehouses').catch(() => ({ data: { data: [
-        { id: 1, name: 'Main Central Warehouse', code: 'WH-01', location: 'Industrial Zone, Gate 4', keeper_name: 'Ahmed Hassan', capacity: '10,000 sqm', is_active: true },
-        { id: 2, name: 'Retail Branch Store', code: 'WH-02', location: 'Downtown Showroom', keeper_name: 'Mahmoud Ali', capacity: '2,500 sqm', is_active: true },
-        { id: 3, name: 'Damaged & Returns Depot', code: 'WH-03', location: 'Annex B', keeper_name: 'Sara Ibrahim', capacity: '1,000 sqm', is_active: true },
-      ] } }));
-      setWarehouses(res.data.data || []);
+      const res = await api.get('/inventory/warehouses').catch(() => ({ data: { data: [] } }));
+      setWarehouses(res.data?.data || res.data || []);
     } catch (err) {
       toast.error('Failed to load warehouses');
     } finally {

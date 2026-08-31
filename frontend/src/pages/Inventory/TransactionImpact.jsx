@@ -9,14 +9,31 @@ const TransactionImpact = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Initial / mock analytics data
-    setImpactLogs([
-      { id: 1, type: 'INBOUND', reference: 'PO-2025-001', product: 'Premium Concrete Mix (50kg)', qty: '+500 bags', unit_cost: 15.00, total_value: 7500.00, financial_account: '1210 - Stock Inventory Asset', date: '2025-08-17 10:15' },
-      { id: 2, type: 'OUTBOUND', reference: 'SO-2025-089', product: 'Steel Rebar 12mm (Ton)', qty: '-12 tons', unit_cost: 850.00, total_value: -10200.00, financial_account: '5100 - Cost of Goods Sold (COGS)', date: '2025-08-17 09:30' },
-      { id: 3, type: 'TRANSFER', reference: 'TR-2025-012', product: 'PVC Drainage Pipes 4"', qty: '200 pcs', unit_cost: 12.50, total_value: 2500.00, financial_account: '1215 - Inter-branch Stock Clearing', date: '2025-08-16 16:45' },
-      { id: 4, type: 'ADJUSTMENT', reference: 'ADJ-2025-003', product: 'Safety Helmets (Yellow)', qty: '-5 pcs (Damaged)', unit_cost: 8.00, total_value: -40.00, financial_account: '5210 - Inventory Scrap Expense', date: '2025-08-15 14:00' },
-    ]);
-    setLoading(false);
+    // Fetch transaction impact logs
+    const fetchImpactLogs = async () => {
+      setLoading(true);
+      try {
+        const res = await api.get('/accounting/journals').catch(() => ({ data: { data: [] } }));
+        const journals = res.data.data || res.data || [];
+        const logs = journals.map((j, i) => ({
+          id: j.id || i + 1,
+          type: 'JOURNAL',
+          reference: j.entry_number || `JV-${j.id}`,
+          product: j.description || 'General Inventory Movement',
+          qty: '-',
+          unit_cost: parseFloat(j.total_debit || 0),
+          total_value: parseFloat(j.total_debit || 0),
+          financial_account: 'General Ledger',
+          date: j.entry_date ? new Date(j.entry_date).toLocaleDateString() : ''
+        }));
+        setImpactLogs(logs);
+      } catch (err) {
+        toast.error('Failed to load transaction impact data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchImpactLogs();
   }, []);
 
   const totalInboundValue = impactLogs.filter(l => l.type === 'INBOUND').reduce((acc, l) => acc + l.total_value, 0);

@@ -22,17 +22,23 @@ const EInvoice = () => {
   });
 
   useEffect(() => {
-    // Fetch sales invoices or mock ETA submission queue
+    // Fetch real sales invoices for ETA submission queue
     const fetchInvoices = async () => {
       setLoading(true);
       try {
-        const res = await api.get('/accounting/journals').catch(() => ({ data: { data: [] } }));
-        const mapped = [
-          { id: 1, invoice_no: 'INV-2025-001', customer_name: 'Al-Nour Contracting Co.', customer_tax_id: '987-654-321', date: '2025-08-17', total_amount: 145000.00, eta_status: 'Validated', eta_uuid: 'E7B2A900-1123-4455-8899-AABBCCDDEEFF', submitted_at: '2025-08-17 10:30' },
-          { id: 2, invoice_no: 'INV-2025-002', customer_name: 'Horizon Tech Towers', customer_tax_id: '554-332-110', date: '2025-08-16', total_amount: 88000.00, eta_status: 'Pending Submission', eta_uuid: null, submitted_at: null },
-          { id: 3, invoice_no: 'INV-2025-003', customer_name: 'Delta Real Estate Dev', customer_tax_id: '443-221-998', date: '2025-08-15', total_amount: 52000.00, eta_status: 'Pending Submission', eta_uuid: null, submitted_at: null },
-          { id: 4, invoice_no: 'INV-2025-004', customer_name: 'Global Infra Group', customer_tax_id: '112-998-776', date: '2025-08-14', total_amount: 320000.00, eta_status: 'Rejected (Invalid Item Code)', eta_uuid: 'F8C3B111-9988-7766-5544-112233445566', submitted_at: '2025-08-14 16:10' },
-        ];
+        const res = await api.get('/invoices').catch(() => ({ data: { data: [] } }));
+        const list = res.data.data || res.data || [];
+        const mapped = list.map((inv) => ({
+          id: inv.id,
+          invoice_no: inv.invoice_number || `INV-${inv.id}`,
+          customer_name: inv.customer_name || 'Client',
+          customer_tax_id: inv.tax_number || 'N/A',
+          date: inv.created_at ? new Date(inv.created_at).toLocaleDateString() : 'N/A',
+          total_amount: parseFloat(inv.total_amount || 0),
+          eta_status: inv.eta_status || 'Pending Submission',
+          eta_uuid: inv.eta_uuid || null,
+          submitted_at: inv.eta_submitted_at || null
+        }));
         setInvoices(mapped);
       } catch (err) {
         toast.error('Failed to load ETA e-invoicing queue');

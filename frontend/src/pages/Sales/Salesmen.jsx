@@ -247,7 +247,7 @@ const Salesmen = () => {
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Full Name *</label>
                 <input
                   type="text"
-                  placeholder="e.g. Khaled Omar"
+                  placeholder="e.g. Sales Representative Name"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   style={inputStyle}

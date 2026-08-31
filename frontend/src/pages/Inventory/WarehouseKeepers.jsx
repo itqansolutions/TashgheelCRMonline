@@ -20,13 +20,28 @@ const WarehouseKeepers = () => {
   });
 
   useEffect(() => {
-    // Mock / initial data
-    setKeepers([
-      { id: 1, name: 'Ahmed Hassan', phone: '+20 100 123 4567', email: 'ahmed.h@tashgheel.com', assigned_warehouse: 'Main Central Warehouse', access_level: 'Chief Keeper', is_active: true },
-      { id: 2, name: 'Mahmoud Ali', phone: '+20 111 987 6543', email: 'mahmoud.a@tashgheel.com', assigned_warehouse: 'Retail Branch Store', access_level: 'Store Supervisor', is_active: true },
-      { id: 3, name: 'Sara Ibrahim', phone: '+20 122 345 6789', email: 'sara.i@tashgheel.com', assigned_warehouse: 'Damaged & Returns Depot', access_level: 'Stock Inspector', is_active: true },
-    ]);
-    setLoading(false);
+    const fetchKeepers = async () => {
+      setLoading(true);
+      try {
+        const res = await api.get('/users').catch(() => ({ data: { data: [] } }));
+        const users = res.data?.data || [];
+        const mapped = users.map(u => ({
+          id: u.id,
+          name: u.name,
+          phone: u.phone || 'N/A',
+          email: u.email,
+          assigned_warehouse: 'Main Warehouse',
+          access_level: u.role === 'admin' ? 'Full Manager' : 'Store Keeper',
+          is_active: u.is_working !== false
+        }));
+        setKeepers(mapped);
+      } catch (err) {
+        toast.error('Failed to load warehouse keepers');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchKeepers();
   }, []);
 
   const handleOpenModal = (k = null) => {
@@ -187,7 +202,7 @@ const WarehouseKeepers = () => {
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Full Name</label>
                   <input
                     type="text"
-                    placeholder="e.g. Ahmed Hassan"
+                    placeholder="e.g. Keeper Full Name"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     style={inputStyle}

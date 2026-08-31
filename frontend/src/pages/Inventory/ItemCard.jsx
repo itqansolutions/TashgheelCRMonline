@@ -9,24 +9,15 @@ const ItemCard = () => {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Mock product audit trail logs
-  const [auditTrail, setAuditTrail] = useState([
-    { id: 101, date: '2025-08-17 10:15', doc_no: 'PO-2025-001', type: 'Purchase Inbound', warehouse: 'Main Central Warehouse', qty_in: 500, qty_out: 0, balance: 500, unit_price: 15.00, total_val: 7500.00 },
-    { id: 102, date: '2025-08-17 11:30', doc_no: 'SO-2025-089', type: 'Sales Shipment', warehouse: 'Main Central Warehouse', qty_in: 0, qty_out: 50, balance: 450, unit_price: 15.00, total_val: 6750.00 },
-    { id: 103, date: '2025-08-16 14:20', doc_no: 'TR-2025-004', type: 'Stock Transfer Out', warehouse: 'Main Central Warehouse', qty_in: 0, qty_out: 100, balance: 350, unit_price: 15.00, total_val: 5250.00 },
-  ]);
+  // Product audit trail logs
+  const [auditTrail, setAuditTrail] = useState([]);
 
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
       try {
         const res = await api.get('/products').catch(() => ({ data: { data: [] } }));
-        const list = res.data.data || res.data || [];
-        const items = list.length > 0 ? list : [
-          { id: '1', name: 'Premium Concrete Mix (50kg)', sku: 'SKU-CONC-50', category: 'Raw Building Materials', stock_quantity: 450, cost_price: 15.00 },
-          { id: '2', name: 'Steel Rebar 12mm (Ton)', sku: 'SKU-STL-12', category: 'Metals & Steel', stock_quantity: 8, cost_price: 850.00 },
-          { id: '3', name: 'PVC Drainage Pipes 4"', sku: 'SKU-PVC-4', category: 'Plumbing & Water', stock_quantity: 180, cost_price: 12.50 },
-        ];
+        const items = res.data.data || res.data || [];
         setProducts(items);
         if (items.length > 0) setSelectedProductId(String(items[0].id));
       } catch (err) {

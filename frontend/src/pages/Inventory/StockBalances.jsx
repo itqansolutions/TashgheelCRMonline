@@ -17,22 +17,17 @@ const StockBalances = () => {
       const rawProducts = res.data.data || res.data || [];
 
       // Map to stock balance rows
-      const mapped = rawProducts.length > 0 ? rawProducts.map((p, idx) => ({
+      const mapped = rawProducts.map((p, idx) => ({
         id: p.id || idx + 1,
         sku: p.sku || `SKU-${100 + idx}`,
-        product_name: p.name || 'Sample Product',
+        product_name: p.name || 'Product',
         category: p.category || 'General',
-        warehouse: idx % 2 === 0 ? 'Main Central Warehouse' : 'Retail Branch Store',
-        on_hand: p.stock_quantity ?? (idx * 25 + 10),
-        reserved: Math.floor((p.stock_quantity || 20) * 0.2),
-        min_reorder: 15,
-        unit_cost: parseFloat(p.cost_price || p.price || 50),
-      })) : [
-        { id: 1, sku: 'SKU-CONC-50', product_name: 'Premium Concrete Mix (50kg)', category: 'Raw Building Materials', warehouse: 'Main Central Warehouse', on_hand: 450, reserved: 50, min_reorder: 100, unit_cost: 15.00 },
-        { id: 2, sku: 'SKU-STL-12', product_name: 'Steel Rebar 12mm (Ton)', category: 'Metals & Steel', warehouse: 'Main Central Warehouse', on_hand: 8, reserved: 3, min_reorder: 10, unit_cost: 850.00 },
-        { id: 3, sku: 'SKU-PVC-4', product_name: 'PVC Drainage Pipes 4"', category: 'Plumbing & Water', warehouse: 'Retail Branch Store', on_hand: 180, reserved: 20, min_reorder: 50, unit_cost: 12.50 },
-        { id: 4, sku: 'SKU-HELM-YEL', product_name: 'Safety Helmets (Yellow)', category: 'Safety Equipment', warehouse: 'Retail Branch Store', on_hand: 12, reserved: 0, min_reorder: 25, unit_cost: 8.00 },
-      ];
+        warehouse: p.warehouse_name || 'Main Warehouse',
+        on_hand: parseInt(p.stock_quantity || p.quantity || 0),
+        reserved: parseInt(p.reserved_quantity || 0),
+        min_reorder: parseInt(p.min_reorder_level || 10),
+        unit_cost: parseFloat(p.cost_price || p.price || 0),
+      }));
 
       setBalances(mapped);
     } catch (err) {

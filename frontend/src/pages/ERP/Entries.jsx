@@ -14,12 +14,17 @@ const Entries = () => {
     try {
       const res = await api.get('/accounting/journals').catch(() => ({ data: { data: [] } }));
       const data = res.data.data || res.data || [];
-      const list = data.length > 0 ? data : [
-        { id: 1, voucher_no: 'JV-2025-001', date: '2025-08-17', description: 'Opening Stock Inventory Valuation Entry', debit_sum: 50000.00, credit_sum: 50000.00, status: 'Posted', created_by: 'Admin' },
-        { id: 2, voucher_no: 'JV-2025-002', date: '2025-08-16', description: 'Monthly Office Rent & Utilities Settlement', debit_sum: 12000.00, credit_sum: 12000.00, status: 'Posted', created_by: 'Finance Officer' },
-        { id: 3, voucher_no: 'JV-2025-003', date: '2025-08-15', description: 'Accrued Employee Payroll Expense Journal', debit_sum: 35000.00, credit_sum: 35000.00, status: 'Draft', created_by: 'HR Payroll Engine' },
-      ];
-      setEntries(list);
+      const mapped = data.map(j => ({
+        id: j.id,
+        voucher_no: j.entry_number || j.voucher_no || `JV-${j.id}`,
+        date: j.entry_date ? new Date(j.entry_date).toLocaleDateString() : j.date || '',
+        description: j.description || j.title || 'Journal Voucher',
+        debit_sum: parseFloat(j.total_debit || j.debit_sum || 0),
+        credit_sum: parseFloat(j.total_credit || j.credit_sum || 0),
+        status: j.is_posted ? 'Posted' : j.status || 'Draft',
+        created_by: j.created_by_name || 'System'
+      }));
+      setEntries(mapped);
     } catch (err) {
       toast.error('Failed to load accounting entries');
     } finally {
