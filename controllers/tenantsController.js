@@ -69,7 +69,6 @@ exports.getTenantById = async (req, res) => {
 // @access  Private (Admin)
 exports.updateTenant = async (req, res) => {
   const { id } = req.params;
-  const { name, plan, status, subscription_end } = req.body;
   const tenant_id = req.user.tenant_id;
 
   // Security check
@@ -90,11 +89,11 @@ exports.updateTenant = async (req, res) => {
     
     // Extract branding/financial fields
     const { 
-      address, phone, tax_no, reg_no, logo_url, 
+      name, address, phone, tax_no, reg_no, logo_url, 
       currency, tax_rate, invoice_prefix, invoice_footer, terms,
       quotation_prefix, quotation_footer, quotation_terms,
       primary_color,
-      plan, status, subscription_end // Also support these if super admin
+      plan, status, subscription_end
     } = req.body;
 
     if (tenant_id === SYSTEM_DEFAULT_TENANT) {

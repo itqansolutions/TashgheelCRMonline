@@ -127,6 +127,7 @@ app.use('/api/rules',     moduleGuard('automation'), rulesRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/expenses', expenseRoutes);
+app.use('/api/accounting/journals', require('./routes/journalRoutes'));
 app.use('/api/accounting', accountingRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/departments', departmentRoutes);
