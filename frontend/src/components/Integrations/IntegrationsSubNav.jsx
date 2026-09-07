@@ -1,10 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Cpu, FileCheck } from 'lucide-react';
+import { Cpu, FileCheck, Share2 } from 'lucide-react';
 
 const IntegrationsSubNav = () => {
   const links = [
     { path: '/integrations/einvoice', label: 'ETA E-Invoicing', icon: <FileCheck size={16} /> },
+    { path: '/integrations/meta-forms', label: 'Meta Lead Ads (Forms)', icon: <Share2 size={16} /> },
   ];
 
   return (

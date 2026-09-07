@@ -38,6 +38,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     // Integrations group handled separately
     ...(isRealEstate ? [{ name: 'Units Registry', icon: <Building2 />, path: '/units-registry' }] : []),
     { name: 'Deals',           icon: <Handshake />,       path: '/deals' },
+    { name: 'Meta Lead Ads',   icon: <Share2 />,          path: '/integrations/meta-forms' },
     { name: 'Tasks',           icon: <CheckSquare />,     path: '/tasks' },
     { name: 'Purchasing (AP)', icon: <Package />,         path: '/erp/purchasing' },
     { name: 'Automation',      icon: <Zap />,             path: '/automation', module: 'automation' },
@@ -100,6 +101,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // Integrations sub-items
   const integrationsItems = [
     { name: 'EInvoice',           icon: <FileCheck size={18} />,     path: '/integrations/einvoice' },
+    { name: 'Meta Lead Ads',      icon: <Share2 size={18} />,        path: '/integrations/meta-forms' },
   ];
 
   const filteredItems = (navItems || []).filter(item => {

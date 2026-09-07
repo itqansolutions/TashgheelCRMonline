@@ -94,9 +94,16 @@ ZkAdmsService(app);
 const frontendPath = path.join(__dirname, 'frontend', 'dist');
 app.use('/api/auth', authRoutes);
 
+const metaRoutes = require('./routes/metaRoutes');
+const metaController = require('./controllers/metaController');
+
 // Public SaaS endpoints (no auth required)
 app.get('/api/plans', plansController.getPlans);
 app.use('/api/settings', settingsRoutes);
+
+// Public Meta Webhook Handshake & Events (no JWT auth header sent by Meta)
+app.get('/api/meta/webhook', metaController.handleWebhookVerification);
+app.post('/api/meta/webhook', metaController.handleWebhookEvent);
 
 // Protected SaaS subscription endpoint
 app.get('/api/me/subscription', authMiddleware, subscriptionGuard, plansController.getMySubscription);
@@ -111,6 +118,7 @@ app.use(express.static(frontendPath));
 app.use('/api', authMiddleware, branchScope, subscriptionGuard);
 
 app.use('/api/customers', customerRoutes);
+app.use('/api/meta', metaRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/tasks', taskRoutes);

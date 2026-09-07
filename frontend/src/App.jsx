@@ -79,6 +79,7 @@ import PriceTiers from './pages/Sales/PriceTiers';
 
 // Integrations Pages
 import EInvoice from './pages/Integrations/EInvoice';
+import MetaForms from './pages/Integrations/MetaForms';
 
 // Corporate Pages
 import CorporateLayout from './pages/Corporate/CorporateLayout';
@@ -182,6 +183,7 @@ function App() {
                   {/* Integrations Sub-Routes */}
                   <Route path="integrations" element={<Navigate to="/integrations/einvoice" replace />} />
                   <Route path="integrations/einvoice" element={<EInvoice />} />
+                  <Route path="integrations/meta-forms" element={<MetaForms />} />
                   <Route 
                     path="employees" 
                     element={
