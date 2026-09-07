@@ -24,13 +24,12 @@ async function ensureMetaFormsTable() {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT unique_tenant_form_id UNIQUE (tenant_id, form_id)
       );
-
-      CREATE INDEX IF NOT EXISTS idx_meta_forms_form_id ON meta_forms(form_id);
-      CREATE INDEX IF NOT EXISTS idx_meta_forms_tenant_id ON meta_forms(tenant_id);
-
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(120);
-      CREATE INDEX IF NOT EXISTS idx_customers_meta_lead_id ON customers(meta_lead_id);
     `);
+
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_meta_forms_form_id ON meta_forms(form_id);`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_meta_forms_tenant_id ON meta_forms(tenant_id);`);
+    await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(120);`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_customers_meta_lead_id ON customers(meta_lead_id);`);
     tableEnsured = true;
   } catch (err) {
     console.error('Error ensuring meta_forms table:', err.message);
@@ -193,7 +192,15 @@ exports.deleteMetaForm = async (req, res) => {
 exports.syncFormLeads = async (req, res) => {
   await ensureMetaFormsTable();
   const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId || req.user?.branch_id || 'default-branch';
+  // Smart branch_id fallback matching customersController
+  let branch_id = req.branchId || req.user?.branch_id;
+  if (!branch_id) {
+    try {
+      const bRes = await db.query('SELECT id FROM branches WHERE tenant_id::text = $1::text LIMIT 1', [tenant_id]);
+      if (bRes.rows.length > 0) branch_id = bRes.rows[0].id;
+    } catch (e) {}
+  }
+  if (!branch_id) branch_id = 'default-branch';
 
   try {
     // 1. Fetch form configuration
@@ -211,37 +218,53 @@ exports.syncFormLeads = async (req, res) => {
     // Check for access token: Form level token, or global settings token
     let token = form.page_access_token;
     if (!token) {
-      const globalToken = await db.query("SELECT value FROM settings WHERE key = 'meta_default_access_token'");
-      if (globalToken.rows.length > 0 && globalToken.rows[0].value) {
-        token = globalToken.rows[0].value;
-      }
+      try {
+        const globalToken = await db.query("SELECT value FROM settings WHERE key = 'meta_default_access_token'");
+        if (globalToken.rows.length > 0 && globalToken.rows[0].value) {
+          token = globalToken.rows[0].value;
+        }
+      } catch (e) {}
     }
 
     if (!token) {
       return res.status(400).json({
         status: 'error',
-        message: 'No Page Access Token configured for this form or in global Meta settings. Please provide a token.'
+        message: 'No Page Access Token found. Please enter an Access Token for this form or in Global Credentials.'
       });
     }
 
     // 2. Fetch leads from Meta Graph API
-    const metaLeads = await fetchLeadsFromMeta(form.form_id, token);
+    let metaLeads = [];
+    try {
+      metaLeads = await fetchLeadsFromMeta(form.form_id, token);
+    } catch (fetchErr) {
+      const metaErr = fetchErr.response?.data?.error?.message || fetchErr.message;
+      return res.status(400).json({
+        status: 'error',
+        message: `Meta API Error: ${metaErr}`
+      });
+    }
 
     let createdCount = 0;
     let skippedCount = 0;
 
     for (const lead of metaLeads) {
-      const result = await ingestLead({
-        lead,
-        formRecord: form,
-        tenantId: tenant_id,
-        branchId: branch_id,
-        reqUser: req.user
-      });
+      try {
+        const result = await ingestLead({
+          lead,
+          formRecord: form,
+          tenantId: tenant_id,
+          branchId: branch_id,
+          reqUser: req.user
+        });
 
-      if (result.status === 'created') {
-        createdCount++;
-      } else {
+        if (result.status === 'created') {
+          createdCount++;
+        } else {
+          skippedCount++;
+        }
+      } catch (ingestErr) {
+        console.warn('[Ingest Lead Error]', ingestErr.message);
         skippedCount++;
       }
     }
@@ -266,7 +289,7 @@ exports.syncFormLeads = async (req, res) => {
       message: `Sync complete! ${createdCount} new leads imported (${skippedCount} already existed).`
     });
   } catch (err) {
-    console.error('[syncFormLeads Error]', err.response?.data || err.message);
+    console.error('[syncFormLeads Error]', err.response?.data || err.message, err.stack);
     const metaErrorMsg = err.response?.data?.error?.message || err.message;
     res.status(500).json({
       status: 'error',
