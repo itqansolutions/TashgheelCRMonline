@@ -1,12 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const metaController = require('../controllers/metaController');
+const { authorize } = require('../middleware/roleMiddleware');
 
 // Webhook endpoints (Public - handshake verified by Meta token & payload)
 router.get('/webhook', metaController.handleWebhookVerification);
 router.post('/webhook', metaController.handleWebhookEvent);
 
-// Form Management & Sync (Protected by auth in server.js or per-route)
+// Integration configuration has access to tenant credentials and must be
+// managed only by the tenant administrator. The public webhook routes above
+// are mounted directly by server.js before this protected router.
+router.use(authorize(['admin']));
+
+// Form Management & Sync
 router.get('/forms', metaController.getMetaForms);
 router.post('/forms', metaController.createMetaForm);
 router.put('/forms/:id', metaController.updateMetaForm);

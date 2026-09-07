@@ -183,7 +183,14 @@ function App() {
                   {/* Integrations Sub-Routes */}
                   <Route path="integrations" element={<Navigate to="/integrations/einvoice" replace />} />
                   <Route path="integrations/einvoice" element={<EInvoice />} />
-                  <Route path="integrations/meta-forms" element={<MetaForms />} />
+                  <Route
+                    path="integrations/meta-forms"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <MetaForms />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route 
                     path="employees" 
                     element={

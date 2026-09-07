@@ -20,7 +20,15 @@ app.use(cors({
 }));
 const { tracingMiddleware } = require('./src/infrastructure/observability/tracer');
 app.use(morgan('dev'));
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buffer) => {
+    // Meta signs the exact request body. Keep the raw bytes only for its
+    // webhook endpoint so the controller can verify X-Hub-Signature-256.
+    if (req.originalUrl.startsWith('/api/meta/webhook')) {
+      req.rawBody = Buffer.from(buffer);
+    }
+  }
+}));
 app.use(tracingMiddleware);
 
 // Serve static files from uploads folder

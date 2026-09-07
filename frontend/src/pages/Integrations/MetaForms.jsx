@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { 
-  Share2, Plus, RefreshCw, Trash2, Edit2, CheckCircle2, 
-  AlertCircle, ShieldCheck, Key, Settings, HelpCircle, User,
-  Calendar, Layers, DownloadCloud, ExternalLink
+  Share2, Plus, RefreshCw, Trash2, Edit2, ShieldCheck, Key, Settings, User,
+  Calendar, ExternalLink
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 
@@ -33,26 +32,33 @@ const MetaForms = () => {
   // Global Settings State
   const [metaSettings, setMetaSettings] = useState({
     meta_app_id: '',
-    meta_webhook_verify_token: 'tashgheel_meta_lead_token',
+    meta_app_secret: '',
+    meta_webhook_verify_token: '',
     meta_default_access_token: '',
-    has_default_access_token: false
+    has_default_access_token: false,
+    has_app_secret: false
   });
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const [formsRes, sourcesRes, usersRes, settingsRes] = await Promise.all([
-        api.get('/meta/forms').catch(() => ({ data: { data: [] } })),
-        api.get('/lead-sources').catch(() => ({ data: { data: [] } })),
-        api.get('/users').catch(() => ({ data: { data: [] } })),
-        api.get('/meta/settings').catch(() => ({ data: { data: {} } }))
+        api.get('/meta/forms'),
+        api.get('/lead-sources'),
+        api.get('/users'),
+        api.get('/meta/settings')
       ]);
 
       setForms(formsRes.data.data || []);
       setLeadSources(sourcesRes.data.data || []);
       setUsers(usersRes.data.data || []);
       if (settingsRes.data.data) {
-        setMetaSettings(prev => ({ ...prev, ...settingsRes.data.data }));
+        setMetaSettings(prev => ({
+          ...prev,
+          ...settingsRes.data.data,
+          meta_app_secret: '',
+          meta_default_access_token: ''
+        }));
       }
     } catch (err) {
       toast.error('Failed to load Meta integration data');
@@ -146,6 +152,11 @@ const MetaForms = () => {
     try {
       await api.post('/meta/settings', metaSettings);
       toast.success('Meta Integration settings saved');
+      setMetaSettings(prev => ({
+        ...prev,
+        meta_app_secret: '',
+        meta_default_access_token: ''
+      }));
       setShowSettingsModal(false);
       fetchData();
     } catch (err) {
@@ -192,7 +203,7 @@ const MetaForms = () => {
                 borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '13px'
               }}
             >
-              <Settings size={16} /> Webhook & Global Credentials
+              <Settings size={16} /> Webhook & Organization Credentials
             </button>
 
             <button
@@ -218,12 +229,12 @@ const MetaForms = () => {
                 <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1e40af' }}>
                   Two Ingestion Channels: Instant Webhooks & On-Demand Sync
                 </h4>
-                <span style={{ padding: '2px 8px', borderRadius: '12px', background: '#dcfce7', color: '#15803d', fontSize: '11px', fontWeight: 800 }}>
-                  ● Active
+                <span style={{ padding: '2px 8px', borderRadius: '12px', background: metaSettings.has_app_secret ? '#dcfce7' : '#fef3c7', color: metaSettings.has_app_secret ? '#15803d' : '#a16207', fontSize: '11px', fontWeight: 800 }}>
+                  {metaSettings.has_app_secret ? '● Signature protected' : '● Webhook setup required'}
                 </span>
               </div>
               <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#3b82f6', lineHeight: 1.4 }}>
-                Add your <strong>Meta Form ID</strong> below. You can click <strong>"Sync Leads"</strong> anytime to fetch previous leads, or configure your Meta App Webhook to receive incoming leads in real-time.
+                Add your <strong>Meta Form ID</strong> below. You can click <strong>&quot;Sync Leads&quot;</strong> anytime to fetch previous leads, or configure your Meta App Webhook to receive incoming leads in real-time.
               </p>
             </div>
           </div>
@@ -240,7 +251,7 @@ const MetaForms = () => {
         </div>
 
         {/* Forms Table */}
-        <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+        <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflowX: 'auto', overflowY: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>
               Connected Meta Form IDs ({forms.length})
@@ -280,7 +291,7 @@ const MetaForms = () => {
               </button>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <table style={{ width: '100%', minWidth: '900px', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Form Name & ID</th>
@@ -504,7 +515,7 @@ const MetaForms = () => {
             <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '560px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
               <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  Meta Integration & Webhook Credentials
+                  Meta Integration & Webhook Credentials for This Organization
                 </h3>
                 <button onClick={() => setShowSettingsModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>✕</button>
               </div>
@@ -536,13 +547,13 @@ const MetaForms = () => {
                     style={inputStyle}
                   />
                   <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                    Copy this verify token into Meta App Dashboard under <strong>Webhooks &rarr; Page &rarr; Verify Token</strong>.
+                    Use a unique token for this organization and copy it into Meta App Dashboard under <strong>Webhooks &rarr; Page &rarr; Verify Token</strong>.
                   </span>
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                    Default Meta Page Access Token (Permanent)
+                    Organization Default Meta Page Access Token
                   </label>
                   <input
                     type="password"
@@ -552,7 +563,7 @@ const MetaForms = () => {
                     style={inputStyle}
                   />
                   <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
-                    Used by default for all form syncs if a form-specific token is not provided.
+                    Used only by this organization when a form-specific token is not provided.
                   </span>
                 </div>
 
@@ -567,6 +578,23 @@ const MetaForms = () => {
                     onChange={(e) => setMetaSettings({ ...metaSettings, meta_app_id: e.target.value })}
                     style={inputStyle}
                   />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                    Meta App Secret {metaSettings.has_app_secret ? '(configured)' : '(required for real-time webhooks)'}
+                  </label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={metaSettings.has_app_secret ? '•••••••••••••••• (leave blank to keep current secret)' : 'Enter the Meta App Secret'}
+                    value={metaSettings.meta_app_secret}
+                    onChange={(e) => setMetaSettings({ ...metaSettings, meta_app_secret: e.target.value })}
+                    style={inputStyle}
+                  />
+                  <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                    Used to verify that webhook events genuinely come from Meta before leads are imported.
+                  </span>
                 </div>
 
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>

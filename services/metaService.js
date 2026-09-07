@@ -117,8 +117,10 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
     if (checkDuplicate.rows.length > 0) {
       // Update meta_lead_id if missing
       await db.query(
-        'UPDATE customers SET meta_lead_id = COALESCE(meta_lead_id, $1) WHERE id = $2',
-        [metaLeadId, checkDuplicate.rows[0].id]
+        `UPDATE customers
+         SET meta_lead_id = COALESCE(meta_lead_id, $1)
+         WHERE id = $2 AND tenant_id::text = $3::text`,
+        [metaLeadId, checkDuplicate.rows[0].id, tenantId]
       );
       return { status: 'skipped', reason: 'duplicate_contact', customer: checkDuplicate.rows[0] };
     }

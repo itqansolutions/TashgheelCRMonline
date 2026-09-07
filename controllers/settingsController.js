@@ -1,12 +1,25 @@
 const db = require('../config/db');
 const { logAction, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 
+// Meta credentials used to be stored here. Keep legacy records out of this
+// shared settings API so they cannot be disclosed through public branding
+// reads or reintroduced by the generic settings editor.
+const LEGACY_META_CREDENTIAL_KEYS = [
+  'meta_default_access_token',
+  'meta_webhook_verify_token',
+  'meta_app_id',
+  'meta_app_secret'
+];
+
 // @desc    Get all global settings
 // @route   GET /api/settings
 // @access  Private (Admin)
 exports.getSettings = async (req, res) => {
   try {
-    const result = await db.query('SELECT key, value FROM settings');
+    const result = await db.query(
+      'SELECT key, value FROM settings WHERE NOT (key = ANY($1))',
+      [LEGACY_META_CREDENTIAL_KEYS]
+    );
     // Convert array of {key, value} to single object { [key]: value }
     const settingsMap = result.rows.reduce((acc, row) => {
       acc[row.key] = row.value;
@@ -28,6 +41,13 @@ exports.updateSettings = async (req, res) => {
   
   if (req.user.role !== 'admin') {
     return res.status(403).json({ status: 'error', message: 'Not authorized' });
+  }
+
+  if (Object.keys(settings).some((key) => LEGACY_META_CREDENTIAL_KEYS.includes(key))) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Meta credentials must be managed from the Meta Lead Ads integration page'
+    });
   }
 
   try {
