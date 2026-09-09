@@ -3,21 +3,20 @@ const { logCreate, logUpdate, logDelete } = require('../services/loggerService')
 const { logActivity } = require('../utils/activityLogger');
 
 // Ensure customer columns exist to prevent missing-column 500 crashes
+// NOTE: node-postgres (pg) does NOT support multiple SQL statements in one
+// db.query() call — each ALTER TABLE must be a separate await.
 let customerColumnsEnsured = false;
 async function ensureCustomerColumns() {
   if (customerColumnsEnsured) return;
-  try {
-    await db.query(`
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS source VARCHAR(100) DEFAULT 'Direct';
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT;
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_name VARCHAR(255);
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_id VARCHAR(120);
-      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(120);
-    `);
-    customerColumnsEnsured = true;
-  } catch (e) {
-    console.warn('[Customers] Ensure columns warning:', e.message);
-  }
+  const run = async (sql) => {
+    try { await db.query(sql); } catch (e) { /* column already exists */ }
+  };
+  await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS source VARCHAR(100) DEFAULT 'Direct'`);
+  await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT`);
+  await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_name VARCHAR(255)`);
+  await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_id VARCHAR(120)`);
+  await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(120)`);
+  customerColumnsEnsured = true;
 }
 
 // @desc    Get all customers
