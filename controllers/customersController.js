@@ -46,7 +46,7 @@ exports.getCustomers = async (req, res) => {
     LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
     LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
     WHERE c.tenant_id::text = $1::text 
-      AND (c.branch_id::text = $2::text OR c.branch_id IS NULL OR c.branch_id = 'default-branch')
+      AND (c.branch_id::text = $2::text OR c.branch_id IS NULL OR c.branch_id::text = 'default-branch')
   `;
   const params = [tenant_id, branch_id];
   let paramIdx = 3;

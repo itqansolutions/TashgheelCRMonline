@@ -222,6 +222,8 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
       RETURNING *
     `;
 
+    const safeBranchId = (branchId && branchId !== 'default-branch') ? branchId : null;
+
     const updated = await db.query(updateQuery, [
       parsed.phone || null,
       parsed.company_name || null,
@@ -231,7 +233,7 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
       metaLeadId || null,
       formRecord.form_name || null,
       String(formRecord.form_id || '').trim(),
-      branchId || null,
+      safeBranchId,
       tenantId || null,
       existingCustomer.id
     ]);
@@ -249,6 +251,8 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
     RETURNING *
   `;
 
+  const safeBranchId = (branchId && branchId !== 'default-branch') ? branchId : null;
+
   const values = [
     parsed.full_name,
     parsed.company_name || null,
@@ -261,7 +265,7 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
     assignedTo,
     'lead',
     tenantId,
-    branchId || 'default-branch',
+    safeBranchId,
     'customer',
     true,
     metaLeadId || null,
