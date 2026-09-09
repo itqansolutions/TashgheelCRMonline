@@ -9,7 +9,7 @@ let customerColumnsEnsured = false;
 async function ensureCustomerColumns() {
   if (customerColumnsEnsured) return;
   const run = async (sql) => {
-    try { await db.query(sql); } catch (e) { /* column already exists */ }
+    try { await db.query(sql); } catch (e) { /* ignore – column already exists */ }
   };
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS source VARCHAR(100) DEFAULT 'Direct'`);
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT`);
@@ -17,6 +17,7 @@ async function ensureCustomerColumns() {
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_id VARCHAR(120)`);
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(120)`);
   customerColumnsEnsured = true;
+  console.log('[Customers] Column guard done.');
 }
 
 // @desc    Get all customers
@@ -32,65 +33,66 @@ exports.getCustomers = async (req, res) => {
     return res.json({ status: 'success', data: [] });
   }
 
+  // Run column guard (best-effort – errors are swallowed inside run())
   await ensureCustomerColumns();
 
+  // Declare query OUTSIDE try so the catch block can log it
+  let query = `
+    SELECT 
+      c.*, 
+      COALESCE(u.name, 'Unassigned') as assigned_to_name,
+      COALESCE(ls.name, 'Direct') as source_name
+    FROM customers c
+    LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
+    LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
+    WHERE c.tenant_id::text = $1::text 
+      AND (c.branch_id::text = $2::text OR c.branch_id IS NULL OR c.branch_id = 'default-branch')
+  `;
+  const params = [tenant_id, branch_id];
+  let paramIdx = 3;
+
+  // Dynamic Filters (Sanitized to prevent "invalid input syntax for type integer: '' ")
+  if (req.query.source_id && req.query.source_id.trim() !== '') {
+      query += ` AND c.source_id = $${paramIdx++}`;
+      params.push(parseInt(req.query.source_id));
+  }
+  if (req.query.meta_form_id && req.query.meta_form_id.trim() !== '') {
+      query += ` AND (c.meta_form_id = $${paramIdx} OR c.meta_form_name = $${paramIdx})`;
+      params.push(req.query.meta_form_id.trim());
+      paramIdx++;
+  }
+  if (req.query.entity_type && req.query.entity_type.trim() !== '') {
+      query += ` AND c.entity_type = $${paramIdx++}`;
+      params.push(req.query.entity_type);
+  }
+  if (req.query.budget_min && req.query.budget_min !== '') {
+      query += ` AND c.budget_min >= $${paramIdx++}`;
+      params.push(req.query.budget_min);
+  }
+  if (req.query.budget_max && req.query.budget_max !== '' && Number(req.query.budget_max) > 0) {
+      query += ` AND c.budget_max <= $${paramIdx++}`;
+      params.push(req.query.budget_max);
+  }
+  if (req.query.preferred_rooms && req.query.preferred_rooms !== '') {
+      query += ` AND c.preferred_rooms = $${paramIdx++}`;
+      params.push(parseInt(req.query.preferred_rooms));
+  }
+  if (req.query.preferred_location && req.query.preferred_location.trim() !== '') {
+      query += ` AND c.preferred_location LIKE $${paramIdx++}`;
+      params.push(`%${req.query.preferred_location}%`);
+  }
+  if (req.query.manager_id && req.query.manager_id !== '') {
+      query += ` AND c.manager_id = $${paramIdx++}`;
+      params.push(req.query.manager_id);
+  }
+  if (req.query.unassigned === 'true') {
+      query += ` AND (c.manager_id IS NULL OR c.manager_id = '')`;
+  }
+
+  query += ` ORDER BY c.created_at DESC`;
+
   try {
-    let query = `
-      SELECT 
-        c.*, 
-        COALESCE(u.name, 'Unassigned') as assigned_to_name,
-        COALESCE(ls.name, c.source, 'Direct') as source_name
-      FROM customers c
-      LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
-      LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
-      WHERE c.tenant_id::text = $1::text 
-        AND (c.branch_id::text = $2::text OR c.branch_id IS NULL OR c.branch_id = 'default-branch')
-    `;
-    const params = [tenant_id, branch_id];
-    let paramIdx = 3;
-
-    // Dynamic Filters (Sanitized to prevent "invalid input syntax for type integer: '' ")
-    if (req.query.source_id && req.query.source_id.trim() !== '') {
-        query += ` AND c.source_id = $${paramIdx++}`;
-        params.push(parseInt(req.query.source_id));
-    }
-    if (req.query.meta_form_id && req.query.meta_form_id.trim() !== '') {
-        query += ` AND (c.meta_form_id = $${paramIdx} OR c.meta_form_name = $${paramIdx})`;
-        params.push(req.query.meta_form_id.trim());
-        paramIdx++;
-    }
-    if (req.query.entity_type && req.query.entity_type.trim() !== '') {
-        query += ` AND c.entity_type = $${paramIdx++}`;
-        params.push(req.query.entity_type);
-    }
-    if (req.query.budget_min && req.query.budget_min !== '') {
-        query += ` AND c.budget_min >= $${paramIdx++}`;
-        params.push(req.query.budget_min);
-    }
-    if (req.query.budget_max && req.query.budget_max !== '' && Number(req.query.budget_max) > 0) {
-        query += ` AND c.budget_max <= $${paramIdx++}`;
-        params.push(req.query.budget_max);
-    }
-    if (req.query.preferred_rooms && req.query.preferred_rooms !== '') {
-        query += ` AND c.preferred_rooms = $${paramIdx++}`;
-        params.push(parseInt(req.query.preferred_rooms));
-    }
-    if (req.query.preferred_location && req.query.preferred_location.trim() !== '') {
-        query += ` AND c.preferred_location LIKE $${paramIdx++}`;
-        params.push(`%${req.query.preferred_location}%`);
-    }
-    if (req.query.manager_id && req.query.manager_id !== '') {
-        query += ` AND c.manager_id = $${paramIdx++}`;
-        params.push(req.query.manager_id);
-    }
-    if (req.query.unassigned === 'true') {
-        query += ` AND (c.manager_id IS NULL OR c.manager_id = '')`;
-    }
-
-    query += ` ORDER BY c.created_at DESC`;
-
     const result = await db.query(query, params);
-    
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error('[Customers API Error]', {
@@ -98,7 +100,7 @@ exports.getCustomers = async (req, res) => {
       stack: err.stack,
       tenantId: tenant_id,
       branchId: branch_id,
-      query: query
+      queryPreview: query.substring(0, 300)
     });
     res.status(500).json({ status: 'error', message: `Database resolution failed: ${err.message}`, data: [] });
   }
@@ -122,7 +124,7 @@ exports.getCustomerById = async (req, res) => {
       SELECT 
         c.*, 
         COALESCE(u.name, 'Unassigned') as assigned_to_name,
-        COALESCE(ls.name, c.source, 'Direct') as source_name
+        COALESCE(ls.name, 'Direct') as source_name
       FROM customers c
       LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
       LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
