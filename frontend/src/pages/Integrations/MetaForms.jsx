@@ -145,7 +145,7 @@ const MetaForms = () => {
     try {
       const res = await api.post(`/meta/forms/${id}/sync`);
       const { created, updated, skipped } = res.data.data || {};
-      toast.success(`تمت المزامنة بنجاح "${formName}": تم استيراد ${created || 0} عميل جديد، وتحديث ${updated || 0} عميل سابق!`, { duration: 5000 });
+      toast.success(`Successfully synced "${formName}": ${created || 0} new leads imported, ${updated || 0} existing leads updated!`, { duration: 5000 });
       fetchData();
     } catch (err) {
       const msg = err.response?.data?.message || 'Lead sync failed. Check your Access Token.';
@@ -387,10 +387,10 @@ const MetaForms = () => {
                               cursor: 'pointer', fontSize: '12px',
                               display: 'inline-flex', alignItems: 'center', gap: '5px'
                             }}
-                            title="عرض العملاء المسجلين لهذا النموذج"
+                            title="View leads registered for this form"
                           >
                             <Users size={14} />
-                            العملاء ({form.lead_count || 0})
+                            Leads ({form.lead_count || 0})
                           </button>
 
                           <button
@@ -402,7 +402,7 @@ const MetaForms = () => {
                               cursor: isSyncing ? 'not-allowed' : 'pointer', fontSize: '12px',
                               display: 'inline-flex', alignItems: 'center', gap: '5px'
                             }}
-                            title="تنزيل الليدز مباشرة من فيسبوك"
+                            title="Download leads directly from Meta"
                           >
                             <RefreshCw size={13} className={isSyncing ? 'spin' : ''} />
                             {isSyncing ? 'Syncing...' : 'Sync Leads'}
@@ -411,7 +411,7 @@ const MetaForms = () => {
                           <button
                             onClick={() => handleOpenAddModal(form)}
                             style={{ padding: '6px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
-                            title="تعديل النموذج"
+                            title="Edit form configuration"
                           >
                             <Edit2 size={14} />
                           </button>
@@ -419,7 +419,7 @@ const MetaForms = () => {
                           <button
                             onClick={() => handleDeleteForm(form.id, form.form_name)}
                             style={{ padding: '6px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
-                            title="حذف النموذج"
+                            title="Delete form"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -666,14 +666,14 @@ const MetaForms = () => {
                   </div>
                   <div>
                     <h3 style={{ margin: 0, color: 'white', fontSize: '17px', fontWeight: 800 }}>
-                      عملاء النموذج: {viewingFormLeads.form_name}
+                      Form Leads: {viewingFormLeads.form_name}
                     </h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
                       <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '12px' }}>
                         ID: {viewingFormLeads.form_id}
                       </span>
                       <span style={{ background: 'rgba(255,255,255,0.25)', color: 'white', padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>
-                        {formCustomers.length} عميل
+                        {formCustomers.length} Leads
                       </span>
                     </div>
                   </div>
@@ -692,7 +692,7 @@ const MetaForms = () => {
                   <Search size={16} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                   <input
                     type="text"
-                    placeholder="بحث في عملاء هذا النموذج بالاسم، الهاتف، أو الملاحظات..."
+                    placeholder="Search form leads by name, phone, email, or notes..."
                     value={leadsSearch}
                     onChange={(e) => setLeadsSearch(e.target.value)}
                     style={{ ...inputStyle, paddingRight: '36px', background: 'white' }}
@@ -705,9 +705,9 @@ const MetaForms = () => {
                     borderRadius: '10px', fontWeight: 800, fontSize: '12px', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
                   }}
-                  title="تصدير عملاء هذا النموذج إلى إكسيل"
+                  title="Export leads to Excel"
                 >
-                  <Download size={14} /> تصدير إكسيل
+                  <Download size={14} /> Export Excel
                 </button>
                 <button
                   onClick={() => handleSyncForm(viewingFormLeads.id, viewingFormLeads.form_name).then(() => handleOpenFormLeads(viewingFormLeads))}
@@ -717,7 +717,7 @@ const MetaForms = () => {
                     display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
                   }}
                 >
-                  <RefreshCw size={13} /> تحديث / Sync
+                  <RefreshCw size={13} /> Refresh / Sync
                 </button>
               </div>
 
@@ -725,27 +725,27 @@ const MetaForms = () => {
               <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 20px 24px' }}>
                 {loadingFormCustomers ? (
                   <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
-                    جاري تحميل العملاء...
+                    Loading leads...
                   </div>
                 ) : formCustomers.length === 0 ? (
                   <div style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
                     <Users size={36} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
                     <h4 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                      لم يتم سحب أي عميل لهذا النموذج حتى الآن
+                      No leads retrieved for this form yet
                     </h4>
                     <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#64748b' }}>
-                      تأكد من وجود ليدز مسجلة على فيسبوك ثم اضغط على زر &quot;Sync Leads&quot;.
+                      Ensure leads exist in Meta Ads Manager and click &quot;Sync Leads&quot;.
                     </p>
                   </div>
                 ) : (
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginTop: '12px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>الاسم</th>
-                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>رقم الهاتف</th>
-                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>الشركة / الوظيفة</th>
-                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>تاريخ الإرسال</th>
-                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', textAlign: 'center' }}>التفاصيل</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Name</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Phone Number</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Company / Position</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Submitted Date</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', textAlign: 'center' }}>Details</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -787,7 +787,7 @@ const MetaForms = () => {
                                   cursor: 'pointer'
                                 }}
                               >
-                                إجابات النموذج
+                                Form Responses
                               </button>
                             </td>
                           </tr>
@@ -801,17 +801,17 @@ const MetaForms = () => {
                   <div style={{ marginTop: '16px', padding: '16px', background: '#f0f9ff', borderRadius: '12px', border: '1.5px solid #bae6fd' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                       <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#0369a1' }}>
-                        📋 إجابات النموذج للعميل: {selectedLeadDetails.name} ({selectedLeadDetails.phone || 'بدون هاتف'})
+                        📋 Form Responses: {selectedLeadDetails.name} ({selectedLeadDetails.phone || 'No phone'})
                       </h4>
                       <button
                         onClick={() => setSelectedLeadDetails(null)}
                         style={{ background: 'none', border: 'none', color: '#0369a1', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
                       >
-                        إغلاق ✕
+                        Close ✕
                       </button>
                     </div>
                     <div style={{ whiteSpace: 'pre-wrap', fontSize: '13px', color: '#334155', lineHeight: 1.6, background: 'white', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                      {selectedLeadDetails.notes || 'لا توجد ملاحظات إضافية لهذا العميل.'}
+                      {selectedLeadDetails.notes || 'No additional notes available for this lead.'}
                     </div>
                   </div>
                 )}
@@ -823,7 +823,7 @@ const MetaForms = () => {
                   onClick={() => { setViewingFormLeads(null); setSelectedLeadDetails(null); }}
                   style={{ padding: '9px 20px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
                 >
-                  إغلاق
+                  Close
                 </button>
               </div>
             </div>
