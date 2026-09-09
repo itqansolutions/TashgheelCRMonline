@@ -49,6 +49,7 @@ async function ensureMetaFormsTable() {
       ON meta_integration_settings (meta_webhook_verify_token)
       WHERE meta_webhook_verify_token IS NOT NULL AND meta_webhook_verify_token <> '';
     `);
+    await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS source VARCHAR(100) DEFAULT 'Direct';`);
     await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(120);`);
     await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT;`);
     await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_name VARCHAR(255);`);
@@ -674,3 +675,5 @@ exports.handleWebhookEvent = async (req, res) => {
     }
   }
 };
+
+exports.ensureMetaFormsTable = ensureMetaFormsTable;

@@ -2,6 +2,24 @@ const db = require('../config/db');
 const { logCreate, logUpdate, logDelete } = require('../services/loggerService');
 const { logActivity } = require('../utils/activityLogger');
 
+// Ensure customer columns exist to prevent missing-column 500 crashes
+let customerColumnsEnsured = false;
+async function ensureCustomerColumns() {
+  if (customerColumnsEnsured) return;
+  try {
+    await db.query(`
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS source VARCHAR(100) DEFAULT 'Direct';
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_name VARCHAR(255);
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_id VARCHAR(120);
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(120);
+    `);
+    customerColumnsEnsured = true;
+  } catch (e) {
+    console.warn('[Customers] Ensure columns warning:', e.message);
+  }
+}
+
 // @desc    Get all customers
 // @route   GET /api/customers
 // @access  Private
@@ -14,6 +32,8 @@ exports.getCustomers = async (req, res) => {
     console.warn('[Customers API] Warning: Branch context missing, returning empty set.', { tenant_id });
     return res.json({ status: 'success', data: [] });
   }
+
+  await ensureCustomerColumns();
 
   try {
     let query = `
@@ -96,6 +116,8 @@ exports.getCustomerById = async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Branch context required for this operation.' });
   }
 
+  await ensureCustomerColumns();
+
   try {
     const result = await db.query(`
       SELECT 
@@ -129,6 +151,7 @@ exports.createCustomer = async (req, res) => {
   } = req.body;
   const tenant_id = req.user.tenant_id;
   try {
+    await ensureCustomerColumns();
     // Triple Isolation: Inject branch_id with Smart Fallback
     const branch_id = req.branchId || req.user?.branch_id;
 
@@ -183,6 +206,7 @@ exports.updateCustomer = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
   try {
+    await ensureCustomerColumns();
     // 1. Get old data for diffing & security check (Triple Isolation)
     const oldResult = await db.query('SELECT * FROM customers WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
     if (oldResult.rows.length === 0) {

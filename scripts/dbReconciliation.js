@@ -121,7 +121,7 @@ const reconcileDatabase = async () => {
             await db.query(`ALTER TABLE user_access ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255)`);
             await db.query(`ALTER TABLE user_access ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
 
-            // Real Estate Extended Columns
+            // Real Estate & Meta Ads Extended Columns
             await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS entity_type VARCHAR(50) DEFAULT 'customer'`);
             await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS budget_min NUMERIC DEFAULT 0`);
             await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS budget_max NUMERIC DEFAULT 0`);
@@ -129,6 +129,11 @@ const reconcileDatabase = async () => {
             await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_area_max NUMERIC DEFAULT 0`);
             await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_location TEXT`);
             await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS preferred_rooms INTEGER DEFAULT 0`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS source VARCHAR(100) DEFAULT 'Direct'`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_name VARCHAR(255)`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_id VARCHAR(120)`);
+            await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(120)`);
 
             // Quotation System Schema
             await db.query(`

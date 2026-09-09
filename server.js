@@ -318,6 +318,13 @@ app.listen(PORT, '0.0.0.0', async () => {
     await execSql(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS reg_no VARCHAR(100);`, 'customers.reg_no');
     await execSql(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;`, 'customers.is_active');
     await execSql(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_blacklisted BOOLEAN DEFAULT FALSE;`, 'customers.is_blacklisted');
+    await execSql(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS source VARCHAR(100) DEFAULT 'Direct';`, 'customers.source');
+    await execSql(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT;`, 'customers.notes');
+    await execSql(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_name VARCHAR(255);`, 'customers.meta_form_name');
+    await execSql(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_id VARCHAR(120);`, 'customers.meta_form_id');
+    await execSql(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(120);`, 'customers.meta_lead_id');
+    await execSql(`CREATE INDEX IF NOT EXISTS idx_customers_meta_lead_id ON customers(meta_lead_id);`, 'idx_customers_meta_lead_id');
+    await execSql(`CREATE INDEX IF NOT EXISTS idx_customers_meta_form_id ON customers(meta_form_id);`, 'idx_customers_meta_form_id');
 
     // 4. Users HR extra fields
     await execSql(`ALTER TABLE users ADD COLUMN IF NOT EXISTS national_id VARCHAR(50);`, 'users.national_id');
@@ -496,6 +503,9 @@ app.listen(PORT, '0.0.0.0', async () => {
     `, 'sales_price_tiers table');
 
     await reconcileDatabase();
+    if (metaController && metaController.ensureMetaFormsTable) {
+      await metaController.ensureMetaFormsTable();
+    }
     
     // 🚀 Initialize Enterprise Event Bus, Event Store & Outbox Engine
     eventBus.setEventStore(eventStoreRepository);
