@@ -336,18 +336,9 @@ exports.deleteMetaForm = async (req, res) => {
 exports.syncFormLeads = async (req, res) => {
   await ensureMetaFormsTable();
   const tenant_id = req.user.tenant_id;
-  // Smart branch_id fallback matching customersController
-  let branch_id = req.branchId || req.user?.branch_id;
-  if (!branch_id) {
-    try {
-      const bRes = await db.query('SELECT id FROM branches WHERE tenant_id::text = $1::text LIMIT 1', [tenant_id]);
-      if (bRes.rows.length > 0) branch_id = bRes.rows[0].id;
-    } catch (e) {}
-  }
-  if (!branch_id) branch_id = 'default-branch';
 
   try {
-    // 1. Fetch form configuration
+    // 1. Fetch form configuration FIRST — we need form.branch_id before resolving branch
     const formRes = await db.query(
       'SELECT * FROM meta_forms WHERE id = $1 AND tenant_id::text = $2::text',
       [req.params.id, tenant_id]
@@ -358,6 +349,24 @@ exports.syncFormLeads = async (req, res) => {
     }
 
     const form = formRes.rows[0];
+
+    // 2. Branch resolution: form's stored branch → current request → tenant's main branch
+    //    Using form.branch_id ensures leads always land in the branch configured for this form,
+    //    regardless of which branch the requesting user currently has active.
+    let branch_id = form.branch_id || req.branchId || req.user?.branch_id;
+    if (!branch_id || branch_id === 'default-branch') {
+      try {
+        const bRes = await db.query(
+          `SELECT id FROM branches WHERE tenant_id::text = $1::text
+           ORDER BY is_main DESC NULLS LAST, created_at ASC LIMIT 1`,
+          [tenant_id]
+        );
+        if (bRes.rows.length > 0) branch_id = bRes.rows[0].id;
+      } catch (e) {}
+    }
+    if (!branch_id) branch_id = 'default-branch';
+
+    console.log(`[Meta Sync] Form ${form.form_id} | tenant=${tenant_id} | branch=${branch_id}`);
 
     // Check for a form-level token, or this tenant's default token.
     let token = form.page_access_token;
