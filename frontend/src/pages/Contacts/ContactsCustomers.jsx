@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Users, Phone, MapPin, Hash, FileText, Search, CheckCircle, XCircle, AlertTriangle, Printer, X, ChevronDown, Eye } from 'lucide-react';
+import { Plus, Users, Phone, MapPin, Hash, FileText, Search, CheckCircle, XCircle, AlertTriangle, Printer, X, ChevronDown, Eye, Download } from 'lucide-react';
 import { useData } from '../../context/DataContext';
+import { exportCustomersToExcel } from '../../utils/excelExport';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US') : '—';
@@ -252,9 +253,22 @@ const ContactsCustomers = () => {
             {filtered.length} customers {filterStatus !== 'all' ? `(${filterStatus === 'active' ? 'Active' : 'Blacklisted'})` : ''}
           </p>
         </div>
-        <button onClick={openAdd} style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none', borderRadius: '12px', padding: '12px 22px', cursor: 'pointer', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 15px rgba(79,70,229,0.35)' }}>
-          <Plus size={18} /> Add Customer
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button 
+            onClick={() => exportCustomersToExcel(filtered, `customers_${new Date().toISOString().slice(0,10)}`)}
+            style={{ 
+              background: '#ecfdf5', color: '#059669', border: '1.5px solid #a7f3d0', 
+              borderRadius: '12px', padding: '12px 20px', cursor: 'pointer', 
+              fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' 
+            }}
+            title="Export filtered customers to Excel"
+          >
+            <Download size={18} /> Export Excel
+          </button>
+          <button onClick={openAdd} style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none', borderRadius: '12px', padding: '12px 22px', cursor: 'pointer', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 15px rgba(79,70,229,0.35)' }}>
+            <Plus size={18} /> Add Customer
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

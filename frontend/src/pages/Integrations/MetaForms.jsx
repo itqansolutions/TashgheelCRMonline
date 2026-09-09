@@ -3,9 +3,10 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { 
   Share2, Plus, RefreshCw, Trash2, Edit2, ShieldCheck, Key, Settings, User,
-  Calendar, ExternalLink, Users, Eye, Search, X
+  Calendar, ExternalLink, Users, Eye, Search, X, Download
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
+import { exportCustomersToExcel } from '../../utils/excelExport';
 
 const MetaForms = () => {
   const [forms, setForms] = useState([]);
@@ -697,6 +698,17 @@ const MetaForms = () => {
                     style={{ ...inputStyle, paddingRight: '36px', background: 'white' }}
                   />
                 </div>
+                <button
+                  onClick={() => exportCustomersToExcel(formCustomers, `meta_leads_${viewingFormLeads.form_name || viewingFormLeads.form_id}_${new Date().toISOString().slice(0,10)}`)}
+                  style={{
+                    padding: '9px 16px', background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0',
+                    borderRadius: '10px', fontWeight: 800, fontSize: '12px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
+                  }}
+                  title="تصدير عملاء هذا النموذج إلى إكسيل"
+                >
+                  <Download size={14} /> تصدير إكسيل
+                </button>
                 <button
                   onClick={() => handleSyncForm(viewingFormLeads.id, viewingFormLeads.form_name).then(() => handleOpenFormLeads(viewingFormLeads))}
                   style={{

@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, User, Building, Mail, Phone, MapPin } from 'lucide-react';
+import { Plus, User, Building, Mail, Phone, MapPin, Download } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 import FileUploader from '../components/Common/FileUploader';
 import ActivityTimeline from '../components/Common/ActivityTimeline';
+import { exportCustomersToExcel } from '../utils/excelExport';
 
 import { useAuth } from '../context/AuthContext';
 
@@ -283,10 +284,23 @@ const Customers = () => {
               : 'Manage your leads and active clients.'}
           </p>
         </div>
-        <button label="add customer control" className="btn-add" onClick={() => handleOpenModal()}>
-          <Plus size={20} />
-          {isRealEstate ? 'Add New Lead / Vendor' : 'Add Customer'}
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button 
+            onClick={() => exportCustomersToExcel(filteredCustomers, `customers_${new Date().toISOString().slice(0,10)}`)}
+            style={{
+              background: '#ecfdf5', color: '#059669', border: '1.5px solid #a7f3d0',
+              padding: '10px 18px', borderRadius: '8px', display: 'flex', alignItems: 'center',
+              gap: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '13px'
+            }}
+            title="Export filtered customers to Excel"
+          >
+            <Download size={18} /> Export Excel
+          </button>
+          <button label="add customer control" className="btn-add" onClick={() => handleOpenModal()}>
+            <Plus size={20} />
+            {isRealEstate ? 'Add New Lead / Vendor' : 'Add Customer'}
+          </button>
+        </div>
       </div>
 
       {/* Filter Bar */}
