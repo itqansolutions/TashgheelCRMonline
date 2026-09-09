@@ -177,8 +177,8 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
 
   if (metaLeadId) {
     const existing = await db.query(
-      'SELECT id, name, phone, email, notes FROM customers WHERE meta_lead_id = $1 AND tenant_id::text = $2::text LIMIT 1',
-      [metaLeadId, tenantId]
+      'SELECT id, name, phone, email, notes FROM customers WHERE meta_lead_id = $1 LIMIT 1',
+      [metaLeadId]
     );
     if (existing.rows.length > 0) {
       existingCustomer = existing.rows[0];
@@ -201,7 +201,7 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
     }
   }
 
-  // 4. UPSERT: If customer already exists, UPDATE missing data (phone, notes, source, form info)
+  // 4. UPSERT: If customer already exists, UPDATE missing data and align branch/tenant
   if (existingCustomer) {
     const updateQuery = `
       UPDATE customers 
@@ -215,8 +215,10 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
         meta_lead_id = COALESCE(meta_lead_id, $6),
         meta_form_name = $7,
         meta_form_id = $8,
+        branch_id = COALESCE(NULLIF($9, ''), branch_id),
+        tenant_id = COALESCE(NULLIF($10, ''), tenant_id),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $9 AND tenant_id::text = $10::text
+      WHERE id = $11
       RETURNING *
     `;
 
@@ -229,8 +231,9 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
       metaLeadId || null,
       formRecord.form_name || null,
       String(formRecord.form_id || '').trim(),
-      existingCustomer.id,
-      tenantId
+      branchId || null,
+      tenantId || null,
+      existingCustomer.id
     ]);
 
     return { status: 'updated', customer: updated.rows[0] };

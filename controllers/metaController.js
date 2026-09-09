@@ -166,11 +166,13 @@ exports.getMetaForms = async (req, res) => {
       SELECT 
         mf.*,
         COALESCE(u.name, 'Unassigned') as assigned_to_name,
-        COALESCE(ls.name, 'Meta Lead Ads') as lead_source_name
+        COALESCE(ls.name, 'Meta Lead Ads') as lead_source_name,
+        COALESCE(b.name, 'Main Branch') as branch_name
       FROM meta_forms mf
       LEFT JOIN users u ON mf.assigned_to::text = u.id::text AND mf.tenant_id::text = u.tenant_id::text
       LEFT JOIN lead_sources ls ON mf.lead_source_id::text = ls.id::text AND mf.tenant_id::text = ls.tenant_id::text
-      WHERE mf.tenant_id::text = $1::text
+      LEFT JOIN branches b ON mf.branch_id::text = b.id::text
+      WHERE (mf.tenant_id::text = $1::text OR $1::text = '00000000-0000-0000-0000-000000000000')
       ORDER BY mf.created_at DESC
     `, [tenant_id]);
 
@@ -189,8 +191,8 @@ exports.getMetaForms = async (req, res) => {
 // @access  Private
 exports.createMetaForm = async (req, res) => {
   await ensureMetaFormsTable();
-  const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId || req.user?.branch_id || 'default-branch';
+  let tenant_id = req.user.tenant_id;
+  let branch_id = req.body.branch_id || req.branchId || req.user?.branch_id || 'default-branch';
   const { form_id, form_name, page_name, page_access_token, lead_source_id, assigned_to } = req.body;
 
   if (!form_id || !form_name) {
@@ -206,6 +208,14 @@ exports.createMetaForm = async (req, res) => {
   let cleanAssignedTo;
 
   try {
+    // If branch is explicitly specified or resolved, ensure tenant matches branch's tenant
+    if (branch_id && branch_id !== 'default-branch') {
+      const bRes = await db.query('SELECT tenant_id FROM branches WHERE id::text = $1::text LIMIT 1', [branch_id]);
+      if (bRes.rows.length > 0 && bRes.rows[0].tenant_id) {
+        tenant_id = bRes.rows[0].tenant_id;
+      }
+    }
+
     cleanSourceId = parseOptionalId(lead_source_id, 'Lead source ID');
     cleanAssignedTo = parseOptionalId(assigned_to, 'Assigned user ID');
     await validateTenantRelations(tenant_id, cleanSourceId, cleanAssignedTo);
@@ -234,6 +244,7 @@ exports.createMetaForm = async (req, res) => {
         page_access_token = COALESCE(NULLIF(EXCLUDED.page_access_token, ''), meta_forms.page_access_token),
         lead_source_id = EXCLUDED.lead_source_id,
         assigned_to = EXCLUDED.assigned_to,
+        branch_id = EXCLUDED.branch_id,
         updated_at = CURRENT_TIMESTAMP
       RETURNING *
     `;
@@ -285,6 +296,11 @@ exports.updateMetaForm = async (req, res) => {
     `;
     const params = [form_name, page_name, cleanSourceId, cleanAssignedTo, is_active];
     let pIdx = 6;
+
+    if (req.body.branch_id) {
+      updateSql += `, branch_id = $${pIdx++}`;
+      params.push(req.body.branch_id);
+    }
 
     if (page_access_token && page_access_token.trim() !== '') {
       updateSql += `, page_access_token = $${pIdx++}`;
@@ -471,7 +487,7 @@ exports.getFormCustomers = async (req, res) => {
       SELECT 
         c.*, 
         COALESCE(u.name, 'Unassigned') as assigned_to_name,
-        COALESCE(ls.name, c.source, 'FaceBook Campaigns') as source_name
+        COALESCE(ls.name, 'FaceBook Campaigns') as source_name
       FROM customers c
       LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
       LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text

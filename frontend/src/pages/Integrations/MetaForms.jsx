@@ -12,6 +12,7 @@ const MetaForms = () => {
   const [forms, setForms] = useState([]);
   const [leadSources, setLeadSources] = useState([]);
   const [users, setUsers] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncingId, setSyncingId] = useState(null);
 
@@ -34,7 +35,8 @@ const MetaForms = () => {
     page_name: '',
     page_access_token: '',
     lead_source_id: '',
-    assigned_to: ''
+    assigned_to: '',
+    branch_id: ''
   });
 
   // Global Settings State
@@ -50,16 +52,18 @@ const MetaForms = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [formsRes, sourcesRes, usersRes, settingsRes] = await Promise.all([
+      const [formsRes, sourcesRes, usersRes, settingsRes, branchesRes] = await Promise.all([
         api.get('/meta/forms'),
         api.get('/lead-sources'),
         api.get('/users'),
-        api.get('/meta/settings')
+        api.get('/meta/settings'),
+        api.get('/branches').catch(() => ({ data: { data: [] } }))
       ]);
 
       setForms(formsRes.data.data || []);
       setLeadSources(sourcesRes.data.data || []);
       setUsers(usersRes.data.data || []);
+      setBranches(branchesRes.data.data || []);
       if (settingsRes.data.data) {
         setMetaSettings(prev => ({
           ...prev,
@@ -88,7 +92,8 @@ const MetaForms = () => {
         page_name: form.page_name || '',
         page_access_token: '',
         lead_source_id: form.lead_source_id || '',
-        assigned_to: form.assigned_to || ''
+        assigned_to: form.assigned_to || '',
+        branch_id: form.branch_id || ''
       });
     } else {
       setEditingForm(null);
@@ -98,7 +103,8 @@ const MetaForms = () => {
         page_name: '',
         page_access_token: '',
         lead_source_id: leadSources.length > 0 ? leadSources[0].id : '',
-        assigned_to: ''
+        assigned_to: '',
+        branch_id: branches.length > 0 ? branches[0].id : ''
       });
     }
     setShowAddModal(true);
@@ -319,6 +325,7 @@ const MetaForms = () => {
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Form Name & ID</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Lead Source</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Target Branch</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Assigned Rep</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Total Leads</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Last Sync</th>
@@ -350,6 +357,12 @@ const MetaForms = () => {
                       <td style={{ padding: '14px 18px' }}>
                         <span style={{ padding: '4px 10px', borderRadius: '12px', background: '#f1f5f9', color: '#334155', fontSize: '12px', fontWeight: 700 }}>
                           {form.lead_source_name || 'Meta Lead Ads'}
+                        </span>
+                      </td>
+
+                      <td style={{ padding: '14px 18px' }}>
+                        <span style={{ padding: '4px 10px', borderRadius: '12px', background: '#e0f2fe', color: '#0369a1', fontSize: '12px', fontWeight: 700 }}>
+                          🏢 {form.branch_name || 'Main Branch'}
                         </span>
                       </td>
 
@@ -508,6 +521,25 @@ const MetaForms = () => {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                    🏢 Target Branch (Leads will be routed to this branch)
+                  </label>
+                  <select
+                    value={formData.branch_id}
+                    onChange={(e) => setFormData({ ...formData, branch_id: e.target.value })}
+                    style={inputStyle}
+                  >
+                    <option value="">Default Branch / Headquarters</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                    Ensures leads synced from this form belong to the selected branch and organization.
+                  </span>
                 </div>
 
                 <div>
