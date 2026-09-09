@@ -18,6 +18,7 @@ router.post('/forms', metaController.createMetaForm);
 router.put('/forms/:id', metaController.updateMetaForm);
 router.delete('/forms/:id', metaController.deleteMetaForm);
 router.post('/forms/:id/sync', metaController.syncFormLeads);
+router.get('/forms/:id/customers', metaController.getFormCustomers);
 
 // Settings
 router.get('/settings', metaController.getMetaSettings);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Users, Phone, MapPin, Hash, FileText, Search, CheckCircle, XCircle, AlertTriangle, Printer, X, ChevronDown } from 'lucide-react';
+import { Plus, Users, Phone, MapPin, Hash, FileText, Search, CheckCircle, XCircle, AlertTriangle, Printer, X, ChevronDown, Eye } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
@@ -162,8 +162,10 @@ const ContactsCustomers = () => {
   const { customers, fetchCustomers, leadSources, fetchLeadSources, loading } = useData();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all'); // all | active | blacklisted
+  const [sourceFilter, setSourceFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [viewingCustomer, setViewingCustomer] = useState(null);
   const [statementCustomer, setStatementCustomer] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -179,10 +181,25 @@ const ContactsCustomers = () => {
   const allCustomers = customers.filter(c => c.entity_type === 'customer' || !c.entity_type);
 
   const filtered = allCustomers.filter(c => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || c.name?.toLowerCase().includes(q) || c.phone?.includes(q);
-    const matchStatus = filterStatus === 'all' || (filterStatus === 'active' && c.is_active && !c.is_blacklisted) || (filterStatus === 'blacklisted' && c.is_blacklisted);
-    return matchSearch && matchStatus;
+    const q = search.toLowerCase().trim();
+    const matchSearch = !q || 
+      c.name?.toLowerCase().includes(q) || 
+      c.phone?.includes(q) ||
+      c.meta_form_name?.toLowerCase().includes(q) ||
+      c.company_name?.toLowerCase().includes(q) ||
+      c.notes?.toLowerCase().includes(q) ||
+      c.address?.toLowerCase().includes(q);
+
+    const matchStatus = filterStatus === 'all' || 
+      (filterStatus === 'active' && c.is_active && !c.is_blacklisted) || 
+      (filterStatus === 'blacklisted' && c.is_blacklisted);
+
+    const matchSource = sourceFilter === 'all' || 
+      (sourceFilter === 'direct' && (!c.source_id || c.source_name === 'Direct')) ||
+      String(c.source_id) === String(sourceFilter) ||
+      c.source_name?.toLowerCase() === sourceFilter.toLowerCase();
+
+    return matchSearch && matchStatus && matchSource;
   });
 
   const openAdd = () => { setEditingCustomer(null); setForm(emptyForm); setIsModalOpen(true); };
@@ -242,14 +259,25 @@ const ContactsCustomers = () => {
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+        <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
           <Search size={16} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name or phone..."
+            placeholder="Search by name, phone, form name, or notes..."
             style={{ ...inputStyle, paddingRight: '38px' }}
           />
         </div>
+
+        <select 
+          value={sourceFilter} 
+          onChange={e => setSourceFilter(e.target.value)} 
+          style={{ ...inputStyle, width: 'auto', minWidth: '180px' }}
+        >
+          <option value="all">All Sources (كل المصادر)</option>
+          {leadSources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          <option value="direct">Direct / Other</option>
+        </select>
+
         {['all', 'active', 'blacklisted'].map(s => (
           <button key={s} onClick={() => setFilterStatus(s)} style={{ padding: '10px 18px', borderRadius: '10px', border: '1.5px solid', borderColor: filterStatus === s ? '#4f46e5' : '#e2e8f0', background: filterStatus === s ? '#4f46e5' : 'white', color: filterStatus === s ? 'white' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}>
             {s === 'all' ? 'All' : s === 'active' ? '✅ Active' : '⛔ Blacklisted'}
@@ -286,14 +314,24 @@ const ContactsCustomers = () => {
                       <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #6366f1, #a855f7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '14px', fontWeight: 900, flexShrink: 0 }}>
                         {c.name?.charAt(0).toUpperCase()}
                       </div>
-                      {c.name}
+                      <div>
+                        {c.name}
+                        {c.company_name && <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{c.company_name}</div>}
+                      </div>
                     </div>
                   </td>
-                  <td style={{ padding: '14px 16px', color: '#475569', fontSize: '13px' }}>{c.phone || '—'}</td>
+                  <td style={{ padding: '14px 16px', color: '#1e293b', fontWeight: 700, fontSize: '13px', direction: 'ltr', textAlign: 'left' }}>{c.phone || '—'}</td>
                   <td style={{ padding: '14px 16px', color: '#475569', fontSize: '13px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.address || '—'}</td>
                   <td style={{ padding: '14px 16px', color: '#475569', fontSize: '13px' }}>{c.tax_no || '—'}</td>
                   <td style={{ padding: '14px 16px', color: '#475569', fontSize: '13px' }}>{c.reg_no || '—'}</td>
-                  <td style={{ padding: '14px 16px', color: '#475569', fontSize: '13px' }}>{c.source_name || '—'}</td>
+                  <td style={{ padding: '14px 16px', color: '#475569', fontSize: '13px' }}>
+                    <div style={{ fontWeight: 700 }}>{c.source_name || '—'}</div>
+                    {c.meta_form_name && (
+                      <div style={{ fontSize: '11px', color: '#4f46e5', fontWeight: 700, marginTop: '2px', background: '#eef2ff', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                        📋 {c.meta_form_name}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                       {c.is_blacklisted ? (
@@ -306,7 +344,10 @@ const ContactsCustomers = () => {
                     </div>
                   </td>
                   <td style={{ padding: '14px 16px' }}>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <button onClick={() => setViewingCustomer(c)} title="عرض التفاصيل" style={{ background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', border: 'none', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Eye size={14} /> عرض
+                      </button>
                       <button onClick={() => setStatementCustomer(c)} title="Statement" style={{ background: '#f0f4ff', color: '#4f46e5', border: 'none', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>
                         📊 Statement
                       </button>
@@ -389,6 +430,113 @@ const ContactsCustomers = () => {
 
       {/* Statement Modal */}
       {statementCustomer && <StatementModal customer={statementCustomer} onClose={() => setStatementCustomer(null)} />}
+
+      {/* Customer Details Modal (عرض بيانات العميل وليدز فيسبوك) */}
+      {viewingCustomer && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
+            
+            {/* Modal Header */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: '18px' }}>
+                  {viewingCustomer.name?.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h2 style={{ margin: 0, color: 'white', fontSize: '18px', fontWeight: 800 }}>{viewingCustomer.name}</h2>
+                  <p style={{ margin: '2px 0 0', color: 'rgba(255,255,255,0.85)', fontSize: '12px' }}>
+                    {viewingCustomer.company_name || 'Customer Details'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setViewingCustomer(null)} style={{ background: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+              {/* Primary Details Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📱 رقم الهاتف (Phone)</div>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', direction: 'ltr', textAlign: 'left' }}>
+                    {viewingCustomer.phone || '—'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>✉️ البريد الإلكتروني (Email)</div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
+                    {viewingCustomer.email || '—'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>🌐 المصدر (Source)</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#4f46e5' }}>
+                    {viewingCustomer.source_name || 'Direct'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📋 نموذج فيسبوك (Meta Form)</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0284c7' }}>
+                    {viewingCustomer.meta_form_name || '—'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', gridColumn: 'span 2' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📍 العنوان / المدينة</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                    {viewingCustomer.address || '—'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Responses / Notes Section */}
+              {viewingCustomer.notes && (
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#4f46e5', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    📝 تفاصيل وإجابات النموذج (Form Answers & Details)
+                  </div>
+                  <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', whiteSpace: 'pre-wrap', fontSize: '13px', color: '#1e293b', lineHeight: 1.6 }}>
+                    {viewingCustomer.notes}
+                  </div>
+                </div>
+              )}
+
+              {/* Meta Lead ID if present */}
+              {viewingCustomer.meta_lead_id && (
+                <div style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', marginTop: '12px' }}>
+                  Meta Lead ID: {viewingCustomer.meta_lead_id} &nbsp;|&nbsp; Added: {new Date(viewingCustomer.created_at).toLocaleString('en-US')}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button 
+                onClick={() => {
+                  const toEdit = viewingCustomer;
+                  setViewingCustomer(null);
+                  openEdit(toEdit);
+                }} 
+                style={{ padding: '8px 18px', background: '#e0e7ff', color: '#4338ca', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}
+              >
+                ✏️ Edit Customer
+              </button>
+              <button 
+                onClick={() => setViewingCustomer(null)} 
+                style={{ padding: '8px 20px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -23,6 +23,7 @@ const Customers = () => {
   // UI Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [entityFilter, setEntityFilter] = useState('all'); // all, customer, vendor, broker
+  const [sourceFilter, setSourceFilter] = useState('all');
   const [roomsFilter, setRoomsFilter] = useState('');  
   // Form State
   const [formData, setFormData] = useState({
@@ -136,14 +137,23 @@ const Customers = () => {
 
   // Filtered Data Logic (Instant Client-side Search & Filter)
   const filteredCustomers = (customers || []).filter(c => {
-    const matchesSearch = 
-        c.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        c.phone?.includes(searchQuery);
+    const q = searchQuery.toLowerCase().trim();
+    const matchesSearch = !q || 
+        c.name?.toLowerCase().includes(q) || 
+        c.phone?.includes(q) ||
+        c.meta_form_name?.toLowerCase().includes(q) ||
+        c.company_name?.toLowerCase().includes(q) ||
+        c.notes?.toLowerCase().includes(q) ||
+        c.address?.toLowerCase().includes(q);
     
     const matchesEntity = entityFilter === 'all' || c.entity_type === entityFilter;
     const matchesRooms = !roomsFilter || c.preferred_rooms === parseInt(roomsFilter);
+    const matchesSource = sourceFilter === 'all' || 
+        (sourceFilter === 'direct' && (!c.source_id || c.source_name === 'Direct')) ||
+        String(c.source_id) === String(sourceFilter) ||
+        c.source_name?.toLowerCase() === sourceFilter.toLowerCase();
     
-    return matchesSearch && matchesEntity && matchesRooms;
+    return matchesSearch && matchesEntity && matchesRooms && matchesSource;
   });
 
   const columns = [
@@ -152,18 +162,37 @@ const Customers = () => {
       label: 'Customer Name',
       render: (val, item) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+          <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
             <User size={16} />
           </div>
-          <span style={{ fontWeight: '600' }}>{val}</span>
+          <div>
+            <span style={{ fontWeight: '700' }}>{val}</span>
+            {item.email && <div style={{ fontSize: '11px', color: '#64748b' }}>{item.email}</div>}
+          </div>
         </div>
       )
     },
-    { key: 'company_name', label: 'Company' },
+    { 
+      key: 'phone', 
+      label: 'Phone / Mobile',
+      render: (val) => val ? (
+        <span style={{ fontWeight: '700', direction: 'ltr', display: 'inline-block', color: '#1e293b' }}>{val}</span>
+      ) : <span style={{ color: '#94a3b8' }}>—</span>
+    },
+    { key: 'company_name', label: 'Company / Job' },
     { 
       key: 'source_name', 
       label: 'Source',
-      render: (val) => val || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Direct/Other</span>
+      render: (val, item) => (
+        <div>
+          <span style={{ fontWeight: '600' }}>{val || 'Direct/Other'}</span>
+          {item.meta_form_name && (
+            <div style={{ fontSize: '11px', color: '#4f46e5', fontWeight: '700', marginTop: '3px', background: '#eef2ff', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+              📋 {item.meta_form_name}
+            </div>
+          )}
+        </div>
+      )
     },
     { 
       key: 'manager_name', 
@@ -266,12 +295,20 @@ const Customers = () => {
           <Phone size={18} className="search-icon" />
           <input 
             type="text" 
-            placeholder={isRealEstate ? "Instant search by Name or Mobile..." : "Search customers..."}
+            placeholder="Search by Name, Phone, Form Name, or Notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         
+        <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
+          <option value="all">All Sources (كل المصادر)</option>
+          {(leadSources || []).map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+          <option value="direct">Direct / Other</option>
+        </select>
+
         <select value={entityFilter} onChange={(e) => setEntityFilter(e.target.value)}>
           <option value="all">All Entities</option>
           <option value="customer">Customers (Buyers)</option>
@@ -399,7 +436,29 @@ const Customers = () => {
                         <label><Building size={14}/> Branch</label>
                         <span>{editingCustomer.branch_name || 'Main Branch'}</span>
                     </div>
+                    <div className="lc-item">
+                        <label>🌐 Source</label>
+                        <span style={{ color: '#4f46e5', fontWeight: 800 }}>{editingCustomer.source_name || 'Direct'}</span>
+                    </div>
+                    {editingCustomer.meta_form_name && (
+                      <div className="lc-item">
+                          <label>📋 Meta Form</label>
+                          <span style={{ color: '#0284c7', fontWeight: 800 }}>{editingCustomer.meta_form_name}</span>
+                      </div>
+                    )}
                 </div>
+
+                {/* Form Responses & Notes */}
+                {editingCustomer.notes && (
+                  <div style={{ marginTop: '20px', padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                    <h4 style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      📝 Form Responses & Notes
+                    </h4>
+                    <div style={{ whiteSpace: 'pre-wrap', fontSize: '13px', color: '#334155', lineHeight: '1.6', background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                      {editingCustomer.notes}
+                    </div>
+                  </div>
+                )}
 
                 {isRealEstate && (
                     <div className="lc-specs">

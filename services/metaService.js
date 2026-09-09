@@ -11,6 +11,7 @@ const GRAPH_API_BASE = 'https://graph.facebook.com/v19.0';
 
 /**
  * Fetch leads directly from Meta Graph API for a specific form_id
+ * Loops through pagination (paging.next) to ensure all leads are fetched
  * @param {string} formId
  * @param {string} accessToken
  */
@@ -20,22 +21,38 @@ async function fetchLeadsFromMeta(formId, accessToken) {
   }
 
   const cleanFormId = formId.trim();
-  const url = `${GRAPH_API_BASE}/${cleanFormId}/leads`;
+  let allLeads = [];
+  let nextUrl = `${GRAPH_API_BASE}/${cleanFormId}/leads`;
+  let params = {
+    access_token: accessToken.trim(),
+    fields: 'id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name',
+    limit: 100
+  };
 
-  const response = await axios.get(url, {
-    params: {
-      access_token: accessToken.trim(),
-      fields: 'id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name',
-      limit: 100
-    },
-    timeout: 20000
-  });
+  while (nextUrl) {
+    const response = await axios.get(nextUrl, {
+      params,
+      timeout: 25000
+    });
 
-  return response.data?.data || [];
+    const leads = response.data?.data || [];
+    allLeads.push(...leads);
+
+    // Follow pagination if available
+    if (response.data?.paging?.next) {
+      nextUrl = response.data.paging.next;
+      params = null; // Next URL already contains query parameters
+    } else {
+      nextUrl = null;
+    }
+  }
+
+  return allLeads;
 }
 
 /**
  * Parse Meta field_data array into a standard lead object
+ * Supports English & Arabic field names commonly used in Meta Lead Ads
  * field_data: [ { name: 'email', values: ['john@example.com'] }, ... ]
  */
 function parseFieldData(fieldData = []) {
@@ -50,28 +67,44 @@ function parseFieldData(fieldData = []) {
     notes: []
   };
 
+  const isMatch = (key, terms) => terms.some(t => key === t || key.includes(t));
+
   for (const item of fieldData) {
     const key = (item.name || '').toLowerCase().trim();
     const val = Array.isArray(item.values) && item.values.length > 0 ? String(item.values[0]).trim() : '';
 
     if (!val) continue;
 
-    if (key === 'full_name' || key === 'name' || key.includes('full_name')) {
-      parsed.full_name = val;
-    } else if (key === 'first_name' || key.includes('first_name')) {
-      parsed.first_name = val;
-    } else if (key === 'last_name' || key.includes('last_name')) {
-      parsed.last_name = val;
-    } else if (key === 'email' || key.includes('email')) {
-      parsed.email = val;
-    } else if (key === 'phone_number' || key === 'phone' || key.includes('phone')) {
+    // Phone detection
+    if (isMatch(key, ['phone_number', 'phone', 'mobile', 'tel', 'cell', 'whatsapp', 'contact_number', 'mobile_number', 'phone_no', 'هاتف', 'موبايل', 'جوال', 'تليفون'])) {
       parsed.phone = val;
-    } else if (key === 'company_name' || key.includes('company')) {
+    } 
+    // Email detection
+    else if (isMatch(key, ['email', 'e-mail', 'mail', 'بريد', 'ايميل'])) {
+      parsed.email = val;
+    }
+    // Full Name detection
+    else if (isMatch(key, ['full_name', 'الاسم بالكامل', 'الاسم_بالكامل']) || (key === 'name' || key === 'الاسم' || key === 'اسم')) {
+      parsed.full_name = val;
+    }
+    // First / Last Name
+    else if (isMatch(key, ['first_name', 'الاسم الاول', 'الاسم_الاول'])) {
+      parsed.first_name = val;
+    } else if (isMatch(key, ['last_name', 'اسم العائلة', 'اللقب'])) {
+      parsed.last_name = val;
+    }
+    // Company / Job / Title
+    else if (isMatch(key, ['company_name', 'company', 'job_title', 'work', 'organization', 'شركة', 'الشركة', 'وظيفة', 'الوظيفة', 'عمل'])) {
       parsed.company_name = val;
-    } else if (key === 'city' || key.includes('city')) {
+      parsed.notes.push(`${item.name || 'الوظيفة/الشركة'}: ${val}`);
+    }
+    // City / Location
+    else if (isMatch(key, ['city', 'location', 'address', 'مدينة', 'المدينة', 'عنوان', 'العنوان', 'محافظة', 'المحافظة'])) {
       parsed.city = val;
-    } else {
-      // Custom questions or extra fields
+      parsed.notes.push(`${item.name || 'المدينة'}: ${val}`);
+    }
+    // Any other custom questions & answers
+    else {
       parsed.notes.push(`${item.name}: ${val}`);
     }
   }
@@ -85,27 +118,76 @@ function parseFieldData(fieldData = []) {
 
 /**
  * Ingest a lead into the customers table for the given tenant & branch
- * Prevents duplicates by meta_lead_id or matching phone/email
+ * Handles:
+ *  - Resolving or auto-creating 'FaceBook Campaigns' source
+ *  - Upserting if lead exists (updating phone, notes, source, form info)
+ *  - Saving full formatted notes & responses
  */
 async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null }) {
-  const metaLeadId = lead.id;
+  const metaLeadId = String(lead.id || '').trim();
   const parsed = parseFieldData(lead.field_data);
 
-  // 1. Check if lead already imported via meta_lead_id
-  if (metaLeadId) {
-    const existing = await db.query(
-      'SELECT id, name FROM customers WHERE meta_lead_id = $1 AND tenant_id::text = $2::text LIMIT 1',
-      [metaLeadId, tenantId]
-    );
-    if (existing.rows.length > 0) {
-      return { status: 'skipped', reason: 'duplicate_meta_id', customer: existing.rows[0] };
+  // 1. Resolve Lead Source -> Defaults strictly to 'FaceBook Campaigns'
+  let sourceId = formRecord.lead_source_id || null;
+  if (!sourceId) {
+    try {
+      const srcCheck = await db.query(
+        `SELECT id FROM lead_sources 
+         WHERE tenant_id::text = $1::text 
+           AND LOWER(TRIM(name)) IN ('facebook campaigns', 'facebook', 'meta lead ads', 'facebook ads')
+         LIMIT 1`,
+        [tenantId]
+      );
+      if (srcCheck.rows.length > 0) {
+        sourceId = srcCheck.rows[0].id;
+      } else {
+        const newSrc = await db.query(
+          `INSERT INTO lead_sources (name, tenant_id) VALUES ($1, $2) RETURNING id`,
+          ['FaceBook Campaigns', tenantId]
+        );
+        sourceId = newSrc.rows[0].id;
+      }
+    } catch (sErr) {
+      console.warn('[Meta Lead Source Resolution]', sErr.message);
     }
   }
 
-  // 2. Check by phone or email if provided
-  if (parsed.phone || parsed.email) {
+  // 2. Prepare Structured Notes
+  let notesLines = [];
+  if (formRecord.form_name) notesLines.push(`📋 Form: ${formRecord.form_name}`);
+  if (formRecord.form_id) notesLines.push(`🆔 Form ID: ${formRecord.form_id}`);
+  if (lead.campaign_name) notesLines.push(`📢 Campaign: ${lead.campaign_name}`);
+  if (lead.adset_name) notesLines.push(`🎯 AdSet: ${lead.adset_name}`);
+  if (lead.ad_name) notesLines.push(`🖼️ Ad: ${lead.ad_name}`);
+  if (lead.created_time) notesLines.push(`🕒 Submitted: ${new Date(lead.created_time).toLocaleString('en-US')}`);
+  if (parsed.company_name) notesLines.push(`💼 Job/Company: ${parsed.company_name}`);
+
+  if (parsed.notes.length > 0) {
+    notesLines.push(`\n--- إجابات النموذج (Form Responses) ---`);
+    notesLines.push(...parsed.notes);
+  }
+  const formattedNotes = notesLines.join('\n');
+
+  // Address fallback
+  const combinedAddress = [parsed.city, formRecord.form_name ? `Meta Form: ${formRecord.form_name}` : ''].filter(Boolean).join(' - ') || 'Source: Meta Ads';
+  const assignedTo = formRecord.assigned_to || (reqUser ? reqUser.id : null);
+
+  // 3. Duplicate Detection: Check by meta_lead_id OR by phone/email
+  let existingCustomer = null;
+
+  if (metaLeadId) {
+    const existing = await db.query(
+      'SELECT id, name, phone, email, notes FROM customers WHERE meta_lead_id = $1 AND tenant_id::text = $2::text LIMIT 1',
+      [metaLeadId, tenantId]
+    );
+    if (existing.rows.length > 0) {
+      existingCustomer = existing.rows[0];
+    }
+  }
+
+  if (!existingCustomer && (parsed.phone || parsed.email)) {
     const checkDuplicate = await db.query(
-      `SELECT id, name FROM customers 
+      `SELECT id, name, phone, email, notes FROM customers 
        WHERE tenant_id::text = $1::text 
          AND (
            ($2::text <> '' AND phone = $2) 
@@ -115,35 +197,52 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
       [tenantId, parsed.phone || '', parsed.email || '']
     );
     if (checkDuplicate.rows.length > 0) {
-      // Update meta_lead_id if missing
-      await db.query(
-        `UPDATE customers
-         SET meta_lead_id = COALESCE(meta_lead_id, $1)
-         WHERE id = $2 AND tenant_id::text = $3::text`,
-        [metaLeadId, checkDuplicate.rows[0].id, tenantId]
-      );
-      return { status: 'skipped', reason: 'duplicate_contact', customer: checkDuplicate.rows[0] };
+      existingCustomer = checkDuplicate.rows[0];
     }
   }
 
-  // 3. Prepare notes / address
-  let extraNotes = [];
-  if (lead.campaign_name) extraNotes.push(`Campaign: ${lead.campaign_name}`);
-  if (lead.ad_name) extraNotes.push(`Ad: ${lead.ad_name}`);
-  if (formRecord.form_name) extraNotes.push(`Meta Form: ${formRecord.form_name} (ID: ${formRecord.form_id})`);
-  if (parsed.notes.length > 0) extraNotes.push(`Form Responses:\n${parsed.notes.join('\n')}`);
-  const combinedAddress = [parsed.city, extraNotes.join(' | ')].filter(Boolean).join(' - ');
+  // 4. UPSERT: If customer already exists, UPDATE missing data (phone, notes, source, form info)
+  if (existingCustomer) {
+    const updateQuery = `
+      UPDATE customers 
+      SET 
+        phone = COALESCE(NULLIF($1, ''), phone),
+        company_name = COALESCE(NULLIF($2, ''), company_name),
+        notes = $3,
+        address = COALESCE(NULLIF(address, ''), $4),
+        source_id = COALESCE(source_id, $5),
+        source = 'FaceBook Campaigns',
+        meta_lead_id = COALESCE(meta_lead_id, $6),
+        meta_form_name = $7,
+        meta_form_id = $8,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $9 AND tenant_id::text = $10::text
+      RETURNING *
+    `;
 
-  const assignedTo = formRecord.assigned_to || (reqUser ? reqUser.id : null);
-  const sourceId = formRecord.lead_source_id || null;
+    const updated = await db.query(updateQuery, [
+      parsed.phone || null,
+      parsed.company_name || null,
+      formattedNotes,
+      combinedAddress,
+      sourceId,
+      metaLeadId || null,
+      formRecord.form_name || null,
+      String(formRecord.form_id || '').trim(),
+      existingCustomer.id,
+      tenantId
+    ]);
 
-  // 4. Insert customer
+    return { status: 'updated', customer: updated.rows[0] };
+  }
+
+  // 5. INSERT: Customer does not exist yet -> Create fresh record
   const insertQuery = `
     INSERT INTO customers (
-      name, company_name, email, phone, address, 
-      source_id, assigned_to, status, tenant_id, branch_id,
-      entity_type, is_active, meta_lead_id
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      name, company_name, email, phone, address, notes,
+      source_id, source, assigned_to, status, tenant_id, branch_id,
+      entity_type, is_active, meta_lead_id, meta_form_name, meta_form_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
     RETURNING *
   `;
 
@@ -152,15 +251,19 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
     parsed.company_name || null,
     parsed.email || null,
     parsed.phone || null,
-    combinedAddress || 'Source: Meta Ads',
+    combinedAddress,
+    formattedNotes,
     sourceId,
+    'FaceBook Campaigns',
     assignedTo,
     'lead',
     tenantId,
     branchId || 'default-branch',
     'customer',
     true,
-    metaLeadId
+    metaLeadId || null,
+    formRecord.form_name || null,
+    String(formRecord.form_id || '').trim()
   ];
 
   const result = await db.query(insertQuery, values);
@@ -170,7 +273,7 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
   try {
     await logActivity(tenantId, reqUser || { id: assignedTo, name: 'Meta Integration' }, 'customer', newCustomer.id, 'created', {
       name: { to: newCustomer.name },
-      source: { to: `Meta Lead Ads Form: ${formRecord.form_name || formRecord.form_id}` }
+      source: { to: `Meta Lead Ads: ${formRecord.form_name || formRecord.form_id}` }
     });
   } catch (actErr) {
     console.warn('[Meta Ingest Activity Log]', actErr.message);

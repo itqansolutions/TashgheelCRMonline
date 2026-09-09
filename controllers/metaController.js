@@ -50,7 +50,11 @@ async function ensureMetaFormsTable() {
       WHERE meta_webhook_verify_token IS NOT NULL AND meta_webhook_verify_token <> '';
     `);
     await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(120);`);
+    await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT;`);
+    await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_name VARCHAR(255);`);
+    await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_id VARCHAR(120);`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_customers_meta_lead_id ON customers(meta_lead_id);`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_customers_meta_form_id ON customers(meta_form_id);`);
 
     // A real Meta form must not be configured by multiple organizations. Do
     // not silently delete legacy duplicates; log them and reject all new
@@ -381,6 +385,7 @@ exports.syncFormLeads = async (req, res) => {
     }
 
     let createdCount = 0;
+    let updatedCount = 0;
     let skippedCount = 0;
 
     for (const lead of metaLeads) {
@@ -395,6 +400,8 @@ exports.syncFormLeads = async (req, res) => {
 
         if (result.status === 'created') {
           createdCount++;
+        } else if (result.status === 'updated') {
+          updatedCount++;
         } else {
           skippedCount++;
         }
@@ -419,9 +426,10 @@ exports.syncFormLeads = async (req, res) => {
       data: {
         total_fetched: metaLeads.length,
         created: createdCount,
+        updated: updatedCount,
         skipped: skippedCount
       },
-      message: `Sync complete! ${createdCount} new leads imported (${skippedCount} already existed).`
+      message: `Sync complete! ${createdCount} new leads imported, ${updatedCount} existing leads updated with phone and details.`
     });
   } catch (err) {
     console.error('[syncFormLeads Error]', err.response?.data || err.message, err.stack);
@@ -430,6 +438,46 @@ exports.syncFormLeads = async (req, res) => {
       status: 'error',
       message: `Meta Sync Failed: ${metaErrorMsg}`
     });
+  }
+};
+
+// @desc    Get customers imported from a specific Meta Form
+// @route   GET /api/meta/forms/:id/customers
+// @access  Private
+exports.getFormCustomers = async (req, res) => {
+  await ensureMetaFormsTable();
+  const tenant_id = req.user.tenant_id;
+  try {
+    const formRes = await db.query(
+      'SELECT id, form_id, form_name FROM meta_forms WHERE id = $1 AND tenant_id::text = $2::text',
+      [req.params.id, tenant_id]
+    );
+    if (formRes.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Meta Form not found' });
+    }
+    const form = formRes.rows[0];
+
+    const result = await db.query(`
+      SELECT 
+        c.*, 
+        COALESCE(u.name, 'Unassigned') as assigned_to_name,
+        COALESCE(ls.name, c.source, 'FaceBook Campaigns') as source_name
+      FROM customers c
+      LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
+      LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
+      WHERE c.tenant_id::text = $1::text 
+        AND (c.meta_form_id = $2 OR c.meta_form_name = $3)
+      ORDER BY c.created_at DESC
+    `, [tenant_id, form.form_id, form.form_name]);
+
+    res.json({
+      status: 'success',
+      data: result.rows,
+      form: form
+    });
+  } catch (err) {
+    console.error('[getFormCustomers Error]', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
   }
 };
 

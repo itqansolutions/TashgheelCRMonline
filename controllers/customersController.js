@@ -24,12 +24,22 @@ exports.getCustomers = async (req, res) => {
       FROM customers c
       LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
       LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
-      WHERE c.tenant_id::text = $1::text AND c.branch_id::text = $2::text
+      WHERE c.tenant_id::text = $1::text 
+        AND (c.branch_id::text = $2::text OR c.branch_id IS NULL OR c.branch_id = 'default-branch')
     `;
     const params = [tenant_id, branch_id];
     let paramIdx = 3;
 
     // Dynamic Filters (Sanitized to prevent "invalid input syntax for type integer: '' ")
+    if (req.query.source_id && req.query.source_id.trim() !== '') {
+        query += ` AND c.source_id = $${paramIdx++}`;
+        params.push(parseInt(req.query.source_id));
+    }
+    if (req.query.meta_form_id && req.query.meta_form_id.trim() !== '') {
+        query += ` AND (c.meta_form_id = $${paramIdx} OR c.meta_form_name = $${paramIdx})`;
+        params.push(req.query.meta_form_id.trim());
+        paramIdx++;
+    }
     if (req.query.entity_type && req.query.entity_type.trim() !== '') {
         query += ` AND c.entity_type = $${paramIdx++}`;
         params.push(req.query.entity_type);

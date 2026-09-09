@@ -3,7 +3,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { 
   Share2, Plus, RefreshCw, Trash2, Edit2, ShieldCheck, Key, Settings, User,
-  Calendar, ExternalLink
+  Calendar, ExternalLink, Users, Eye, Search, X
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 
@@ -18,6 +18,13 @@ const MetaForms = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [editingForm, setEditingForm] = useState(null);
+
+  // Form Leads Modal State
+  const [viewingFormLeads, setViewingFormLeads] = useState(null);
+  const [formCustomers, setFormCustomers] = useState([]);
+  const [loadingFormCustomers, setLoadingFormCustomers] = useState(false);
+  const [leadsSearch, setLeadsSearch] = useState('');
+  const [selectedLeadDetails, setSelectedLeadDetails] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -136,14 +143,29 @@ const MetaForms = () => {
     setSyncingId(id);
     try {
       const res = await api.post(`/meta/forms/${id}/sync`);
-      const { created, skipped } = res.data.data || {};
-      toast.success(`Synced "${formName}": ${created} new leads created, ${skipped} already in CRM!`);
+      const { created, updated, skipped } = res.data.data || {};
+      toast.success(`تمت المزامنة بنجاح "${formName}": تم استيراد ${created || 0} عميل جديد، وتحديث ${updated || 0} عميل سابق!`, { duration: 5000 });
       fetchData();
     } catch (err) {
       const msg = err.response?.data?.message || 'Lead sync failed. Check your Access Token.';
       toast.error(msg, { duration: 6000 });
     } finally {
       setSyncingId(null);
+    }
+  };
+
+  const handleOpenFormLeads = async (form) => {
+    setViewingFormLeads(form);
+    setLoadingFormCustomers(true);
+    setLeadsSearch('');
+    setSelectedLeadDetails(null);
+    try {
+      const res = await api.get(`/meta/forms/${form.id}/customers`);
+      setFormCustomers(res.data.data || []);
+    } catch (err) {
+      toast.error('Failed to load customers for this form');
+    } finally {
+      setLoadingFormCustomers(false);
     }
   };
 
@@ -357,6 +379,20 @@ const MetaForms = () => {
                       <td style={{ padding: '14px 18px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                           <button
+                            onClick={() => handleOpenFormLeads(form)}
+                            style={{
+                              padding: '6px 12px', background: '#e0e7ff',
+                              color: '#4338ca', border: 'none', borderRadius: '8px', fontWeight: 800,
+                              cursor: 'pointer', fontSize: '12px',
+                              display: 'inline-flex', alignItems: 'center', gap: '5px'
+                            }}
+                            title="عرض العملاء المسجلين لهذا النموذج"
+                          >
+                            <Users size={14} />
+                            العملاء ({form.lead_count || 0})
+                          </button>
+
+                          <button
                             disabled={isSyncing}
                             onClick={() => handleSyncForm(form.id, form.form_name)}
                             style={{
@@ -365,7 +401,7 @@ const MetaForms = () => {
                               cursor: isSyncing ? 'not-allowed' : 'pointer', fontSize: '12px',
                               display: 'inline-flex', alignItems: 'center', gap: '5px'
                             }}
-                            title="Download leads from Meta Graph API"
+                            title="تنزيل الليدز مباشرة من فيسبوك"
                           >
                             <RefreshCw size={13} className={isSyncing ? 'spin' : ''} />
                             {isSyncing ? 'Syncing...' : 'Sync Leads'}
@@ -374,7 +410,7 @@ const MetaForms = () => {
                           <button
                             onClick={() => handleOpenAddModal(form)}
                             style={{ padding: '6px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
-                            title="Edit Form"
+                            title="تعديل النموذج"
                           >
                             <Edit2 size={14} />
                           </button>
@@ -382,7 +418,7 @@ const MetaForms = () => {
                           <button
                             onClick={() => handleDeleteForm(form.id, form.form_name)}
                             style={{ padding: '6px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
-                            title="Delete Form"
+                            title="حذف النموذج"
                           >
                             <Trash2 size={14} />
                           </button>
@@ -613,6 +649,171 @@ const MetaForms = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: View Leads For Specific Meta Form */}
+        {viewingFormLeads && (
+          <div style={modalStyle}>
+            <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '900px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
+              {/* Modal Header */}
+              <div style={{ padding: '18px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, #1877F2, #0D65D9)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, color: 'white', fontSize: '17px', fontWeight: 800 }}>
+                      عملاء النموذج: {viewingFormLeads.form_name}
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                      <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '12px' }}>
+                        ID: {viewingFormLeads.form_id}
+                      </span>
+                      <span style={{ background: 'rgba(255,255,255,0.25)', color: 'white', padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>
+                        {formCustomers.length} عميل
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setViewingFormLeads(null); setSelectedLeadDetails(null); }}
+                  style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Search Bar */}
+              <div style={{ padding: '14px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <Search size={16} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  <input
+                    type="text"
+                    placeholder="بحث في عملاء هذا النموذج بالاسم، الهاتف، أو الملاحظات..."
+                    value={leadsSearch}
+                    onChange={(e) => setLeadsSearch(e.target.value)}
+                    style={{ ...inputStyle, paddingRight: '36px', background: 'white' }}
+                  />
+                </div>
+                <button
+                  onClick={() => handleSyncForm(viewingFormLeads.id, viewingFormLeads.form_name).then(() => handleOpenFormLeads(viewingFormLeads))}
+                  style={{
+                    padding: '9px 16px', background: '#1877F2', color: 'white', border: 'none',
+                    borderRadius: '10px', fontWeight: 800, fontSize: '12px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
+                  }}
+                >
+                  <RefreshCw size={13} /> تحديث / Sync
+                </button>
+              </div>
+
+              {/* Modal Body: Leads Table */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 20px 24px' }}>
+                {loadingFormCustomers ? (
+                  <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+                    جاري تحميل العملاء...
+                  </div>
+                ) : formCustomers.length === 0 ? (
+                  <div style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
+                    <Users size={36} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                    <h4 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
+                      لم يتم سحب أي عميل لهذا النموذج حتى الآن
+                    </h4>
+                    <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#64748b' }}>
+                      تأكد من وجود ليدز مسجلة على فيسبوك ثم اضغط على زر &quot;Sync Leads&quot;.
+                    </p>
+                  </div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginTop: '12px' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>الاسم</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>رقم الهاتف</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>الشركة / الوظيفة</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>تاريخ الإرسال</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', textAlign: 'center' }}>التفاصيل</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {formCustomers
+                        .filter(c => {
+                          const q = leadsSearch.toLowerCase().trim();
+                          return !q || 
+                            c.name?.toLowerCase().includes(q) || 
+                            c.phone?.includes(q) || 
+                            c.company_name?.toLowerCase().includes(q) ||
+                            c.email?.toLowerCase().includes(q) ||
+                            c.notes?.toLowerCase().includes(q);
+                        })
+                        .map((c, i) => (
+                          <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafbfc' }}>
+                            <td style={{ padding: '12px 14px' }}>
+                              <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '13px' }}>{c.name}</div>
+                              {c.email && <div style={{ fontSize: '11px', color: '#64748b' }}>{c.email}</div>}
+                            </td>
+                            <td style={{ padding: '12px 14px', fontWeight: 700, color: '#1e293b', fontSize: '13px', direction: 'ltr', textAlign: 'left' }}>
+                              {c.phone ? (
+                                <span style={{ color: '#0f766e', background: '#f0fdfa', padding: '2px 8px', borderRadius: '6px' }}>
+                                  {c.phone}
+                                </span>
+                              ) : <span style={{ color: '#94a3b8' }}>—</span>}
+                            </td>
+                            <td style={{ padding: '12px 14px', fontSize: '12px', color: '#475569' }}>
+                              {c.company_name || '—'}
+                            </td>
+                            <td style={{ padding: '12px 14px', fontSize: '12px', color: '#64748b' }}>
+                              {new Date(c.created_at).toLocaleDateString('en-US')}
+                            </td>
+                            <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                              <button
+                                onClick={() => setSelectedLeadDetails(c)}
+                                style={{
+                                  padding: '5px 10px', background: '#eff6ff', color: '#1877F2',
+                                  border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 800,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                إجابات النموذج
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {/* Lead Form Responses Viewer Drawer / Modal */}
+                {selectedLeadDetails && (
+                  <div style={{ marginTop: '16px', padding: '16px', background: '#f0f9ff', borderRadius: '12px', border: '1.5px solid #bae6fd' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#0369a1' }}>
+                        📋 إجابات النموذج للعميل: {selectedLeadDetails.name} ({selectedLeadDetails.phone || 'بدون هاتف'})
+                      </h4>
+                      <button
+                        onClick={() => setSelectedLeadDetails(null)}
+                        style={{ background: 'none', border: 'none', color: '#0369a1', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}
+                      >
+                        إغلاق ✕
+                      </button>
+                    </div>
+                    <div style={{ whiteSpace: 'pre-wrap', fontSize: '13px', color: '#334155', lineHeight: 1.6, background: 'white', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      {selectedLeadDetails.notes || 'لا توجد ملاحظات إضافية لهذا العميل.'}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => { setViewingFormLeads(null); setSelectedLeadDetails(null); }}
+                  style={{ padding: '9px 20px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  إغلاق
+                </button>
+              </div>
             </div>
           </div>
         )}
