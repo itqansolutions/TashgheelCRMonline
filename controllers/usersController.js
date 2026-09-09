@@ -36,34 +36,61 @@ exports.getUsers = async (req, res) => {
   }
 };
 
+const bcrypt = require('bcrypt');
+
 // @desc    Update user role or department
 // @route   PUT /api/users/:id/role
 // @access  Private (Admin)
 exports.updateUserRole = async (req, res) => {
-  const { role, department_id, job_title_id, national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working, phone } = req.body;
+  const { name, email, password, role, department_id, job_title_id, national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working, phone } = req.body;
   const cleanDeptId = (department_id && department_id !== '' && department_id !== 'null') ? parseInt(department_id) : null;
   const cleanJobTitleId = (job_title_id && job_title_id !== '' && job_title_id !== 'null') ? parseInt(job_title_id) : null;
   const cleanBirthDate = (birth_date && String(birth_date).trim() !== '') ? birth_date : null;
   const cleanHireDate = (hire_date && String(hire_date).trim() !== '') ? hire_date : null;
 
   try {
+    // If email is provided, verify no other user has this email
+    const cleanEmail = email?.trim().toLowerCase();
+    if (cleanEmail) {
+      const emailCheck = await db.query(
+        'SELECT id FROM users WHERE email = $1 AND id != $2',
+        [cleanEmail, req.params.id]
+      );
+      if (emailCheck.rows.length > 0) {
+        return res.status(400).json({ status: 'error', message: 'This email address is already in use by another user' });
+      }
+    }
+
+    // If password is provided, hash it
+    let passwordHash = null;
+    if (password && String(password).trim() !== '') {
+      const salt = await bcrypt.genSalt(10);
+      passwordHash = await bcrypt.hash(String(password), salt);
+    }
+
     const result = await db.query(
       `UPDATE users SET
-        role = COALESCE($1, role),
-        department_id = $2,
-        job_title_id = $3,
-        national_id = $4,
-        insurance_no = $5,
-        marital_status = COALESCE($6, 'single'),
-        gender = COALESCE($7, 'male'),
-        birth_date = $8,
-        hire_date = $9,
-        is_working = $10,
-        phone = $11,
+        name = COALESCE($1, name),
+        email = COALESCE($2, email),
+        password_hash = COALESCE($3, password_hash),
+        role = COALESCE($4, role),
+        department_id = $5,
+        job_title_id = $6,
+        national_id = $7,
+        insurance_no = $8,
+        marital_status = COALESCE($9, 'single'),
+        gender = COALESCE($10, 'male'),
+        birth_date = $11,
+        hire_date = $12,
+        is_working = $13,
+        phone = $14,
         updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $12 AND tenant_id::text = $13::text
+       WHERE id = $15 AND tenant_id::text = $16::text
        RETURNING id, name, email, phone, role, department_id, job_title_id, national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working`,
       [
+        name?.trim() || null,
+        cleanEmail || null,
+        passwordHash || null,
         role || null,
         cleanDeptId,
         cleanJobTitleId,
@@ -88,7 +115,9 @@ exports.updateUserRole = async (req, res) => {
     await logger.logAction(req, null, 'UPDATE', 'User', req.params.id, { 
       role, 
       department_id: cleanDeptId,
-      job_title_id: cleanJobTitleId
+      job_title_id: cleanJobTitleId,
+      email: cleanEmail,
+      password_updated: !!passwordHash
     });
 
     res.json({ status: 'success', data: result.rows[0] });

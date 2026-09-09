@@ -133,13 +133,13 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return toast.error('Full name is required');
-    if (!emp && !form.email.trim()) return toast.error('Email is required');
+    if (!form.email.trim()) return toast.error('Email is required');
     if (!emp && !form.password) return toast.error('Password is required');
     setSaving(true);
     try {
       if (emp) {
         await api.put(`/users/${emp.id}/role`, form);
-        toast.success('Employee data updated successfully');
+        toast.success('Employee updated successfully');
       } else {
         await api.post('/users', form);
         toast.success('Employee added successfully');
@@ -185,16 +185,14 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
                   <label style={labelStyle}>Full Name *</label>
                   <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="Employee name" style={inputStyle} required />
                 </div>
-                {!emp && (<>
-                  <div>
-                    <label style={labelStyle}>Email Address *</label>
-                    <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@company.com" style={inputStyle} required />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Password *</label>
-                    <input type="password" value={form.password} onChange={e => set('password', e.target.value)} placeholder="••••••••" style={inputStyle} required />
-                  </div>
-                </>)}
+                <div>
+                  <label style={labelStyle}>Email Address (Login) *</label>
+                  <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@company.com" style={inputStyle} required />
+                </div>
+                <div>
+                  <label style={labelStyle}>{emp ? 'Reset Password (Leave blank to keep unchanged)' : 'Password *'}</label>
+                  <input type="password" value={form.password} onChange={e => set('password', e.target.value)} placeholder={emp ? 'Enter new password to reset' : '••••••••'} style={inputStyle} required={!emp} />
+                </div>
                 <div>
                   <label style={labelStyle}>Phone Number</label>
                   <input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="01xxxxxxxxx" style={inputStyle} />

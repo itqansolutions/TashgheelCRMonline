@@ -51,6 +51,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // Contacts sub-items
   const contactItems = isRealEstate ? [
     { name: 'Customers',  icon: <Users size={18} />,    path: '/customers' },
+    { name: 'Vendors',    icon: <Truck size={18} />,    path: '/contacts/vendors' },
+    { name: 'Employees',  icon: <Briefcase size={18} />, path: '/contacts/employees' },
   ] : [
     { name: 'Customers',  icon: <Users size={18} />,    path: '/contacts/customers' },
     { name: 'Vendors',    icon: <Truck size={18} />,    path: '/contacts/vendors' },
