@@ -5,7 +5,7 @@
  */
 
 const db = require('../config/db');
-const { sendTestMessage } = require('../services/whatsappService');
+const { sendTestMessage, resolveActualPhoneNumberId } = require('../services/whatsappService');
 
 // ---------------------------------------------------------------------------
 // Ensure the settings table exists (lazy migration, same pattern as Meta)
@@ -228,16 +228,72 @@ exports.sendTestWhatsApp = async (req, res) => {
       templateName: s.template_name,
       languageCode: langCode,
       toPhone: to_phone,
-      defaultCountryCode: s.default_country_code || '20'
+      defaultCountryCode: s.default_country_code || '20',
+      tenantId
     });
 
     if (result.success) {
-      res.json({ status: 'success', message: `Test message sent successfully! Message ID: ${result.messageId}` });
+      let msg = `تم إرسال الرسالة التجريبية بنجاح! معرّف الرسالة: ${result.messageId}`;
+      if (result.resolvedPhoneId && result.resolvedPhoneId !== s.phone_number_id) {
+        msg += ` (ملاحظة: تم تصحيح معرّف الهاتف تلقائياً من ${s.phone_number_id} إلى ${result.resolvedPhoneId} وحفظه في الإعدادات)`;
+      }
+      res.json({
+        status: 'success',
+        message: msg,
+        data: {
+          resolvedPhoneId: result.resolvedPhoneId || s.phone_number_id
+        }
+      });
     } else {
       res.status(400).json({ status: 'error', message: `WhatsApp API Error: ${result.error}` });
     }
   } catch (err) {
     console.error('[WhatsApp sendTest]', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// GET /api/whatsapp/phone-numbers
+// Discovers real Phone Number IDs attached to a WABA account from Meta Graph API
+// ---------------------------------------------------------------------------
+exports.fetchPhoneNumbersFromMeta = async (req, res) => {
+  await ensureWhatsAppTable();
+  const tenantId = req.user.tenant_id;
+  const wabaIdInput = req.query.waba_id;
+
+  try {
+    const sRes = await db.query(
+      `SELECT phone_number_id, access_token FROM whatsapp_settings WHERE tenant_id::text = $1::text`,
+      [tenantId]
+    );
+
+    if (sRes.rows.length === 0 || !sRes.rows[0].access_token) {
+      return res.status(400).json({ status: 'error', message: 'يرجى إدخال وحفظ Access Token أولاً' });
+    }
+
+    const token = sRes.rows[0].access_token;
+    const searchId = (wabaIdInput || sRes.rows[0].phone_number_id || '').trim();
+
+    if (!searchId) {
+      return res.status(400).json({ status: 'error', message: 'يرجى إدخال معرّف الحساب WABA ID أولاً' });
+    }
+
+    const resolved = await resolveActualPhoneNumberId(searchId, token);
+    if (resolved && resolved.allNumbers && resolved.allNumbers.length > 0) {
+      return res.json({
+        status: 'success',
+        data: resolved.allNumbers,
+        message: `تم العثور على ${resolved.allNumbers.length} رقم مسجل في حساب واتساب`
+      });
+    }
+
+    res.status(404).json({
+      status: 'error',
+      message: 'لم يتم العثور على أرقام هواتف لهذا المعرّف. تأكد من أن المعرّف هو WhatsApp Business Account ID وأن التوكن يملك صلاحيات كافية.'
+    });
+  } catch (err) {
+    console.error('[WhatsApp fetchPhoneNumbers]', err.message);
     res.status(500).json({ status: 'error', message: err.message });
   }
 };

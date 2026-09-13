@@ -29,6 +29,8 @@ const WhatsAppSettings = () => {
   const [testPhone, setTestPhone] = useState('');
   const [testLang, setTestLang] = useState('ar');
   const [testing, setTesting] = useState(false);
+  const [discoveredNumbers, setDiscoveredNumbers] = useState([]);
+  const [discovering, setDiscovering] = useState(false);
 
   // -------------------------------------------------------------------
   // Load settings on mount
@@ -81,6 +83,31 @@ const WhatsAppSettings = () => {
   };
 
   // -------------------------------------------------------------------
+  // Discover Phone Numbers from Meta using WABA ID
+  // -------------------------------------------------------------------
+  const handleDiscoverNumbers = async () => {
+    if (!settings.phone_number_id) {
+      toast.error('أدخل معرّف الحساب في خانة Phone Number ID أولاً للبحث عن الأرقام التابعة له');
+      return;
+    }
+    setDiscovering(true);
+    try {
+      const res = await api.get(`/whatsapp/phone-numbers?waba_id=${encodeURIComponent(settings.phone_number_id.trim())}`);
+      const numbers = res.data?.data || [];
+      setDiscoveredNumbers(numbers);
+      if (numbers.length > 0) {
+        toast.success(res.data.message || `تم العثور على ${numbers.length} رقم`);
+      } else {
+        toast('لم يتم العثور على أرقام مسجلة لهذا المعرّف');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل جلب أرقام الهواتف من Meta', { duration: 6000 });
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
+  // -------------------------------------------------------------------
   // Send test message
   // -------------------------------------------------------------------
   const handleTest = async () => {
@@ -92,8 +119,11 @@ const WhatsAppSettings = () => {
         language: testLang
       });
       toast.success(res.data.message || 'Test message sent!');
+      if (res.data?.data?.resolvedPhoneId && res.data.data.resolvedPhoneId !== settings.phone_number_id) {
+        setSettings(prev => ({ ...prev, phone_number_id: res.data.data.resolvedPhoneId }));
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Test failed');
+      toast.error(err.response?.data?.message || 'Test failed', { duration: 8000 });
     } finally {
       setTesting(false);
     }
@@ -184,9 +214,24 @@ const WhatsAppSettings = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             {/* Phone Number ID */}
             <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Phone Number ID (معرّف رقم الهاتف) *
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: 13, fontWeight: 600 }}>
+                  Phone Number ID (معرّف رقم الهاتف) *
+                </label>
+                <button
+                  type="button"
+                  onClick={handleDiscoverNumbers}
+                  disabled={discovering || !settings.phone_number_id}
+                  style={{
+                    background: '#f0fdf4', border: '1px solid #86efac', color: '#15803d',
+                    padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                    cursor: discovering || !settings.phone_number_id ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {discovering ? 'جاري البحث في Meta...' : '🔍 جلب أرقام الهواتف من Meta'}
+                </button>
+              </div>
+
               <input
                 type="text"
                 value={settings.phone_number_id}
@@ -199,8 +244,41 @@ const WhatsAppSettings = () => {
                   fontFamily: 'monospace', boxSizing: 'border-box'
                 }}
               />
+
+              {/* Discovered Numbers List */}
+              {discoveredNumbers.length > 0 && (
+                <div style={{ marginTop: 10, padding: 12, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', marginBottom: 8 }}>
+                    📱 الأرقام المسجلة في حسابك على Meta:
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {discoveredNumbers.map(item => (
+                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'white', border: '1px solid #dcfce7', borderRadius: 6 }}>
+                        <div>
+                          <strong>{item.display_phone_number}</strong> {item.verified_name ? `(${item.verified_name})` : ''} — <span style={{ fontSize: 12, color: '#64748b' }}>ID: <code>{item.id}</code></span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleChange('phone_number_id', item.id);
+                            toast.success(`تم اختيار الرقم: ${item.display_phone_number}`);
+                          }}
+                          style={{
+                            background: '#16a34a', color: 'white', border: 'none',
+                            padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          استخدام هذا الرقم
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div style={{ margin: '6px 0 0', fontSize: 12, color: '#b45309', background: '#fffbeb', padding: '8px 12px', borderRadius: 8, border: '1px solid #fde68a', lineHeight: 1.5 }}>
-                ⚠️ <strong>تنبيه هام:</strong> تأكد من نسخ <strong>Phone number ID</strong> (معرّف رقم الهاتف) وليس <strong>WhatsApp Business Account ID</strong> من شاشة <code>Meta Developers &rarr; WhatsApp &rarr; API Setup</code>.
+                ⚠️ <strong>تنبيه هام:</strong> المعرّف <code>1321352281062137</code> هو معرّف الحساب (WABA ID). عند الضغط على زر <strong>"جلب أرقام الهواتف من Meta"</strong> بالأعلى أو إرسال رسالة تجريبية، سيقوم النظام باستخراج معرّف رقم الهاتف الصحيح تلقائياً.
               </div>
             </div>
 

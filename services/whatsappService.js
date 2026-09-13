@@ -98,6 +98,36 @@ async function getWhatsAppSettings(tenantId) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Attempt to resolve a Phone Number ID if the user accidentally provided
+ * a WhatsApp Business Account ID (WABA ID).
+ * 
+ * Calls GET https://graph.facebook.com/v21.0/{id}/phone_numbers
+ * Returns the first active phone number ID found, or null.
+ */
+async function resolveActualPhoneNumberId(idOrWabaId, accessToken) {
+  if (!idOrWabaId || !accessToken) return null;
+  try {
+    const res = await axios.get(`${WA_BASE_URL}/${idOrWabaId}/phone_numbers`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: 10000
+    });
+    const numbers = res.data?.data || [];
+    if (numbers.length > 0 && numbers[0].id) {
+      console.log(`💡 [WhatsApp] Successfully resolved WABA ID ${idOrWabaId} to Phone Number ID: ${numbers[0].id} (${numbers[0].display_phone_number || ''})`);
+      return {
+        phoneNumberId: numbers[0].id,
+        displayPhoneNumber: numbers[0].display_phone_number,
+        verifiedName: numbers[0].verified_name,
+        allNumbers: numbers
+      };
+    }
+  } catch (err) {
+    console.log(`[WhatsApp] Failed to resolve phone numbers for ID ${idOrWabaId}:`, err.response?.data?.error?.message || err.message);
+  }
+  return null;
+}
+
+/**
  * Call the WhatsApp Cloud API to send a template message.
  *
  * @param {string} phoneNumberId   Meta Phone Number ID (from WhatsApp settings)
@@ -106,36 +136,86 @@ async function getWhatsAppSettings(tenantId) {
  * @param {string} templateName    Pre-approved template name
  * @param {string} languageCode    e.g. 'ar', 'en_US'
  * @param {Array}  components      Template body parameters
- * @returns {Promise<{success: boolean, messageId: string|null, error: string|null}>}
+ * @param {string} tenantId        Optional tenant UUID for auto-updating settings
+ * @returns {Promise<{success: boolean, messageId: string|null, error: string|null, resolvedPhoneId?: string}>}
  */
-async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateName, languageCode, components = [] }) {
-  const url = `${WA_BASE_URL}/${phoneNumberId}/messages`;
+async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateName, languageCode, components = [], tenantId = null }) {
+  const targetPhoneId = (phoneNumberId || '').trim();
 
-  const payload = {
-    messaging_product: 'whatsapp',
-    to: toPhone,
-    type: 'template',
-    template: {
-      name: templateName,
-      language: { code: languageCode },
-      ...(components.length > 0 ? { components } : {})
-    }
-  };
+  const sendRequest = async (phoneId) => {
+    const url = `${WA_BASE_URL}/${phoneId}/messages`;
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: toPhone,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: languageCode },
+        ...(components.length > 0 ? { components } : {})
+      }
+    };
 
-  try {
-    const response = await axios.post(url, payload, {
+    return axios.post(url, payload, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
       timeout: 15000
     });
+  };
 
+  try {
+    const response = await sendRequest(targetPhoneId);
     const messageId = response.data?.messages?.[0]?.id || null;
     console.log(`✅ [WhatsApp] Message sent to ${toPhone} | template: ${templateName} | lang: ${languageCode} | id: ${messageId}`);
-    return { success: true, messageId, error: null };
+    return { success: true, messageId, error: null, resolvedPhoneId: targetPhoneId };
   } catch (err) {
-    const apiError = err.response?.data?.error?.message || err.message;
+    const rawError = err.response?.data?.error;
+    const apiError = rawError?.message || err.message;
+
+    // Check if error is "Unsupported post request" (Object ID is a WABA ID, App ID, or invalid)
+    if (apiError.includes('Unsupported post request') || (rawError?.code === 100 && rawError?.error_subcode === 33)) {
+      console.warn(`⚠️ [WhatsApp] ID '${targetPhoneId}' rejected by Meta as not supporting /messages. Checking if it's a WABA ID...`);
+      const resolved = await resolveActualPhoneNumberId(targetPhoneId, accessToken);
+      if (resolved && resolved.phoneNumberId && resolved.phoneNumberId !== targetPhoneId) {
+        console.log(`🔄 [WhatsApp] Retrying message send with resolved Phone Number ID: ${resolved.phoneNumberId}`);
+        try {
+          const retryRes = await sendRequest(resolved.phoneNumberId);
+          const messageId = retryRes.data?.messages?.[0]?.id || null;
+          console.log(`✅ [WhatsApp] Retry SUCCEEDED with Phone Number ID ${resolved.phoneNumberId}! Message ID: ${messageId}`);
+
+          // Automatically fix in database if tenantId provided
+          if (tenantId) {
+            try {
+              await db.query(
+                `UPDATE whatsapp_settings SET phone_number_id = $1, updated_at = NOW() WHERE tenant_id::text = $2::text`,
+                [resolved.phoneNumberId, tenantId]
+              );
+              console.log(`💾 [WhatsApp] Automatically updated database phone_number_id to ${resolved.phoneNumberId} for tenant ${tenantId}`);
+            } catch (dbErr) {
+              console.warn('[WhatsApp] Could not update DB phone_number_id:', dbErr.message);
+            }
+          }
+
+          return { success: true, messageId, error: null, resolvedPhoneId: resolved.phoneNumberId };
+        } catch (retryErr) {
+          const retryApiErr = retryErr.response?.data?.error?.message || retryErr.message;
+          return {
+            success: false,
+            messageId: null,
+            error: `تم العثور على معرّف رقم الهاتف '${resolved.phoneNumberId}' (${resolved.displayPhoneNumber || ''})، ولكن تعذر الإرسال: ${retryApiErr}`
+          };
+        }
+      }
+
+      // If cannot auto-resolve, provide a clear, helpful explanation in Arabic and English
+      return {
+        success: false,
+        messageId: null,
+        error: `المعرّف '${targetPhoneId}' غير صالح لإرسال الرسائل مباشرة. هذا المعرّف يخص حساب واتساب للأعمال (WABA ID) وليس معرّف رقم الهاتف (Phone Number ID). يرجى فتح Meta Developers ثم الانتقال إلى: WhatsApp > API Setup ونسخ المعرّف الموجود تحت خانة "Phone number ID" ولصقه في الإعدادات.`
+      };
+    }
+
     console.error(`❌ [WhatsApp] Failed to send to ${toPhone}:`, apiError);
     return { success: false, messageId: null, error: apiError };
   }
@@ -192,6 +272,7 @@ async function sendWelcomeMessage({ phone, customerName, tenantId }) {
       toPhone: e164,
       templateName: settings.template_name,
       languageCode: settings.template_language_ar,
+      tenantId,
       components: [nameComponent]
     });
     results.push({ language: settings.template_language_ar, ...res });
@@ -205,6 +286,7 @@ async function sendWelcomeMessage({ phone, customerName, tenantId }) {
       toPhone: e164,
       templateName: settings.template_name,
       languageCode: settings.template_language_en,
+      tenantId,
       components: [nameComponent]
     });
     results.push({ language: settings.template_language_en, ...res });
@@ -224,9 +306,10 @@ async function sendWelcomeMessage({ phone, customerName, tenantId }) {
  * @param {string} opts.languageCode
  * @param {string} opts.toPhone        Raw phone string
  * @param {string} opts.defaultCountryCode
- * @returns {Promise<{success: boolean, messageId: string|null, error: string|null}>}
+ * @param {string} opts.tenantId
+ * @returns {Promise<{success: boolean, messageId: string|null, error: string|null, resolvedPhoneId?: string}>}
  */
-async function sendTestMessage({ phoneNumberId, accessToken, templateName, languageCode, toPhone, defaultCountryCode = '20' }) {
+async function sendTestMessage({ phoneNumberId, accessToken, templateName, languageCode, toPhone, defaultCountryCode = '20', tenantId = null }) {
   const e164 = normalisePhone(toPhone, defaultCountryCode);
   if (!e164) {
     return { success: false, messageId: null, error: 'Invalid phone number — could not convert to E.164 format' };
@@ -238,6 +321,7 @@ async function sendTestMessage({ phoneNumberId, accessToken, templateName, langu
     toPhone: e164,
     templateName,
     languageCode,
+    tenantId,
     components: [{
       type: 'body',
       parameters: [{ type: 'text', text: 'Test Lead' }]
@@ -249,5 +333,6 @@ module.exports = {
   sendWelcomeMessage,
   sendTestMessage,
   normalisePhone,
-  getWhatsAppSettings
+  getWhatsAppSettings,
+  resolveActualPhoneNumberId
 };

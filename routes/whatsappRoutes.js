@@ -15,4 +15,7 @@ router.post('/settings', whatsappController.updateWhatsAppSettings);
 // Send a test WhatsApp message to verify the integration
 router.post('/test', whatsappController.sendTestWhatsApp);
 
+// Fetch registered Phone Number IDs from Meta for a given WABA account
+router.get('/phone-numbers', whatsappController.fetchPhoneNumbersFromMeta);
+
 module.exports = router;
