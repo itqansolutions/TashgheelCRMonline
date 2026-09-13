@@ -142,7 +142,7 @@ async function resolveActualPhoneNumberId(idOrWabaId, accessToken) {
 async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateName, languageCode, components = [], tenantId = null }) {
   const targetPhoneId = (phoneNumberId || '').trim();
 
-  const sendRequest = async (phoneId) => {
+  const sendRequest = async (phoneId, customComponents = components, customLang = languageCode) => {
     const url = `${WA_BASE_URL}/${phoneId}/messages`;
     const payload = {
       messaging_product: 'whatsapp',
@@ -150,8 +150,8 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
       type: 'template',
       template: {
         name: templateName,
-        language: { code: languageCode },
-        ...(components.length > 0 ? { components } : {})
+        language: { code: customLang },
+        ...(customComponents && customComponents.length > 0 ? { components: customComponents } : {})
       }
     };
 
@@ -173,7 +173,50 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
     const rawError = err.response?.data?.error;
     const apiError = rawError?.message || err.message;
 
-    // Check if error is "Unsupported post request" (Object ID is a WABA ID, App ID, or invalid)
+    // 1. Check if error is parameter mismatch (Code 132000 or "number of parameters does not match")
+    // e.g. Variable is in HEADER instead of BODY (like: أهلاً / {{1}}), or no variables
+    if (rawError?.code === 132000 || apiError.includes('number of parameters') || apiError.includes('expected number of params')) {
+      console.warn(`⚠️ [WhatsApp] Parameter mismatch for '${templateName}'. Auto-adapting (Header vs Body vs None)...`);
+      const extractedName = components?.[0]?.parameters?.[0]?.text || 'عميلنا الكريم';
+      const headerComp = { type: 'header', parameters: [{ type: 'text', text: extractedName }] };
+      const bodyComp = { type: 'body', parameters: [{ type: 'text', text: extractedName }] };
+
+      const variations = [
+        [headerComp],            // Case 1: Variable in Header only (e.g. أهلاً / {{1}})
+        [headerComp, bodyComp],  // Case 2: Variables in both Header and Body
+        [],                      // Case 3: Template without variables
+        [bodyComp]               // Case 4: Variable in Body only
+      ];
+
+      for (const variant of variations) {
+        try {
+          const vRes = await sendRequest(targetPhoneId, variant);
+          const msgId = vRes.data?.messages?.[0]?.id || null;
+          console.log(`✅ [WhatsApp] Auto-adaptation SUCCEEDED with component variant! ID: ${msgId}`);
+          return { success: true, messageId: msgId, error: null, resolvedPhoneId: targetPhoneId };
+        } catch (vErr) {
+          // continue testing
+        }
+      }
+    }
+
+    // 2. Check if error is language mismatch (e.g. template created as English 'en'/'en_US' instead of 'ar')
+    if (rawError?.code === 132001 || apiError.includes('does not exist in') || apiError.includes('language')) {
+      const fallbackLanguages = languageCode.startsWith('ar') ? ['en_US', 'en'] : ['ar'];
+      console.warn(`⚠️ [WhatsApp] Language '${languageCode}' rejected for '${templateName}'. Trying fallback languages: ${fallbackLanguages.join(', ')}...`);
+      for (const altLang of fallbackLanguages) {
+        try {
+          const lRes = await sendRequest(targetPhoneId, components, altLang);
+          const msgId = lRes.data?.messages?.[0]?.id || null;
+          console.log(`✅ [WhatsApp] Succeeded with fallback language '${altLang}'! ID: ${msgId}`);
+          return { success: true, messageId: msgId, error: null, resolvedPhoneId: targetPhoneId };
+        } catch (lErr) {
+          // continue testing
+        }
+      }
+    }
+
+    // 3. Check if error is "Unsupported post request" (Object ID is a WABA ID, App ID, or invalid)
     if (apiError.includes('Unsupported post request') || (rawError?.code === 100 && rawError?.error_subcode === 33)) {
       console.warn(`⚠️ [WhatsApp] ID '${targetPhoneId}' rejected by Meta as not supporting /messages. Checking if it's a WABA ID...`);
       const resolved = await resolveActualPhoneNumberId(targetPhoneId, accessToken);
