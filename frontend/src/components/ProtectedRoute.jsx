@@ -23,16 +23,23 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   // RBAC: Check role
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   // PBAC: Check granular path access
   const currentPath = location.pathname;
   const checkPath = currentPath === '/' ? '/dashboard' : currentPath;
-  
-  if (!safeArray(user?.allowedPages).includes(checkPath)) {
-    // If not allowed, redirect to dashboard or home
-    return <Navigate to="/" replace />;
+  const allowed = safeArray(user?.allowedPages);
+
+  // If user has allowedPages configured and current path is not included, redirect to dashboard or first allowed page
+  if (allowed.length > 0 && !allowed.includes(checkPath)) {
+    if (checkPath !== '/dashboard' && allowed.includes('/dashboard')) {
+      return <Navigate to="/dashboard" replace />;
+    }
+    const fallback = allowed[0] || '/my-profile';
+    if (checkPath !== fallback) {
+      return <Navigate to={fallback} replace />;
+    }
   }
 
   return children;

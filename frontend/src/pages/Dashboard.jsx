@@ -49,14 +49,18 @@ const Dashboard = () => {
   const [viewMode, setViewMode] = useState(user?.role === 'admin' ? 'ALL' : 'SINGLE');
   const [timeFilter, setTimeFilter] = useState('YTD');
 
+  const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
+  const effectiveMode = isAdminOrManager ? viewMode : 'SINGLE';
+
   const fetchDashboardData = async (mode, time) => {
     setLoading(true);
     try {
-      const endpoint = `/dashboard/branch-summary?viewMode=${mode}&timeFilter=${time}`;
+      const activeMode = isAdminOrManager ? mode : 'SINGLE';
+      const endpoint = `/dashboard/branch-summary?viewMode=${activeMode}&timeFilter=${time}`;
       const res = await api.get(endpoint);
       setStats(res.data.data);
 
-      if (mode === 'ALL') {
+      if (activeMode === 'ALL' && isAdminOrManager) {
         const compRes = await api.get(`/dashboard/branch-comparison?timeFilter=${time}`);
         setComparisonData(safeArray(compRes.data.data));
       } else {

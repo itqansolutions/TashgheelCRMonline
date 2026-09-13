@@ -145,16 +145,60 @@ exports.register = async (req, res) => {
       subscription: { status: 'trial', plan: planName, modules, trial_ends_at: trialEnd }
     });
   } catch (err) {
-    console.error('🔥 SaaS Registration Error Details:', {
-      message: err.message,
-      stack: err.stack,
-      body: { ...req.body, password: '***' }
-    });
+    console.error('🔥 SaaS Registration Error:', err.message);
     res.status(500).json({ 
       status: 'error', 
       message: 'Server error during registration',
       detail: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
+  }
+};
+
+// Helper to fetch user allowed pages from user_access table
+const getUserAllowedPages = async (userId, userRole) => {
+  try {
+    const accessRes = await db.query(
+      'SELECT page_path FROM user_access WHERE user_id = $1 AND can_access = true',
+      [userId]
+    );
+    let allowedPages = accessRes.rows.map(r => r.page_path);
+    if (allowedPages.length > 0) {
+      if (!allowedPages.includes('/my-profile')) allowedPages.push('/my-profile');
+      if (!allowedPages.includes('/dashboard')) allowedPages.push('/dashboard');
+      return allowedPages;
+    }
+  } catch (err) {
+    console.error('Error fetching user allowedPages:', err.message);
+  }
+
+  // Sensible default pages if no specific user_access rows exist
+  if (userRole === 'admin') {
+    return [
+      '/dashboard', '/my-profile', '/customers', '/contacts/customers', '/contacts/vendors',
+      '/contacts/employees', '/products', '/deals', '/tasks', '/finance', '/erp/accounts',
+      '/erp/journals', '/erp/reports', '/erp/banking', '/erp/closing', '/erp/entries',
+      '/inventory/warehouses', '/inventory/keepers', '/inventory/transaction-impact',
+      '/inventory/balances', '/inventory/item-card', '/inventory/movements',
+      '/sales/salesmen', '/sales/target', '/sales/orders', '/sales/documents',
+      '/sales/price-tiers', '/integrations/einvoice', '/integrations/meta-forms',
+      '/employees', '/hr/my-attendance', '/hr/dashboard', '/hr/approvals',
+      '/hr/payroll', '/hr/activity-definition', '/hr/activity-balance', '/hr/shifts',
+      '/hr/devices', '/hr/my-requests', '/automation', '/automation/rules',
+      '/files', '/reports', '/logs', '/settings', '/settings/company', '/billing'
+    ];
+  } else if (userRole === 'manager') {
+    return [
+      '/dashboard', '/my-profile', '/customers', '/contacts/customers', '/contacts/vendors',
+      '/contacts/employees', '/deals', '/tasks', '/files', '/reports',
+      '/hr/my-attendance', '/hr/my-requests', '/hr/dashboard', '/hr/approvals',
+      '/sales/orders', '/sales/salesmen', '/sales/target'
+    ];
+  } else {
+    // Standard employee
+    return [
+      '/dashboard', '/my-profile', '/customers', '/contacts/customers',
+      '/deals', '/tasks', '/files', '/hr/my-attendance', '/hr/my-requests'
+    ];
   }
 };
 
@@ -189,6 +233,9 @@ exports.login = async (req, res) => {
     const branchRes = await db.query('SELECT branch_id FROM user_branches WHERE user_id = $1 LIMIT 1', [user.id]);
     const primaryBranchId = branchRes.rows[0]?.branch_id || user.branch_id;
 
+    // Resolve allowed pages for PBAC
+    const allowedPages = await getUserAllowedPages(user.id, user.role);
+
     // Generate JWT with Tenant Context
     const payload = { user: { id: user.id, role: user.role, tenant_id: user.tenant_id } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '72h' });
@@ -203,10 +250,11 @@ exports.login = async (req, res) => {
         id: user.id, 
         name: user.name, 
         email: user.email, 
-        role: user.role,
+        role: user.role, 
         tenant_id: user.tenant_id,
         template_name: user.template_name,
-        branch_id: primaryBranchId
+        branch_id: primaryBranchId,
+        allowedPages
       } 
     });
   } catch (err) {
@@ -244,6 +292,8 @@ exports.demoLogin = async (req, res) => {
     const dbBranchRes = await db.query('SELECT branch_id FROM user_branches WHERE user_id = $1 LIMIT 1', [user.id]);
     const demoBranchId = dbBranchRes.rows[0]?.branch_id || user.branch_id;
 
+    const allowedPages = await getUserAllowedPages(user.id, user.role);
+
     // Generate JWT
     const payload = { user: { id: user.id, role: user.role, tenant_id: user.tenant_id } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '2h' }); 
@@ -255,11 +305,12 @@ exports.demoLogin = async (req, res) => {
         id: user.id, 
         name: user.name, 
         email: user.email, 
-        role: user.role,
+        role: user.role, 
         tenant_id: user.tenant_id,
         template_name: user.template_name,
         branch_id: demoBranchId,
-        isDemo: true 
+        isDemo: true,
+        allowedPages
       } 
     });
   } catch (err) {
@@ -354,6 +405,9 @@ exports.getMe = async (req, res) => {
     `, [req.user.id]);
     
     const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
 
     // Fetch accessible branches
     const branchesResult = await db.query(
@@ -362,10 +416,12 @@ exports.getMe = async (req, res) => {
        WHERE ub.user_id = $1`,
       [req.user.id]
     );
+
+    const allowedPages = await getUserAllowedPages(user.id, user.role);
     
     res.json({ 
       status: 'success', 
-      user: { ...user, branches: branchesResult.rows } 
+      user: { ...user, branches: branchesResult.rows, allowedPages } 
     });
   } catch (err) {
     console.error(err.message);
