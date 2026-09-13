@@ -18,12 +18,14 @@ const WhatsAppSettings = () => {
     send_english: false,
     default_country_code: '20',
     is_active: false,
-    has_access_token: false
+    has_access_token: false,
+    token_preview: ''
   });
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showToken, setShowToken] = useState(false);
+  const [showTokenInput, setShowTokenInput] = useState(false);
   const [testPhone, setTestPhone] = useState('');
   const [testLang, setTestLang] = useState('ar');
   const [testing, setTesting] = useState(false);
@@ -40,7 +42,12 @@ const WhatsAppSettings = () => {
     try {
       const res = await api.get('/whatsapp/settings');
       if (res.data?.data) {
-        setSettings(prev => ({ ...prev, ...res.data.data, access_token: '' }));
+        setSettings(prev => ({
+          ...prev,
+          ...res.data.data,
+          access_token: '',
+          token_preview: res.data.data.token_preview || ''
+        }));
       }
     } catch {
       toast.error('Failed to load WhatsApp settings');
@@ -56,9 +63,16 @@ const WhatsAppSettings = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/whatsapp/settings', settings);
-      toast.success('✅ WhatsApp settings saved successfully!');
-      setSettings(prev => ({ ...prev, access_token: '', has_access_token: true }));
+      const res = await api.post('/whatsapp/settings', settings);
+      toast.success('✅ تم حفظ إعدادات واتساب بنجاح!');
+      const newPreview = res.data?.data?.token_preview || settings.token_preview;
+      setSettings(prev => ({
+        ...prev,
+        access_token: '',
+        has_access_token: true,
+        token_preview: newPreview || prev.token_preview
+      }));
+      setShowTokenInput(false);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save settings');
     } finally {
@@ -171,13 +185,13 @@ const WhatsAppSettings = () => {
             {/* Phone Number ID */}
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Phone Number ID *
+                Phone Number ID (معرّف رقم الهاتف) *
               </label>
               <input
                 type="text"
                 value={settings.phone_number_id}
                 onChange={e => handleChange('phone_number_id', e.target.value)}
-                placeholder="e.g. 123456789012345"
+                placeholder="e.g. 105829182746193"
                 required
                 style={{
                   width: '100%', padding: '9px 12px', borderRadius: 8,
@@ -185,41 +199,74 @@ const WhatsAppSettings = () => {
                   fontFamily: 'monospace', boxSizing: 'border-box'
                 }}
               />
-              <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-                Found in Meta Developer Console → WhatsApp → API Setup → Phone Number ID
-              </p>
+              <div style={{ margin: '6px 0 0', fontSize: 12, color: '#b45309', background: '#fffbeb', padding: '8px 12px', borderRadius: 8, border: '1px solid #fde68a', lineHeight: 1.5 }}>
+                ⚠️ <strong>تنبيه هام:</strong> تأكد من نسخ <strong>Phone number ID</strong> (معرّف رقم الهاتف) وليس <strong>WhatsApp Business Account ID</strong> من شاشة <code>Meta Developers &rarr; WhatsApp &rarr; API Setup</code>.
+              </div>
             </div>
 
             {/* Access Token */}
             <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Access Token {settings.has_access_token ? '(saved — leave blank to keep)' : '*'}
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showToken ? 'text' : 'password'}
-                  value={settings.access_token}
-                  onChange={e => handleChange('access_token', e.target.value)}
-                  placeholder={settings.has_access_token ? '••••••••••••••••' : 'Permanent system-user token'}
-                  style={{
-                    width: '100%', padding: '9px 40px 9px 12px', borderRadius: 8,
-                    border: '1px solid var(--border)', fontSize: 14,
-                    fontFamily: 'monospace', boxSizing: 'border-box'
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowToken(v => !v)}
-                  style={{
-                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)'
-                  }}
-                >
-                  {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: 13, fontWeight: 600 }}>
+                  Access Token {settings.has_access_token ? '(محفوظ في النظام)' : '*'}
+                </label>
+                {settings.has_access_token && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTokenInput(v => !v)}
+                    style={{
+                      background: 'none', border: 'none', color: '#2563eb', fontSize: 12,
+                      fontWeight: 700, cursor: 'pointer', textDecoration: 'underline'
+                    }}
+                  >
+                    {showTokenInput ? 'إلغاء التعديل' : '🔄 تعديل / إدخال توكن جديد'}
+                  </button>
+                )}
               </div>
-              <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-                Use a permanent system-user token — not the temporary 24-hour token
+
+              {settings.has_access_token && !showTokenInput ? (
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 16px', background: '#ecfdf5', border: '1px solid #a7f3d0',
+                  borderRadius: 8
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#065f46', fontSize: 13, fontWeight: 600 }}>
+                    <CheckCircle size={18} color="#10b981" />
+                    <span>التوكن محفوظ ونشط في قاعدة البيانات ({settings.token_preview || '••••••••••••••••'})</span>
+                  </div>
+                  <span style={{ fontSize: 11, background: '#d1fae5', color: '#047857', padding: '3px 10px', borderRadius: 6, fontWeight: 700 }}>
+                    جاهز للاستخدام ✅
+                  </span>
+                </div>
+              ) : (
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showToken ? 'text' : 'password'}
+                    value={settings.access_token}
+                    onChange={e => handleChange('access_token', e.target.value)}
+                    placeholder={settings.has_access_token ? 'أدخل التوكن الجديد هنا أو اتركه فارغاً للاحتفاظ بالتوكن الحالي...' : 'Permanent system-user token (e.g. EAAB...)'}
+                    required={!settings.has_access_token}
+                    style={{
+                      width: '100%', padding: '9px 40px 9px 12px', borderRadius: 8,
+                      border: '1px solid var(--border)', fontSize: 14,
+                      fontFamily: 'monospace', boxSizing: 'border-box'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowToken(v => !v)}
+                    style={{
+                      position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)'
+                    }}
+                  >
+                    {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              )}
+
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
+                استخدم توكن مستخدم النظام الدائم (System User Token) مع صلاحيات <code>whatsapp_business_messaging</code> و <code>whatsapp_business_management</code>
               </p>
             </div>
           </div>

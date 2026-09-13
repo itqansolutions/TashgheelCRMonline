@@ -58,7 +58,7 @@ exports.getWhatsAppSettings = async (req, res) => {
          send_english,
          default_country_code,
          is_active,
-         -- Mask the token — only expose whether it is set
+         access_token,
          (access_token IS NOT NULL AND access_token <> '') AS has_access_token
        FROM whatsapp_settings
        WHERE tenant_id::text = $1::text`,
@@ -77,12 +77,27 @@ exports.getWhatsAppSettings = async (req, res) => {
           send_english: false,
           default_country_code: '20',
           is_active: false,
-          has_access_token: false
+          has_access_token: false,
+          token_preview: ''
         }
       });
     }
 
-    res.json({ status: 'success', data: result.rows[0] });
+    const row = result.rows[0];
+    const rawToken = row.access_token || '';
+    const tokenPreview = rawToken.length > 10
+      ? `${rawToken.slice(0, 6)}••••••••${rawToken.slice(-4)}`
+      : (rawToken ? '••••••••' : '');
+
+    delete row.access_token; // Mask full token from API responses
+
+    res.json({
+      status: 'success',
+      data: {
+        ...row,
+        token_preview: tokenPreview
+      }
+    });
   } catch (err) {
     console.error('[WhatsApp getSettings]', err.message);
     res.status(500).json({ status: 'error', message: err.message });
@@ -115,6 +130,8 @@ exports.updateWhatsAppSettings = async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Template Name is required' });
   }
 
+  const cleanToken = (access_token || '').trim();
+
   try {
     await db.query(
       `INSERT INTO whatsapp_settings (
@@ -122,10 +139,13 @@ exports.updateWhatsAppSettings = async (req, res) => {
          template_name, template_language_ar, template_language_en,
          send_arabic, send_english, default_country_code, is_active,
          updated_at
-       ) VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6, $7, $8, $9, $10, NOW())
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
        ON CONFLICT (tenant_id) DO UPDATE SET
          phone_number_id      = EXCLUDED.phone_number_id,
-         access_token         = COALESCE(NULLIF(EXCLUDED.access_token, ''), whatsapp_settings.access_token),
+         access_token         = CASE 
+                                  WHEN EXCLUDED.access_token <> '' THEN EXCLUDED.access_token 
+                                  ELSE whatsapp_settings.access_token 
+                                END,
          template_name        = EXCLUDED.template_name,
          template_language_ar = EXCLUDED.template_language_ar,
          template_language_en = EXCLUDED.template_language_en,
@@ -137,7 +157,7 @@ exports.updateWhatsAppSettings = async (req, res) => {
       [
         tenantId,
         phone_number_id.trim(),
-        (access_token || '').trim(),
+        cleanToken,
         template_name.trim(),
         (template_language_ar || 'ar').trim(),
         (template_language_en || 'en_US').trim(),
@@ -148,7 +168,18 @@ exports.updateWhatsAppSettings = async (req, res) => {
       ]
     );
 
-    res.json({ status: 'success', message: 'WhatsApp settings saved successfully' });
+    const tokenPreview = cleanToken.length > 10
+      ? `${cleanToken.slice(0, 6)}••••••••${cleanToken.slice(-4)}`
+      : (cleanToken ? '••••••••' : '');
+
+    res.json({
+      status: 'success',
+      message: 'WhatsApp settings saved successfully',
+      data: {
+        has_access_token: true,
+        token_preview: tokenPreview
+      }
+    });
   } catch (err) {
     console.error('[WhatsApp updateSettings]', err.message);
     res.status(500).json({ status: 'error', message: err.message });
