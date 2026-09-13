@@ -208,11 +208,11 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
         }
       }
 
-      // If cannot auto-resolve, provide a clear, helpful explanation in Arabic and English
+      // If cannot auto-resolve, explain the permission/token cause accurately
       return {
         success: false,
         messageId: null,
-        error: `المعرّف '${targetPhoneId}' غير صالح لإرسال الرسائل مباشرة. هذا المعرّف يخص حساب واتساب للأعمال (WABA ID) وليس معرّف رقم الهاتف (Phone Number ID). يرجى فتح Meta Developers ثم الانتقال إلى: WhatsApp > API Setup ونسخ المعرّف الموجود تحت خانة "Phone number ID" ولصقه في الإعدادات.`
+        error: `Meta رفضت الطلب للمعرّف '${targetPhoneId}'. إذا كان هذا هو معرّف رقم هاتفك الفعلي، فالسبب هو أن الـ Access Token المستخدم لا يملك صلاحية للوصول إلى هذا الرقم أو تم إنشاؤه لتطبيق/حساب تجاري مختلف. تأكد من ربط حساب واتساب بالـ System User في إعدادات Business Settings وإعطائه صلاحية whatsapp_business_messaging.`
       };
     }
 
