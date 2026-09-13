@@ -127,6 +127,7 @@ app.use('/api', authMiddleware, branchScope, subscriptionGuard);
 
 app.use('/api/customers', customerRoutes);
 app.use('/api/meta', metaRoutes);
+app.use('/api/whatsapp', require('./routes/whatsappRoutes'));
 app.use('/api/billing', billingRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/tasks', taskRoutes);

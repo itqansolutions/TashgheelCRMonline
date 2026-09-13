@@ -80,6 +80,7 @@ import PriceTiers from './pages/Sales/PriceTiers';
 // Integrations Pages
 import EInvoice from './pages/Integrations/EInvoice';
 import MetaForms from './pages/Integrations/MetaForms';
+import WhatsAppSettings from './pages/Integrations/WhatsAppSettings';
 
 // Corporate Pages
 import CorporateLayout from './pages/Corporate/CorporateLayout';
@@ -191,6 +192,15 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
+                  <Route
+                    path="integrations/whatsapp"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <WhatsAppSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+
                   <Route 
                     path="employees" 
                     element={

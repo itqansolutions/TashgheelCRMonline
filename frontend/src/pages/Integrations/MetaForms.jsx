@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { 
   Share2, Plus, RefreshCw, Trash2, Edit2, ShieldCheck, Key, Settings, User,
-  Calendar, ExternalLink, Users, Eye, Search, X, Download
+  Calendar, ExternalLink, Users, Eye, Search, X, Download, MessageCircle
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 import { exportCustomersToExcel } from '../../utils/excelExport';
@@ -223,7 +224,19 @@ const MetaForms = () => {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <Link
+              to="/integrations/whatsapp"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px',
+                background: 'linear-gradient(135deg, #25D366, #128C7E)', color: 'white',
+                borderRadius: '10px', fontWeight: 800, textDecoration: 'none', fontSize: '13px',
+                boxShadow: '0 4px 12px rgba(37, 211, 102, 0.25)'
+              }}
+            >
+              <MessageCircle size={16} /> WhatsApp Auto-Reply
+            </Link>
+
             <button
               onClick={() => setShowSettingsModal(true)}
               style={{

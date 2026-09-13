@@ -2,6 +2,7 @@ const axios = require('axios');
 const db = require('../config/db');
 const { logCreate } = require('./loggerService');
 const { logActivity } = require('../utils/activityLogger');
+const { sendWelcomeMessage } = require('./whatsappService');
 
 /**
  * Service to interact with Meta Graph API and ingest Lead Ads leads into CRM
@@ -284,6 +285,23 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
     });
   } catch (actErr) {
     console.warn('[Meta Ingest Activity Log]', actErr.message);
+  }
+
+  // 🟢 WhatsApp Welcome Message
+  // Fires asynchronously — a failure here never blocks lead creation.
+  if (newCustomer.phone) {
+    try {
+      const waResult = await sendWelcomeMessage({
+        phone: newCustomer.phone,
+        customerName: newCustomer.name,
+        tenantId
+      });
+      if (waResult.sent) {
+        console.log(`📱 [WhatsApp] Welcome message dispatched to customer #${newCustomer.id} (${newCustomer.name})`);
+      }
+    } catch (waErr) {
+      console.warn('[WhatsApp Welcome Message Error]', waErr.message);
+    }
   }
 
   return { status: 'created', customer: newCustomer };
