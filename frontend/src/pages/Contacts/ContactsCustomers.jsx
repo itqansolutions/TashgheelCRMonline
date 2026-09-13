@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Plus, Users, Phone, MapPin, Hash, FileText, Search, CheckCircle, XCircle, AlertTriangle, Printer, X, ChevronDown, Eye, Download } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { exportCustomersToExcel } from '../../utils/excelExport';
+import ActivityTimeline from '../../components/Common/ActivityTimeline';
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US') : '—';
@@ -359,8 +360,8 @@ const ContactsCustomers = () => {
                   </td>
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                      <button onClick={() => setViewingCustomer(c)} title="عرض التفاصيل" style={{ background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', border: 'none', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Eye size={14} /> عرض
+                      <button onClick={() => setViewingCustomer(c)} title="View Details" style={{ background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', border: 'none', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Eye size={14} /> View
                       </button>
                       <button onClick={() => setStatementCustomer(c)} title="Statement" style={{ background: '#f0f4ff', color: '#4f46e5', border: 'none', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>
                         📊 Statement
@@ -448,7 +449,7 @@ const ContactsCustomers = () => {
       {/* Customer Details Modal (عرض بيانات العميل وليدز فيسبوك) */}
       {viewingCustomer && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
+          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '720px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
             
             {/* Modal Header */}
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
@@ -526,6 +527,19 @@ const ContactsCustomers = () => {
                   Meta Lead ID: {viewingCustomer.meta_lead_id} &nbsp;|&nbsp; Added: {new Date(viewingCustomer.created_at).toLocaleString('en-US')}
                 </div>
               )}
+
+              {/* Activity & Interaction Log / Timeline (سجل التواصل والمتابعة) */}
+              <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '2px dashed #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>🗺️ Activity & Communication Log</span>
+                    <span style={{ fontSize: '11px', background: '#eff6ff', color: '#3b82f6', padding: '2px 8px', borderRadius: '12px', fontWeight: 700 }}>
+                      Timeline Map
+                    </span>
+                  </div>
+                </div>
+                <ActivityTimeline entityType="customer" entityId={viewingCustomer.id} />
+              </div>
             </div>
 
             {/* Modal Footer */}

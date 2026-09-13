@@ -1,7 +1,30 @@
 const db = require('../config/db');
 
+// Ensure activities table exists to prevent DB crashes
+let activitiesTableEnsured = false;
+async function ensureActivitiesTable() {
+    if (activitiesTableEnsured) return;
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS activities (
+                id SERIAL PRIMARY KEY,
+                tenant_id UUID,
+                user_id INTEGER,
+                entity_type VARCHAR(50) NOT NULL,
+                entity_id VARCHAR(50) NOT NULL,
+                action VARCHAR(100) NOT NULL,
+                meta JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_activities_entity ON activities(tenant_id, entity_type, entity_id);
+        `);
+        activitiesTableEnsured = true;
+    } catch (e) {
+        console.error('[Activities] Ensure table notice:', e.message);
+    }
+}
+
 // --- Formatter Layer ---
-// This is easily extensible for i18n or per-tenant customizations later.
 const formatters = {
     'task.created': () => 'Created Task',
     'task.updated': (changes) => {
@@ -30,7 +53,7 @@ const formatters = {
     },
     'customer.assigned': (changes) => {
         const to = changes?.assigned_to?.to || 'Unassigned';
-        return `Assigned to User ID: ${to}`; // Resolved to name on frontend via join
+        return `Assigned to User ID: ${to}`;
     },
 
     // ── Manual Interaction Log Formatters ─────────────────────────────────
@@ -68,12 +91,11 @@ const formatters = {
 };
 
 const formatActivity = (entity_type, action, meta) => {
-    const key = `${entity_type}.${action}`;
+    const key = `${entity_type?.toLowerCase()}.${action}`;
     const formatter = formatters[key];
     if (formatter) {
         return formatter(meta?.changes || {});
     }
-    // Fallback
     return `Performed action: ${action}`;
 };
 
@@ -81,11 +103,12 @@ const formatActivity = (entity_type, action, meta) => {
 // @route   GET /api/activities/:entity_type/:entity_id
 // @access  Private
 exports.getActivities = async (req, res) => {
+    await ensureActivitiesTable();
     const { entity_type, entity_id } = req.params;
     const tenant_id = req.user.tenant_id;
 
     // Pagination
-    const limit  = parseInt(req.query.limit)  || 20;
+    const limit  = parseInt(req.query.limit)  || 30;
     const offset = parseInt(req.query.offset) || 0;
 
     try {
@@ -94,8 +117,8 @@ exports.getActivities = async (req, res) => {
             FROM activities a
             LEFT JOIN users u ON a.user_id = u.id
             WHERE a.tenant_id::text = $1::text 
-              AND a.entity_type = $2 
-              AND a.entity_id   = $3
+              AND LOWER(a.entity_type) = LOWER($2) 
+              AND a.entity_id::text   = $3::text
             ORDER BY a.created_at DESC
             LIMIT $4 OFFSET $5
         `;
@@ -107,7 +130,6 @@ exports.getActivities = async (req, res) => {
                 ? JSON.parse(activity.meta)
                 : (activity.meta || {});
 
-            // Snapshot fallback: if user was deleted, use snapshot name
             const display_user_name = activity.user_name || meta?.user_snapshot?.user_name || 'System';
 
             return {
@@ -133,6 +155,7 @@ exports.getActivities = async (req, res) => {
 // @route   POST /api/activities/:entity_type/:entity_id
 // @access  Private
 exports.createActivity = async (req, res) => {
+    await ensureActivitiesTable();
     const { entity_type, entity_id } = req.params;
     const { action, note } = req.body;
     const tenant_id = req.user.tenant_id;
@@ -166,14 +189,16 @@ exports.createActivity = async (req, res) => {
             is_manual: true
         };
 
+        const cleanEntityType = (entity_type || 'customer').toLowerCase();
+
         const result = await db.query(
             `INSERT INTO activities (tenant_id, user_id, entity_type, entity_id, action, meta)
              VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-            [tenant_id, req.user.id, entity_type, entity_id, action, JSON.stringify(meta)]
+            [tenant_id, req.user.id, cleanEntityType, String(entity_id), action, JSON.stringify(meta)]
         );
 
         const activity = result.rows[0];
-        const formattedMessage = formatActivity(entity_type, action, meta);
+        const formattedMessage = formatActivity(cleanEntityType, action, meta);
 
         res.status(201).json({
             status: 'success',

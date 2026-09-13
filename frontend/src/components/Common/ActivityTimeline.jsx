@@ -75,7 +75,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
         try {
             if (!append) setLoading(true);
             const response = await api.get(
-                `/api/activities/${entityType}/${entityId}?limit=${LIMIT}&offset=${currentOffset}`
+                `/activities/${entityType}/${entityId}?limit=${LIMIT}&offset=${currentOffset}`
             );
             if (response.data.status === 'success') {
                 const newData = response.data.data;
@@ -113,7 +113,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
         }
         setSubmitting(true);
         try {
-            const res = await api.post(`/api/activities/${entityType}/${entityId}`, {
+            const res = await api.post(`/activities/${entityType}/${entityId}`, {
                 action: logAction,
                 note:   logNote.trim()
             });
