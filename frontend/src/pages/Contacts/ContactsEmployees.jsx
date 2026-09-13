@@ -109,10 +109,90 @@ const JobTitleModal = ({ jt, onClose, onSave }) => {
   );
 };
 
+// ─── Permission Groups Definition ─────────────────────────────────────────────
+const PERMISSION_GROUPS = [
+  {
+    title: 'CRM & Contacts (العملاء وجهات الاتصال)',
+    pages: [
+      { id: '/contacts/customers', label: 'Customers (العملاء)' },
+      { id: '/contacts/vendors', label: 'Vendors (الموردين)' },
+      { id: '/contacts/employees', label: 'Employees (الموظفين)' },
+      { id: '/deals', label: 'Deals (الصفقات)' },
+      { id: '/tasks', label: 'Tasks (المهام)' },
+    ]
+  },
+  {
+    title: 'Sales & Invoicing (المبيعات والفواتير)',
+    pages: [
+      { id: '/sales/orders', label: 'Sales Orders (طلبات البيع)' },
+      { id: '/sales/salesmen', label: 'Salesmen (المناديب)' },
+      { id: '/sales/target', label: 'Target & Goals (الأهداف)' },
+      { id: '/sales/documents', label: 'Documents (المستندات)' },
+      { id: '/sales/price-tiers', label: 'Price Tiers (شرائح الأسعار)' },
+      { id: '/finance', label: 'Invoices & Quotations (الفواتير والعروض)' },
+    ]
+  },
+  {
+    title: 'HR & Attendance (الموارد البشرية)',
+    pages: [
+      { id: '/hr/my-attendance', label: 'My Attendance (تسجيل حضوري)' },
+      { id: '/hr/my-requests', label: 'My Requests (طلباتي وإجازاتي)' },
+      { id: '/hr/dashboard', label: 'Attendance Admin (إدارة الحضور)' },
+      { id: '/hr/approvals', label: 'Approvals (مركز الموافقات)' },
+      { id: '/hr/payroll', label: 'Payroll Engine (مسيرات الرواتب)' },
+      { id: '/hr/shifts', label: 'Shifts (الورديات)' },
+      { id: '/hr/devices', label: 'Biometric Devices (أجهزة البصمة)' },
+      { id: '/hr/activity-definition', label: 'Activity Definition' },
+      { id: '/hr/activity-balance', label: 'Activity Balance' },
+    ]
+  },
+  {
+    title: 'Warehouse & Inventory (المخزون والمستودعات)',
+    pages: [
+      { id: '/products', label: 'Products (المنتجات)' },
+      { id: '/inventory/warehouses', label: 'Warehouses (المستودعات)' },
+      { id: '/inventory/movements', label: 'Stock Movements (حركات المخزون)' },
+      { id: '/inventory/balances', label: 'Stock Balances (أرصدة المخزون)' },
+      { id: '/inventory/item-card', label: 'Item Card (كارت الصنف)' },
+      { id: '/inventory/keepers', label: 'Warehouse Keepers' },
+      { id: '/inventory/transaction-impact', label: 'Transaction Impact' },
+    ]
+  },
+  {
+    title: 'Finance & Accounting (المالية والمحاسبة)',
+    pages: [
+      { id: '/erp/accounts', label: 'Chart of Accounts (شجرة الحسابات)' },
+      { id: '/erp/journals', label: 'General Ledger (القيود اليومية)' },
+      { id: '/erp/reports', label: 'Financial Reports (التقارير المالية)' },
+      { id: '/erp/banking', label: 'Bank Reconciliation (البنوك والمطابقة)' },
+      { id: '/erp/closing', label: 'Period Closing (إقفال الفترات)' },
+      { id: '/erp/entries', label: 'Entries (السندات)' },
+    ]
+  },
+  {
+    title: 'General & Administration (عام والإدارة)',
+    pages: [
+      { id: '/dashboard', label: 'Dashboard (الرئيسية)' },
+      { id: '/my-profile', label: 'My Profile (الملف الشخصي)' },
+      { id: '/files', label: 'Files (الملفات والمستندات)' },
+      { id: '/reports', label: 'Reports (التقارير)' },
+      { id: '/automation', label: 'Automation (الأتمتة)' },
+      { id: '/integrations/einvoice', label: 'E-Invoice (الفاتورة الإلكترونية)' },
+      { id: '/integrations/meta-forms', label: 'Meta Lead Ads' },
+      { id: '/settings', label: 'Admin Settings (الإعدادات)' },
+      { id: '/billing', label: 'Billing (الاشتراكات)' },
+    ]
+  }
+];
+
 // ─── Employee Modal ───────────────────────────────────────────────────────────
 const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
   const [activeTab, setActiveTab] = useState('info');
   const [saving, setSaving] = useState(false);
+  const [allowedPages, setAllowedPages] = useState([]);
+  const [loadingPerms, setLoadingPerms] = useState(false);
+  const [savingPerms, setSavingPerms] = useState(false);
+
   const [form, setForm] = useState({
     name: emp?.name || '',
     email: emp?.email || '',
@@ -129,6 +209,72 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
     role: emp?.role || 'employee',
     is_working: emp?.is_working !== false,
   });
+
+  useEffect(() => {
+    if (emp?.id) {
+      setLoadingPerms(true);
+      api.get(`/users/${emp.id}/permissions`)
+        .then(res => {
+          const perms = Array.isArray(res.data.data) ? res.data.data.map(p => p.page_path) : [];
+          setAllowedPages(perms);
+        })
+        .catch(() => toast.error('Failed to load user permissions'))
+        .finally(() => setLoadingPerms(false));
+    }
+  }, [emp?.id]);
+
+  const handleTogglePermission = (path) => {
+    setAllowedPages(prev =>
+      prev.includes(path) ? prev.filter(p => p !== path) : [...prev, path]
+    );
+  };
+
+  const handleSavePermissions = async () => {
+    if (!emp?.id) return;
+    setSavingPerms(true);
+    try {
+      await api.post(`/users/${emp.id}/permissions`, { allowedPages });
+      toast.success('Permissions updated successfully / تم حفظ الصلاحيات بنجاح');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save permissions');
+    } finally {
+      setSavingPerms(false);
+    }
+  };
+
+  const applyPreset = (presetType) => {
+    if (presetType === 'ALL') {
+      const all = PERMISSION_GROUPS.flatMap(g => g.pages.map(p => p.id));
+      setAllowedPages([...new Set(all)]);
+    } else if (presetType === 'CLEAR') {
+      setAllowedPages(['/dashboard', '/my-profile']);
+    } else if (presetType === 'SALES') {
+      setAllowedPages([
+        '/dashboard', '/my-profile', '/contacts/customers', '/deals', '/tasks',
+        '/sales/orders', '/sales/salesmen', '/sales/target', '/sales/documents',
+        '/sales/price-tiers', '/finance', '/hr/my-attendance', '/hr/my-requests', '/files'
+      ]);
+    } else if (presetType === 'HR') {
+      setAllowedPages([
+        '/dashboard', '/my-profile', '/contacts/employees',
+        '/hr/my-attendance', '/hr/my-requests', '/hr/dashboard', '/hr/approvals',
+        '/hr/payroll', '/hr/shifts', '/hr/devices', '/hr/activity-definition',
+        '/hr/activity-balance', '/files'
+      ]);
+    } else if (presetType === 'ACCOUNTANT') {
+      setAllowedPages([
+        '/dashboard', '/my-profile', '/contacts/customers', '/contacts/vendors',
+        '/finance', '/erp/accounts', '/erp/journals', '/erp/reports',
+        '/erp/banking', '/erp/closing', '/erp/entries', '/files', '/reports'
+      ]);
+    } else if (presetType === 'WAREHOUSE') {
+      setAllowedPages([
+        '/dashboard', '/my-profile', '/products', '/inventory/warehouses',
+        '/inventory/movements', '/inventory/balances', '/inventory/item-card',
+        '/inventory/keepers', '/inventory/transaction-impact', '/files'
+      ]);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -154,12 +300,13 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
 
   const tabs = [
     { id: 'info', label: 'Basic Info', icon: <User size={14} /> },
+    { id: 'permissions', label: 'Page Permissions (الصلاحيات)', icon: <Shield size={14} />, disabled: !emp },
     { id: 'attachments', label: 'Attachments', icon: <Paperclip size={14} />, disabled: !emp },
   ];
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '680px', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
+      <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '750px', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
         {/* Header */}
         <div style={{ padding: '18px 24px', background: 'linear-gradient(135deg, #4f46e5, #06b6d4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: 'white', fontWeight: 800 }}>{emp ? 'Edit Employee Details' : 'Add New Employee'}</h3>
@@ -167,7 +314,7 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
         </div>
 
         {/* Sub-Tabs */}
-        <div style={{ display: 'flex', gap: '4px', padding: '12px 20px 0', borderBottom: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', gap: '4px', padding: '12px 20px 0', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => !t.disabled && setActiveTab(t.id)} disabled={t.disabled}
               style={{ padding: '8px 16px', background: 'transparent', border: 'none', borderBottom: activeTab === t.id ? '2px solid #4f46e5' : '2px solid transparent', color: t.disabled ? '#cbd5e1' : activeTab === t.id ? '#4f46e5' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: t.disabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '-1px' }}>
@@ -259,6 +406,111 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
                 </div>
               </div>
             </form>
+          ) : activeTab === 'permissions' ? (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+                <div>
+                  <h4 style={{ margin: 0, fontWeight: 800, fontSize: '15px', color: '#1e293b' }}>Page Permissions for {emp?.name}</h4>
+                  <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '12px' }}>
+                    Select which pages and modules this user is allowed to view and interact with.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSavePermissions}
+                  disabled={savingPerms}
+                  style={{ padding: '8px 18px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, fontSize: '13px', cursor: savingPerms ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(16,185,129,0.25)' }}
+                >
+                  <Save size={14} /> {savingPerms ? 'Saving...' : 'Save Permissions'}
+                </button>
+              </div>
+
+              {/* Presets Toolbar */}
+              <div style={{ background: '#f1f5f9', padding: '10px 14px', borderRadius: '12px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#475569' }}>⚡ Quick Presets:</span>
+                <button type="button" onClick={() => applyPreset('ALL')} style={{ padding: '5px 10px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Select All</button>
+                <button type="button" onClick={() => applyPreset('SALES')} style={{ padding: '5px 10px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Sales Team</button>
+                <button type="button" onClick={() => applyPreset('HR')} style={{ padding: '5px 10px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>HR Staff</button>
+                <button type="button" onClick={() => applyPreset('ACCOUNTANT')} style={{ padding: '5px 10px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Accountant</button>
+                <button type="button" onClick={() => applyPreset('WAREHOUSE')} style={{ padding: '5px 10px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Warehouse</button>
+                <button type="button" onClick={() => applyPreset('CLEAR')} style={{ padding: '5px 10px', background: '#e2e8f0', color: '#64748b', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Clear</button>
+              </div>
+
+              {/* Permission Groups */}
+              {loadingPerms ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Loading permissions...</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {PERMISSION_GROUPS.map(group => {
+                    const groupSelectedCount = group.pages.filter(p => allowedPages.includes(p.id)).length;
+                    const allSelected = groupSelectedCount === group.pages.length;
+
+                    const toggleGroup = () => {
+                      if (allSelected) {
+                        const groupIds = group.pages.map(p => p.id);
+                        setAllowedPages(prev => prev.filter(id => !groupIds.includes(id)));
+                      } else {
+                        const groupIds = group.pages.map(p => p.id);
+                        setAllowedPages(prev => [...new Set([...prev, ...groupIds])]);
+                      }
+                    };
+
+                    return (
+                      <div key={group.title} style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                        <div style={{ background: '#f8fafc', padding: '10px 14px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
+                            {group.title}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+                              {groupSelectedCount} / {group.pages.length}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={toggleGroup}
+                              style={{ background: allSelected ? '#fee2e2' : '#e0e7ff', color: allSelected ? '#dc2626' : '#4338ca', border: 'none', borderRadius: '6px', padding: '3px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              {allSelected ? 'Deselect All' : 'Select All'}
+                            </button>
+                          </div>
+                        </div>
+                        <div style={{ padding: '12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          {group.pages.map(page => {
+                            const isChecked = allowedPages.includes(page.id);
+                            return (
+                              <label
+                                key={page.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '8px',
+                                  padding: '8px 10px',
+                                  borderRadius: '8px',
+                                  background: isChecked ? '#eff6ff' : '#ffffff',
+                                  border: isChecked ? '1.5px solid #3b82f6' : '1px solid #e2e8f0',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s'
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => handleTogglePermission(page.id)}
+                                  style={{ accentColor: '#4f46e5', width: '16px', height: '16px', cursor: 'pointer' }}
+                                />
+                                <span style={{ fontSize: '12px', fontWeight: isChecked ? 700 : 500, color: isChecked ? '#1e40af' : '#334155' }}>
+                                  {page.label}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           ) : (
             <div>
               <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '16px', fontWeight: 600 }}>

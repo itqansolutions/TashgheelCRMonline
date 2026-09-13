@@ -268,11 +268,15 @@ exports.createUser = async (req, res) => {
 
     const newUser = result.rows[0];
 
-    // Grant default access to Dashboard
-    await db.query(
-      'INSERT INTO user_access (user_id, page_path, can_access) VALUES ($1, $2, $3)',
-      [newUser.id, '/dashboard', true]
-    );
+    // Grant default access pages based on role
+    const defaultPages = (role === 'admin')
+      ? ['/dashboard', '/my-profile', '/contacts/customers', '/contacts/vendors', '/contacts/employees', '/products', '/deals', '/tasks', '/finance', '/erp/accounts', '/erp/journals', '/erp/reports', '/erp/banking', '/erp/closing', '/erp/entries', '/inventory/warehouses', '/inventory/keepers', '/inventory/transaction-impact', '/inventory/balances', '/inventory/item-card', '/inventory/movements', '/sales/salesmen', '/sales/target', '/sales/orders', '/sales/documents', '/sales/price-tiers', '/integrations/einvoice', '/integrations/meta-forms', '/employees', '/hr/my-attendance', '/hr/dashboard', '/hr/approvals', '/hr/payroll', '/hr/activity-definition', '/hr/activity-balance', '/hr/shifts', '/hr/devices', '/hr/my-requests', '/automation', '/automation/rules', '/files', '/reports', '/logs', '/settings', '/settings/company', '/billing']
+      : (role === 'manager')
+      ? ['/dashboard', '/my-profile', '/contacts/customers', '/contacts/vendors', '/contacts/employees', '/deals', '/tasks', '/files', '/reports', '/hr/my-attendance', '/hr/my-requests', '/hr/dashboard', '/hr/approvals', '/sales/orders', '/sales/salesmen', '/sales/target']
+      : ['/dashboard', '/my-profile', '/contacts/customers', '/deals', '/tasks', '/files', '/hr/my-attendance', '/hr/my-requests'];
+
+    const accessValues = defaultPages.map(path => `(${newUser.id}, '${path}', true)`).join(',');
+    await db.query(`INSERT INTO user_access (user_id, page_path, can_access) VALUES ${accessValues}`);
 
     // If branch_id exists, associate in user_branches table
     if (branch_id) {
