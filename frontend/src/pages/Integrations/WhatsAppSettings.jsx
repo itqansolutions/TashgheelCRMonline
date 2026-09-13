@@ -3,7 +3,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import {
   MessageCircle, Save, Send, Eye, EyeOff, Globe, Phone,
-  FileText, ToggleLeft, ToggleRight, CheckCircle, AlertCircle, Info
+  FileText, ToggleLeft, ToggleRight, CheckCircle, AlertCircle, Info, ShieldCheck
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 
@@ -31,6 +31,8 @@ const WhatsAppSettings = () => {
   const [testing, setTesting] = useState(false);
   const [discoveredNumbers, setDiscoveredNumbers] = useState([]);
   const [discovering, setDiscovering] = useState(false);
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnosticReport, setDiagnosticReport] = useState(null);
 
   // -------------------------------------------------------------------
   // Load settings on mount
@@ -126,6 +128,27 @@ const WhatsAppSettings = () => {
       toast.error(err.response?.data?.message || 'Test failed', { duration: 8000 });
     } finally {
       setTesting(false);
+    }
+  };
+
+  // -------------------------------------------------------------------
+  // Deep diagnostic check with Meta
+  // -------------------------------------------------------------------
+  const handleDiagnose = async () => {
+    setDiagnosing(true);
+    setDiagnosticReport(null);
+    try {
+      const res = await api.get('/whatsapp/diagnose');
+      setDiagnosticReport(res.data?.report || res.data);
+      if (res.data?.status === 'success') {
+        toast.success('الاتصال والتوكن ومعرّف الهاتف سليم 100%!');
+      } else {
+        toast.error('تم اكتشاف خطأ في الصلاحيات أو المعرّف — راجع التقرير بالأسفل');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل تشخيص الاتصال');
+    } finally {
+      setDiagnosing(false);
     }
   };
 
@@ -592,6 +615,67 @@ const WhatsAppSettings = () => {
             {testing ? 'Sending…' : 'Send Test'}
           </button>
         </div>
+      </div>
+
+      {/* ── Diagnostic Tool Section ── */}
+      <div style={{
+        background: '#fff', border: '1px solid var(--border)',
+        borderRadius: 12, padding: 24, marginTop: 20
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ShieldCheck size={18} color="#0284c7" /> أداة فحص وتشخيص الاتصال مع Meta
+            </h3>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+              تتحقق من صلاحية الـ Token، التطبيق المربوط به، وصلاحية الوصول للرقم لكشف سبب أي رفض من Meta فوراً.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleDiagnose}
+            disabled={diagnosing}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px',
+              background: diagnosing ? '#9ca3af' : '#0284c7', color: 'white', border: 'none',
+              borderRadius: 8, fontWeight: 700, cursor: diagnosing ? 'not-allowed' : 'pointer', fontSize: 13
+            }}
+          >
+            {diagnosing ? 'جاري الفحص...' : '🩺 فحص الاتصال والتوكن الآن'}
+          </button>
+        </div>
+
+        {diagnosticReport && (
+          <div style={{ marginTop: 14, padding: 16, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#1e293b', marginBottom: 10 }}>
+              نتائج الفحص والتشخيص من سيرفرات Meta:
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {diagnosticReport.steps?.map((s, idx) => (
+                <div key={idx} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px',
+                  background: s.status === 'success' ? '#ecfdf5' : '#fef2f2',
+                  border: `1px solid ${s.status === 'success' ? '#a7f3d0' : '#fecaca'}`,
+                  borderRadius: 6, fontSize: 13
+                }}>
+                  {s.status === 'success' ? (
+                    <CheckCircle size={18} color="#10b981" style={{ flexShrink: 0, marginTop: 2 }} />
+                  ) : (
+                    <AlertCircle size={18} color="#ef4444" style={{ flexShrink: 0, marginTop: 2 }} />
+                  )}
+                  <div>
+                    <div style={{ fontWeight: 700, color: s.status === 'success' ? '#065f46' : '#991b1b', marginBottom: 2 }}>
+                      {s.step}
+                    </div>
+                    <div style={{ color: s.status === 'success' ? '#047857' : '#b91c1c', lineHeight: 1.4 }}>
+                      {s.detail}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

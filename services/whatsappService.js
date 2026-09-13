@@ -329,10 +329,127 @@ async function sendTestMessage({ phoneNumberId, accessToken, templateName, langu
   });
 }
 
+/**
+ * Perform a deep diagnostic test of the WhatsApp credentials and permissions.
+ *
+ * Checks:
+ * 1. Is access token set and valid?
+ * 2. Token debug info (App ID, scopes, expiry, user type)
+ * 3. Phone Number ID accessibility (can the token read this phone number?)
+ */
+async function diagnoseWhatsAppConnection(tenantId) {
+  const settings = await getWhatsAppSettings(tenantId);
+  if (!settings) {
+    return {
+      status: 'error',
+      message: 'لم يتم حفظ أي إعدادات لواتساب لهذا الحساب حتى الآن.'
+    };
+  }
+
+  const { phone_number_id, access_token, template_name } = settings;
+
+  if (!access_token) {
+    return {
+      status: 'error',
+      message: 'لم يتم العثور على Access Token محفوظ في النظام. يرجى إدخال التوكن والضغط على حفظ.'
+    };
+  }
+
+  const report = {
+    phoneNumberId: phone_number_id,
+    templateName: template_name,
+    tokenValid: false,
+    tokenInfo: null,
+    phoneAccessible: false,
+    phoneDetails: null,
+    steps: []
+  };
+
+  // Step 1: Check token validity via /debug_token or /me
+  try {
+    const debugRes = await axios.get(`https://graph.facebook.com/debug_token`, {
+      params: { input_token: access_token, access_token: access_token },
+      timeout: 10000
+    });
+    const d = debugRes.data?.data;
+    report.tokenValid = d?.is_valid || false;
+    report.tokenInfo = {
+      appId: d?.app_id,
+      application: d?.application,
+      type: d?.type,
+      scopes: d?.scopes || [],
+      expiresAt: d?.expires_at ? new Date(d.expires_at * 1000).toLocaleString('ar-EG') : 'دائم (Permanent)'
+    };
+    report.steps.push({
+      step: 'التحقق من التوكن (Token Validation)',
+      status: 'success',
+      detail: `التوكن صالح وتابع للتطبيق: ${d?.application || d?.app_id || 'Meta App'} | نوع التوكن: ${d?.type || 'User'} | الصلاحيات: ${(d?.scopes || []).join(', ') || 'لا توجد صلاحيات'}`
+    });
+  } catch (tErr) {
+    try {
+      const meRes = await axios.get(`${WA_BASE_URL}/me`, {
+        headers: { Authorization: `Bearer ${access_token}` },
+        timeout: 10000
+      });
+      report.tokenValid = true;
+      report.tokenInfo = meRes.data;
+      report.steps.push({
+        step: 'التحقق من التوكن (Token Validation)',
+        status: 'success',
+        detail: `التوكن متصل بنجاح مع Meta`
+      });
+    } catch (meErr) {
+      const errDetail = tErr.response?.data?.error?.message || tErr.message;
+      report.steps.push({
+        step: 'التحقق من التوكن (Token Validation)',
+        status: 'failed',
+        detail: `التوكن غير صالح أو منتهي الصلاحية: ${errDetail}`
+      });
+      return {
+        status: 'error',
+        message: `التوكن غير صالح في Meta: ${errDetail}`,
+        report
+      };
+    }
+  }
+
+  // Step 2: Try to inspect the Phone Number ID directly
+  if (phone_number_id) {
+    try {
+      const phoneRes = await axios.get(`${WA_BASE_URL}/${phone_number_id}`, {
+        params: { fields: 'id,display_phone_number,verified_name,code_verification_status,quality_rating' },
+        headers: { Authorization: `Bearer ${access_token}` },
+        timeout: 10000
+      });
+      report.phoneAccessible = true;
+      report.phoneDetails = phoneRes.data;
+      report.steps.push({
+        step: 'التحقق من معرّف رقم الهاتف (Phone Number ID)',
+        status: 'success',
+        detail: `تم التحقق بنجاح! الرقم: ${phoneRes.data.display_phone_number} (${phoneRes.data.verified_name || ''}) - حالة التحقق: ${phoneRes.data.code_verification_status || 'OK'}`
+      });
+    } catch (pErr) {
+      const pErrMsg = pErr.response?.data?.error?.message || pErr.message;
+      const pErrCode = pErr.response?.data?.error?.code;
+      report.steps.push({
+        step: 'التحقق من معرّف رقم الهاتف (Phone Number ID)',
+        status: 'failed',
+        detail: `لا يمكن لهذا التوكن الوصول إلى معرّف الرقم (${phone_number_id}): ${pErrMsg} (Code: ${pErrCode})`
+      });
+    }
+  }
+
+  return {
+    status: report.phoneAccessible ? 'success' : 'warning',
+    report
+  };
+}
+
 module.exports = {
   sendWelcomeMessage,
   sendTestMessage,
   normalisePhone,
   getWhatsAppSettings,
-  resolveActualPhoneNumberId
+  resolveActualPhoneNumberId,
+  diagnoseWhatsAppConnection
 };

@@ -18,4 +18,7 @@ router.post('/test', whatsappController.sendTestWhatsApp);
 // Fetch registered Phone Number IDs from Meta for a given WABA account
 router.get('/phone-numbers', whatsappController.fetchPhoneNumbersFromMeta);
 
+// Diagnostic test endpoint
+router.get('/diagnose', whatsappController.diagnoseWhatsApp);
+
 module.exports = router;

@@ -5,7 +5,11 @@
  */
 
 const db = require('../config/db');
-const { sendTestMessage, resolveActualPhoneNumberId } = require('../services/whatsappService');
+const {
+  sendTestMessage,
+  resolveActualPhoneNumberId,
+  diagnoseWhatsAppConnection
+} = require('../services/whatsappService');
 
 // ---------------------------------------------------------------------------
 // Ensure the settings table exists (lazy migration, same pattern as Meta)
@@ -294,6 +298,23 @@ exports.fetchPhoneNumbersFromMeta = async (req, res) => {
     });
   } catch (err) {
     console.error('[WhatsApp fetchPhoneNumbers]', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// GET /api/whatsapp/diagnose
+// Deep diagnostic check of token validity and phone number access
+// ---------------------------------------------------------------------------
+exports.diagnoseWhatsApp = async (req, res) => {
+  await ensureWhatsAppTable();
+  const tenantId = req.user.tenant_id;
+
+  try {
+    const result = await diagnoseWhatsAppConnection(tenantId);
+    res.json(result);
+  } catch (err) {
+    console.error('[WhatsApp diagnose]', err.message);
     res.status(500).json({ status: 'error', message: err.message });
   }
 };
