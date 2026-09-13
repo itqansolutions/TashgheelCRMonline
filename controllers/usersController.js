@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const logger = require('../utils/logger');
+const bcrypt = require('bcrypt');
 
 // @desc    Get all users (Employees)
 // @route   GET /api/users
@@ -36,36 +37,39 @@ exports.getUsers = async (req, res) => {
   }
 };
 
-const bcrypt = require('bcrypt');
-
-// @desc    Update user role or department
+// @desc    Update user role, department, credentials
 // @route   PUT /api/users/:id/role
 // @access  Private (Admin)
 exports.updateUserRole = async (req, res) => {
   const { name, email, password, role, department_id, job_title_id, national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working, phone } = req.body;
+  // Parse id as integer to avoid type mismatch with SERIAL columns
+  const userId = parseInt(req.params.id, 10);
   const cleanDeptId = (department_id && department_id !== '' && department_id !== 'null') ? parseInt(department_id) : null;
   const cleanJobTitleId = (job_title_id && job_title_id !== '' && job_title_id !== 'null') ? parseInt(job_title_id) : null;
   const cleanBirthDate = (birth_date && String(birth_date).trim() !== '') ? birth_date : null;
   const cleanHireDate = (hire_date && String(hire_date).trim() !== '') ? hire_date : null;
+  // Only update email if actually provided and non-empty
+  const cleanEmail = (email && email.trim() !== '') ? email.trim().toLowerCase() : null;
+  // Only update password if a non-empty new password was provided
+  const cleanPassword = (password && String(password).trim() !== '') ? String(password).trim() : null;
 
   try {
-    // If email is provided, verify no other user has this email
-    const cleanEmail = email?.trim().toLowerCase();
+    // If email provided, verify it is not already used by ANOTHER user
     if (cleanEmail) {
       const emailCheck = await db.query(
         'SELECT id FROM users WHERE email = $1 AND id != $2',
-        [cleanEmail, req.params.id]
+        [cleanEmail, userId]
       );
       if (emailCheck.rows.length > 0) {
         return res.status(400).json({ status: 'error', message: 'This email address is already in use by another user' });
       }
     }
 
-    // If password is provided, hash it
+    // Hash new password only if a new one was provided; otherwise COALESCE keeps the existing hash
     let passwordHash = null;
-    if (password && String(password).trim() !== '') {
+    if (cleanPassword) {
       const salt = await bcrypt.genSalt(10);
-      passwordHash = await bcrypt.hash(String(password), salt);
+      passwordHash = await bcrypt.hash(cleanPassword, salt);
     }
 
     const result = await db.query(
@@ -89,8 +93,8 @@ exports.updateUserRole = async (req, res) => {
        RETURNING id, name, email, phone, role, department_id, job_title_id, national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working`,
       [
         name?.trim() || null,
-        cleanEmail || null,
-        passwordHash || null,
+        cleanEmail,          // null → COALESCE keeps existing email
+        passwordHash,        // null → COALESCE keeps existing password_hash
         role || null,
         cleanDeptId,
         cleanJobTitleId,
@@ -102,7 +106,7 @@ exports.updateUserRole = async (req, res) => {
         cleanHireDate,
         is_working !== false,
         phone?.trim() || null,
-        req.params.id,
+        userId,
         req.user.tenant_id
       ]
     );
@@ -112,11 +116,11 @@ exports.updateUserRole = async (req, res) => {
     }
 
     // Log the change
-    await logger.logAction(req, null, 'UPDATE', 'User', req.params.id, { 
+    await logger.logAction(req, null, 'UPDATE', 'User', userId, { 
       role, 
       department_id: cleanDeptId,
       job_title_id: cleanJobTitleId,
-      email: cleanEmail,
+      email_updated: !!cleanEmail,
       password_updated: !!passwordHash
     });
 
