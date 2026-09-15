@@ -504,6 +504,19 @@ app.listen(PORT, '0.0.0.0', async () => {
     `, 'sales_price_tiers table');
 
     await reconcileDatabase();
+
+    // ── Activities Table Schema Reconciliation ────────────────────────────────
+    // The activities table may have been created by either:
+    //   (a) scripts/activities-migration.js  → uses user_id INTEGER, action VARCHAR, meta JSONB
+    //   (b) scripts/dbReconciliation.js      → uses actor_id VARCHAR, activity_type VARCHAR, title VARCHAR
+    // We ensure BOTH sets of columns exist so legacy controller queries (LEFT JOIN users ON user_id)
+    // and new service inserts both work correctly regardless of which schema ran first.
+    await execSql(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;`, 'activities.user_id');
+    await execSql(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS action VARCHAR(100);`, 'activities.action');
+    await execSql(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT '{}';`, 'activities.meta');
+    await execSql(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS entity_id VARCHAR(255);`, 'activities.entity_id (varchar fallback)');
+    await execSql(`CREATE INDEX IF NOT EXISTS idx_activities_entity_full ON activities(tenant_id, entity_type, entity_id);`, 'idx_activities_entity_full');
+    // ─────────────────────────────────────────────────────────────────────────
     if (metaController && metaController.ensureMetaFormsTable) {
       await metaController.ensureMetaFormsTable();
     }

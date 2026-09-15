@@ -1,10 +1,14 @@
 const db = require('../config/db');
 
-// Ensure activities table exists to prevent DB crashes
+// Ensure activities table exists and has all required columns to prevent DB crashes.
+// The activities table may have been created by dbReconciliation.js with a different schema
+// (using actor_id/activity_type/title instead of user_id/action/meta). We add the missing
+// columns idempotently so the controller queries always work regardless of creation order.
 let activitiesTableEnsured = false;
 async function ensureActivitiesTable() {
     if (activitiesTableEnsured) return;
     try {
+        // Create table with legacy schema if it doesn't exist at all
         await db.query(`
             CREATE TABLE IF NOT EXISTS activities (
                 id SERIAL PRIMARY KEY,
@@ -16,8 +20,13 @@ async function ensureActivitiesTable() {
                 meta JSONB,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
-            CREATE INDEX IF NOT EXISTS idx_activities_entity ON activities(tenant_id, entity_type, entity_id);
         `);
+        // Backfill columns that may be missing if dbReconciliation.js created the table first
+        await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS user_id INTEGER;`);
+        await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS action VARCHAR(100);`);
+        await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT '{}';`);
+        await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS entity_id VARCHAR(255);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_activities_entity ON activities(tenant_id, entity_type, entity_id);`);
         activitiesTableEnsured = true;
     } catch (e) {
         console.error('[Activities] Ensure table notice:', e.message);
@@ -146,8 +155,8 @@ exports.getActivities = async (req, res) => {
 
         res.json({ status: 'success', data: formattedData });
     } catch (err) {
-        console.error('[Activity API Error]', err.message);
-        res.status(500).json({ status: 'error', message: 'Failed to fetch activities' });
+        console.error('[Activity API Error]', err.message, err.detail || '', err.hint || '');
+        res.status(500).json({ status: 'error', message: 'Failed to fetch activities', debug: err.message });
     }
 };
 
