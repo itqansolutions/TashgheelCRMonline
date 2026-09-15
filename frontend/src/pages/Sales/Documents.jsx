@@ -53,6 +53,40 @@ const Documents = () => {
             Central repository for quotations, commercial invoices, delivery notes, and sales orders
           </p>
         </div>
+
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => navigate('/finance', { state: { tab: 'Quotations', create: 'Quotation' } })}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px',
+              background: '#f8fafc', color: '#0369a1', border: '1.5px solid #bae6fd',
+              borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer'
+            }}
+          >
+            <Plus size={16} /> New Quotation
+          </button>
+          <button
+            onClick={() => navigate('/finance', { state: { tab: 'Invoices', create: 'Invoice' } })}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px',
+              background: '#f8fafc', color: '#7e22ce', border: '1.5px solid #e9d5ff',
+              borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer'
+            }}
+          >
+            <Plus size={16} /> New Invoice
+          </button>
+          <button
+            onClick={() => navigate('/sales/orders')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px',
+              background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none',
+              borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
+            }}
+          >
+            <Plus size={16} /> New Sales Order
+          </button>
+        </div>
       </div>
 
       {/* Search & Filter Bar */}

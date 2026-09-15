@@ -9,21 +9,26 @@ import {
   CreditCard, Calendar, User, ArrowUpRight, ArrowDownRight,
   Settings, CheckCircle, Clock, AlertCircle, ShoppingBag
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
   const { customers, products, units, fetchUnits, fetchCustomers, fetchProducts } = useData();
   const navigate = useNavigate();
+  const location = useLocation();
   
-  const [activeTab, setActiveTab] = useState('Invoices');
+  const queryParams = new URLSearchParams(location.search);
+  const initialTab = location.state?.tab || 
+    (queryParams.get('tab')?.toLowerCase() === 'quotations' ? 'Quotations' : 'Invoices');
+
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [invoices, setInvoices] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showQuickAction, setShowQuickAction] = useState(false);
-  const [quickActionType, setQuickActionType] = useState('Invoice');
+  const [showQuickAction, setShowQuickAction] = useState(Boolean(location.state?.create));
+  const [quickActionType, setQuickActionType] = useState(location.state?.create || 'Invoice');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Payment Modal State
@@ -44,6 +49,16 @@ const FinanceDashboard = () => {
   });
 
   const isRealEstate = user?.template_name === 'real_estate';
+
+  useEffect(() => {
+    if (location.state?.tab) {
+      setActiveTab(location.state.tab);
+    }
+    if (location.state?.create) {
+      setQuickActionType(location.state.create);
+      setShowQuickAction(true);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     fetchData();

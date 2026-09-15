@@ -61,11 +61,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   // Sales sub-items
   const salesItems = [
-    { name: 'Salesmen',         icon: <Users size={18} />,       path: '/sales/salesmen' },
-    { name: 'Target & Goals',   icon: <TargetIcon size={18} />,  path: '/sales/target' },
-    { name: 'Sales Orders',     icon: <ShoppingBag size={18} />, path: '/sales/orders' },
-    { name: 'Documents',        icon: <FileText size={18} />,    path: '/sales/documents' },
-    { name: 'Price Tiers',      icon: <Layers size={18} />,      path: '/sales/price-tiers' },
+    { name: 'Invoices & Quotations', icon: <FileText size={18} />,    path: '/finance' },
+    { name: 'Sales Orders',          icon: <ShoppingBag size={18} />, path: '/sales/orders' },
+    { name: 'Documents Hub',         icon: <FileCheck size={18} />,   path: '/sales/documents' },
+    { name: 'Salesmen',              icon: <Users size={18} />,       path: '/sales/salesmen' },
+    { name: 'Target & Goals',        icon: <TargetIcon size={18} />,  path: '/sales/target' },
+    { name: 'Price Tiers',           icon: <Layers size={18} />,      path: '/sales/price-tiers' },
   ];
 
   // HR sub-items
@@ -92,12 +93,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   // Finance sub-items
   const financeItems = [
-    { name: 'Chart of Accounts',  icon: <Wallet size={18} />,        path: '/erp/accounts' },
-    { name: 'General Ledger',     icon: <BookOpen size={18} />,      path: '/erp/journals' },
-    { name: 'Financial Reports',  icon: <BarChart3 size={18} />,     path: '/erp/reports' },
-    { name: 'Bank Reconciliation',icon: <CreditCard size={18} />,    path: '/erp/banking' },
-    { name: 'Period Closing',     icon: <Lock size={18} />,          path: '/erp/closing' },
-    { name: 'Entries',            icon: <FileSpreadsheet size={18} />,path: '/erp/entries' },
+    { name: 'Invoices & Quotations', icon: <FileText size={18} />,     path: '/finance' },
+    { name: 'Chart of Accounts',     icon: <Wallet size={18} />,       path: '/erp/accounts' },
+    { name: 'General Ledger',        icon: <BookOpen size={18} />,     path: '/erp/journals' },
+    { name: 'Financial Reports',     icon: <BarChart3 size={18} />,    path: '/erp/reports' },
+    { name: 'Bank Reconciliation',   icon: <CreditCard size={18} />,   path: '/erp/banking' },
+    { name: 'Period Closing',        icon: <Lock size={18} />,         path: '/erp/closing' },
+    { name: 'Entries',               icon: <FileSpreadsheet size={18} />,path: '/erp/entries' },
   ];
 
   // Integrations sub-items
