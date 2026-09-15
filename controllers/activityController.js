@@ -26,6 +26,11 @@ async function ensureActivitiesTable() {
         await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS action VARCHAR(100);`);
         await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT '{}';`);
         await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS entity_id VARCHAR(255);`);
+        // Drop NOT NULL constraints added by dbReconciliation.js that block legacy INSERTs
+        await db.query(`ALTER TABLE activities ALTER COLUMN activity_type DROP NOT NULL;`).catch(() => {});
+        await db.query(`ALTER TABLE activities ALTER COLUMN title DROP NOT NULL;`).catch(() => {});
+        await db.query(`ALTER TABLE activities ALTER COLUMN entity_type DROP NOT NULL;`).catch(() => {});
+        await db.query(`ALTER TABLE activities ALTER COLUMN tenant_id DROP NOT NULL;`).catch(() => {});
         await db.query(`CREATE INDEX IF NOT EXISTS idx_activities_entity ON activities(tenant_id, entity_type, entity_id);`);
         activitiesTableEnsured = true;
     } catch (e) {

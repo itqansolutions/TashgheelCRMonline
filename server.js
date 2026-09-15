@@ -508,13 +508,18 @@ app.listen(PORT, '0.0.0.0', async () => {
     // ── Activities Table Schema Reconciliation ────────────────────────────────
     // The activities table may have been created by either:
     //   (a) scripts/activities-migration.js  → uses user_id INTEGER, action VARCHAR, meta JSONB
-    //   (b) scripts/dbReconciliation.js      → uses actor_id VARCHAR, activity_type VARCHAR, title VARCHAR
-    // We ensure BOTH sets of columns exist so legacy controller queries (LEFT JOIN users ON user_id)
-    // and new service inserts both work correctly regardless of which schema ran first.
+    //   (b) scripts/dbReconciliation.js      → uses actor_id VARCHAR, activity_type NOT NULL, title NOT NULL
+    // We ensure BOTH sets of columns exist AND remove NOT NULL constraints that block
+    // legacy INSERT statements which don't supply activity_type or title.
     await execSql(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;`, 'activities.user_id');
     await execSql(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS action VARCHAR(100);`, 'activities.action');
     await execSql(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT '{}';`, 'activities.meta');
-    await execSql(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS entity_id VARCHAR(255);`, 'activities.entity_id (varchar fallback)');
+    await execSql(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS entity_id VARCHAR(255);`, 'activities.entity_id');
+    // Drop blocking NOT NULL constraints from the new-schema columns so legacy INSERTs don't fail
+    await execSql(`ALTER TABLE activities ALTER COLUMN activity_type DROP NOT NULL;`, 'activities.activity_type drop NOT NULL');
+    await execSql(`ALTER TABLE activities ALTER COLUMN title DROP NOT NULL;`, 'activities.title drop NOT NULL');
+    await execSql(`ALTER TABLE activities ALTER COLUMN entity_type DROP NOT NULL;`, 'activities.entity_type drop NOT NULL');
+    await execSql(`ALTER TABLE activities ALTER COLUMN tenant_id DROP NOT NULL;`, 'activities.tenant_id drop NOT NULL');
     await execSql(`CREATE INDEX IF NOT EXISTS idx_activities_entity_full ON activities(tenant_id, entity_type, entity_id);`, 'idx_activities_entity_full');
     // ─────────────────────────────────────────────────────────────────────────
     if (metaController && metaController.ensureMetaFormsTable) {
