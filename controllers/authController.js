@@ -128,7 +128,7 @@ exports.register = async (req, res) => {
     }
 
     // Generate JWT
-    const payload = { user: { id: user.id, role: user.role, tenant_id: user.tenant_id } };
+    const payload = { user: { id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
 
     res.json({ 
@@ -237,7 +237,7 @@ exports.login = async (req, res) => {
     const allowedPages = await getUserAllowedPages(user.id, user.role);
 
     // Generate JWT with Tenant Context
-    const payload = { user: { id: user.id, role: user.role, tenant_id: user.tenant_id } };
+    const payload = { user: { id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '72h' });
 
     // NEW Audit Logging
@@ -295,7 +295,7 @@ exports.demoLogin = async (req, res) => {
     const allowedPages = await getUserAllowedPages(user.id, user.role);
 
     // Generate JWT
-    const payload = { user: { id: user.id, role: user.role, tenant_id: user.tenant_id } };
+    const payload = { user: { id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '2h' }); 
 
     res.json({ 

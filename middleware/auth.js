@@ -15,13 +15,19 @@ module.exports = async (req, res, next) => {
     
     // 🔥 EMERGENCY: Session Auto-Hydration
     // If user has an old token (lack tenant_id), fetch it from DB and attach it
-    if (!req.tenant_id) {
+    if (!req.tenant_id || !req.user.name) {
        try {
-           const userResult = await db.query('SELECT tenant_id FROM users WHERE id::text = $1::text', [req.user.id]);
-           if (userResult.rows.length > 0 && userResult.rows[0].tenant_id) {
-               console.log(`[AUTH] Hydrated missing tenant_id for user ${req.user.id}: ${userResult.rows[0].tenant_id}`);
-               req.tenant_id = userResult.rows[0].tenant_id;
-               req.user.tenant_id = req.tenant_id;
+           const userResult = await db.query('SELECT tenant_id, name FROM users WHERE id::text = $1::text', [req.user.id]);
+           if (userResult.rows.length > 0) {
+               const dbUser = userResult.rows[0];
+               if (!req.tenant_id && dbUser.tenant_id) {
+                   console.log(`[AUTH] Hydrated missing tenant_id for user ${req.user.id}: ${dbUser.tenant_id}`);
+                   req.tenant_id = dbUser.tenant_id;
+                   req.user.tenant_id = req.tenant_id;
+               }
+               if (!req.user.name && dbUser.name) {
+                   req.user.name = dbUser.name;
+               }
            }
        } catch (dbErr) {
            console.error('Auth Middleware: Failed to hydrate tenant context', dbErr.message);
