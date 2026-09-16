@@ -7,10 +7,10 @@ const { authorize } = require('../middleware/roleMiddleware');
 router.get('/webhook', metaController.handleWebhookVerification);
 router.post('/webhook', metaController.handleWebhookEvent);
 
-// Integration configuration has access to tenant credentials and must be
-// managed only by the tenant administrator. The public webhook routes above
-// are mounted directly by server.js before this protected router.
-router.use(authorize(['admin']));
+// Integration configuration access is guarded at the page-permission level.
+// Admins always have full access; managers and employees can be granted access
+// via the Page Permissions system (allowedPages: '/integrations/meta-forms').
+router.use(authorize(['admin', 'manager', 'employee']));
 
 // Form Management & Sync
 router.get('/forms', metaController.getMetaForms);

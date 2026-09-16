@@ -400,27 +400,38 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         </div>
 
         {/* Integrations Group */}
-        <div
-          className="group-header"
-          onClick={() => isOpen && setIntegrationsOpen(prev => !prev)}
-          title={!isOpen ? 'Integrations' : undefined}
-        >
-          <Share2 size={20} className="main-icon" />
-          <span className="group-label">Integrations</span>
-          {isOpen && (
-            integrationsOpen 
-              ? <ChevronDown size={14} className="group-chevron" />
-              : <ChevronUp size={14} className="group-chevron" />
-          )}
-        </div>
-        <div className={`group-sub-items ${isOpen && integrationsOpen ? 'expanded' : 'collapsed'}`}>
-          {integrationsItems.map(item => (
-            <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
-              {item.icon}
-              <span>{item.name}</span>
-            </NavLink>
-          ))}
-        </div>
+        {(() => {
+          const allowed = safeArray(user?.allowedPages);
+          const visibleIntegrations = user?.role === 'admin'
+            ? integrationsItems
+            : integrationsItems.filter(item => allowed.includes(item.path));
+          if (visibleIntegrations.length === 0) return null;
+          return (
+            <>
+              <div
+                className="group-header"
+                onClick={() => isOpen && setIntegrationsOpen(prev => !prev)}
+                title={!isOpen ? 'Integrations' : undefined}
+              >
+                <Share2 size={20} className="main-icon" />
+                <span className="group-label">Integrations</span>
+                {isOpen && (
+                  integrationsOpen
+                    ? <ChevronDown size={14} className="group-chevron" />
+                    : <ChevronUp size={14} className="group-chevron" />
+                )}
+              </div>
+              <div className={`group-sub-items ${isOpen && integrationsOpen ? 'expanded' : 'collapsed'}`}>
+                {visibleIntegrations.map(item => (
+                  <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                    {item.icon}
+                    <span>{item.name}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </>
+          );
+        })()}
 
         {/* Remaining items */}
         {filteredItems.slice(2).map((item) => {
