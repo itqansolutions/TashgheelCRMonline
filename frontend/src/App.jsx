@@ -187,7 +187,7 @@ function App() {
                   <Route
                     path="integrations/meta-forms"
                     element={
-                      <ProtectedRoute allowedRoles={['admin']}>
+                      <ProtectedRoute>
                         <MetaForms />
                       </ProtectedRoute>
                     }
