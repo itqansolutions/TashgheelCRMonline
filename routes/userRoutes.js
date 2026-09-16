@@ -11,7 +11,7 @@ router.use(authMiddleware);
 // @route   GET api/users
 // @desc    Get all users (Employees)
 // @access  Private (Admin, Manager)
-router.get('/', authorize(['admin', 'manager']), usersController.getUsers);
+router.get('/', authorize(['admin', 'manager', 'employee']), usersController.getUsers);
 router.post('/', authorize(['admin']), usageLimits('users'), usersController.createUser);
 
 // @route   PUT api/users/:id/role
