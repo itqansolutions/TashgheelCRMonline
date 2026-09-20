@@ -105,25 +105,89 @@ async function getWhatsAppSettings(tenantId) {
  * Returns the first active phone number ID found, or null.
  */
 async function resolveActualPhoneNumberId(idOrWabaId, accessToken) {
-  if (!idOrWabaId || !accessToken) return null;
+  if (!accessToken) return null;
+  const cleanId = (idOrWabaId || '').trim();
+
+  // 1. Try querying /phone_numbers on cleanId directly (if cleanId is a WABA ID)
+  if (cleanId) {
+    try {
+      const res = await axios.get(`${WA_BASE_URL}/${cleanId}/phone_numbers`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000
+      });
+      const numbers = res.data?.data || [];
+      if (numbers.length > 0 && numbers[0].id) {
+        console.log(`💡 [WhatsApp] Successfully resolved WABA ID ${cleanId} to Phone Number ID: ${numbers[0].id} (${numbers[0].display_phone_number || ''})`);
+        return {
+          phoneNumberId: numbers[0].id,
+          displayPhoneNumber: numbers[0].display_phone_number,
+          verifiedName: numbers[0].verified_name,
+          allNumbers: numbers
+        };
+      }
+    } catch (err) {
+      console.log(`[WhatsApp] Direct /phone_numbers failed for ID ${cleanId}:`, err.response?.data?.error?.message || err.message);
+    }
+  }
+
+  // 2. Discover via assigned_whatsapp_business_accounts
   try {
-    const res = await axios.get(`${WA_BASE_URL}/${idOrWabaId}/phone_numbers`, {
+    const assignedRes = await axios.get(`${WA_BASE_URL}/me/assigned_whatsapp_business_accounts`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       timeout: 10000
     });
-    const numbers = res.data?.data || [];
-    if (numbers.length > 0 && numbers[0].id) {
-      console.log(`💡 [WhatsApp] Successfully resolved WABA ID ${idOrWabaId} to Phone Number ID: ${numbers[0].id} (${numbers[0].display_phone_number || ''})`);
-      return {
-        phoneNumberId: numbers[0].id,
-        displayPhoneNumber: numbers[0].display_phone_number,
-        verifiedName: numbers[0].verified_name,
-        allNumbers: numbers
-      };
+    const wabas = assignedRes.data?.data || [];
+    for (const waba of wabas) {
+      if (waba.id) {
+        try {
+          const pRes = await axios.get(`${WA_BASE_URL}/${waba.id}/phone_numbers`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            timeout: 10000
+          });
+          const numbers = pRes.data?.data || [];
+          if (numbers.length > 0 && numbers[0].id) {
+            console.log(`💡 [WhatsApp] Successfully resolved via assigned WABA ${waba.id} to Phone Number ID: ${numbers[0].id} (${numbers[0].display_phone_number || ''})`);
+            return {
+              phoneNumberId: numbers[0].id,
+              displayPhoneNumber: numbers[0].display_phone_number,
+              verifiedName: numbers[0].verified_name,
+              allNumbers: numbers
+            };
+          }
+        } catch (e) {}
+      }
     }
-  } catch (err) {
-    console.log(`[WhatsApp] Failed to resolve phone numbers for ID ${idOrWabaId}:`, err.response?.data?.error?.message || err.message);
-  }
+  } catch (err) {}
+
+  // 3. Discover via client_whatsapp_business_accounts
+  try {
+    const clientRes = await axios.get(`${WA_BASE_URL}/me/client_whatsapp_business_accounts`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: 10000
+    });
+    const clientWabas = clientRes.data?.data || [];
+    for (const waba of clientWabas) {
+      if (waba.id) {
+        try {
+          const pRes = await axios.get(`${WA_BASE_URL}/${waba.id}/phone_numbers`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            timeout: 10000
+          });
+          const numbers = pRes.data?.data || [];
+          if (numbers.length > 0 && numbers[0].id) {
+            console.log(`💡 [WhatsApp] Successfully resolved via client WABA ${waba.id} to Phone Number ID: ${numbers[0].id} (${numbers[0].display_phone_number || ''})`);
+            return {
+              phoneNumberId: numbers[0].id,
+              displayPhoneNumber: numbers[0].display_phone_number,
+              verifiedName: numbers[0].verified_name,
+              allNumbers: numbers
+            };
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (err) {}
+
   return null;
 }
 
@@ -251,11 +315,27 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
         }
       }
 
-      // If cannot auto-resolve, explain the permission/token cause accurately
+      // If cannot auto-resolve, diagnose the exact cause with Meta
+      let specificHint = '';
+      try {
+        const dbg = await axios.get(`https://graph.facebook.com/debug_token`, {
+          params: { input_token: accessToken, access_token: accessToken },
+          timeout: 8000
+        });
+        const d = dbg.data?.data;
+        if (d) {
+          if (String(d.app_id) === String(targetPhoneId)) {
+            specificHint = `المعرّف '${targetPhoneId}' هو معرّف التطبيق (App ID) وليس معرّف رقم الهاتف (Phone Number ID)! يرجى الذهاب إلى لوحة Meta for Developers > تطبيقك > WhatsApp > API Setup ونسخ 'Phone number ID' (الموجود أسفل خانة Phone number وليس App ID).`;
+          } else if (d.scopes && !d.scopes.includes('whatsapp_business_messaging')) {
+            specificHint = `التوكن المستخدم لا يملك صلاحية 'whatsapp_business_messaging' لإرسال الرسائل. يرجى إعادة إنشاء التوكن مع تفعيل هذه الصلاحية.`;
+          }
+        }
+      } catch (dbgErr) {}
+
       return {
         success: false,
         messageId: null,
-        error: `Meta رفضت الطلب للمعرّف '${targetPhoneId}'. إذا كان هذا هو معرّف رقم هاتفك الفعلي، فالسبب هو أن الـ Access Token المستخدم لا يملك صلاحية للوصول إلى هذا الرقم أو تم إنشاؤه لتطبيق/حساب تجاري مختلف. تأكد من ربط حساب واتساب بالـ System User في إعدادات Business Settings وإعطائه صلاحية whatsapp_business_messaging.`
+        error: specificHint || `Meta رفضت الطلب للمعرّف '${targetPhoneId}'. إذا كان هذا هو معرّف رقم هاتفك الفعلي، فالسبب هو أن الـ Access Token المستخدم لا يملك صلاحية للوصول إلى هذا الرقم أو تم إنشاؤه لتطبيق/حساب تجاري مختلف. تأكد من ربط حساب واتساب بالـ System User في إعدادات Business Settings وإعطائه صلاحية whatsapp_business_messaging.`
       };
     }
 
@@ -458,27 +538,46 @@ async function diagnoseWhatsAppConnection(tenantId) {
 
   // Step 2: Try to inspect the Phone Number ID directly
   if (phone_number_id) {
-    try {
-      const phoneRes = await axios.get(`${WA_BASE_URL}/${phone_number_id}`, {
-        params: { fields: 'id,display_phone_number,verified_name,code_verification_status,quality_rating' },
-        headers: { Authorization: `Bearer ${access_token}` },
-        timeout: 10000
-      });
-      report.phoneAccessible = true;
-      report.phoneDetails = phoneRes.data;
-      report.steps.push({
-        step: 'التحقق من معرّف رقم الهاتف (Phone Number ID)',
-        status: 'success',
-        detail: `تم التحقق بنجاح! الرقم: ${phoneRes.data.display_phone_number} (${phoneRes.data.verified_name || ''}) - حالة التحقق: ${phoneRes.data.code_verification_status || 'OK'}`
-      });
-    } catch (pErr) {
-      const pErrMsg = pErr.response?.data?.error?.message || pErr.message;
-      const pErrCode = pErr.response?.data?.error?.code;
+    if (report.tokenInfo?.appId && String(report.tokenInfo.appId) === String(phone_number_id).trim()) {
       report.steps.push({
         step: 'التحقق من معرّف رقم الهاتف (Phone Number ID)',
         status: 'failed',
-        detail: `لا يمكن لهذا التوكن الوصول إلى معرّف الرقم (${phone_number_id}): ${pErrMsg} (Code: ${pErrCode})`
+        detail: `المعرّف المدخل (${phone_number_id}) هو معرّف التطبيق (App ID) وليس معرّف رقم الهاتف! يرجى نسخه من لوحة تحكم Meta Developers تحت: WhatsApp > API Setup > Phone number ID.`
       });
+    } else {
+      try {
+        const phoneRes = await axios.get(`${WA_BASE_URL}/${phone_number_id}`, {
+          params: { fields: 'id,display_phone_number,verified_name,code_verification_status,quality_rating' },
+          headers: { Authorization: `Bearer ${access_token}` },
+          timeout: 10000
+        });
+        report.phoneAccessible = true;
+        report.phoneDetails = phoneRes.data;
+        report.steps.push({
+          step: 'التحقق من معرّف رقم الهاتف (Phone Number ID)',
+          status: 'success',
+          detail: `تم التحقق بنجاح! الرقم: ${phoneRes.data.display_phone_number} (${phoneRes.data.verified_name || ''}) - حالة التحقق: ${phoneRes.data.code_verification_status || 'OK'}`
+        });
+      } catch (pErr) {
+        const pErrMsg = pErr.response?.data?.error?.message || pErr.message;
+        const pErrCode = pErr.response?.data?.error?.code;
+
+        // Try to discover phone numbers
+        const discovered = await resolveActualPhoneNumberId(phone_number_id, access_token);
+        if (discovered && discovered.phoneNumberId) {
+          report.steps.push({
+            step: 'التحقق من معرّف رقم الهاتف (Phone Number ID)',
+            status: 'warning',
+            detail: `المعرّف (${phone_number_id}) هو معرّف حساب تجاري (WABA ID). تم العثور على رقم الهاتف التابع له: ${discovered.displayPhoneNumber} (معرّف الهاتف: ${discovered.phoneNumberId}). يمكنك الضغط على "جلب أرقام الهواتف" لاختياره مباشرة.`
+          });
+        } else {
+          report.steps.push({
+            step: 'التحقق من معرّف رقم الهاتف (Phone Number ID)',
+            status: 'failed',
+            detail: `لا يمكن لهذا التوكن الوصول إلى معرّف الرقم (${phone_number_id}): ${pErrMsg} (Code: ${pErrCode})`
+          });
+        }
+      }
     }
   }
 

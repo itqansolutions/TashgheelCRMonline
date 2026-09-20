@@ -301,7 +301,7 @@ const WhatsAppSettings = () => {
               )}
 
               <div style={{ margin: '6px 0 0', fontSize: 12, color: '#b45309', background: '#fffbeb', padding: '8px 12px', borderRadius: 8, border: '1px solid #fde68a', lineHeight: 1.5 }}>
-                ⚠️ <strong>تنبيه هام:</strong> المعرّف <code>1321352281062137</code> هو معرّف الحساب (WABA ID). عند الضغط على زر <strong>"جلب أرقام الهواتف من Meta"</strong> بالأعلى أو إرسال رسالة تجريبية، سيقوم النظام باستخراج معرّف رقم الهاتف الصحيح تلقائياً.
+                💡 <strong>تنبيه هام:</strong> تأكد من وضع <strong>Phone number ID</strong> (معرّف رقم الهاتف) وليس معرّف التطبيق (App ID) أو معرّف الحساب الإعلاني. تجده في لوحة تحكم Meta Developers تحت: <strong>WhatsApp &gt; API Setup &gt; Phone number ID</strong>.
               </div>
             </div>
 
