@@ -502,37 +502,55 @@ async function fetchApprovedTemplates({ phoneNumberId, accessToken, wabaIdInput 
   const targetPhoneId = (phoneNumberId || '').trim();
 
   let wabaId = (wabaIdInput || '').trim() || null;
+  let appId = null;
 
-  // 1. Try resolving WABA ID from debug_token granular_scopes (very reliable for System Users!)
-  if (!wabaId) {
-    try {
-      const dbgRes = await axios.get(`https://graph.facebook.com/debug_token`, {
-        params: { input_token: accessToken, access_token: accessToken },
-        timeout: 10000
-      });
-      const d = dbgRes.data?.data;
-      if (d?.granular_scopes) {
-        for (const gs of d.granular_scopes) {
+  // 1. Inspect debug_token to get app_id and extract real WABA ID from WhatsApp granular_scopes
+  try {
+    const dbgRes = await axios.get(`https://graph.facebook.com/debug_token`, {
+      params: { input_token: accessToken, access_token: accessToken },
+      timeout: 10000
+    });
+    const d = dbgRes.data?.data;
+    appId = d?.app_id;
+
+    // If wabaIdInput was accidentally the App ID, ignore it
+    if (wabaId && String(wabaId) === String(appId)) {
+      console.warn(`[WhatsApp] wabaIdInput matches App ID (${appId}), ignoring.`);
+      wabaId = null;
+    }
+
+    if (!wabaId && d?.granular_scopes) {
+      for (const gs of d.granular_scopes) {
+        // MUST be a whatsapp_business scope (never public_profile or other general scopes)
+        if (gs.scope && gs.scope.startsWith('whatsapp_business')) {
           if (gs.target_ids && gs.target_ids.length > 0) {
-            wabaId = gs.target_ids[0];
-            console.log(`💡 [WhatsApp] Extracted WABA ID from granular_scopes: ${wabaId}`);
-            break;
+            for (const tid of gs.target_ids) {
+              if (String(tid) !== String(appId)) {
+                wabaId = tid;
+                console.log(`💡 [WhatsApp] Extracted real WABA ID from ${gs.scope}: ${wabaId}`);
+                break;
+              }
+            }
           }
         }
+        if (wabaId) break;
       }
-    } catch (err) {
-      console.log('[WhatsApp] Could not inspect granular_scopes:', err.message);
     }
+  } catch (err) {
+    console.log('[WhatsApp] Could not inspect granular_scopes:', err.message);
   }
 
-  // 2. Try resolving WABA ID from Phone Number ID
-  if (!wabaId && targetPhoneId) {
+  // 2. Try resolving WABA ID from Phone Number ID (only if not matching App ID)
+  if (!wabaId && targetPhoneId && String(targetPhoneId) !== String(appId)) {
     try {
       const pRes = await axios.get(`${WA_BASE_URL}/${targetPhoneId}?fields=whatsapp_business_account`, {
         headers: { Authorization: `Bearer ${accessToken}` },
         timeout: 10000
       });
-      wabaId = pRes.data?.whatsapp_business_account?.id;
+      const resolved = pRes.data?.whatsapp_business_account?.id;
+      if (resolved && String(resolved) !== String(appId)) {
+        wabaId = resolved;
+      }
     } catch (err) {
       console.log('[WhatsApp] Could not get WABA ID directly from phone number:', err.response?.data?.error?.message || err.message);
     }
@@ -546,8 +564,11 @@ async function fetchApprovedTemplates({ phoneNumberId, accessToken, wabaIdInput 
         timeout: 10000
       });
       const wabas = assignedRes.data?.data || [];
-      if (wabas.length > 0 && wabas[0].id) {
-        wabaId = wabas[0].id;
+      for (const w of wabas) {
+        if (w.id && String(w.id) !== String(appId)) {
+          wabaId = w.id;
+          break;
+        }
       }
     } catch (err) {}
   }
@@ -560,8 +581,11 @@ async function fetchApprovedTemplates({ phoneNumberId, accessToken, wabaIdInput 
         timeout: 10000
       });
       const clientWabas = clientRes.data?.data || [];
-      if (clientWabas.length > 0 && clientWabas[0].id) {
-        wabaId = clientWabas[0].id;
+      for (const w of clientWabas) {
+        if (w.id && String(w.id) !== String(appId)) {
+          wabaId = w.id;
+          break;
+        }
       }
     } catch (err) {}
   }
@@ -569,7 +593,7 @@ async function fetchApprovedTemplates({ phoneNumberId, accessToken, wabaIdInput 
   if (!wabaId) {
     return {
       success: false,
-      error: 'تعذر تحديد معرّف حساب واتساب التجاري (WABA ID). يمكنك نسخه من لوحة تحكم Meta Developers تحت: WhatsApp > API Setup > WhatsApp Business Account ID.'
+      error: 'تعذر تحديد معرّف حساب واتساب التجاري (WABA ID) تلقائياً. يرجى نسخه من لوحة تحكم Meta Developers تحت: WhatsApp > API Setup > "WhatsApp Business Account ID" ووضعه في خانة WABA ID بالأعلى.'
     };
   }
 
@@ -590,7 +614,14 @@ async function fetchApprovedTemplates({ phoneNumberId, accessToken, wabaIdInput 
       templates: allTemplates
     };
   } catch (err) {
-    const errMsg = err.response?.data?.error?.message || err.message;
+    const rawErr = err.response?.data?.error;
+    const errMsg = rawErr?.message || err.message;
+    if (errMsg.includes('Tried accessing nonexisting field') || rawErr?.code === 100) {
+      return {
+        success: false,
+        error: `المعرّف '${wabaId}' ليس معرّف حساب واتساب تجاري (WABA ID). يرجى نسخ المعرّف الموجود في صفحة API Setup تحت خانة "WhatsApp Business Account ID".`
+      };
+    }
     return {
       success: false,
       error: `فشل جلب القوالب من Meta: ${errMsg}`
