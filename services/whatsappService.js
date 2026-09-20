@@ -264,20 +264,57 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
       }
     }
 
-    // 2. Check if error is language mismatch (e.g. template created as English 'en'/'en_US' instead of 'ar')
+    // 2. Check if error is language mismatch or template does not exist (Code 132001)
     if (rawError?.code === 132001 || apiError.includes('does not exist in') || apiError.includes('language')) {
-      const fallbackLanguages = languageCode.startsWith('ar') ? ['en_US', 'en'] : ['ar'];
-      console.warn(`⚠️ [WhatsApp] Language '${languageCode}' rejected for '${templateName}'. Trying fallback languages: ${fallbackLanguages.join(', ')}...`);
-      for (const altLang of fallbackLanguages) {
+      const isHello = templateName?.toLowerCase().trim() === 'hello_world';
+
+      // Special case: hello_world only exists in en_US and has NO parameters
+      if (isHello) {
         try {
-          const lRes = await sendRequest(targetPhoneId, components, altLang);
-          const msgId = lRes.data?.messages?.[0]?.id || null;
-          console.log(`✅ [WhatsApp] Succeeded with fallback language '${altLang}'! ID: ${msgId}`);
+          const hwRes = await sendRequest(targetPhoneId, [], 'en_US');
+          const msgId = hwRes.data?.messages?.[0]?.id || null;
+          console.log(`✅ [WhatsApp] Succeeded with hello_world (en_US, no params)! ID: ${msgId}`);
           return { success: true, messageId: msgId, error: null, resolvedPhoneId: targetPhoneId };
-        } catch (lErr) {
-          // continue testing
+        } catch (hwErr) {}
+      }
+
+      // Try fallback languages with both with-params and without-params
+      const fallbackLanguages = languageCode.startsWith('ar') ? ['en_US', 'en'] : ['ar', 'en_US', 'en'];
+      console.warn(`⚠️ [WhatsApp] Template/Language mismatch for '${templateName}' (${languageCode}). Testing fallback combinations...`);
+      
+      for (const altLang of fallbackLanguages) {
+        for (const compVariant of [components, []]) {
+          try {
+            const lRes = await sendRequest(targetPhoneId, compVariant, altLang);
+            const msgId = lRes.data?.messages?.[0]?.id || null;
+            console.log(`✅ [WhatsApp] Succeeded with fallback language '${altLang}'! ID: ${msgId}`);
+            return { success: true, messageId: msgId, error: null, resolvedPhoneId: targetPhoneId };
+          } catch (lErr) {
+            // continue testing
+          }
         }
       }
+
+      // If still failing, query Meta for available templates and list them in the error message
+      let availableTemplatesMsg = '';
+      try {
+        const tResult = await fetchApprovedTemplates({ phoneNumberId: targetPhoneId, accessToken });
+        if (tResult.success && tResult.templates && tResult.templates.length > 0) {
+          const approved = tResult.templates.filter(t => t.status === 'APPROVED');
+          if (approved.length > 0) {
+            const list = approved.map(t => `'${t.name}' (${t.language})`).join('، ');
+            availableTemplatesMsg = ` القوالب المعتمدة (APPROVED) في حسابك على Meta هي: ${list}.`;
+          } else {
+            availableTemplatesMsg = ` لا توجد قوالب معتمدة (APPROVED) في حسابك على Meta حالياً. القوالب الموجودة في حسابك: ${tResult.templates.map(t => `'${t.name}' (${t.status})`).join('، ')}.`;
+          }
+        }
+      } catch (e) {}
+
+      return {
+        success: false,
+        messageId: null,
+        error: `Meta رفضت القالب '${templateName}' باللغة '${languageCode}' (Error #132001: اسم القالب أو لغته غير مسجلة في Meta).${availableTemplatesMsg} يرجى التأكد من كتابة اسم القالب ولغته بنفس حالة الأحرف بالضبط، أو اضغط على "جلب القوالب من Meta".`
+      };
     }
 
     // 3. Check if error is "Unsupported post request" (Object ID is a WABA ID, App ID, or invalid)
@@ -438,18 +475,105 @@ async function sendTestMessage({ phoneNumberId, accessToken, templateName, langu
     return { success: false, messageId: null, error: 'Invalid phone number — could not convert to E.164 format' };
   }
 
+  // If template is hello_world, Meta expects NO parameters and en_US language!
+  const isHelloWorld = templateName?.toLowerCase().trim() === 'hello_world';
+  const components = isHelloWorld ? [] : [{
+    type: 'body',
+    parameters: [{ type: 'text', text: 'Test Lead' }]
+  }];
+  const effectiveLang = isHelloWorld ? 'en_US' : languageCode;
+
   return callWhatsAppApi({
     phoneNumberId,
     accessToken,
     toPhone: e164,
     templateName,
-    languageCode,
+    languageCode: effectiveLang,
     tenantId,
-    components: [{
-      type: 'body',
-      parameters: [{ type: 'text', text: 'Test Lead' }]
-    }]
+    components
   });
+}
+
+/**
+ * Discover approved message templates from Meta WABA account.
+ */
+async function fetchApprovedTemplates({ phoneNumberId, accessToken }) {
+  if (!accessToken) return { success: false, error: 'Access token required' };
+  const targetPhoneId = (phoneNumberId || '').trim();
+
+  let wabaId = null;
+
+  // 1. Try resolving WABA ID from Phone Number ID
+  if (targetPhoneId) {
+    try {
+      const pRes = await axios.get(`${WA_BASE_URL}/${targetPhoneId}?fields=whatsapp_business_account`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000
+      });
+      wabaId = pRes.data?.whatsapp_business_account?.id;
+    } catch (err) {
+      console.log('[WhatsApp] Could not get WABA ID directly from phone number:', err.response?.data?.error?.message || err.message);
+    }
+  }
+
+  // 2. If not found, try assigned_whatsapp_business_accounts
+  if (!wabaId) {
+    try {
+      const assignedRes = await axios.get(`${WA_BASE_URL}/me/assigned_whatsapp_business_accounts`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000
+      });
+      const wabas = assignedRes.data?.data || [];
+      if (wabas.length > 0 && wabas[0].id) {
+        wabaId = wabas[0].id;
+      }
+    } catch (err) {}
+  }
+
+  // 3. If still not found, try client_whatsapp_business_accounts
+  if (!wabaId) {
+    try {
+      const clientRes = await axios.get(`${WA_BASE_URL}/me/client_whatsapp_business_accounts`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000
+      });
+      const clientWabas = clientRes.data?.data || [];
+      if (clientWabas.length > 0 && clientWabas[0].id) {
+        wabaId = clientWabas[0].id;
+      }
+    } catch (err) {}
+  }
+
+  if (!wabaId) {
+    return {
+      success: false,
+      error: 'تعذر تحديد حساب واتساب التجاري (WABA) المرتبط بهذا التوكن أو رقم الهاتف.'
+    };
+  }
+
+  // Fetch templates from WABA
+  try {
+    const tRes = await axios.get(`${WA_BASE_URL}/${wabaId}/message_templates`, {
+      params: {
+        fields: 'id,name,status,language,category,components',
+        limit: 100
+      },
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: 12000
+    });
+    const allTemplates = tRes.data?.data || [];
+    return {
+      success: true,
+      wabaId,
+      templates: allTemplates
+    };
+  } catch (err) {
+    const errMsg = err.response?.data?.error?.message || err.message;
+    return {
+      success: false,
+      error: `فشل جلب القوالب من Meta: ${errMsg}`
+    };
+  }
 }
 
 /**
@@ -593,5 +717,6 @@ module.exports = {
   normalisePhone,
   getWhatsAppSettings,
   resolveActualPhoneNumberId,
-  diagnoseWhatsAppConnection
+  diagnoseWhatsAppConnection,
+  fetchApprovedTemplates
 };

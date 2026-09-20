@@ -31,6 +31,8 @@ const WhatsAppSettings = () => {
   const [testing, setTesting] = useState(false);
   const [discoveredNumbers, setDiscoveredNumbers] = useState([]);
   const [discovering, setDiscovering] = useState(false);
+  const [discoveredTemplates, setDiscoveredTemplates] = useState([]);
+  const [discoveringTemplates, setDiscoveringTemplates] = useState(false);
   const [diagnosing, setDiagnosing] = useState(false);
   const [diagnosticReport, setDiagnosticReport] = useState(null);
 
@@ -106,6 +108,31 @@ const WhatsAppSettings = () => {
       toast.error(err.response?.data?.message || 'فشل جلب أرقام الهواتف من Meta', { duration: 6000 });
     } finally {
       setDiscovering(false);
+    }
+  };
+
+  // -------------------------------------------------------------------
+  // Discover approved templates from Meta
+  // -------------------------------------------------------------------
+  const handleDiscoverTemplates = async () => {
+    if (!settings.phone_number_id) {
+      toast.error('أدخل Phone Number ID أولاً لجلب القوالب المرتبطة بالحساب');
+      return;
+    }
+    setDiscoveringTemplates(true);
+    try {
+      const res = await api.get('/whatsapp/templates');
+      const templates = res.data?.data || [];
+      setDiscoveredTemplates(templates);
+      if (templates.length > 0) {
+        toast.success(res.data.message || `تم العثور على ${templates.length} قالب`);
+      } else {
+        toast('لم يتم العثور على قوالب مسجلة لهذا الحساب');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل جلب القوالب من Meta', { duration: 7000 });
+    } finally {
+      setDiscoveringTemplates(false);
     }
   };
 
@@ -385,9 +412,23 @@ const WhatsAppSettings = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             {/* Template Name */}
             <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                Template Name *
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: 13, fontWeight: 600 }}>
+                  Template Name *
+                </label>
+                <button
+                  type="button"
+                  onClick={handleDiscoverTemplates}
+                  disabled={discoveringTemplates || !settings.phone_number_id}
+                  style={{
+                    background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe',
+                    padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700,
+                    cursor: discoveringTemplates || !settings.phone_number_id ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {discoveringTemplates ? 'جاري جلب القوالب...' : '🔍 جلب القوالب من Meta'}
+                </button>
+              </div>
               <input
                 type="text"
                 value={settings.template_name}
@@ -400,8 +441,74 @@ const WhatsAppSettings = () => {
                   fontFamily: 'monospace', boxSizing: 'border-box'
                 }}
               />
+
+              {/* Discovered Templates List */}
+              {discoveredTemplates.length > 0 && (
+                <div style={{ marginTop: 10, padding: 12, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>📑 القوالب المسجلة في حسابك على Meta ({discoveredTemplates.length}):</span>
+                    <button
+                      type="button"
+                      onClick={() => setDiscoveredTemplates([])}
+                      style={{ background: 'none', border: 'none', color: '#64748b', fontSize: 12, cursor: 'pointer' }}
+                    >
+                      إخفاء القائمة ✕
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+                    {discoveredTemplates.map((t, idx) => {
+                      const isApproved = t.status === 'APPROVED';
+                      return (
+                        <div key={t.id || idx} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '8px 12px', background: isApproved ? 'white' : '#fef2f2',
+                          border: `1px solid ${isApproved ? '#cbd5e1' : '#fecaca'}`, borderRadius: 6
+                        }}>
+                          <div>
+                            <code style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{t.name}</code>
+                            <span style={{
+                              marginLeft: 8, marginRight: 8, fontSize: 11, padding: '2px 6px', borderRadius: 4,
+                              background: isApproved ? '#dcfce7' : '#fee2e2',
+                              color: isApproved ? '#166534' : '#991b1b', fontWeight: 600
+                            }}>
+                              {t.status}
+                            </span>
+                            <span style={{ fontSize: 11, color: '#64748b' }}>
+                              اللغة: <strong>{t.language}</strong>
+                            </span>
+                          </div>
+                          {isApproved && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleChange('template_name', t.name);
+                                if (t.language && t.language.startsWith('ar')) {
+                                  handleChange('send_arabic', true);
+                                  handleChange('template_language_ar', t.language);
+                                } else if (t.language) {
+                                  handleChange('send_english', true);
+                                  handleChange('template_language_en', t.language);
+                                }
+                                toast.success(`تم اختيار القالب: ${t.name} (${t.language})`);
+                              }}
+                              style={{
+                                background: '#2563eb', color: 'white', border: 'none',
+                                padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              استخدام هذا القالب
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-                Must match exactly the approved template name in your Meta Business Manager
+                يجب أن يطابق اسم القالب في Meta بالضبط (حروف صغيرة وشرطة سفلية، مثل: <code>hello_world</code> أو <code>welcome_lead</code>)
               </p>
             </div>
 

@@ -8,7 +8,8 @@ const db = require('../config/db');
 const {
   sendTestMessage,
   resolveActualPhoneNumberId,
-  diagnoseWhatsAppConnection
+  diagnoseWhatsAppConnection,
+  fetchApprovedTemplates
 } = require('../services/whatsappService');
 
 // ---------------------------------------------------------------------------
@@ -315,6 +316,51 @@ exports.diagnoseWhatsApp = async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[WhatsApp diagnose]', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// GET /api/whatsapp/templates
+// Discovers approved message templates attached to the tenant's WABA account
+// ---------------------------------------------------------------------------
+exports.fetchTemplatesFromMeta = async (req, res) => {
+  await ensureWhatsAppTable();
+  const tenantId = req.user.tenant_id;
+
+  try {
+    const sRes = await db.query(
+      `SELECT phone_number_id, access_token FROM whatsapp_settings WHERE tenant_id::text = $1::text`,
+      [tenantId]
+    );
+
+    if (sRes.rows.length === 0 || !sRes.rows[0].access_token) {
+      return res.status(400).json({ status: 'error', message: 'يرجى إدخال وحفظ Access Token أولاً' });
+    }
+
+    const token = sRes.rows[0].access_token;
+    const phoneId = (sRes.rows[0].phone_number_id || '').trim();
+
+    if (!phoneId) {
+      return res.status(400).json({ status: 'error', message: 'يرجى إدخال وحفظ Phone Number ID أولاً' });
+    }
+
+    const result = await fetchApprovedTemplates({ phoneNumberId: phoneId, accessToken: token });
+    if (result.success) {
+      return res.json({
+        status: 'success',
+        data: result.templates,
+        wabaId: result.wabaId,
+        message: `تم العثور على ${result.templates.length} قالب في حسابك على Meta`
+      });
+    }
+
+    res.status(400).json({
+      status: 'error',
+      message: result.error || 'تعذر جلب القوالب من Meta'
+    });
+  } catch (err) {
+    console.error('[WhatsApp fetchTemplates]', err.message);
     res.status(500).json({ status: 'error', message: err.message });
   }
 };

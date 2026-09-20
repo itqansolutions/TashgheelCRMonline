@@ -21,4 +21,7 @@ router.get('/phone-numbers', whatsappController.fetchPhoneNumbersFromMeta);
 // Diagnostic test endpoint
 router.get('/diagnose', whatsappController.diagnoseWhatsApp);
 
+// Fetch approved message templates from Meta
+router.get('/templates', whatsappController.fetchTemplatesFromMeta);
+
 module.exports = router;
