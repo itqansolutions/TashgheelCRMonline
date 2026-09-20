@@ -497,14 +497,36 @@ async function sendTestMessage({ phoneNumberId, accessToken, templateName, langu
 /**
  * Discover approved message templates from Meta WABA account.
  */
-async function fetchApprovedTemplates({ phoneNumberId, accessToken }) {
+async function fetchApprovedTemplates({ phoneNumberId, accessToken, wabaIdInput = null }) {
   if (!accessToken) return { success: false, error: 'Access token required' };
   const targetPhoneId = (phoneNumberId || '').trim();
 
-  let wabaId = null;
+  let wabaId = (wabaIdInput || '').trim() || null;
 
-  // 1. Try resolving WABA ID from Phone Number ID
-  if (targetPhoneId) {
+  // 1. Try resolving WABA ID from debug_token granular_scopes (very reliable for System Users!)
+  if (!wabaId) {
+    try {
+      const dbgRes = await axios.get(`https://graph.facebook.com/debug_token`, {
+        params: { input_token: accessToken, access_token: accessToken },
+        timeout: 10000
+      });
+      const d = dbgRes.data?.data;
+      if (d?.granular_scopes) {
+        for (const gs of d.granular_scopes) {
+          if (gs.target_ids && gs.target_ids.length > 0) {
+            wabaId = gs.target_ids[0];
+            console.log(`💡 [WhatsApp] Extracted WABA ID from granular_scopes: ${wabaId}`);
+            break;
+          }
+        }
+      }
+    } catch (err) {
+      console.log('[WhatsApp] Could not inspect granular_scopes:', err.message);
+    }
+  }
+
+  // 2. Try resolving WABA ID from Phone Number ID
+  if (!wabaId && targetPhoneId) {
     try {
       const pRes = await axios.get(`${WA_BASE_URL}/${targetPhoneId}?fields=whatsapp_business_account`, {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -516,7 +538,7 @@ async function fetchApprovedTemplates({ phoneNumberId, accessToken }) {
     }
   }
 
-  // 2. If not found, try assigned_whatsapp_business_accounts
+  // 3. If not found, try assigned_whatsapp_business_accounts
   if (!wabaId) {
     try {
       const assignedRes = await axios.get(`${WA_BASE_URL}/me/assigned_whatsapp_business_accounts`, {
@@ -530,7 +552,7 @@ async function fetchApprovedTemplates({ phoneNumberId, accessToken }) {
     } catch (err) {}
   }
 
-  // 3. If still not found, try client_whatsapp_business_accounts
+  // 4. If still not found, try client_whatsapp_business_accounts
   if (!wabaId) {
     try {
       const clientRes = await axios.get(`${WA_BASE_URL}/me/client_whatsapp_business_accounts`, {
@@ -547,7 +569,7 @@ async function fetchApprovedTemplates({ phoneNumberId, accessToken }) {
   if (!wabaId) {
     return {
       success: false,
-      error: 'تعذر تحديد حساب واتساب التجاري (WABA) المرتبط بهذا التوكن أو رقم الهاتف.'
+      error: 'تعذر تحديد معرّف حساب واتساب التجاري (WABA ID). يمكنك نسخه من لوحة تحكم Meta Developers تحت: WhatsApp > API Setup > WhatsApp Business Account ID.'
     };
   }
 

@@ -23,6 +23,7 @@ async function ensureWhatsAppTable() {
       CREATE TABLE IF NOT EXISTS whatsapp_settings (
         tenant_id             UUID        PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
         phone_number_id       VARCHAR(255) NOT NULL DEFAULT '',
+        waba_id               VARCHAR(255) NOT NULL DEFAULT '',
         access_token          TEXT         NOT NULL DEFAULT '',
         template_name         VARCHAR(100) NOT NULL DEFAULT '',
         template_language_ar  VARCHAR(20)  NOT NULL DEFAULT 'ar',
@@ -35,6 +36,7 @@ async function ensureWhatsAppTable() {
         updated_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW()
       );
     `);
+    await db.query(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS waba_id VARCHAR(255) DEFAULT '';`);
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_whatsapp_settings_tenant_id
       ON whatsapp_settings(tenant_id);
@@ -56,6 +58,7 @@ exports.getWhatsAppSettings = async (req, res) => {
     const result = await db.query(
       `SELECT
          phone_number_id,
+         waba_id,
          template_name,
          template_language_ar,
          template_language_en,
@@ -75,6 +78,7 @@ exports.getWhatsAppSettings = async (req, res) => {
         status: 'success',
         data: {
           phone_number_id: '',
+          waba_id: '',
           template_name: '',
           template_language_ar: 'ar',
           template_language_en: 'en_US',
@@ -118,6 +122,7 @@ exports.updateWhatsAppSettings = async (req, res) => {
 
   const {
     phone_number_id,
+    waba_id,
     access_token,
     template_name,
     template_language_ar,
@@ -140,13 +145,14 @@ exports.updateWhatsAppSettings = async (req, res) => {
   try {
     await db.query(
       `INSERT INTO whatsapp_settings (
-         tenant_id, phone_number_id, access_token,
+         tenant_id, phone_number_id, waba_id, access_token,
          template_name, template_language_ar, template_language_en,
          send_arabic, send_english, default_country_code, is_active,
          updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
        ON CONFLICT (tenant_id) DO UPDATE SET
          phone_number_id      = EXCLUDED.phone_number_id,
+         waba_id              = EXCLUDED.waba_id,
          access_token         = CASE 
                                   WHEN EXCLUDED.access_token <> '' THEN EXCLUDED.access_token 
                                   ELSE whatsapp_settings.access_token 
@@ -162,6 +168,7 @@ exports.updateWhatsAppSettings = async (req, res) => {
       [
         tenantId,
         phone_number_id.trim(),
+        (waba_id || '').trim(),
         cleanToken,
         template_name.trim(),
         (template_language_ar || 'ar').trim(),
@@ -330,7 +337,7 @@ exports.fetchTemplatesFromMeta = async (req, res) => {
 
   try {
     const sRes = await db.query(
-      `SELECT phone_number_id, access_token FROM whatsapp_settings WHERE tenant_id::text = $1::text`,
+      `SELECT phone_number_id, waba_id, access_token FROM whatsapp_settings WHERE tenant_id::text = $1::text`,
       [tenantId]
     );
 
@@ -340,12 +347,13 @@ exports.fetchTemplatesFromMeta = async (req, res) => {
 
     const token = sRes.rows[0].access_token;
     const phoneId = (sRes.rows[0].phone_number_id || '').trim();
+    const wabaIdInput = (req.query.waba_id || sRes.rows[0].waba_id || '').trim();
 
-    if (!phoneId) {
+    if (!phoneId && !wabaIdInput) {
       return res.status(400).json({ status: 'error', message: 'يرجى إدخال وحفظ Phone Number ID أولاً' });
     }
 
-    const result = await fetchApprovedTemplates({ phoneNumberId: phoneId, accessToken: token });
+    const result = await fetchApprovedTemplates({ phoneNumberId: phoneId, accessToken: token, wabaIdInput });
     if (result.success) {
       return res.json({
         status: 'success',

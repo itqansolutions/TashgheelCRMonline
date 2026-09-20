@@ -10,6 +10,7 @@ import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav
 const WhatsAppSettings = () => {
   const [settings, setSettings] = useState({
     phone_number_id: '',
+    waba_id: '',
     access_token: '',
     template_name: '',
     template_language_ar: 'ar',
@@ -115,15 +116,19 @@ const WhatsAppSettings = () => {
   // Discover approved templates from Meta
   // -------------------------------------------------------------------
   const handleDiscoverTemplates = async () => {
-    if (!settings.phone_number_id) {
-      toast.error('أدخل Phone Number ID أولاً لجلب القوالب المرتبطة بالحساب');
+    if (!settings.phone_number_id && !settings.waba_id) {
+      toast.error('أدخل Phone Number ID أو WABA ID أولاً لجلب القوالب');
       return;
     }
     setDiscoveringTemplates(true);
     try {
-      const res = await api.get('/whatsapp/templates');
+      const q = settings.waba_id ? `?waba_id=${encodeURIComponent(settings.waba_id.trim())}` : '';
+      const res = await api.get(`/whatsapp/templates${q}`);
       const templates = res.data?.data || [];
       setDiscoveredTemplates(templates);
+      if (res.data?.wabaId && !settings.waba_id) {
+        setSettings(prev => ({ ...prev, waba_id: res.data.wabaId }));
+      }
       if (templates.length > 0) {
         toast.success(res.data.message || `تم العثور على ${templates.length} قالب`);
       } else {
@@ -330,6 +335,27 @@ const WhatsAppSettings = () => {
               <div style={{ margin: '6px 0 0', fontSize: 12, color: '#b45309', background: '#fffbeb', padding: '8px 12px', borderRadius: 8, border: '1px solid #fde68a', lineHeight: 1.5 }}>
                 💡 <strong>تنبيه هام:</strong> تأكد من وضع <strong>Phone number ID</strong> (معرّف رقم الهاتف) وليس معرّف التطبيق (App ID) أو معرّف الحساب الإعلاني. تجده في لوحة تحكم Meta Developers تحت: <strong>WhatsApp &gt; API Setup &gt; Phone number ID</strong>.
               </div>
+            </div>
+
+            {/* WhatsApp Business Account ID (WABA ID) */}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                WhatsApp Business Account ID (WABA ID) (اختياري - لجلب القوالب تلقائياً)
+              </label>
+              <input
+                type="text"
+                value={settings.waba_id || ''}
+                onChange={e => handleChange('waba_id', e.target.value)}
+                placeholder="e.g. 102938475610293 (انسخه من صفحة WhatsApp > API Setup)"
+                style={{
+                  width: '100%', padding: '9px 12px', borderRadius: 8,
+                  border: '1px solid var(--border)', fontSize: 14,
+                  fontFamily: 'monospace', boxSizing: 'border-box'
+                }}
+              />
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
+                معرّف الحساب التجاري (تجده في نفس صفحة API Setup أسفل حقل Phone number ID مباشرة)
+              </p>
             </div>
 
             {/* Access Token */}
