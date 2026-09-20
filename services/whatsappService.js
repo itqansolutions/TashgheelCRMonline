@@ -513,19 +513,18 @@ async function fetchApprovedTemplates({ phoneNumberId, accessToken, wabaIdInput 
     const d = dbgRes.data?.data;
     appId = d?.app_id;
 
-    // If wabaIdInput was accidentally the App ID, ignore it
-    if (wabaId && String(wabaId) === String(appId)) {
-      console.warn(`[WhatsApp] wabaIdInput matches App ID (${appId}), ignoring.`);
+    // If wabaIdInput was accidentally the App ID or Phone Number ID, ignore it
+    if (wabaId && (String(wabaId) === String(appId) || String(wabaId) === String(targetPhoneId))) {
       wabaId = null;
     }
 
     if (!wabaId && d?.granular_scopes) {
       for (const gs of d.granular_scopes) {
-        // MUST be a whatsapp_business scope (never public_profile or other general scopes)
-        if (gs.scope && gs.scope.startsWith('whatsapp_business')) {
+        // Look specifically for whatsapp_business_management (which attaches to WABA ID)
+        if (gs.scope === 'whatsapp_business_management' || gs.scope === 'whatsapp_business_messaging') {
           if (gs.target_ids && gs.target_ids.length > 0) {
             for (const tid of gs.target_ids) {
-              if (String(tid) !== String(appId)) {
+              if (String(tid) !== String(appId) && String(tid) !== String(targetPhoneId)) {
                 wabaId = tid;
                 console.log(`💡 [WhatsApp] Extracted real WABA ID from ${gs.scope}: ${wabaId}`);
                 break;
