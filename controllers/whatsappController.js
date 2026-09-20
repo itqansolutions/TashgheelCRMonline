@@ -143,6 +143,15 @@ exports.updateWhatsAppSettings = async (req, res) => {
   const cleanToken = (access_token || '').trim();
 
   try {
+    let cleanLangAr = (template_language_ar || 'ar').trim();
+    if (!cleanLangAr || cleanLangAr.length > 7 || !/^[a-z]{2}(_[A-Z]{2})?$/.test(cleanLangAr)) {
+      cleanLangAr = 'ar';
+    }
+    let cleanLangEn = (template_language_en || 'en_US').trim();
+    if (!cleanLangEn || cleanLangEn.length > 7 || !/^[a-z]{2}(_[A-Z]{2})?$/.test(cleanLangEn)) {
+      cleanLangEn = 'en_US';
+    }
+
     await db.query(
       `INSERT INTO whatsapp_settings (
          tenant_id, phone_number_id, waba_id, access_token,
@@ -171,8 +180,8 @@ exports.updateWhatsAppSettings = async (req, res) => {
         (waba_id || '').trim(),
         cleanToken,
         template_name.trim(),
-        (template_language_ar || 'ar').trim(),
-        (template_language_en || 'en_US').trim(),
+        cleanLangAr,
+        cleanLangEn,
         send_arabic !== false,
         send_english === true,
         (default_country_code || '20').trim(),
@@ -232,7 +241,10 @@ exports.sendTestWhatsApp = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Phone Number ID, Access Token and Template Name are all required.' });
     }
 
-    const langCode = language === 'en' ? (s.template_language_en || 'en_US') : (s.template_language_ar || 'ar');
+    let langCode = language === 'en' ? (s.template_language_en || 'en_US') : (s.template_language_ar || 'ar');
+    if (!langCode || langCode.length > 7 || !/^[a-z]{2}(_[A-Z]{2})?$/.test(langCode)) {
+      langCode = language === 'en' ? 'en_US' : 'ar';
+    }
 
     const result = await sendTestMessage({
       phoneNumberId: s.phone_number_id,

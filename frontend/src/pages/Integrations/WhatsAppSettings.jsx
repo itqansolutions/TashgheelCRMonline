@@ -558,18 +558,21 @@ const WhatsAppSettings = () => {
                 </span>
               </div>
               {settings.send_arabic && (
-                <input
-                  type="text"
-                  value={settings.template_language_ar}
+                <select
+                  value={['ar', 'ar_SA', 'ar_EG'].includes(settings.template_language_ar) ? settings.template_language_ar : 'ar'}
                   onChange={e => handleChange('template_language_ar', e.target.value)}
-                  placeholder="ar"
                   style={{
                     width: '100%', padding: '8px 12px', borderRadius: 8,
-                    border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box'
+                    border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box',
+                    background: 'white'
                   }}
-                />
+                >
+                  <option value="ar">العربية — Arabic (ar)</option>
+                  <option value="ar_SA">العربية (السعودية) — (ar_SA)</option>
+                  <option value="ar_EG">العربية (مصر) — (ar_EG)</option>
+                </select>
               )}
-              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>Language code: ar</p>
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>رمز لغة القالب المعتمد في Meta</p>
             </div>
 
             <div>
@@ -591,18 +594,21 @@ const WhatsAppSettings = () => {
                 </span>
               </div>
               {settings.send_english && (
-                <input
-                  type="text"
-                  value={settings.template_language_en}
+                <select
+                  value={['en_US', 'en', 'en_GB'].includes(settings.template_language_en) ? settings.template_language_en : 'en_US'}
                   onChange={e => handleChange('template_language_en', e.target.value)}
-                  placeholder="en_US"
                   style={{
                     width: '100%', padding: '8px 12px', borderRadius: 8,
-                    border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box'
+                    border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box',
+                    background: 'white'
                   }}
-                />
+                >
+                  <option value="en_US">English (US) — (en_US)</option>
+                  <option value="en">English — (en)</option>
+                  <option value="en_GB">English (UK) — (en_GB)</option>
+                </select>
               )}
-              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>Language code: en_US</p>
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>رمز لغة القالب المعتمد في Meta</p>
             </div>
           </div>
         </div>
