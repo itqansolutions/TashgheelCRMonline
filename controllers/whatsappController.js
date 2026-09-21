@@ -566,7 +566,7 @@ exports.sendCampaign = async (req, res) => {
   try {
     // 1. Fetch the selected customers and their phone numbers
     const custRes = await db.query(
-      `SELECT id, name, phone, classification_id 
+      `SELECT id, name, phone, classification_id, area_id 
        FROM customers 
        WHERE tenant_id::text = $1::text AND id = ANY($2::int[])`,
       [tenantId, customer_ids]

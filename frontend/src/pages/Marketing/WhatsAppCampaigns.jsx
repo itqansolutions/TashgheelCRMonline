@@ -4,13 +4,17 @@ import toast from 'react-hot-toast';
 import {
   Send, Users, MessageSquare, Filter, Search, CheckSquare, Square,
   RefreshCw, CheckCircle2, XCircle, Clock, ChevronRight, Eye, AlertCircle,
-  Sparkles, Layers, ShieldCheck, ArrowRight, ExternalLink, Globe
+  Sparkles, Layers, ShieldCheck, ArrowRight, ExternalLink, Globe, MapPin
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 import { useData } from '../../context/DataContext';
 
 const WhatsAppCampaigns = () => {
-  const { customers, fetchCustomers, customerClassifications, fetchCustomerClassifications } = useData();
+  const { 
+    customers, fetchCustomers, 
+    customerClassifications, fetchCustomerClassifications,
+    customerAreas, fetchCustomerAreas 
+  } = useData();
 
   // Campaign creation state
   const [campaignName, setCampaignName] = useState('');
@@ -25,6 +29,7 @@ const WhatsAppCampaigns = () => {
   // Audience filtering & selection
   const [searchQuery, setSearchQuery] = useState('');
   const [classificationFilter, setClassificationFilter] = useState('all');
+  const [areaFilter, setAreaFilter] = useState('all');
   const [selectedCustomerIds, setSelectedCustomerIds] = useState(new Set());
 
   // Campaign execution
@@ -45,6 +50,9 @@ const WhatsAppCampaigns = () => {
     fetchCustomers();
     if (!customerClassifications || customerClassifications.length === 0) {
       fetchCustomerClassifications();
+    }
+    if (!customerAreas || customerAreas.length === 0) {
+      fetchCustomerAreas();
     }
     loadTemplates();
     loadCampaigns();
@@ -96,6 +104,15 @@ const WhatsAppCampaigns = () => {
         }
       }
 
+      // Area filter
+      if (areaFilter !== 'all') {
+        if (areaFilter === 'no_area') {
+          if (c.area_id) return false;
+        } else if (String(c.area_id) !== String(areaFilter)) {
+          return false;
+        }
+      }
+
       // Search query (Name, Phone, Company)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -107,7 +124,7 @@ const WhatsAppCampaigns = () => {
 
       return true;
     });
-  }, [customers, classificationFilter, searchQuery]);
+  }, [customers, classificationFilter, areaFilter, searchQuery]);
 
   // Select / Deselect All
   const handleSelectAll = () => {
@@ -170,6 +187,7 @@ const WhatsAppCampaigns = () => {
         customer_ids: targetCustomerIds,
         filter_criteria: {
           classification: classificationFilter,
+          area: areaFilter,
           query: searchQuery
         },
         custom_param: customParam.trim() || null
@@ -386,16 +404,16 @@ const WhatsAppCampaigns = () => {
                 </div>
 
                 {/* Filters */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '12px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
-                      Filter by Classification
+                      Classification (التصنيف)
                     </label>
                     <select
                       value={classificationFilter}
                       onChange={(e) => setClassificationFilter(e.target.value)}
                       style={{
-                        width: '100%', padding: '8px 12px', borderRadius: '8px',
+                        width: '100%', padding: '8px 10px', borderRadius: '8px',
                         border: '1px solid #cbd5e1', fontSize: '13px', background: 'white'
                       }}
                     >
@@ -409,6 +427,26 @@ const WhatsAppCampaigns = () => {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      Area (المنطقة)
+                    </label>
+                    <select
+                      value={areaFilter}
+                      onChange={(e) => setAreaFilter(e.target.value)}
+                      style={{
+                        width: '100%', padding: '8px 10px', borderRadius: '8px',
+                        border: '1px solid #cbd5e1', fontSize: '13px', background: 'white'
+                      }}
+                    >
+                      <option value="all">All Areas / كل المناطق</option>
+                      {(customerAreas || []).map(a => (
+                        <option key={a.id} value={a.id}>📍 {a.name}</option>
+                      ))}
+                      <option value="no_area">No Area / بدون منطقة</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                       Search Customers
                     </label>
                     <div style={{ position: 'relative' }}>
@@ -416,9 +454,9 @@ const WhatsAppCampaigns = () => {
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search name, phone..."
+                        placeholder="Name, phone..."
                         style={{
-                          width: '100%', padding: '8px 12px 8px 30px', borderRadius: '8px',
+                          width: '100%', padding: '8px 10px 8px 30px', borderRadius: '8px',
                           border: '1px solid #cbd5e1', fontSize: '13px'
                         }}
                       />
@@ -473,6 +511,7 @@ const WhatsAppCampaigns = () => {
                     filteredCustomers.map(cust => {
                       const isSelected = selectedCustomerIds.has(cust.id);
                       const cls = (customerClassifications || []).find(c => c.id === cust.classification_id);
+                      const area = (customerAreas || []).find(a => a.id === cust.area_id);
                       return (
                         <div
                           key={cust.id}
@@ -500,14 +539,26 @@ const WhatsAppCampaigns = () => {
                             </div>
                           </div>
 
-                          {cls && (
-                            <span style={{
-                              fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px',
-                              background: `${cls.color || '#6366f1'}15`, color: cls.color || '#6366f1'
-                            }}>
-                              {cls.name}
-                            </span>
-                          )}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {cls && (
+                              <span style={{
+                                fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px',
+                                background: `${cls.color || '#6366f1'}15`, color: cls.color || '#6366f1'
+                              }}>
+                                {cls.name}
+                              </span>
+                            )}
+                            {area && (
+                              <span style={{
+                                fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '6px',
+                                background: `${area.color || '#0ea5e9'}15`, color: area.color || '#0ea5e9',
+                                display: 'inline-flex', alignItems: 'center', gap: '3px'
+                              }}>
+                                <MapPin size={10} />
+                                {area.name}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       );
                     })

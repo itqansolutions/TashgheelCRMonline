@@ -161,11 +161,18 @@ const StatementModal = ({ customer, onClose }) => {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 const ContactsCustomers = () => {
-  const { customers, fetchCustomers, leadSources, fetchLeadSources, customerClassifications, fetchCustomerClassifications, loading } = useData();
+  const { 
+    customers, fetchCustomers, 
+    leadSources, fetchLeadSources, 
+    customerClassifications, fetchCustomerClassifications, 
+    customerAreas, fetchCustomerAreas,
+    loading 
+  } = useData();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all'); // all | active | blacklisted
   const [sourceFilter, setSourceFilter] = useState('all');
   const [classificationFilter, setClassificationFilter] = useState('all');
+  const [areaFilter, setAreaFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [viewingCustomer, setViewingCustomer] = useState(null);
@@ -178,13 +185,20 @@ const ContactsCustomers = () => {
   const [newClassificationColor, setNewClassificationColor] = useState('#6366f1');
   const [savingClassification, setSavingClassification] = useState(false);
 
-  const emptyForm = { name: '', phone: '', address: '', tax_no: '', reg_no: '', source_id: '', classification_id: '', is_active: true, is_blacklisted: false };
+  // Quick Area Modal
+  const [showQuickAreaModal, setShowQuickAreaModal] = useState(false);
+  const [newAreaName, setNewAreaName] = useState('');
+  const [newAreaColor, setNewAreaColor] = useState('#0ea5e9');
+  const [savingArea, setSavingArea] = useState(false);
+
+  const emptyForm = { name: '', phone: '', address: '', tax_no: '', reg_no: '', source_id: '', classification_id: '', area_id: '', is_active: true, is_blacklisted: false };
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
     fetchCustomers();
     if (leadSources.length === 0) fetchLeadSources();
     if (!customerClassifications || customerClassifications.length === 0) fetchCustomerClassifications();
+    if (!customerAreas || customerAreas.length === 0) fetchCustomerAreas();
   }, []);
 
   // Only show general customers (not RE vendors/brokers)
@@ -212,7 +226,10 @@ const ContactsCustomers = () => {
     const matchClassification = classificationFilter === 'all' ||
       (classificationFilter === 'unclassified' ? !c.classification_id : String(c.classification_id) === String(classificationFilter));
 
-    return matchSearch && matchStatus && matchSource && matchClassification;
+    const matchArea = areaFilter === 'all' ||
+      (areaFilter === 'no_area' ? !c.area_id : String(c.area_id) === String(areaFilter));
+
+    return matchSearch && matchStatus && matchSource && matchClassification && matchArea;
   });
 
   const openAdd = () => { setEditingCustomer(null); setForm(emptyForm); setIsModalOpen(true); };
@@ -226,6 +243,7 @@ const ContactsCustomers = () => {
       reg_no: c.reg_no || '', 
       source_id: c.source_id || '', 
       classification_id: c.classification_id || '',
+      area_id: c.area_id || '',
       is_active: c.is_active !== false, 
       is_blacklisted: c.is_blacklisted === true 
     });
@@ -240,6 +258,7 @@ const ContactsCustomers = () => {
       const payload = { 
         ...form, 
         classification_id: form.classification_id ? Number(form.classification_id) : null,
+        area_id: form.area_id ? Number(form.area_id) : null,
         entity_type: 'customer', 
         status: 'customer' 
       };
@@ -329,6 +348,16 @@ const ContactsCustomers = () => {
           {customerClassifications.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
         </select>
 
+        <select 
+          value={areaFilter} 
+          onChange={e => setAreaFilter(e.target.value)} 
+          style={{ ...inputStyle, width: 'auto', minWidth: '180px' }}
+        >
+          <option value="all">All Areas / كل المناطق</option>
+          <option value="no_area">No Area / بدون منطقة</option>
+          {(customerAreas || []).map(a => <option key={a.id} value={a.id}>📍 {a.name}</option>)}
+        </select>
+
         {['all', 'active', 'blacklisted'].map(s => (
           <button key={s} onClick={() => setFilterStatus(s)} style={{ padding: '10px 18px', borderRadius: '10px', border: '1.5px solid', borderColor: filterStatus === s ? '#4f46e5' : '#e2e8f0', background: filterStatus === s ? '#4f46e5' : 'white', color: filterStatus === s ? 'white' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}>
             {s === 'all' ? 'All' : s === 'active' ? '✅ Active' : '⛔ Blacklisted'}
@@ -349,7 +378,7 @@ const ContactsCustomers = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                {['Name', 'Classification', 'Phone', 'Address', 'Tax ID', 'Commercial Reg', 'Source', 'Status', 'Actions'].map(h => (
+                {['Name', 'Classification', 'Area', 'Phone', 'Address', 'Tax ID', 'Commercial Reg', 'Source', 'Status', 'Actions'].map(h => (
                   <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 800, color: '#64748b', letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -387,6 +416,27 @@ const ContactsCustomers = () => {
                       }}>
                         <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: c.classification_color || '#6366f1' }}></span>
                         {c.classification_name}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '14px 16px' }}>
+                    {c.area_name ? (
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '3px 10px',
+                        borderRadius: '9999px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        backgroundColor: `${c.area_color || '#0ea5e9'}15`,
+                        color: c.area_color || '#0ea5e9',
+                        border: `1px solid ${c.area_color || '#0ea5e9'}35`
+                      }}>
+                        <MapPin size={11} />
+                        {c.area_name}
                       </span>
                     ) : (
                       <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
@@ -499,6 +549,30 @@ const ContactsCustomers = () => {
                   </select>
                 </div>
               </div>
+
+              {/* Area / المنطقة */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#374151', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <MapPin size={14} color="#0ea5e9" /> Area / المنطقة
+                  </label>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowQuickAreaModal(true)}
+                    style={{ 
+                      background: 'none', border: 'none', color: '#0ea5e9', 
+                      fontSize: '12px', fontWeight: 700, cursor: 'pointer', padding: 0,
+                      display: 'flex', alignItems: 'center', gap: '2px'
+                    }}
+                  >
+                    <Plus size={13} /> Add Area
+                  </button>
+                </div>
+                <select value={form.area_id} onChange={e => setForm(f => ({ ...f, area_id: e.target.value }))} style={inputStyle}>
+                  <option value="">-- No Area / بدون منطقة (Optional) --</option>
+                  {(customerAreas || []).map(a => <option key={a.id} value={a.id}>📍 {a.name}</option>)}
+                </select>
+              </div>
               {/* Checkboxes */}
               <div style={{ display: 'flex', gap: '24px', padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '14px', color: '#374151' }}>
@@ -601,7 +675,34 @@ const ContactsCustomers = () => {
                   </div>
                 )}
 
-                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', gridColumn: viewingCustomer.classification_name ? 'span 1' : 'span 2' }}>
+                {viewingCustomer.area_name && (
+                  <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📍 Area / المنطقة</div>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 12px',
+                      borderRadius: '9999px',
+                      fontSize: '12px',
+                      fontWeight: 800,
+                      backgroundColor: `${viewingCustomer.area_color || '#0ea5e9'}18`,
+                      color: viewingCustomer.area_color || '#0ea5e9',
+                      border: `1px solid ${viewingCustomer.area_color || '#0ea5e9'}40`
+                    }}>
+                      <MapPin size={13} />
+                      {viewingCustomer.area_name}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ 
+                  background: '#f8fafc', 
+                  padding: '14px', 
+                  borderRadius: '12px', 
+                  border: '1px solid #e2e8f0', 
+                  gridColumn: (viewingCustomer.classification_name && viewingCustomer.area_name) ? 'span 2' : 'span 1' 
+                }}>
                   <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📍 Address / Location</div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
                     {viewingCustomer.address || '—'}
@@ -758,6 +859,97 @@ const ContactsCustomers = () => {
                 style={{ padding: '8px 20px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: savingClassification ? 'not-allowed' : 'pointer', opacity: savingClassification ? 0.7 : 1 }}
               >
                 {savingClassification ? 'Saving...' : 'Save Classification'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Area Modal */}
+      {showQuickAreaModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '420px', padding: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <MapPin size={18} color="#0ea5e9" /> New Customer Area / منطقة جديدة
+              </h3>
+              <button onClick={() => setShowQuickAreaModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#475569', marginBottom: '6px' }}>
+                Area Name (e.g. التجمع, زايد, المعادي...) *
+              </label>
+              <input 
+                type="text" 
+                value={newAreaName}
+                onChange={e => setNewAreaName(e.target.value)}
+                placeholder="اسم المنطقة..."
+                style={inputStyle}
+                autoFocus
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#475569', marginBottom: '6px' }}>
+                Badge Color / لون العلامة
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <input 
+                  type="color" 
+                  value={newAreaColor}
+                  onChange={e => setNewAreaColor(e.target.value)}
+                  style={{ width: '40px', height: '38px', padding: 0, border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{newAreaColor}</span>
+                <div style={{
+                  marginLeft: 'auto', padding: '4px 12px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700,
+                  backgroundColor: `${newAreaColor}18`, color: newAreaColor, border: `1px solid ${newAreaColor}40`,
+                  display: 'flex', alignItems: 'center', gap: '4px'
+                }}>
+                  <MapPin size={11} />
+                  {newAreaName || 'Preview'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                type="button" 
+                onClick={() => setShowQuickAreaModal(false)}
+                style={{ padding: '8px 16px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                disabled={savingArea}
+                onClick={async () => {
+                  if (!newAreaName.trim()) return toast.error('Please enter an area name');
+                  setSavingArea(true);
+                  try {
+                    const res = await api.post('/customer-areas', {
+                      name: newAreaName.trim(),
+                      color: newAreaColor
+                    });
+                    toast.success('Area created successfully');
+                    await fetchCustomerAreas();
+                    if (res.data?.data?.id) {
+                      setForm(prev => ({ ...prev, area_id: res.data.data.id }));
+                    }
+                    setNewAreaName('');
+                    setShowQuickAreaModal(false);
+                  } catch (err) {
+                    toast.error(err.response?.data?.message || 'Failed to save area');
+                  } finally {
+                    setSavingArea(false);
+                  }
+                }}
+                style={{ padding: '8px 20px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: savingArea ? 'not-allowed' : 'pointer', opacity: savingArea ? 0.7 : 1 }}
+              >
+                {savingArea ? 'Saving...' : 'Save Area'}
               </button>
             </div>
           </div>
