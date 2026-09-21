@@ -78,8 +78,13 @@ const ensureInvoicesTable = async () => {
             );
         `);
 
+        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS tenant_id UUID;`);
         await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
         await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS description TEXT;`);
+        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS product_id INTEGER;`);
+        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS quantity NUMERIC DEFAULT 1;`);
+        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS unit_price DECIMAL(15, 2) DEFAULT 0.00;`);
+        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS subtotal DECIMAL(15, 2) DEFAULT 0.00;`);
 
         // Drop legacy global UNIQUE constraint on invoices(invoice_number) that breaks multi-tenancy
         try {
@@ -588,7 +593,7 @@ exports.getInvoiceDetails = async (req, res) => {
 
         if (invRes.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Invoice not found' });
 
-        const itemsRes = await db.query('SELECT * FROM invoice_items WHERE invoice_id = $1 AND tenant_id::text = $2::text ORDER BY id ASC', [invoice_id, tenant_id]);
+        const itemsRes = await db.query('SELECT * FROM invoice_items WHERE invoice_id = $1 ORDER BY id ASC', [invoice_id]);
         const paymentsRes = await db.query('SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id::text = $2::text ORDER BY payment_date DESC', [invoice_id, tenant_id]);
 
         res.json({
