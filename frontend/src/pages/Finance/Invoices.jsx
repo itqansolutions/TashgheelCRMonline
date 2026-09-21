@@ -134,9 +134,11 @@ const FinanceDashboard = () => {
       if (quickActionType === 'Invoice') {
         await api.post('/finance/invoices', {
           client_id: formData.customer_id,
-          unit_id: formData.unit_id,
+          customer_id: formData.customer_id,
+          unit_id: formData.unit_id || null,
           items: formData.items,
-          due_date: formData.date
+          due_date: formData.date,
+          notes: formData.title || null
         });
         toast.success('Invoice created successfully');
       } else if (quickActionType === 'Quotation') {

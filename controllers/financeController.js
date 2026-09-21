@@ -36,15 +36,143 @@ const ensureVouchersTable = async () => {
     }
 };
 
-// Helper to generate Invoice Number
+// Ensure invoices & invoice_items tables & columns exist with multi-tenant safety
+let invoicesTableReady = false;
+const ensureInvoicesTable = async () => {
+    if (invoicesTableReady) return;
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS invoices (
+                id SERIAL PRIMARY KEY,
+                quotation_id INTEGER,
+                invoice_number VARCHAR(100) NOT NULL,
+                total_amount DECIMAL(15, 2) DEFAULT 0.00,
+                due_date DATE,
+                status VARCHAR(50) DEFAULT 'unpaid',
+                tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        // Add missing columns to invoices safely
+        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS unit_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS notes TEXT;`);
+        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS accounting_status VARCHAR(20) DEFAULT 'unposted';`);
+        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS journal_entry_id UUID;`);
+
+        // Ensure invoice_items table and columns exist
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS invoice_items (
+                id SERIAL PRIMARY KEY,
+                invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
+                product_id INTEGER,
+                quantity NUMERIC DEFAULT 1,
+                unit_price DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+                subtotal DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+                tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS description TEXT;`);
+
+        // Drop legacy global UNIQUE constraint on invoices(invoice_number) that breaks multi-tenancy
+        try {
+            const constraints = await db.query(`
+                SELECT conname 
+                FROM pg_constraint 
+                WHERE conrelid = 'invoices'::regclass 
+                  AND contype = 'u'
+                  AND conname != 'unique_invoice_per_tenant';
+            `);
+            for (const row of constraints.rows) {
+                try {
+                    await db.query(`ALTER TABLE invoices DROP CONSTRAINT IF EXISTS "${row.conname}";`);
+                    console.log(`[Finance] Dropped legacy unique constraint: ${row.conname}`);
+                } catch (e) {}
+            }
+        } catch (e) {
+            console.warn('[Finance] Constraint check note:', e.message);
+        }
+
+        // Add composite index for tenant + invoice_number
+        try {
+            await db.query(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_tenant_number 
+                ON invoices(tenant_id, invoice_number);
+            `);
+        } catch (e) {
+            console.warn('[Finance] idx_invoices_tenant_number note:', e.message);
+        }
+
+        invoicesTableReady = true;
+    } catch (err) {
+        console.error('[Finance] Error ensuring invoices schema:', err.message);
+    }
+};
+
+// Helper to generate Invoice Number (collision-free & multi-tenant safe)
 const generateInvoiceNumber = async (tenant_id, branch_id) => {
-    const branchRes = await db.query('SELECT invoice_prefix FROM branches WHERE id = $1 AND tenant_id::text = $2::text', [branch_id, tenant_id]);
-    const prefix = branchRes.rows.length && branchRes.rows[0].invoice_prefix ? branchRes.rows[0].invoice_prefix + '-' : 'INV-';
+    await ensureInvoicesTable();
+    let prefix = 'INV-';
 
-    const seqRes = await db.query(`SELECT COUNT(*) + 1 as next_id FROM invoices WHERE tenant_id::text = $1::text AND branch_id::text = $2::text`, [tenant_id, branch_id]);
-    const nextSeq = String(seqRes.rows[0].next_id).padStart(4, '0');
+    if (branch_id) {
+        try {
+            const branchRes = await db.query(
+                'SELECT invoice_prefix FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text',
+                [branch_id, tenant_id]
+            );
+            if (branchRes.rows.length && branchRes.rows[0].invoice_prefix) {
+                const p = branchRes.rows[0].invoice_prefix.trim();
+                if (p) prefix = p.endsWith('-') ? p : `${p}-`;
+            }
+        } catch (err) {
+            console.warn('[Finance] Branch invoice prefix lookup notice:', err.message);
+        }
+    }
 
-    return `${prefix}${nextSeq}`;
+    // Get the maximum sequential number for this prefix in this tenant
+    let maxSeq = 0;
+    try {
+        const seqRes = await db.query(
+            `SELECT invoice_number FROM invoices 
+             WHERE tenant_id::text = $1::text AND invoice_number LIKE $2
+             ORDER BY id DESC LIMIT 100`,
+            [tenant_id, `${prefix}%`]
+        );
+        for (const row of seqRes.rows) {
+            const numPart = row.invoice_number.slice(prefix.length);
+            const parsed = parseInt(numPart, 10);
+            if (!isNaN(parsed) && parsed > maxSeq) {
+                maxSeq = parsed;
+            }
+        }
+    } catch (e) {
+        console.warn('[Finance] seq query notice:', e.message);
+    }
+
+    let candidate = maxSeq + 1;
+    let invoiceNumber = `${prefix}${String(candidate).padStart(4, '0')}`;
+
+    // Loop check to guarantee absolute uniqueness (no duplicate key exception ever)
+    let attempts = 0;
+    while (attempts < 100) {
+        const exists = await db.query(
+            `SELECT id FROM invoices WHERE tenant_id::text = $1::text AND invoice_number = $2 LIMIT 1`,
+            [tenant_id, invoiceNumber]
+        );
+        if (exists.rows.length === 0) break;
+        candidate++;
+        invoiceNumber = `${prefix}${String(candidate).padStart(4, '0')}`;
+        attempts++;
+    }
+
+    return invoiceNumber;
 };
 
 // Helper to generate Voucher Number
@@ -63,10 +191,12 @@ const generateVoucherNumber = async (tenant_id, branch_id, voucher_type) => {
 // @route   GET /api/finance/invoices
 exports.getInvoices = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+
+    await ensureInvoicesTable();
 
     try {
-        const result = await db.query(`
+        let query = `
             SELECT 
                 i.*,
                 COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text), 0) as total_paid,
@@ -77,10 +207,18 @@ exports.getInvoices = async (req, res) => {
             LEFT JOIN deals d ON i.deal_id::text = d.id::text AND i.tenant_id::text = d.tenant_id::text 
             LEFT JOIN customers c ON i.client_id::text = c.id::text AND i.tenant_id::text = c.tenant_id::text
             LEFT JOIN re_units u ON i.unit_id::text = u.id::text
-            WHERE i.tenant_id::text = $1::text AND i.branch_id::text = $2::text
-            ORDER BY i.created_at DESC
-        `, [tenant_id, branch_id]);
+            WHERE i.tenant_id::text = $1::text
+        `;
+        const params = [tenant_id];
 
+        if (branch_id) {
+            params.push(String(branch_id));
+            query += ` AND (i.branch_id::text = $2::text OR i.branch_id IS NULL)`;
+        }
+
+        query += ` ORDER BY i.created_at DESC`;
+
+        const result = await db.query(query, params);
         res.json({ status: 'success', data: result.rows });
     } catch (err) {
         console.error('getInvoices Error:', err.message);
@@ -92,30 +230,120 @@ exports.getInvoices = async (req, res) => {
 // @route   POST /api/finance/invoices
 exports.createInvoice = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
-    const { customer_id, client_id, deal_id, unit_id, due_date, items } = req.body;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    const { customer_id, client_id, deal_id, unit_id, due_date, items, notes } = req.body;
     const effectiveClientId = customer_id || client_id;
+
+    await ensureInvoicesTable();
+
+    // If branch_id is still not resolved, get default/first branch for this tenant
+    if (!branch_id) {
+        try {
+            const bRes = await db.query('SELECT id FROM branches WHERE tenant_id::text = $1::text ORDER BY id ASC LIMIT 1', [tenant_id]);
+            if (bRes.rows.length > 0) {
+                branch_id = bRes.rows[0].id;
+            }
+        } catch (e) {}
+    }
 
     try {
         await db.query('BEGIN');
 
         const invoiceNumber = await generateInvoiceNumber(tenant_id, branch_id);
         const validItems = Array.isArray(items) ? items : [];
-        let total_amount = validItems.reduce((sum, item) => sum + (parseFloat(item.unit_price || 0) * parseInt(item.quantity || 1)), 0);
+
+        let total_amount = 0;
+        const sanitizedItems = [];
+
+        for (const item of validItems) {
+            const qty = Math.max(1, parseFloat(item.quantity) || 1);
+            const unitPrice = Math.max(0, parseFloat(item.unit_price) || 0);
+            const subtotal = qty * unitPrice;
+            total_amount += subtotal;
+
+            let prodId = null;
+            if (item.product_id && item.product_id !== '' && item.product_id !== 'null') {
+                const parsedPid = parseInt(item.product_id, 10);
+                if (!isNaN(parsedPid)) {
+                    // Verify product belongs to tenant to avoid FK violation
+                    try {
+                        const prodCheck = await db.query(
+                            'SELECT id FROM products WHERE id = $1 AND tenant_id::text = $2::text',
+                            [parsedPid, tenant_id]
+                        );
+                        if (prodCheck.rows.length > 0) {
+                            prodId = prodCheck.rows[0].id;
+                        }
+                    } catch (e) {}
+                }
+            }
+
+            sanitizedItems.push({
+                product_id: prodId,
+                quantity: qty,
+                unit_price: unitPrice,
+                subtotal: subtotal,
+                description: item.description || item.name || 'Service / Product Item'
+            });
+        }
+
+        // Sanitize client_id / customer_id
+        let sanitizedClientId = null;
+        if (effectiveClientId && effectiveClientId !== '' && effectiveClientId !== 'null') {
+            const parsedCid = parseInt(effectiveClientId, 10);
+            if (!isNaN(parsedCid)) {
+                try {
+                    const custCheck = await db.query(
+                        'SELECT id FROM customers WHERE id = $1 AND tenant_id::text = $2::text',
+                        [parsedCid, tenant_id]
+                    );
+                    if (custCheck.rows.length > 0) {
+                        sanitizedClientId = custCheck.rows[0].id;
+                    }
+                } catch (e) {
+                    sanitizedClientId = parsedCid;
+                }
+            } else {
+                sanitizedClientId = String(effectiveClientId);
+            }
+        }
+
+        const sanitizedDealId = (deal_id && deal_id !== '' && deal_id !== 'null') ? deal_id : null;
+        const sanitizedUnitId = (unit_id && unit_id !== '' && unit_id !== 'null') ? unit_id : null;
 
         const invRes = await db.query(`
-            INSERT INTO invoices (invoice_number, total_amount, due_date, status, tenant_id, branch_id, client_id, deal_id, unit_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            INSERT INTO invoices (invoice_number, total_amount, due_date, status, tenant_id, branch_id, client_id, deal_id, unit_id, notes)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             RETURNING *
-        `, [invoiceNumber, total_amount, due_date || null, 'unpaid', tenant_id, branch_id, effectiveClientId || null, deal_id || null, unit_id || null]);
+        `, [
+            invoiceNumber, 
+            total_amount, 
+            due_date || null, 
+            'unpaid', 
+            tenant_id, 
+            branch_id ? String(branch_id) : null, 
+            sanitizedClientId ? String(sanitizedClientId) : null, 
+            sanitizedDealId ? String(sanitizedDealId) : null, 
+            sanitizedUnitId ? String(sanitizedUnitId) : null,
+            notes || null
+        ]);
         
         const newInvoiceId = invRes.rows[0].id;
 
-        for (const item of validItems) {
+        for (const sItem of sanitizedItems) {
             await db.query(`
                 INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, subtotal, tenant_id, branch_id, description)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            `, [newInvoiceId, item.product_id || null, item.quantity || 1, item.unit_price || 0, ((item.unit_price || 0) * (item.quantity || 1)), tenant_id, branch_id, item.description || '']);
+            `, [
+                newInvoiceId, 
+                sItem.product_id, 
+                sItem.quantity, 
+                sItem.unit_price, 
+                sItem.subtotal, 
+                tenant_id, 
+                branch_id ? String(branch_id) : null, 
+                sItem.description
+            ]);
         }
 
         await db.query('COMMIT');
@@ -124,8 +352,8 @@ exports.createInvoice = async (req, res) => {
         res.status(201).json({ status: 'success', data: invRes.rows[0] });
     } catch (err) {
         await db.query('ROLLBACK');
-        console.error('createInvoice Error:', err.message);
-        res.status(500).json({ status: 'error', message: 'Failed to create invoice.' });
+        console.error('createInvoice Error:', err);
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to create invoice.' });
     }
 };
 
@@ -332,11 +560,13 @@ exports.createInvoicePaymentDirect = async (req, res) => {
 // @route   GET /api/finance/invoices/:id
 exports.getInvoiceDetails = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
+    let branch_id = req.branchId || req.user?.branch_id || null;
     const invoice_id = req.params.id;
 
+    await ensureInvoicesTable();
+
     try {
-        const invRes = await db.query(`
+        let invQuery = `
             SELECT i.*, u.unit_number as unit_no, u.project_name,
                    c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
                    COALESCE(p.total_paid, 0) as total_paid, 
@@ -345,13 +575,21 @@ exports.getInvoiceDetails = async (req, res) => {
             LEFT JOIN (SELECT invoice_id, SUM(amount) as total_paid FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id) p ON i.id::text = p.invoice_id::text
             LEFT JOIN re_units u ON i.unit_id::text = u.id::text
             LEFT JOIN customers c ON i.client_id::text = c.id::text
-            WHERE i.id = $2 AND i.tenant_id::text = $1::text AND i.branch_id::text = $3::text
-        `, [tenant_id, invoice_id, branch_id]);
+            WHERE i.id = $2 AND i.tenant_id::text = $1::text
+        `;
+        const invParams = [tenant_id, invoice_id];
+
+        if (branch_id) {
+            invParams.push(String(branch_id));
+            invQuery += ` AND (i.branch_id::text = $3::text OR i.branch_id IS NULL)`;
+        }
+
+        const invRes = await db.query(invQuery, invParams);
 
         if (invRes.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Invoice not found' });
 
-        const itemsRes = await db.query('SELECT * FROM invoice_items WHERE invoice_id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [invoice_id, tenant_id, branch_id]);
-        const paymentsRes = await db.query('SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text ORDER BY payment_date DESC', [invoice_id, tenant_id, branch_id]);
+        const itemsRes = await db.query('SELECT * FROM invoice_items WHERE invoice_id = $1 AND tenant_id::text = $2::text ORDER BY id ASC', [invoice_id, tenant_id]);
+        const paymentsRes = await db.query('SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id::text = $2::text ORDER BY payment_date DESC', [invoice_id, tenant_id]);
 
         res.json({
             status: 'success',
