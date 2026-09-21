@@ -81,6 +81,7 @@ import PriceTiers from './pages/Sales/PriceTiers';
 import EInvoice from './pages/Integrations/EInvoice';
 import MetaForms from './pages/Integrations/MetaForms';
 import WhatsAppSettings from './pages/Integrations/WhatsAppSettings';
+import WhatsAppCampaigns from './pages/Marketing/WhatsAppCampaigns';
 
 // Corporate Pages
 import CorporateLayout from './pages/Corporate/CorporateLayout';
@@ -197,6 +198,22 @@ function App() {
                     element={
                       <ProtectedRoute allowedRoles={['admin']}>
                         <WhatsAppSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="integrations/whatsapp-campaigns"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager', 'user']}>
+                        <WhatsAppCampaigns />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="marketing/whatsapp-campaigns"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager', 'user']}>
+                        <WhatsAppCampaigns />
                       </ProtectedRoute>
                     }
                   />

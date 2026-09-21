@@ -9,11 +9,12 @@ const {
   sendTestMessage,
   resolveActualPhoneNumberId,
   diagnoseWhatsAppConnection,
-  fetchApprovedTemplates
+  fetchApprovedTemplates,
+  broadcastWhatsAppCampaign
 } = require('../services/whatsappService');
 
 // ---------------------------------------------------------------------------
-// Ensure the settings table exists (lazy migration, same pattern as Meta)
+// Ensure the settings and campaigns tables exist (lazy migration)
 // ---------------------------------------------------------------------------
 let tableReady = false;
 async function ensureWhatsAppTable() {
@@ -41,6 +42,42 @@ async function ensureWhatsAppTable() {
       CREATE INDEX IF NOT EXISTS idx_whatsapp_settings_tenant_id
       ON whatsapp_settings(tenant_id);
     `);
+
+    // WhatsApp Campaigns Table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_campaigns (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id         UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        name              VARCHAR(255) NOT NULL,
+        template_name     VARCHAR(100) NOT NULL,
+        language_code     VARCHAR(20) NOT NULL DEFAULT 'en',
+        filter_criteria   JSONB DEFAULT '{}',
+        total_recipients  INTEGER DEFAULT 0,
+        successful_count  INTEGER DEFAULT 0,
+        failed_count      INTEGER DEFAULT 0,
+        status            VARCHAR(50) DEFAULT 'completed',
+        created_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_whatsapp_campaigns_tenant_id ON whatsapp_campaigns(tenant_id);
+    `);
+
+    // WhatsApp Campaign Recipients Table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS whatsapp_campaign_recipients (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        campaign_id   UUID NOT NULL REFERENCES whatsapp_campaigns(id) ON DELETE CASCADE,
+        customer_id   INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+        customer_name VARCHAR(255) DEFAULT '',
+        phone         VARCHAR(50) NOT NULL,
+        status        VARCHAR(50) DEFAULT 'pending',
+        message_id    VARCHAR(255),
+        error_message TEXT,
+        sent_at       TIMESTAMPTZ
+      );
+      CREATE INDEX IF NOT EXISTS idx_whatsapp_recipients_campaign_id ON whatsapp_campaign_recipients(campaign_id);
+    `);
+
     tableReady = true;
   } catch (err) {
     console.error('[WhatsApp] Table ensure error:', err.message);
@@ -385,3 +422,160 @@ exports.fetchTemplatesFromMeta = async (req, res) => {
     res.status(500).json({ status: 'error', message: err.message });
   }
 };
+
+// ---------------------------------------------------------------------------
+// GET /api/whatsapp/campaigns
+// List all WhatsApp campaigns for the tenant
+// ---------------------------------------------------------------------------
+exports.getCampaigns = async (req, res) => {
+  await ensureWhatsAppTable();
+  const tenantId = req.user.tenant_id;
+
+  try {
+    const result = await db.query(
+      `SELECT c.*, u.name as creator_name
+       FROM whatsapp_campaigns c
+       LEFT JOIN users u ON c.created_by = u.id
+       WHERE c.tenant_id::text = $1::text
+       ORDER BY c.created_at DESC`,
+      [tenantId]
+    );
+
+    res.json({
+      status: 'success',
+      data: result.rows
+    });
+  } catch (err) {
+    console.error('[WhatsApp getCampaigns]', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// GET /api/whatsapp/campaigns/:id
+// Get details and recipient delivery logs for a specific campaign
+// ---------------------------------------------------------------------------
+exports.getCampaignDetails = async (req, res) => {
+  await ensureWhatsAppTable();
+  const tenantId = req.user.tenant_id;
+  const { id } = req.params;
+
+  try {
+    const campRes = await db.query(
+      `SELECT c.*, u.name as creator_name
+       FROM whatsapp_campaigns c
+       LEFT JOIN users u ON c.created_by = u.id
+       WHERE c.id::text = $1::text AND c.tenant_id::text = $2::text`,
+      [id, tenantId]
+    );
+
+    if (campRes.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Campaign not found' });
+    }
+
+    const recipientsRes = await db.query(
+      `SELECT * FROM whatsapp_campaign_recipients
+       WHERE campaign_id::text = $1::text
+       ORDER BY sent_at DESC NULLS LAST, id ASC`,
+      [id]
+    );
+
+    res.json({
+      status: 'success',
+      data: {
+        campaign: campRes.rows[0],
+        recipients: recipientsRes.rows
+      }
+    });
+  } catch (err) {
+    console.error('[WhatsApp getCampaignDetails]', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// POST /api/whatsapp/campaigns/send
+// Broadcast a WhatsApp template to selected customers
+// ---------------------------------------------------------------------------
+exports.sendCampaign = async (req, res) => {
+  await ensureWhatsAppTable();
+  const tenantId = req.user.tenant_id;
+  const userId = req.user.id;
+
+  const {
+    name,
+    template_name,
+    language_code = 'en',
+    customer_ids = [],
+    filter_criteria = {},
+    custom_param = null
+  } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ status: 'error', message: 'Campaign name is required' });
+  }
+
+  if (!template_name || !template_name.trim()) {
+    return res.status(400).json({ status: 'error', message: 'Template name is required' });
+  }
+
+  if (!customer_ids || customer_ids.length === 0) {
+    return res.status(400).json({ status: 'error', message: 'At least one customer must be selected' });
+  }
+
+  try {
+    // 1. Fetch the selected customers and their phone numbers
+    const custRes = await db.query(
+      `SELECT id, name, phone, classification_id 
+       FROM customers 
+       WHERE tenant_id::text = $1::text AND id = ANY($2::int[])`,
+      [tenantId, customer_ids]
+    );
+
+    const customers = custRes.rows;
+    if (customers.length === 0) {
+      return res.status(400).json({ status: 'error', message: 'No valid customers found for the specified IDs' });
+    }
+
+    // 2. Create the campaign record
+    const insertRes = await db.query(
+      `INSERT INTO whatsapp_campaigns 
+        (tenant_id, name, template_name, language_code, filter_criteria, total_recipients, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, 'processing', $7)
+       RETURNING id`,
+      [tenantId, name.trim(), template_name.trim(), language_code.trim(), JSON.stringify(filter_criteria), customers.length, userId]
+    );
+
+    const campaignId = insertRes.rows[0].id;
+
+    // 3. Trigger broadcast (supports async response with broadcastWhatsAppCampaign)
+    const recipients = customers.map(c => ({
+      customerId: c.id,
+      name: c.name,
+      phone: c.phone
+    }));
+
+    const broadcastResult = await broadcastWhatsAppCampaign({
+      tenantId,
+      campaignId,
+      templateName: template_name.trim(),
+      languageCode: language_code.trim(),
+      recipients,
+      customParam: custom_param
+    });
+
+    res.json({
+      status: 'success',
+      message: `Campaign executed successfully: ${broadcastResult.successfulCount} sent, ${broadcastResult.failedCount} failed`,
+      data: {
+        campaignId,
+        ...broadcastResult
+      }
+    });
+
+  } catch (err) {
+    console.error('[WhatsApp sendCampaign]', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+

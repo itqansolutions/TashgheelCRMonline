@@ -6,7 +6,7 @@ import {
   Settings as AdminSettingsIcon, ShieldAlert, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard,
   Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase, Sliders, Clock, Cpu,
   Building, ShieldCheck, TrendingUp, ArrowLeftRight, Scale, FileSpreadsheet, BookOpen,
-  Target as TargetIcon, Layers, TrendingUp as SalesIcon, Share2, FileCheck
+  Target as TargetIcon, Layers, TrendingUp as SalesIcon, Share2, FileCheck, Send, MessageCircle
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
@@ -105,6 +105,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const integrationsItems = [
     { name: 'EInvoice',           icon: <FileCheck size={18} />,     path: '/integrations/einvoice' },
     { name: 'Meta Lead Ads',      icon: <Share2 size={18} />,        path: '/integrations/meta-forms' },
+    { name: 'WhatsApp Campaigns', icon: <Send size={18} />,          path: '/marketing/whatsapp-campaigns' },
   ];
 
   const filteredItems = (navItems || []).filter(item => {

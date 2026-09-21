@@ -1,12 +1,13 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Cpu, FileCheck, Share2, MessageCircle } from 'lucide-react';
+import { Cpu, FileCheck, Share2, MessageCircle, Send } from 'lucide-react';
 
 const IntegrationsSubNav = () => {
   const links = [
     { path: '/integrations/einvoice', label: 'ETA E-Invoicing', icon: <FileCheck size={16} /> },
     { path: '/integrations/meta-forms', label: 'Meta Lead Ads (Forms)', icon: <Share2 size={16} /> },
-    { path: '/integrations/whatsapp', label: 'WhatsApp', icon: <MessageCircle size={16} /> },
+    { path: '/integrations/whatsapp', label: 'WhatsApp Settings', icon: <MessageCircle size={16} /> },
+    { path: '/marketing/whatsapp-campaigns', label: 'WhatsApp Campaigns', icon: <Send size={16} /> },
   ];
 
   return (

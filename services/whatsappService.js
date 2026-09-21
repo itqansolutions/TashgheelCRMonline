@@ -784,12 +784,140 @@ async function diagnoseWhatsAppConnection(tenantId) {
   };
 }
 
+/**
+ * Broadcast a WhatsApp template campaign to multiple recipients.
+ * Handles phone normalization, API rate-limiting delays, and detailed logging.
+ */
+async function broadcastWhatsAppCampaign({
+  tenantId,
+  campaignId,
+  templateName,
+  languageCode,
+  recipients = [], // Array of { customerId, name, phone }
+  customParam = null
+}) {
+  const settings = await getWhatsAppSettings(tenantId);
+  if (!settings) {
+    throw new Error('WhatsApp settings not configured for this organization');
+  }
+
+  const { phone_number_id, access_token, default_country_code } = settings;
+  if (!phone_number_id || !access_token) {
+    throw new Error('Active Phone Number ID and Access Token are required');
+  }
+
+  const isHelloWorld = templateName?.toLowerCase().trim() === 'hello_world';
+  const effectiveLang = isHelloWorld ? 'en_US' : (languageCode || 'en');
+
+  let successCount = 0;
+  let failedCount = 0;
+  const logs = [];
+
+  for (const recipient of recipients) {
+    const rawPhone = recipient.phone;
+    const normPhone = normalisePhone(rawPhone, default_country_code || '20');
+
+    if (!normPhone) {
+      failedCount++;
+      const errReason = 'Invalid phone number format';
+      logs.push({
+        campaign_id: campaignId,
+        customer_id: recipient.customerId || null,
+        customer_name: recipient.name || 'Unknown',
+        phone: rawPhone || 'N/A',
+        status: 'failed',
+        error_message: errReason
+      });
+
+      // Save recipient log to db
+      try {
+        await db.query(`
+          INSERT INTO whatsapp_campaign_recipients 
+            (campaign_id, customer_id, customer_name, phone, status, error_message)
+          VALUES ($1, $2, $3, $4, 'failed', $5)
+        `, [campaignId, recipient.customerId || null, recipient.name || 'Unknown', rawPhone || 'N/A', errReason]);
+      } catch (e) {
+        console.error('[WhatsApp Campaign] DB Recipient Log Insert Error:', e.message);
+      }
+      continue;
+    }
+
+    // Prepare components
+    let components = [];
+    if (!isHelloWorld) {
+      const recipientName = customParam || recipient.name || 'Valued Customer';
+      components = [{
+        type: 'body',
+        parameters: [{ type: 'text', text: recipientName }]
+      }];
+    }
+
+    try {
+      const result = await callWhatsAppApi({
+        phoneNumberId: phone_number_id,
+        accessToken: access_token,
+        toPhone: normPhone,
+        templateName,
+        languageCode: effectiveLang,
+        tenantId,
+        components
+      });
+
+      if (result.success) {
+        successCount++;
+        await db.query(`
+          INSERT INTO whatsapp_campaign_recipients 
+            (campaign_id, customer_id, customer_name, phone, status, message_id, sent_at)
+          VALUES ($1, $2, $3, $4, 'sent', $5, NOW())
+        `, [campaignId, recipient.customerId || null, recipient.name || '', normPhone, result.messageId || null]);
+      } else {
+        failedCount++;
+        await db.query(`
+          INSERT INTO whatsapp_campaign_recipients 
+            (campaign_id, customer_id, customer_name, phone, status, error_message)
+          VALUES ($1, $2, $3, $4, 'failed', $5)
+        `, [campaignId, recipient.customerId || null, recipient.name || '', normPhone, result.error || 'Failed to send']);
+      }
+    } catch (sendErr) {
+      failedCount++;
+      const errMsg = sendErr.response?.data?.error?.message || sendErr.message;
+      await db.query(`
+        INSERT INTO whatsapp_campaign_recipients 
+          (campaign_id, customer_id, customer_name, phone, status, error_message)
+        VALUES ($1, $2, $3, $4, 'failed', $5)
+      `, [campaignId, recipient.customerId || null, recipient.name || '', normPhone, errMsg]);
+    }
+
+    // Small delay to respect WhatsApp API rate limits
+    await new Promise(r => setTimeout(r, 120));
+  }
+
+  // Update campaign summary
+  await db.query(`
+    UPDATE whatsapp_campaigns
+    SET successful_count = $1,
+        failed_count = $2,
+        status = 'completed'
+    WHERE id = $3
+  `, [successCount, failedCount, campaignId]);
+
+  return {
+    success: true,
+    total: recipients.length,
+    successfulCount: successCount,
+    failedCount
+  };
+}
+
 module.exports = {
   sendWelcomeMessage,
   sendTestMessage,
+  callWhatsAppApi,
   normalisePhone,
   getWhatsAppSettings,
   resolveActualPhoneNumberId,
   diagnoseWhatsAppConnection,
-  fetchApprovedTemplates
+  fetchApprovedTemplates,
+  broadcastWhatsAppCampaign
 };
+

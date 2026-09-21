@@ -24,4 +24,9 @@ router.get('/diagnose', whatsappController.diagnoseWhatsApp);
 // Fetch approved message templates from Meta
 router.get('/templates', whatsappController.fetchTemplatesFromMeta);
 
+// WhatsApp Campaigns
+router.get('/campaigns', whatsappController.getCampaigns);
+router.get('/campaigns/:id', whatsappController.getCampaignDetails);
+router.post('/campaigns/send', whatsappController.sendCampaign);
+
 module.exports = router;
