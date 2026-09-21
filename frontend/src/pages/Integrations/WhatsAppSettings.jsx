@@ -511,9 +511,12 @@ const WhatsAppSettings = () => {
                                 if (t.language && t.language.startsWith('ar')) {
                                   handleChange('send_arabic', true);
                                   handleChange('template_language_ar', t.language);
+                                  setTestLang('ar');
                                 } else if (t.language) {
+                                  handleChange('send_arabic', false);
                                   handleChange('send_english', true);
                                   handleChange('template_language_en', t.language);
+                                  setTestLang('en');
                                 }
                                 toast.success(`تم اختيار القالب: ${t.name} (${t.language})`);
                               }}
