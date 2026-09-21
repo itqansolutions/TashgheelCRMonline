@@ -191,22 +191,47 @@ async function resolveActualPhoneNumberId(idOrWabaId, accessToken) {
   return null;
 }
 
+// In-memory cache for resolved template component structure to avoid retry roundtrips
+// Key: `${tenantId || 'global'}:${templateName}` -> 'header' | 'body' | 'header_body' | 'none'
+const templateVariantCache = new Map();
+
 /**
- * Call the WhatsApp Cloud API to send a template message.
+ * Low-level call to Meta's WhatsApp Cloud API messages endpoint.
  *
- * @param {string} phoneNumberId   Meta Phone Number ID (from WhatsApp settings)
- * @param {string} accessToken     Permanent system-user token
- * @param {string} toPhone         E.164 formatted recipient number
- * @param {string} templateName    Pre-approved template name
- * @param {string} languageCode    e.g. 'ar', 'en_US'
- * @param {Array}  components      Template body parameters
- * @param {string} tenantId        Optional tenant UUID for auto-updating settings
+ * @param {object} opts
+ * @param {string} opts.phoneNumberId
+ * @param {string} opts.accessToken
+ * @param {string} opts.toPhone         E.164 normalised number (+201...)
+ * @param {string} opts.templateName    Pre-approved template name
+ * @param {string} opts.languageCode    e.g. 'ar', 'en_US'
+ * @param {Array}  opts.components      Template body parameters
+ * @param {string} opts.tenantId        Optional tenant UUID for auto-updating settings
  * @returns {Promise<{success: boolean, messageId: string|null, error: string|null, resolvedPhoneId?: string}>}
  */
 async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateName, languageCode, components = [], tenantId = null }) {
   const targetPhoneId = (phoneNumberId || '').trim();
+  const cacheKey = `${tenantId || 'global'}:${(templateName || '').trim()}`;
+  const cachedVariant = templateVariantCache.get(cacheKey);
 
-  const sendRequest = async (phoneId, customComponents = components, customLang = languageCode) => {
+  // If we already know this template's component structure, prepare it directly
+  let initialComponents = components;
+  if (cachedVariant && components && components.length > 0) {
+    const textVal = components[0]?.parameters?.[0]?.text || toPhone;
+    if (cachedVariant === 'header') {
+      initialComponents = [{ type: 'header', parameters: [{ type: 'text', text: textVal }] }];
+    } else if (cachedVariant === 'body') {
+      initialComponents = [{ type: 'body', parameters: [{ type: 'text', text: textVal }] }];
+    } else if (cachedVariant === 'header_body') {
+      initialComponents = [
+        { type: 'header', parameters: [{ type: 'text', text: textVal }] },
+        { type: 'body', parameters: [{ type: 'text', text: textVal }] }
+      ];
+    } else if (cachedVariant === 'none') {
+      initialComponents = [];
+    }
+  }
+
+  const sendRequest = async (phoneId, customComponents = initialComponents, customLang = languageCode) => {
     const url = `${WA_BASE_URL}/${phoneId}/messages`;
     const payload = {
       messaging_product: 'whatsapp',
@@ -239,24 +264,25 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
 
     // 1. Check if error is parameter mismatch (Code 132000 or "number of parameters does not match")
     // e.g. Variable is in HEADER instead of BODY (like: أهلاً / {{1}}), or no variables
-    if (rawError?.code === 132000 || apiError.includes('number of parameters') || apiError.includes('expected number of params')) {
+    if (rawError?.code === 132000 || apiError.includes('number of parameters') || apiError.includes('expected number of params') || apiError.includes('param')) {
       console.warn(`⚠️ [WhatsApp] Parameter mismatch for '${templateName}'. Auto-adapting (Header vs Body vs None)...`);
-      const extractedName = components?.[0]?.parameters?.[0]?.text || 'عميلنا الكريم';
+      const extractedName = components?.[0]?.parameters?.[0]?.text?.trim() || toPhone;
       const headerComp = { type: 'header', parameters: [{ type: 'text', text: extractedName }] };
       const bodyComp = { type: 'body', parameters: [{ type: 'text', text: extractedName }] };
 
       const variations = [
-        [headerComp],            // Case 1: Variable in Header only (e.g. أهلاً / {{1}})
-        [headerComp, bodyComp],  // Case 2: Variables in both Header and Body
-        [],                      // Case 3: Template without variables
-        [bodyComp]               // Case 4: Variable in Body only
+        { type: 'header', comps: [headerComp] },            // Case 1: Variable in Header only (e.g. أهلاً أ/ {{1}})
+        { type: 'header_body', comps: [headerComp, bodyComp] },  // Case 2: Variables in both Header and Body
+        { type: 'none', comps: [] },                      // Case 3: Template without variables
+        { type: 'body', comps: [bodyComp] }               // Case 4: Variable in Body only
       ];
 
       for (const variant of variations) {
         try {
-          const vRes = await sendRequest(targetPhoneId, variant);
+          const vRes = await sendRequest(targetPhoneId, variant.comps);
           const msgId = vRes.data?.messages?.[0]?.id || null;
-          console.log(`✅ [WhatsApp] Auto-adaptation SUCCEEDED with component variant! ID: ${msgId}`);
+          console.log(`✅ [WhatsApp] Auto-adaptation SUCCEEDED with variant '${variant.type}'! ID: ${msgId}`);
+          templateVariantCache.set(cacheKey, variant.type);
           return { success: true, messageId: msgId, error: null, resolvedPhoneId: targetPhoneId };
         } catch (vErr) {
           // continue testing
@@ -284,12 +310,16 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
                                 languageCode.startsWith('ar') ? ['ar_EG', 'ar_SA', 'ar', 'en', 'en_US'] :
                                 ['en', 'en_US', 'ar'];
 
+      const extractedName = components?.[0]?.parameters?.[0]?.text || 'عميلنا الكريم';
       const testVariants = [
-        [],
-        components,
-        [{ type: 'body', parameters: [{ type: 'text', text: 'Test Lead' }] }],
-        [{ type: 'header', parameters: [{ type: 'text', text: 'Test Lead' }] }],
-        [{ type: 'body', parameters: [{ type: 'text', text: 'Test Lead' }, { type: 'text', text: 'Itqan' }] }]
+        components && components.length > 0 ? components : [{ type: 'header', parameters: [{ type: 'text', text: extractedName }] }],
+        [{ type: 'header', parameters: [{ type: 'text', text: extractedName }] }],
+        [{ type: 'body', parameters: [{ type: 'text', text: extractedName }] }],
+        [
+          { type: 'header', parameters: [{ type: 'text', text: extractedName }] },
+          { type: 'body', parameters: [{ type: 'text', text: extractedName }] }
+        ],
+        []
       ];
 
       console.warn(`⚠️ [WhatsApp] Template/Language mismatch for '${templateName}' (${languageCode}). Testing fallback combinations...`);
@@ -434,8 +464,10 @@ async function sendWelcomeMessage({ phone, customerName, tenantId }) {
     return { sent: false, results: [] };
   }
 
-  // Name fallback so the template placeholder is never blank
-  const safeCustomerName = (customerName || '').trim() || 'عميلنا الكريم';
+  // Name fallback: customer registered name or phone number if not registered/empty
+  const safeCustomerName = (customerName && customerName.trim() && customerName.trim() !== 'Meta Lead')
+    ? customerName.trim()
+    : phone;
 
   // Template body parameter (position 1)
   const nameComponent = {
@@ -486,11 +518,12 @@ async function sendWelcomeMessage({ phone, customerName, tenantId }) {
  * @param {string} opts.templateName
  * @param {string} opts.languageCode
  * @param {string} opts.toPhone        Raw phone string
+ * @param {string} opts.customerName   Optional resolved customer name
  * @param {string} opts.defaultCountryCode
  * @param {string} opts.tenantId
  * @returns {Promise<{success: boolean, messageId: string|null, error: string|null, resolvedPhoneId?: string}>}
  */
-async function sendTestMessage({ phoneNumberId, accessToken, templateName, languageCode, toPhone, defaultCountryCode = '20', tenantId = null }) {
+async function sendTestMessage({ phoneNumberId, accessToken, templateName, languageCode, toPhone, customerName = null, defaultCountryCode = '20', tenantId = null }) {
   const e164 = normalisePhone(toPhone, defaultCountryCode);
   if (!e164) {
     return { success: false, messageId: null, error: 'Invalid phone number — could not convert to E.164 format' };
@@ -498,9 +531,14 @@ async function sendTestMessage({ phoneNumberId, accessToken, templateName, langu
 
   // If template is hello_world, Meta expects NO parameters and en_US language!
   const isHelloWorld = templateName?.toLowerCase().trim() === 'hello_world';
+  // Use registered customer name, or fallback to the phone number if unregistered
+  const effectiveName = (customerName && customerName.trim() && customerName.trim() !== 'Meta Lead')
+    ? customerName.trim()
+    : toPhone;
+
   const components = isHelloWorld ? [] : [{
     type: 'body',
-    parameters: [{ type: 'text', text: 'Test Lead' }]
+    parameters: [{ type: 'text', text: effectiveName }]
   }];
   const effectiveLang = isHelloWorld ? 'en_US' : languageCode;
 
@@ -845,7 +883,12 @@ async function broadcastWhatsAppCampaign({
     // Prepare components
     let components = [];
     if (!isHelloWorld) {
-      const recipientName = customParam || recipient.name || 'Valued Customer';
+      // 1. Registered customer name takes priority
+      let recipientName = (recipient.name || '').trim();
+      if (!recipientName || recipientName.toLowerCase() === 'meta lead') {
+        // 2. Fallback to customParam if provided, otherwise recipient's phone number
+        recipientName = (customParam || '').trim() || recipient.phone || rawPhone;
+      }
       components = [{
         type: 'body',
         parameters: [{ type: 'text', text: recipientName }]

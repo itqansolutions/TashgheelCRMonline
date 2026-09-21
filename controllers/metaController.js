@@ -413,6 +413,7 @@ exports.syncFormLeads = async (req, res) => {
     let createdCount = 0;
     let updatedCount = 0;
     let skippedCount = 0;
+    let whatsappCount = 0;
 
     for (const lead of metaLeads) {
       try {
@@ -431,6 +432,10 @@ exports.syncFormLeads = async (req, res) => {
         } else {
           skippedCount++;
         }
+
+        if (result.whatsappSent) {
+          whatsappCount++;
+        }
       } catch (ingestErr) {
         console.warn('[Ingest Lead Error]', ingestErr.message);
         skippedCount++;
@@ -447,15 +452,21 @@ exports.syncFormLeads = async (req, res) => {
       WHERE id = $2 AND tenant_id::text = $3::text
     `, [createdCount, form.id, tenant_id]);
 
+    let completionMsg = `Sync complete! ${createdCount} new leads imported, ${updatedCount} existing leads updated.`;
+    if (whatsappCount > 0) {
+      completionMsg += ` 📱 Dispatched ${whatsappCount} WhatsApp welcome message${whatsappCount > 1 ? 's' : ''}.`;
+    }
+
     res.json({
       status: 'success',
       data: {
         total_fetched: metaLeads.length,
         created: createdCount,
         updated: updatedCount,
-        skipped: skippedCount
+        skipped: skippedCount,
+        whatsapp_sent: whatsappCount
       },
-      message: `Sync complete! ${createdCount} new leads imported, ${updatedCount} existing leads updated with phone and details.`
+      message: completionMsg
     });
   } catch (err) {
     console.error('[syncFormLeads Error]', err.response?.data || err.message, err.stack);

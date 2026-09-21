@@ -117,14 +117,34 @@ function parseFieldData(fieldData = []) {
   return parsed;
 }
 
+let metaCustomersTableReady = false;
+async function ensureCustomerMetaColumns() {
+  if (metaCustomersTableReady) return;
+  try {
+    await db.query(`
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(255);
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_name VARCHAR(255);
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_id VARCHAR(255);
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS whatsapp_welcome_sent BOOLEAN DEFAULT FALSE;
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS whatsapp_welcome_sent_at TIMESTAMPTZ;
+    `);
+    metaCustomersTableReady = true;
+  } catch (err) {
+    console.warn('[Meta Columns Ensure]', err.message);
+  }
+}
+
 /**
  * Ingest a lead into the customers table for the given tenant & branch
  * Handles:
  *  - Resolving or auto-creating 'FaceBook Campaigns' source
  *  - Upserting if lead exists (updating phone, notes, source, form info)
  *  - Saving full formatted notes & responses
+ *  - Dispatching WhatsApp welcome message and tracking delivery
  */
 async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null }) {
+  await ensureCustomerMetaColumns();
+
   const metaLeadId = String(lead.id || '').trim();
   const parsed = parseFieldData(lead.field_data);
 
@@ -178,7 +198,7 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
 
   if (metaLeadId) {
     const existing = await db.query(
-      'SELECT id, name, phone, email, notes FROM customers WHERE meta_lead_id = $1 LIMIT 1',
+      'SELECT id, name, phone, email, notes, meta_lead_id, whatsapp_welcome_sent FROM customers WHERE meta_lead_id = $1 LIMIT 1',
       [metaLeadId]
     );
     if (existing.rows.length > 0) {
@@ -188,7 +208,7 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
 
   if (!existingCustomer && (parsed.phone || parsed.email)) {
     const checkDuplicate = await db.query(
-      `SELECT id, name, phone, email, notes FROM customers 
+      `SELECT id, name, phone, email, notes, meta_lead_id, whatsapp_welcome_sent FROM customers 
        WHERE tenant_id::text = $1::text 
          AND (
            ($2::text <> '' AND phone = $2) 
@@ -202,8 +222,13 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
     }
   }
 
+  let status = 'created';
+  let targetCustomer = null;
+  let shouldSendWhatsApp = false;
+
   // 4. UPSERT: If customer already exists, UPDATE missing data and align branch/tenant
   if (existingCustomer) {
+    status = 'updated';
     const updateQuery = `
       UPDATE customers 
       SET 
@@ -239,72 +264,99 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
       existingCustomer.id
     ]);
 
-    return { status: 'updated', customer: updated.rows[0] };
-  }
+    targetCustomer = updated.rows[0];
 
-  // 5. INSERT: Customer does not exist yet -> Create fresh record
-  const insertQuery = `
-    INSERT INTO customers (
-      name, company_name, email, phone, address, notes,
-      source_id, source, assigned_to, status, tenant_id, branch_id,
-      entity_type, is_active, meta_lead_id, meta_form_name, meta_form_id
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-    RETURNING *
-  `;
+    // Determine if we should send WhatsApp to existing customer:
+    // Send if:
+    // 1. Welcome message was NEVER sent to this customer (!existingCustomer.whatsapp_welcome_sent)
+    // 2. OR this is a NEW lead submission (metaLeadId is present and differs from previous meta_lead_id)
+    const isNewSubmission = Boolean(metaLeadId && existingCustomer.meta_lead_id && String(existingCustomer.meta_lead_id) !== String(metaLeadId));
+    const neverReceived = !existingCustomer.whatsapp_welcome_sent;
+    
+    if (neverReceived || isNewSubmission) {
+      shouldSendWhatsApp = true;
+    }
+  } else {
+    // 5. INSERT: Customer does not exist yet -> Create fresh record
+    const insertQuery = `
+      INSERT INTO customers (
+        name, company_name, email, phone, address, notes,
+        source_id, source, assigned_to, status, tenant_id, branch_id,
+        entity_type, is_active, meta_lead_id, meta_form_name, meta_form_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      RETURNING *
+    `;
 
-  const safeBranchId = (branchId && branchId !== 'default-branch') ? branchId : null;
+    const safeBranchId = (branchId && branchId !== 'default-branch') ? branchId : null;
 
-  const values = [
-    parsed.full_name,
-    parsed.company_name || null,
-    parsed.email || null,
-    parsed.phone || null,
-    combinedAddress,
-    formattedNotes,
-    sourceId,
-    'FaceBook Campaigns',
-    assignedTo,
-    'lead',
-    tenantId,
-    safeBranchId,
-    'customer',
-    true,
-    metaLeadId || null,
-    formRecord.form_name || null,
-    String(formRecord.form_id || '').trim()
-  ];
+    const values = [
+      parsed.full_name,
+      parsed.company_name || null,
+      parsed.email || null,
+      parsed.phone || null,
+      combinedAddress,
+      formattedNotes,
+      sourceId,
+      'FaceBook Campaigns',
+      assignedTo,
+      'lead',
+      tenantId,
+      safeBranchId,
+      'customer',
+      true,
+      metaLeadId || null,
+      formRecord.form_name || null,
+      String(formRecord.form_id || '').trim()
+    ];
 
-  const result = await db.query(insertQuery, values);
-  const newCustomer = result.rows[0];
+    const result = await db.query(insertQuery, values);
+    targetCustomer = result.rows[0];
+    status = 'created';
+    shouldSendWhatsApp = true;
 
-  // Activity logger
-  try {
-    await logActivity(tenantId, reqUser || { id: assignedTo, name: 'Meta Integration' }, 'customer', newCustomer.id, 'created', {
-      name: { to: newCustomer.name },
-      source: { to: `Meta Lead Ads: ${formRecord.form_name || formRecord.form_id}` }
-    });
-  } catch (actErr) {
-    console.warn('[Meta Ingest Activity Log]', actErr.message);
+    // Activity logger
+    try {
+      await logActivity(tenantId, reqUser || { id: assignedTo, name: 'Meta Integration' }, 'customer', targetCustomer.id, 'created', {
+        name: { to: targetCustomer.name },
+        source: { to: `Meta Lead Ads: ${formRecord.form_name || formRecord.form_id}` }
+      });
+    } catch (actErr) {
+      console.warn('[Meta Ingest Activity Log]', actErr.message);
+    }
   }
 
   // 🟢 WhatsApp Welcome Message
-  // Fires asynchronously — a failure here never blocks lead creation.
-  if (newCustomer.phone) {
+  // Fires asynchronously — a failure here never blocks lead creation/sync.
+  let whatsappSent = false;
+  if (shouldSendWhatsApp && targetCustomer && targetCustomer.phone) {
     try {
+      // Use customer's name if valid, or their phone number if not registered/Meta Lead
+      const customerDisplayName = (targetCustomer.name && targetCustomer.name.trim() && targetCustomer.name.trim() !== 'Meta Lead')
+        ? targetCustomer.name.trim()
+        : targetCustomer.phone;
+
       const waResult = await sendWelcomeMessage({
-        phone: newCustomer.phone,
-        customerName: newCustomer.name,
+        phone: targetCustomer.phone,
+        customerName: customerDisplayName,
         tenantId
       });
+
       if (waResult.sent) {
-        console.log(`📱 [WhatsApp] Welcome message dispatched to customer #${newCustomer.id} (${newCustomer.name})`);
+        whatsappSent = true;
+        await db.query(
+          `UPDATE customers SET whatsapp_welcome_sent = TRUE, whatsapp_welcome_sent_at = NOW() WHERE id = $1`,
+          [targetCustomer.id]
+        ).catch(() => {});
+        console.log(`📱 [WhatsApp] Welcome message successfully sent to customer #${targetCustomer.id} (${customerDisplayName})`);
+      } else {
+        console.log(`ℹ️ [WhatsApp] Welcome message skipped or failed for customer #${targetCustomer.id}`);
       }
     } catch (waErr) {
       console.warn('[WhatsApp Welcome Message Error]', waErr.message);
     }
   }
 
-  return { status: 'created', customer: newCustomer };
+  return { status, customer: targetCustomer, whatsappSent };
 }
 
 module.exports = {

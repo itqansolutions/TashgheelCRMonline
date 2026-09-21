@@ -284,18 +284,56 @@ exports.sendTestWhatsApp = async (req, res) => {
       langCode = language === 'en' ? 'en' : 'ar';
     }
 
+    // Lookup customer name in CRM if to_phone is a registered customer
+    const cleanPhone = to_phone.replace(/[\s\-().]/g, '');
+    const last9 = cleanPhone.slice(-9);
+
+    let customerName = '';
+    let foundInCrm = false;
+    try {
+      const custRes = await db.query(
+        `SELECT name, phone FROM customers 
+         WHERE tenant_id::text = $1::text 
+           AND (
+             phone = $2 
+             OR phone = $3 
+             OR phone LIKE $4
+           )
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+        [tenantId, to_phone, cleanPhone, `%${last9}`]
+      );
+      if (custRes.rows.length > 0 && custRes.rows[0].name && custRes.rows[0].name.trim() && custRes.rows[0].name.trim() !== 'Meta Lead') {
+        customerName = custRes.rows[0].name.trim();
+        foundInCrm = true;
+      }
+    } catch (cErr) {
+      console.warn('[WhatsApp sendTest] Customer lookup warning:', cErr.message);
+    }
+
+    // "لو العميل مش مسجل يتكتب رقم تليفونه"
+    if (!customerName) {
+      customerName = to_phone;
+    }
+
     const result = await sendTestMessage({
       phoneNumberId: s.phone_number_id,
       accessToken: s.access_token,
       templateName: targetTemplate,
       languageCode: langCode,
       toPhone: to_phone,
+      customerName,
       defaultCountryCode: s.default_country_code || '20',
       tenantId
     });
 
     if (result.success) {
-      let msg = `تم إرسال الرسالة التجريبية بنجاح! معرّف الرسالة: ${result.messageId}`;
+      let msg = `تم إرسال الرسالة التجريبية بنجاح إلى ${to_phone}!`;
+      if (foundInCrm) {
+        msg += ` (الاسم المستخدم في الرسالة من النظام: "${customerName}")`;
+      } else {
+        msg += ` (الرقم غير مسجل كعميل، تم استخدام رقم الهاتف "${customerName}" في الرسالة)`;
+      }
       if (result.resolvedPhoneId && result.resolvedPhoneId !== s.phone_number_id) {
         msg += ` (ملاحظة: تم تصحيح معرّف الهاتف تلقائياً من ${s.phone_number_id} إلى ${result.resolvedPhoneId} وحفظه في الإعدادات)`;
       }
@@ -303,7 +341,9 @@ exports.sendTestWhatsApp = async (req, res) => {
         status: 'success',
         message: msg,
         data: {
-          resolvedPhoneId: result.resolvedPhoneId || s.phone_number_id
+          resolvedPhoneId: result.resolvedPhoneId || s.phone_number_id,
+          customerName,
+          foundInCrm
         }
       });
     } else {

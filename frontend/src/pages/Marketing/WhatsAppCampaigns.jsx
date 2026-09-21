@@ -333,18 +333,21 @@ const WhatsAppCampaigns = () => {
 
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                      Body Variable Fallback
+                      اسم بديل (اختياري - في حال لم يكن للعميل اسم)
                     </label>
                     <input
                       type="text"
                       value={customParam}
                       onChange={(e) => setCustomParam(e.target.value)}
-                      placeholder="Defaults to customer name"
+                      placeholder="افتراضياً: رقم هاتف العميل"
                       style={{
                         width: '100%', padding: '10px 14px', borderRadius: '10px',
                         border: '1px solid #cbd5e1', fontSize: '14px'
                       }}
                     />
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                      إذا كان للعميل اسم مسجل سيتم استخدامه دائماً، وإلا سيتم استخدام هذا البديل أو رقم هاتفه.
+                    </div>
                   </div>
                 </div>
 

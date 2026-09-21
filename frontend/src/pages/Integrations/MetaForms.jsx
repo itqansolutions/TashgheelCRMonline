@@ -151,8 +151,12 @@ const MetaForms = () => {
     setSyncingId(id);
     try {
       const res = await api.post(`/meta/forms/${id}/sync`);
-      const { created, updated, skipped } = res.data.data || {};
-      toast.success(`Successfully synced "${formName}": ${created || 0} new leads imported, ${updated || 0} existing leads updated!`, { duration: 5000 });
+      const { created, updated, whatsapp_sent } = res.data.data || {};
+      let msg = `Successfully synced "${formName}": ${created || 0} new leads imported, ${updated || 0} updated`;
+      if (whatsapp_sent > 0) {
+        msg += ` | 📱 Sent ${whatsapp_sent} WhatsApp welcome message${whatsapp_sent > 1 ? 's' : ''}`;
+      }
+      toast.success(msg, { duration: 6000 });
       fetchData();
     } catch (err) {
       const msg = err.response?.data?.message || 'Lead sync failed. Check your Access Token.';

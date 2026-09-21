@@ -716,8 +716,7 @@ const WhatsAppSettings = () => {
           <Send size={16} /> Send Test Message
         </h3>
         <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-secondary)' }}>
-          Verify your configuration by sending a real test message to any phone number.
-          The phone number <strong>"Test Lead"</strong> will be used as the name placeholder.
+          تحقق من الربط بإرسال رسالة تجريبية لأي رقم. يتم فحص الرقم تلقائياً في بيانات العملاء: إذا كان مسجلاً في النظام سيتم استخدام اسمه الفعلي في متغير القالب، وإذا لم يكن مسجلاً سيتم استخدام رقم هاتفه كاسم.
         </p>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
