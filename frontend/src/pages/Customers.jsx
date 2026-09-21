@@ -357,7 +357,7 @@ const Customers = () => {
         </div>
         
         <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
-          <option value="all">All Sources (كل المصادر)</option>
+          <option value="all">All Sources</option>
           {(leadSources || []).map(s => (
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
@@ -365,8 +365,8 @@ const Customers = () => {
         </select>
 
         <select value={classificationFilter} onChange={(e) => setClassificationFilter(e.target.value)}>
-          <option value="all">All Classifications (كل التصنيفات)</option>
-          <option value="unclassified">Without Classification (بدون تصنيف)</option>
+          <option value="all">All Classifications</option>
+          <option value="unclassified">Unclassified</option>
           {(customerClassifications || []).map(cc => (
             <option key={cc.id} value={cc.id}>{cc.name}</option>
           ))}
@@ -511,7 +511,7 @@ const Customers = () => {
                     )}
                     {editingCustomer.classification_name && (
                       <div className="lc-item">
-                          <label>🏷️ Classification (التصنيف)</label>
+                          <label>🏷️ Classification</label>
                           <span style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -731,7 +731,7 @@ const Customers = () => {
               </div>
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ margin: 0 }}>Classification (التصنيف)</label>
+                  <label style={{ margin: 0 }}>Classification</label>
                   <button 
                     type="button" 
                     onClick={() => setShowQuickClassificationModal(true)}
@@ -741,14 +741,14 @@ const Customers = () => {
                       display: 'flex', alignItems: 'center', gap: '3px'
                     }}
                   >
-                    <Plus size={13} /> إضافة تصنيف
+                    <Plus size={13} /> Add Classification
                   </button>
                 </div>
                 <select 
                   value={formData.classification_id || ''}
                   onChange={(e) => setFormData({...formData, classification_id: e.target.value})}
                 >
-                  <option value="">-- بدون تصنيف (اختياري) --</option>
+                  <option value="">-- No Classification (Optional) --</option>
                   {(customerClassifications || []).map(cc => (
                     <option key={cc.id} value={cc.id}>{cc.name}</option>
                   ))}
@@ -798,7 +798,7 @@ const Customers = () => {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                🏷️ إضافة تصنيف عملاء جديد
+                🏷️ Add New Customer Classification
               </h3>
               <button 
                 type="button"
@@ -811,11 +811,11 @@ const Customers = () => {
             
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
-                اسم التصنيف (مثل: VIP، شركات، تجزئة...) *
+                Classification Name (e.g. VIP, Corporate, Retail...) *
               </label>
               <input 
                 type="text"
-                placeholder="مثلاً: عميل مميز VIP"
+                placeholder="e.g. VIP Client"
                 value={newClassificationName}
                 onChange={e => setNewClassificationName(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
@@ -824,7 +824,7 @@ const Customers = () => {
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
-                لون التصنيف
+                Badge Color
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <input 
@@ -838,7 +838,7 @@ const Customers = () => {
                   marginLeft: 'auto', padding: '4px 12px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700,
                   backgroundColor: `${newClassificationColor}18`, color: newClassificationColor, border: `1px solid ${newClassificationColor}40`
                 }}>
-                  {newClassificationName || 'معاينة التصنيف'}
+                  {newClassificationName || 'Preview'}
                 </div>
               </div>
             </div>
@@ -849,20 +849,20 @@ const Customers = () => {
                 onClick={() => setShowQuickClassificationModal(false)}
                 style={{ padding: '8px 16px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
               >
-                إلغاء
+                Cancel
               </button>
               <button 
                 type="button"
                 disabled={savingClassification}
                 onClick={async () => {
-                  if (!newClassificationName.trim()) return toast.error('يرجى إدخال اسم التصنيف');
+                  if (!newClassificationName.trim()) return toast.error('Please enter a classification name');
                   setSavingClassification(true);
                   try {
                     const res = await api.post('/customer-classifications', {
                       name: newClassificationName.trim(),
                       color: newClassificationColor
                     });
-                    toast.success('تم إنشاء التصنيف بنجاح');
+                    toast.success('Classification created successfully');
                     await fetchCustomerClassifications();
                     if (res.data?.data?.id) {
                       setFormData(prev => ({ ...prev, classification_id: res.data.data.id }));
@@ -870,14 +870,14 @@ const Customers = () => {
                     setNewClassificationName('');
                     setShowQuickClassificationModal(false);
                   } catch (err) {
-                    toast.error(err.response?.data?.message || 'فشل حفظ التصنيف');
+                    toast.error(err.response?.data?.message || 'Failed to save classification');
                   } finally {
                     setSavingClassification(false);
                   }
                 }}
                 style={{ padding: '8px 20px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: savingClassification ? 'not-allowed' : 'pointer', opacity: savingClassification ? 0.7 : 1 }}
               >
-                {savingClassification ? 'جاري الحفظ...' : 'حفظ التصنيف'}
+                {savingClassification ? 'Saving...' : 'Save Classification'}
               </button>
             </div>
           </div>

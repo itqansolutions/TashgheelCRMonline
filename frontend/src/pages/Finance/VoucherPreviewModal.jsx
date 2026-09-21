@@ -2,54 +2,26 @@ import React, { useRef } from 'react';
 import { Printer, X, CheckCircle2, ArrowDownLeft, ArrowUpRight, Building2, Calendar, CreditCard, Hash, User } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
-// Helper function for Arabic number-to-words tafqeet (up to millions)
-function tafqeetArabic(number, currency = 'جنيه مصري') {
+// Helper function to convert numbers into English words
+function numberToEnglishWords(number, currency = 'EGP') {
     if (!number || isNaN(number)) return '';
     const n = Math.floor(Math.abs(number));
-    if (n === 0) return `صفر ${currency}`;
+    if (n === 0) return `Zero ${currency} Only`;
 
-    const ones = ['', 'واحد', 'اثنان', 'ثلاثة', 'أربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة',
-        'أحد عشر', 'اثنا عشر', 'ثلاثة عشر', 'أربعة عشر', 'خمسة عشر', 'ستة عشر', 'سبعة عشر', 'ثمانية عشر', 'تسعة عشر'];
-    const tens = ['', '', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
-    const hundreds = ['', 'مائة', 'مائتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة'];
+    const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+        'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
-    function convertGroup(val) {
-        let res = '';
-        const h = Math.floor(val / 100);
-        const rem = val % 100;
-        if (h > 0) res += hundreds[h];
-        if (rem > 0) {
-            if (res) res += ' و ';
-            if (rem < 20) {
-                res += ones[rem];
-            } else {
-                const t = Math.floor(rem / 10);
-                const o = rem % 10;
-                if (o > 0) res += ones[o] + ' و ';
-                res += tens[t];
-            }
-        }
-        return res;
+    function inWords(num) {
+        if (num < 20) return a[num];
+        const digit = num % 10;
+        if (num < 100) return b[Math.floor(num / 10)] + (digit ? '-' + a[digit] : '');
+        if (num < 1000) return a[Math.floor(num / 100)] + ' Hundred' + (num % 100 !== 0 ? ' and ' + inWords(num % 100) : '');
+        if (num < 1000000) return inWords(Math.floor(num / 1000)) + ' Thousand' + (num % 1000 !== 0 ? ' ' + inWords(num % 1000) : '');
+        return inWords(Math.floor(num / 1000000)) + ' Million' + (num % 1000000 !== 0 ? ' ' + inWords(num % 1000000) : '');
     }
 
-    let words = '';
-    const millions = Math.floor(n / 1000000);
-    const thousands = Math.floor((n % 1000000) / 1000);
-    const remainder = n % 1000;
-
-    if (millions > 0) {
-        words += (millions === 1 ? 'مليون' : millions === 2 ? 'مليونان' : convertGroup(millions) + ' ملايين');
-    }
-    if (thousands > 0) {
-        if (words) words += ' و ';
-        words += (thousands === 1 ? 'ألف' : thousands === 2 ? 'ألفان' : convertGroup(thousands) + ' آلاف');
-    }
-    if (remainder > 0) {
-        if (words) words += ' و ';
-        words += convertGroup(remainder);
-    }
-
-    return `فقط ${words} ${currency} لا غير`;
+    return `${inWords(n)} ${currency} Only`;
 }
 
 const VoucherPreviewModal = ({ voucher, onClose }) => {
@@ -65,13 +37,13 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
     const isReceipt = voucher.voucher_type === 'receipt';
     const currency = voucher.currency || 'EGP';
     const amountFormatted = parseFloat(voucher.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const amountWords = tafqeetArabic(voucher.amount, currency === 'EGP' ? 'جنيه مصري' : currency === 'SAR' ? 'ريال سعودي' : currency);
+    const amountWords = numberToEnglishWords(voucher.amount, currency);
 
     const paymentMethodLabels = {
-        cash: 'نقداً / Cash',
-        bank_transfer: 'تحويل بنكي / Bank Transfer',
-        check: 'شيك مصرفي / Cheque',
-        card: 'بطاقة دفع / Card'
+        cash: 'Cash',
+        bank_transfer: 'Bank Transfer',
+        check: 'Cheque',
+        card: 'Debit / Credit Card'
     };
 
     return (
@@ -111,11 +83,11 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         {isReceipt ? (
                             <span style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <ArrowDownLeft size={16} /> سند قبض رسمي (Receipt Voucher)
+                                <ArrowDownLeft size={16} /> Receipt Voucher
                             </span>
                         ) : (
                             <span style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <ArrowUpRight size={16} /> سند صرف رسمي (Payment Voucher)
+                                <ArrowUpRight size={16} /> Payment Voucher
                             </span>
                         )}
                         <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '14px', fontWeight: 600 }}>
@@ -140,7 +112,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                                 fontSize: '14px'
                             }}
                         >
-                            <Printer size={16} /> طباعة السند (Print)
+                            <Printer size={16} /> Print Voucher
                         </button>
                         <button
                             onClick={onClose}
@@ -171,7 +143,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                             maxWidth: '750px',
                             boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
                             fontFamily: 'system-ui, -apple-system, sans-serif',
-                            direction: 'rtl'
+                            direction: 'ltr'
                         }}
                     >
                         {/* Print Header */}
@@ -188,17 +160,17 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                                     {voucher.tenant_name || 'Tashgheel Business System'}
                                 </h1>
                                 <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-                                    {voucher.branch_name ? `الفرع: ${voucher.branch_name}` : ''}
-                                    {voucher.tenant_phone ? ` | هاتف: ${voucher.tenant_phone}` : ''}
+                                    {voucher.branch_name ? `Branch: ${voucher.branch_name}` : ''}
+                                    {voucher.tenant_phone ? ` | Phone: ${voucher.tenant_phone}` : ''}
                                 </p>
                                 {voucher.tax_no && (
                                     <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
-                                        الرقم الضريبي: {voucher.tax_no} {voucher.reg_no ? `| السجل التجاري: ${voucher.reg_no}` : ''}
+                                        Tax No: {voucher.tax_no} {voucher.reg_no ? `| Reg No: ${voucher.reg_no}` : ''}
                                     </p>
                                 )}
                             </div>
 
-                            <div style={{ textAlign: 'left', direction: 'ltr' }}>
+                            <div style={{ textAlign: 'right' }}>
                                 {voucher.logo_url ? (
                                     <img src={voucher.logo_url} alt="Logo" style={{ maxHeight: '55px', maxWidth: '140px', objectFit: 'contain' }} />
                                 ) : (
@@ -228,28 +200,30 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                             background: isReceipt ? '#ecfdf5' : '#fef2f2',
                             border: `1px solid ${isReceipt ? '#a7f3d0' : '#fecaca'}`,
                             borderRadius: '8px',
-                            padding: '12px 20px',
+                            padding: '14px 20px',
                             marginBottom: '24px'
                         }}>
                             <div>
                                 <h2 style={{
                                     margin: 0,
-                                    fontSize: '20px',
+                                    fontSize: '18px',
                                     fontWeight: 800,
-                                    color: isReceipt ? '#065f46' : '#991b1b'
+                                    color: isReceipt ? '#065f46' : '#991b1b',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.04em'
                                 }}>
-                                    {isReceipt ? 'سَنَد قَبْض نَقْدِي / بَنْكِي' : 'سَنَد صَرْف نَقْدِي / بَنْكِي'}
+                                    {isReceipt ? 'OFFICIAL RECEIPT VOUCHER' : 'OFFICIAL PAYMENT VOUCHER'}
                                 </h2>
                                 <span style={{ fontSize: '12px', color: isReceipt ? '#047857' : '#b91c1c', fontWeight: 600 }}>
-                                    {isReceipt ? 'Official Receipt Voucher' : 'Official Payment Voucher'}
+                                    {isReceipt ? 'Cash & Bank Inflow Voucher' : 'Cash & Bank Outflow Voucher'}
                                 </span>
                             </div>
 
-                            <div style={{ textAlign: 'left', direction: 'ltr' }}>
-                                <div style={{ fontSize: '13px', color: '#64748b' }}>رقم السند / Voucher No:</div>
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '12px', color: '#64748b' }}>Voucher No:</div>
                                 <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>{voucher.voucher_number}</div>
                                 <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                                    التاريخ: {voucher.voucher_date ? new Date(voucher.voucher_date).toLocaleDateString('ar-EG') : new Date().toLocaleDateString('ar-EG')}
+                                    Date: {voucher.voucher_date ? new Date(voucher.voucher_date).toLocaleDateString('en-US') : new Date().toLocaleDateString('en-US')}
                                 </div>
                             </div>
                         </div>
@@ -266,13 +240,13 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                             marginBottom: '24px'
                         }}>
                             <div>
-                                <span style={{ fontSize: '12px', color: '#64748b', display: 'block', fontWeight: 600 }}>المبلغ المدفوع / Amount:</span>
+                                <span style={{ fontSize: '12px', color: '#64748b', display: 'block', fontWeight: 600 }}>Amount:</span>
                                 <span style={{ fontSize: '24px', fontWeight: 900, color: isReceipt ? '#059669' : '#dc2626' }}>
                                     {amountFormatted} <span style={{ fontSize: '14px', fontWeight: 600 }}>{currency}</span>
                                 </span>
                             </div>
-                            <div style={{ textAlign: 'left', maxWidth: '65%' }}>
-                                <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>المبلغ بالحروف:</span>
+                            <div style={{ textAlign: 'right', maxWidth: '65%' }}>
+                                <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>In Words:</span>
                                 <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>{amountWords}</span>
                             </div>
                         </div>
@@ -288,44 +262,44 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                             marginBottom: '36px'
                         }}>
                             <div style={{ display: 'flex', borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px' }}>
-                                <span style={{ width: '170px', fontWeight: 700, color: '#475569' }}>
-                                    {isReceipt ? 'استلمنا من السيد / السادة:' : 'يُصرف للسيد / السادة:'}
+                                <span style={{ width: '180px', fontWeight: 700, color: '#475569' }}>
+                                    {isReceipt ? 'Received From:' : 'Paid To:'}
                                 </span>
                                 <span style={{ flex: 1, fontWeight: 800, color: '#0f172a' }}>
-                                    {voucher.party_name || 'عميل نقدي'}
+                                    {voucher.party_name || 'Cash Party'}
                                 </span>
                             </div>
 
                             <div style={{ display: 'flex', borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px' }}>
-                                <span style={{ width: '170px', fontWeight: 700, color: '#475569' }}>طريقة الدفع / الوسيلة:</span>
+                                <span style={{ width: '180px', fontWeight: 700, color: '#475569' }}>Payment Method:</span>
                                 <span style={{ flex: 1, fontWeight: 600, color: '#334155' }}>
-                                    {paymentMethodLabels[voucher.payment_method] || voucher.payment_method || 'نقداً'}
+                                    {paymentMethodLabels[voucher.payment_method] || voucher.payment_method || 'Cash'}
                                     {voucher.treasury_account ? ` (${voucher.treasury_account})` : ''}
-                                    {voucher.reference_no ? ` | رقم المرجع/الشيك: ${voucher.reference_no}` : ''}
+                                    {voucher.reference_no ? ` | Reference / Cheque No: ${voucher.reference_no}` : ''}
                                 </span>
                             </div>
 
                             {voucher.linked_invoice_number && (
                                 <div style={{ display: 'flex', borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px' }}>
-                                    <span style={{ width: '170px', fontWeight: 700, color: '#475569' }}>سداد الفاتورة رقم:</span>
+                                    <span style={{ width: '180px', fontWeight: 700, color: '#475569' }}>Settlement For Invoice:</span>
                                     <span style={{ flex: 1, fontWeight: 700, color: '#2563eb' }}>
                                         {voucher.linked_invoice_number}
-                                        {voucher.linked_invoice_total ? ` (إجمالي الفاتورة: ${parseFloat(voucher.linked_invoice_total).toLocaleString()} ${currency})` : ''}
+                                        {voucher.linked_invoice_total ? ` (Total Invoice: ${parseFloat(voucher.linked_invoice_total).toLocaleString()} ${currency})` : ''}
                                     </span>
                                 </div>
                             )}
 
                             <div style={{ display: 'flex', borderBottom: '1px dashed #cbd5e1', paddingBottom: '10px' }}>
-                                <span style={{ width: '170px', fontWeight: 700, color: '#475569' }}>وذلك مقابل / البيان:</span>
+                                <span style={{ width: '180px', fontWeight: 700, color: '#475569' }}>Description / Purpose:</span>
                                 <span style={{ flex: 1, color: '#334155' }}>
-                                    {voucher.notes || (isReceipt ? 'سداد دفعة تحت الحساب' : 'مصروفات تشغيلية')}
+                                    {voucher.notes || (isReceipt ? 'Payment on account' : 'Operational expense')}
                                 </span>
                             </div>
 
                             <div style={{ display: 'flex', paddingBottom: '6px' }}>
-                                <span style={{ width: '170px', fontWeight: 700, color: '#475569' }}>المستخدم المسؤول:</span>
+                                <span style={{ width: '180px', fontWeight: 700, color: '#475569' }}>Issued By:</span>
                                 <span style={{ flex: 1, color: '#64748b', fontSize: '13px' }}>
-                                    {voucher.created_by_name || 'النظام'}
+                                    {voucher.created_by_name || 'System Administrator'}
                                 </span>
                             </div>
                         </div>
@@ -342,21 +316,21 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                         }}>
                             <div>
                                 <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '45px' }}>
-                                    {isReceipt ? 'توقيع المستلم / المحصل' : 'توقيع المستلم'}
+                                    {isReceipt ? 'Collector / Receiver' : 'Receiver Signature'}
                                 </span>
                                 <div style={{ borderTop: '1px dashed #94a3b8', width: '80%', margin: '0 auto' }}></div>
                             </div>
 
                             <div>
                                 <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '45px' }}>
-                                    توقيع الحسابات / المالية
+                                    Accountant
                                 </span>
                                 <div style={{ borderTop: '1px dashed #94a3b8', width: '80%', margin: '0 auto' }}></div>
                             </div>
 
                             <div>
                                 <span style={{ fontSize: '13px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '45px' }}>
-                                    اعتماد الإدارة / الختم
+                                    Management / Seal
                                 </span>
                                 <div style={{ borderTop: '1px dashed #94a3b8', width: '80%', margin: '0 auto' }}></div>
                             </div>
@@ -366,12 +340,12 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                         <div style={{
                             marginTop: '40px',
                             textAlign: 'center',
-                            fontSize: '10px',
+                            fontSize: '11px',
                             color: '#94a3b8',
                             borderTop: '1px dotted #cbd5e1',
-                            paddingTop: '8px'
+                            paddingTop: '10px'
                         }}>
-                            تم إصدار هذا السند إلكترونياً عبر نظام تشغيل لإدارة الأعمال (Tashgheel CRM) - صالح قانونياً بعد التوقيع والاعتماد.
+                            This voucher was electronically generated by Tashgheel Business Management System (CRM).
                         </div>
                     </div>
                 </div>

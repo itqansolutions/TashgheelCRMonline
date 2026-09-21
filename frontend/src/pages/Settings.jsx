@@ -582,7 +582,7 @@ const Settings = () => {
             {/* Customer Classifications (Dynamic & Optional) */}
             <div className="settings-card">
               <div className="card-header">
-                <h3><Tag size={16} color="#ec4899" /> Customer Classifications (تصنيفات العملاء)</h3>
+                <h3><Tag size={16} color="#ec4899" /> Customer Classifications</h3>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{classifications.length} classifications</span>
               </div>
               <div className="card-body">
@@ -631,7 +631,7 @@ const Settings = () => {
                         </span>
                         {c.customers_count !== undefined && (
                           <span style={{ fontSize: '11px', color: '#64748b' }}>
-                            ({c.customers_count} عملاء)
+                            ({c.customers_count} {c.customers_count === 1 ? 'customer' : 'customers'})
                           </span>
                         )}
                       </div>

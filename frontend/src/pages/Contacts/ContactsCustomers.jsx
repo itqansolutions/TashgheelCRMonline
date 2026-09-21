@@ -314,7 +314,7 @@ const ContactsCustomers = () => {
           onChange={e => setSourceFilter(e.target.value)} 
           style={{ ...inputStyle, width: 'auto', minWidth: '180px' }}
         >
-          <option value="all">All Sources (كل المصادر)</option>
+          <option value="all">All Sources</option>
           {leadSources.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           <option value="direct">Direct / Other</option>
         </select>
@@ -324,8 +324,8 @@ const ContactsCustomers = () => {
           onChange={e => setClassificationFilter(e.target.value)} 
           style={{ ...inputStyle, width: 'auto', minWidth: '180px' }}
         >
-          <option value="all">All Classifications (كل التصنيفات)</option>
-          <option value="unclassified">Without Classification (بدون تصنيف)</option>
+          <option value="all">All Classifications</option>
+          <option value="unclassified">Unclassified</option>
           {customerClassifications.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
         </select>
 
@@ -480,7 +480,7 @@ const ContactsCustomers = () => {
                 </div>
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#374151' }}>Classification (التصنيف)</label>
+                    <label style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#374151' }}>Classification</label>
                     <button 
                       type="button" 
                       onClick={() => setShowQuickClassificationModal(true)}
@@ -490,11 +490,11 @@ const ContactsCustomers = () => {
                         display: 'flex', alignItems: 'center', gap: '2px'
                       }}
                     >
-                      <Plus size={13} /> جديد
+                      <Plus size={13} /> Add New
                     </button>
                   </div>
                   <select value={form.classification_id} onChange={e => setForm(f => ({ ...f, classification_id: e.target.value }))} style={inputStyle}>
-                    <option value="">-- بدون تصنيف (اختياري) --</option>
+                    <option value="">-- No Classification (Optional) --</option>
                     {customerClassifications.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
                   </select>
                 </div>
@@ -525,7 +525,7 @@ const ContactsCustomers = () => {
       {/* Statement Modal */}
       {statementCustomer && <StatementModal customer={statementCustomer} onClose={() => setStatementCustomer(null)} />}
 
-      {/* Customer Details Modal (عرض بيانات العميل وليدز فيسبوك) */}
+      {/* Customer Details Modal */}
       {viewingCustomer && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '720px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.25)' }}>
@@ -553,28 +553,28 @@ const ContactsCustomers = () => {
               {/* Primary Details Grid */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
                 <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📱 رقم الهاتف (Phone)</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📱 Phone</div>
                   <div style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', direction: 'ltr', textAlign: 'left' }}>
                     {viewingCustomer.phone || '—'}
                   </div>
                 </div>
 
                 <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>✉️ البريد الإلكتروني (Email)</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>✉️ Email</div>
                   <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>
                     {viewingCustomer.email || '—'}
                   </div>
                 </div>
 
                 <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>🌐 المصدر (Source)</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>🌐 Source</div>
                   <div style={{ fontSize: '14px', fontWeight: 800, color: '#4f46e5' }}>
                     {viewingCustomer.source_name || 'Direct'}
                   </div>
                 </div>
 
                 <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📋 نموذج فيسبوك (Meta Form)</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📋 Meta Form</div>
                   <div style={{ fontSize: '13px', fontWeight: 800, color: '#0284c7' }}>
                     {viewingCustomer.meta_form_name || '—'}
                   </div>
@@ -582,7 +582,7 @@ const ContactsCustomers = () => {
 
                 {viewingCustomer.classification_name && (
                   <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>🏷️ التصنيف (Classification)</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>🏷️ Classification</div>
                     <div style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -602,7 +602,7 @@ const ContactsCustomers = () => {
                 )}
 
                 <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', gridColumn: viewingCustomer.classification_name ? 'span 1' : 'span 2' }}>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📍 العنوان / المدينة</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📍 Address / Location</div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
                     {viewingCustomer.address || '—'}
                   </div>
@@ -613,7 +613,7 @@ const ContactsCustomers = () => {
               {viewingCustomer.notes && (
                 <div style={{ marginBottom: '20px' }}>
                   <div style={{ fontSize: '13px', fontWeight: 800, color: '#4f46e5', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    📝 تفاصيل وإجابات النموذج (Form Answers & Details)
+                    📝 Form Answers & Notes
                   </div>
                   <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', whiteSpace: 'pre-wrap', fontSize: '13px', color: '#1e293b', lineHeight: 1.6 }}>
                     {viewingCustomer.notes}
@@ -628,7 +628,7 @@ const ContactsCustomers = () => {
                 </div>
               )}
 
-              {/* Activity & Interaction Log / Timeline (سجل التواصل والمتابعة) */}
+              {/* Activity & Interaction Log / Timeline */}
               <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '2px dashed #e2e8f0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                   <div style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -678,7 +678,7 @@ const ContactsCustomers = () => {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                🏷️ إضافة تصنيف عملاء جديد
+                🏷️ Add New Customer Classification
               </h3>
               <button 
                 type="button"
@@ -691,11 +691,11 @@ const ContactsCustomers = () => {
             
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
-                اسم التصنيف (مثل: VIP، شركات، تجزئة...) *
+                Classification Name (e.g. VIP, Corporate, Retail...) *
               </label>
               <input 
                 type="text"
-                placeholder="مثلاً: عميل مميز VIP"
+                placeholder="e.g. VIP Client"
                 value={newClassificationName}
                 onChange={e => setNewClassificationName(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
@@ -704,7 +704,7 @@ const ContactsCustomers = () => {
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
-                لون التصنيف
+                Badge Color
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <input 
@@ -718,7 +718,7 @@ const ContactsCustomers = () => {
                   marginLeft: 'auto', padding: '4px 12px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700,
                   backgroundColor: `${newClassificationColor}18`, color: newClassificationColor, border: `1px solid ${newClassificationColor}40`
                 }}>
-                  {newClassificationName || 'معاينة التصنيف'}
+                  {newClassificationName || 'Preview'}
                 </div>
               </div>
             </div>
@@ -729,20 +729,20 @@ const ContactsCustomers = () => {
                 onClick={() => setShowQuickClassificationModal(false)}
                 style={{ padding: '8px 16px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
               >
-                إلغاء
+                Cancel
               </button>
               <button 
                 type="button"
                 disabled={savingClassification}
                 onClick={async () => {
-                  if (!newClassificationName.trim()) return toast.error('يرجى إدخال اسم التصنيف');
+                  if (!newClassificationName.trim()) return toast.error('Please enter a classification name');
                   setSavingClassification(true);
                   try {
                     const res = await api.post('/customer-classifications', {
                       name: newClassificationName.trim(),
                       color: newClassificationColor
                     });
-                    toast.success('تم إنشاء التصنيف بنجاح');
+                    toast.success('Classification created successfully');
                     await fetchCustomerClassifications();
                     if (res.data?.data?.id) {
                       setForm(prev => ({ ...prev, classification_id: res.data.data.id }));
@@ -750,14 +750,14 @@ const ContactsCustomers = () => {
                     setNewClassificationName('');
                     setShowQuickClassificationModal(false);
                   } catch (err) {
-                    toast.error(err.response?.data?.message || 'فشل حفظ التصنيف');
+                    toast.error(err.response?.data?.message || 'Failed to save classification');
                   } finally {
                     setSavingClassification(false);
                   }
                 }}
                 style={{ padding: '8px 20px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: savingClassification ? 'not-allowed' : 'pointer', opacity: savingClassification ? 0.7 : 1 }}
               >
-                {savingClassification ? 'جاري الحفظ...' : 'حفظ التصنيف'}
+                {savingClassification ? 'Saving...' : 'Save Classification'}
               </button>
             </div>
           </div>
