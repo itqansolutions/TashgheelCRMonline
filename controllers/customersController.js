@@ -16,6 +16,8 @@ async function ensureCustomerColumns() {
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_name VARCHAR(255)`);
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_id VARCHAR(120)`);
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(120)`);
+  await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS classification_id INTEGER`);
+  await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS classification_name VARCHAR(100)`);
   customerColumnsEnsured = true;
   console.log('[Customers] Column guard done.');
 }
@@ -41,10 +43,13 @@ exports.getCustomers = async (req, res) => {
     SELECT 
       c.*, 
       COALESCE(u.name, 'Unassigned') as assigned_to_name,
-      COALESCE(ls.name, 'Direct') as source_name
+      COALESCE(ls.name, 'Direct') as source_name,
+      cc.name as classification_name,
+      cc.color as classification_color
     FROM customers c
     LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
     LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
+    LEFT JOIN customer_classifications cc ON c.classification_id = cc.id
     WHERE c.tenant_id::text = $1::text 
       AND (c.branch_id::text = $2::text OR c.branch_id IS NULL OR c.branch_id::text = 'default-branch')
   `;
@@ -52,6 +57,14 @@ exports.getCustomers = async (req, res) => {
   let paramIdx = 3;
 
   // Dynamic Filters (Sanitized to prevent "invalid input syntax for type integer: '' ")
+  if (req.query.classification_id && req.query.classification_id.trim() !== '') {
+      if (req.query.classification_id === 'unclassified') {
+          query += ` AND c.classification_id IS NULL`;
+      } else {
+          query += ` AND c.classification_id = $${paramIdx++}`;
+          params.push(parseInt(req.query.classification_id));
+      }
+  }
   if (req.query.source_id && req.query.source_id.trim() !== '') {
       query += ` AND c.source_id = $${paramIdx++}`;
       params.push(parseInt(req.query.source_id));
@@ -124,12 +137,16 @@ exports.getCustomerById = async (req, res) => {
       SELECT 
         c.*, 
         COALESCE(u.name, 'Unassigned') as assigned_to_name,
-        COALESCE(ls.name, 'Direct') as source_name
+        COALESCE(ls.name, 'Direct') as source_name,
+        cc.name as classification_name,
+        cc.color as classification_color
       FROM customers c
       LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
       LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
+      LEFT JOIN customer_classifications cc ON c.classification_id = cc.id
       WHERE c.id = $1 AND c.tenant_id::text = $2::text AND c.branch_id::text = $3::text
     `, [req.params.id, tenant_id, branch_id]);
+
 
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized' });
@@ -148,7 +165,7 @@ exports.createCustomer = async (req, res) => {
   const { 
     name, company_name, email, phone, address, source_id, assigned_to, manager_id, status,
     entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms,
-    tax_no, reg_no, is_active, is_blacklisted
+    tax_no, reg_no, is_active, is_blacklisted, classification_id
   } = req.body;
   const tenant_id = req.user.tenant_id;
   try {
@@ -158,6 +175,7 @@ exports.createCustomer = async (req, res) => {
 
     // 🔥 DEFINITIVE SANITIZATION: Handle all falsy/empty string cases for numeric columns
     const cleanSourceId = (source_id && source_id !== '') ? parseInt(source_id) : null;
+    const cleanClassificationId = (classification_id && classification_id !== '') ? parseInt(classification_id) : null;
     const cleanBudgetMin = (budget_min && budget_min !== '') ? parseFloat(budget_min) : 0;
     const cleanBudgetMax = (budget_max && budget_max !== '') ? parseFloat(budget_max) : 0;
     const cleanAreaMin = (preferred_area_min && preferred_area_min !== '') ? parseFloat(preferred_area_min) : 0;
@@ -170,12 +188,12 @@ exports.createCustomer = async (req, res) => {
       `INSERT INTO customers (
         name, company_name, email, phone, address, source_id, assigned_to, manager_id, status, tenant_id, branch_id,
         entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms,
-        tax_no, reg_no, is_active, is_blacklisted
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *`,
+        tax_no, reg_no, is_active, is_blacklisted, classification_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING *`,
       [
         name, company_name, email, phone, address, cleanSourceId, cleanAssignedTo, cleanManagerId, status || 'lead', tenant_id, branch_id,
         entity_type || 'customer', cleanBudgetMin, cleanBudgetMax, cleanAreaMin, cleanAreaMax, preferred_location, cleanRooms,
-        tax_no || null, reg_no || null, is_active !== false, is_blacklisted === true
+        tax_no || null, reg_no || null, is_active !== false, is_blacklisted === true, cleanClassificationId
       ]
     );
 
@@ -202,7 +220,7 @@ exports.updateCustomer = async (req, res) => {
   const { 
     name, company_name, email, phone, address, source_id, assigned_to, manager_id, status,
     entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms,
-    tax_no, reg_no, is_active, is_blacklisted
+    tax_no, reg_no, is_active, is_blacklisted, classification_id
   } = req.body;
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
@@ -217,6 +235,9 @@ exports.updateCustomer = async (req, res) => {
 
     // 🔥 DEFINITIVE SANITIZATION: Prevent SQL Syntax errors on Empty Strings
     const cleanSourceId = (source_id && source_id !== '') ? parseInt(source_id) : null;
+    const cleanClassificationId = (classification_id !== undefined && classification_id !== '') ? 
+      (classification_id ? parseInt(classification_id) : null) : 
+      (classification_id === '' || classification_id === null ? null : oldData.classification_id);
     const cleanBudgetMin = (budget_min && budget_min !== '') ? parseFloat(budget_min) : 0;
     const cleanBudgetMax = (budget_max && budget_max !== '') ? parseFloat(budget_max) : 0;
     const cleanAreaMin = (preferred_area_min && preferred_area_min !== '') ? parseFloat(preferred_area_min) : 0;
@@ -230,15 +251,16 @@ exports.updateCustomer = async (req, res) => {
       `UPDATE customers SET 
         name = $1, company_name = $2, email = $3, phone = $4, address = $5, source_id = $6, assigned_to = $7, manager_id = $8, status = $9, 
         entity_type = $10, budget_min = $11, budget_max = $12, preferred_area_min = $13, preferred_area_max = $14, preferred_location = $15, preferred_rooms = $16,
-        tax_no = $17, reg_no = $18, is_active = $19, is_blacklisted = $20,
+        tax_no = $17, reg_no = $18, is_active = $19, is_blacklisted = $20, classification_id = $21,
         updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $21 AND tenant_id::text = $22::text AND branch_id::text = $23::text RETURNING *`,
+      WHERE id = $22 AND tenant_id::text = $23::text AND branch_id::text = $24::text RETURNING *`,
       [
         name, company_name, email, phone, address, cleanSourceId, cleanAssignedTo, cleanManagerId, status, 
         entity_type, cleanBudgetMin, cleanBudgetMax, cleanAreaMin, cleanAreaMax, preferred_location, cleanRooms,
         tax_no || null, reg_no || null,
         is_active !== false ? (is_active !== undefined ? is_active : oldData.is_active) : false,
         is_blacklisted === true ? true : (is_blacklisted !== undefined ? is_blacklisted : oldData.is_blacklisted),
+        cleanClassificationId,
         req.params.id, tenant_id, branch_id
       ]
     );
@@ -256,6 +278,7 @@ exports.updateCustomer = async (req, res) => {
             fields_updated: { to: Object.keys(req.body) } 
         });
     }
+
 
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {

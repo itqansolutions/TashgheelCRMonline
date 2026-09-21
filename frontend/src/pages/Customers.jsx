@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 
 const Customers = () => {
   const { user } = useAuth();
-  const { customers, fetchCustomers, users, fetchUsers, leadSources, fetchLeadSources, loading } = useData();
+  const { customers, fetchCustomers, users, fetchUsers, leadSources, fetchLeadSources, customerClassifications, fetchCustomerClassifications, loading } = useData();
   const isRealEstate = user?.template_name === 'real_estate';
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
@@ -25,7 +25,15 @@ const Customers = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [entityFilter, setEntityFilter] = useState('all'); // all, customer, vendor, broker
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [classificationFilter, setClassificationFilter] = useState('all');
   const [roomsFilter, setRoomsFilter] = useState('');  
+
+  // Quick Classification Modal State
+  const [showQuickClassificationModal, setShowQuickClassificationModal] = useState(false);
+  const [newClassificationName, setNewClassificationName] = useState('');
+  const [newClassificationColor, setNewClassificationColor] = useState('#6366f1');
+  const [savingClassification, setSavingClassification] = useState(false);
+
   // Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -35,6 +43,7 @@ const Customers = () => {
     address: '',
     status: 'lead',
     source_id: '',
+    classification_id: '',
     manager_id: '',
     entity_type: 'customer',
     budget_min: 0,
@@ -49,6 +58,7 @@ const Customers = () => {
     fetchCustomers();
     if (users.length === 0) fetchUsers();
     if (leadSources.length === 0) fetchLeadSources();
+    if (!customerClassifications || customerClassifications.length === 0) fetchCustomerClassifications();
   }, []);
 
   useEffect(() => {
@@ -83,6 +93,7 @@ const Customers = () => {
         address: customer.address || '',
         status: customer.status || 'lead',
         source_id: customer.source_id || '',
+        classification_id: customer.classification_id || '',
         manager_id: customer.manager_id || '',
         assigned_to: customer.assigned_to || '',
         entity_type: customer.entity_type || 'customer',
@@ -96,7 +107,7 @@ const Customers = () => {
     } else {
       setEditingCustomer(null);
       setFormData({ 
-          name: '', company_name: '', email: '', phone: '', address: '', status: 'lead', source_id: '', manager_id: '', assigned_to: '',
+          name: '', company_name: '', email: '', phone: '', address: '', status: 'lead', source_id: '', classification_id: '', manager_id: '', assigned_to: '',
           entity_type: 'customer', budget_min: 0, budget_max: 0, preferred_area_min: 0, preferred_area_max: 0, preferred_location: '', preferred_rooms: 0
       });
     }
@@ -106,11 +117,15 @@ const Customers = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...formData,
+        classification_id: formData.classification_id ? Number(formData.classification_id) : null
+      };
       if (editingCustomer) {
-        await api.put(`/customers/${editingCustomer.id}`, formData);
+        await api.put(`/customers/${editingCustomer.id}`, payload);
         toast.success('Customer updated successfully');
       } else {
-        await api.post('/customers', formData);
+        await api.post('/customers', payload);
         toast.success('Customer added successfully');
       }
       fetchCustomers(false); // Refresh list without full loading spinner
@@ -154,7 +169,10 @@ const Customers = () => {
         String(c.source_id) === String(sourceFilter) ||
         c.source_name?.toLowerCase() === sourceFilter.toLowerCase();
     
-    return matchesSearch && matchesEntity && matchesRooms && matchesSource;
+    const matchesClassification = classificationFilter === 'all' ||
+        (classificationFilter === 'unclassified' ? !c.classification_id : String(c.classification_id) === String(classificationFilter));
+    
+    return matchesSearch && matchesEntity && matchesRooms && matchesSource && matchesClassification;
   });
 
   const columns = [
@@ -179,6 +197,29 @@ const Customers = () => {
       render: (val) => val ? (
         <span style={{ fontWeight: '700', direction: 'ltr', display: 'inline-block', color: '#1e293b' }}>{val}</span>
       ) : <span style={{ color: '#94a3b8' }}>—</span>
+    },
+    { 
+      key: 'classification_name',
+      label: 'Classification',
+      render: (val, item) => val ? (
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '3px 10px',
+          borderRadius: '9999px',
+          fontSize: '11px',
+          fontWeight: '700',
+          backgroundColor: `${item.classification_color || '#6366f1'}15`,
+          color: item.classification_color || '#6366f1',
+          border: `1px solid ${item.classification_color || '#6366f1'}35`
+        }}>
+          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.classification_color || '#6366f1' }}></span>
+          {val}
+        </span>
+      ) : (
+        <span style={{ color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>—</span>
+      )
     },
     { key: 'company_name', label: 'Company / Job' },
     { 
@@ -323,6 +364,14 @@ const Customers = () => {
           <option value="direct">Direct / Other</option>
         </select>
 
+        <select value={classificationFilter} onChange={(e) => setClassificationFilter(e.target.value)}>
+          <option value="all">All Classifications (كل التصنيفات)</option>
+          <option value="unclassified">Without Classification (بدون تصنيف)</option>
+          {(customerClassifications || []).map(cc => (
+            <option key={cc.id} value={cc.id}>{cc.name}</option>
+          ))}
+        </select>
+
         <select value={entityFilter} onChange={(e) => setEntityFilter(e.target.value)}>
           <option value="all">All Entities</option>
           <option value="customer">Customers (Buyers)</option>
@@ -458,6 +507,21 @@ const Customers = () => {
                       <div className="lc-item">
                           <label>📋 Meta Form</label>
                           <span style={{ color: '#0284c7', fontWeight: 800 }}>{editingCustomer.meta_form_name}</span>
+                      </div>
+                    )}
+                    {editingCustomer.classification_name && (
+                      <div className="lc-item">
+                          <label>🏷️ Classification (التصنيف)</label>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontWeight: 800,
+                            color: editingCustomer.classification_color || '#4f46e5'
+                          }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: editingCustomer.classification_color || '#4f46e5' }}></span>
+                            {editingCustomer.classification_name}
+                          </span>
                       </div>
                     )}
                 </div>
@@ -666,6 +730,31 @@ const Customers = () => {
                 </select>
               </div>
               <div className="form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ margin: 0 }}>Classification (التصنيف)</label>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowQuickClassificationModal(true)}
+                    style={{ 
+                      background: 'none', border: 'none', color: 'var(--primary)', 
+                      fontSize: '12px', fontWeight: '700', cursor: 'pointer', padding: 0,
+                      display: 'flex', alignItems: 'center', gap: '3px'
+                    }}
+                  >
+                    <Plus size={13} /> إضافة تصنيف
+                  </button>
+                </div>
+                <select 
+                  value={formData.classification_id || ''}
+                  onChange={(e) => setFormData({...formData, classification_id: e.target.value})}
+                >
+                  <option value="">-- بدون تصنيف (اختياري) --</option>
+                  {(customerClassifications || []).map(cc => (
+                    <option key={cc.id} value={cc.id}>{cc.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
                 <label>Lead Status</label>
                 <select 
                   value={formData.status}
@@ -696,6 +785,104 @@ const Customers = () => {
           </div>
         )}
       </Modal>
+
+      {/* Quick Classification Creation Modal */}
+      {showQuickClassificationModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)',
+          zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+        }}>
+          <div style={{
+            background: 'white', borderRadius: '16px', width: '100%', maxWidth: '420px',
+            padding: '24px', boxShadow: '0 25px 50px rgba(0,0,0,0.25)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
+                🏷️ إضافة تصنيف عملاء جديد
+              </h3>
+              <button 
+                type="button"
+                onClick={() => setShowQuickClassificationModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '18px' }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
+                اسم التصنيف (مثل: VIP، شركات، تجزئة...) *
+              </label>
+              <input 
+                type="text"
+                placeholder="مثلاً: عميل مميز VIP"
+                value={newClassificationName}
+                onChange={e => setNewClassificationName(e.target.value)}
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
+                لون التصنيف
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <input 
+                  type="color"
+                  value={newClassificationColor}
+                  onChange={e => setNewClassificationColor(e.target.value)}
+                  style={{ width: '40px', height: '38px', padding: 0, border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{newClassificationColor}</span>
+                <div style={{
+                  marginLeft: 'auto', padding: '4px 12px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700,
+                  backgroundColor: `${newClassificationColor}18`, color: newClassificationColor, border: `1px solid ${newClassificationColor}40`
+                }}>
+                  {newClassificationName || 'معاينة التصنيف'}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                type="button" 
+                onClick={() => setShowQuickClassificationModal(false)}
+                style={{ padding: '8px 16px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
+              >
+                إلغاء
+              </button>
+              <button 
+                type="button"
+                disabled={savingClassification}
+                onClick={async () => {
+                  if (!newClassificationName.trim()) return toast.error('يرجى إدخال اسم التصنيف');
+                  setSavingClassification(true);
+                  try {
+                    const res = await api.post('/customer-classifications', {
+                      name: newClassificationName.trim(),
+                      color: newClassificationColor
+                    });
+                    toast.success('تم إنشاء التصنيف بنجاح');
+                    await fetchCustomerClassifications();
+                    if (res.data?.data?.id) {
+                      setFormData(prev => ({ ...prev, classification_id: res.data.data.id }));
+                    }
+                    setNewClassificationName('');
+                    setShowQuickClassificationModal(false);
+                  } catch (err) {
+                    toast.error(err.response?.data?.message || 'فشل حفظ التصنيف');
+                  } finally {
+                    setSavingClassification(false);
+                  }
+                }}
+                style={{ padding: '8px 20px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: savingClassification ? 'not-allowed' : 'pointer', opacity: savingClassification ? 0.7 : 1 }}
+              >
+                {savingClassification ? 'جاري الحفظ...' : 'حفظ التصنيف'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .specs-section {

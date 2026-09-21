@@ -5,7 +5,7 @@ import {
   Building2, Image as ImageIcon, Globe, Receipt, 
   MapPin, Phone, Hash, FileText, Save, Eye, Upload, 
   Plus, Trash2, Edit2, X, Megaphone, Settings as AdminSettingsIcon, CheckSquare,
-  Users, Layers, Sliders, ShieldCheck, Zap, DollarSign, Activity, ChevronRight, Briefcase
+  Users, Layers, Sliders, ShieldCheck, Zap, DollarSign, Activity, ChevronRight, Briefcase, Tag
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -38,8 +38,10 @@ const Settings = () => {
   // CRM State
   const [sources, setSources] = useState([]);
   const [leadStatuses, setLeadStatuses] = useState([]);
+  const [classifications, setClassifications] = useState([]);
   const [newSourceName, setNewSourceName] = useState('');
   const [newLeadStatus, setNewLeadStatus] = useState({ name: '', color: '#3b82f6', sort_order: 0 });
+  const [newClassification, setNewClassification] = useState({ name: '', color: '#3b82f6', description: '' });
 
   // Sales / Task Pipeline State
   const [taskStatuses, setTaskStatuses] = useState([]);
@@ -63,8 +65,10 @@ const Settings = () => {
     fetchTenantDetails();
     fetchSources();
     fetchLeadStatuses();
+    fetchClassifications();
     fetchTaskStatuses();
   }, []);
+
 
   const fetchTenantDetails = async () => {
     try {
@@ -210,6 +214,43 @@ const Settings = () => {
       fetchLeadStatuses();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Cannot delete status');
+    }
+  };
+
+  // Customer Classifications
+  const fetchClassifications = async () => {
+    try {
+      const res = await api.get('/customer-classifications');
+      setClassifications(res.data?.data || []);
+    } catch (err) {
+      console.error('Failed to load classifications', err);
+    }
+  };
+
+  const handleAddClassification = async (e) => {
+    e.preventDefault();
+    if (!newClassification.name.trim()) return;
+    setSaving(true);
+    try {
+      await api.post('/customer-classifications', newClassification);
+      toast.success('Customer classification added');
+      setNewClassification({ name: '', color: '#3b82f6', description: '' });
+      fetchClassifications();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add classification');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteClassification = async (id) => {
+    if (!window.confirm('Delete this classification? Customers using it will not be deleted, but will become unclassified.')) return;
+    try {
+      await api.delete(`/customer-classifications/${id}`);
+      toast.success('Classification removed');
+      fetchClassifications();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Cannot delete classification');
     }
   };
 
@@ -537,9 +578,79 @@ const Settings = () => {
                 </div>
               </div>
             </div>
+
+            {/* Customer Classifications (Dynamic & Optional) */}
+            <div className="settings-card">
+              <div className="card-header">
+                <h3><Tag size={16} color="#ec4899" /> Customer Classifications (تصنيفات العملاء)</h3>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{classifications.length} classifications</span>
+              </div>
+              <div className="card-body">
+                <form className="source-form" onSubmit={handleAddClassification} style={{ flexWrap: 'wrap' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Classification Name (e.g. VIP, B2B Corporate, Retail)..." 
+                    value={newClassification.name} 
+                    onChange={(e) => setNewClassification({...newClassification, name: e.target.value})}
+                    style={{ flex: '1 1 180px', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '13px', outline: 'none' }}
+                  />
+                  <input 
+                    type="color" 
+                    value={newClassification.color} 
+                    onChange={(e) => setNewClassification({...newClassification, color: e.target.value})} 
+                    style={{ width: '45px', height: '40px', padding: '2px', cursor: 'pointer' }}
+                    title="Badge Color"
+                  />
+                  <button type="submit" className="upload-btn" style={{ background: '#ec4899', color: 'white', border: 'none' }}>
+                    <Plus size={14} /> Add Classification
+                  </button>
+                </form>
+
+                <div className="source-list" style={{ border: '1px solid #f1f5f9', borderRadius: '8px', overflow: 'hidden' }}>
+                  {classifications.length === 0 ? (
+                    <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+                      No customer classifications created yet. Add custom categories like VIP, B2B, Retail, or Investor.
+                    </div>
+                  ) : classifications.map(c => (
+                    <div key={c.id} className="source-item" style={{ background: '#f8fafc', margin: '4px 0', borderRadius: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span 
+                          style={{
+                            background: c.color || '#3b82f6',
+                            color: 'white',
+                            padding: '4px 10px',
+                            borderRadius: '12px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <Tag size={12} /> {c.name}
+                        </span>
+                        {c.customers_count !== undefined && (
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>
+                            ({c.customers_count} عملاء)
+                          </span>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteClassification(c.id)} 
+                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                        title="Delete classification"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
+
 
       {/* Tab 3: Sales & Pipeline */}
       {activeTab === 'Sales & Pipeline' && (

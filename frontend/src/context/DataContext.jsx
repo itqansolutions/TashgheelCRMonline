@@ -16,6 +16,7 @@ export const DataProvider = ({ children }) => {
   const [units, setUnits] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [leadSources, setLeadSources] = useState([]);
+  const [customerClassifications, setCustomerClassifications] = useState([]);
   const [taskStatuses, setTaskStatuses] = useState([]);
   const [settings, setSettings] = useState({});
   const [templateConfig, setTemplateConfig] = useState({});
@@ -169,6 +170,21 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const fetchCustomerClassifications = async (showLoading = false) => {
+    if (showLoading) setLoading(true);
+    try {
+      const res = await api.get('/customer-classifications');
+      const data = safeArray(res.data.data);
+      setCustomerClassifications(data);
+      return data;
+    } catch (err) {
+      console.warn('Failed to load customer classifications');
+      return [];
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  };
+
   const [tenant, setTenant] = useState({});
   const fetchTenant = async () => {
     if (!localStorage.getItem('token')) return;
@@ -191,6 +207,7 @@ export const DataProvider = ({ children }) => {
     users, fetchUsers,
     departments, fetchDepartments,
     leadSources, fetchLeadSources,
+    customerClassifications, fetchCustomerClassifications,
     taskStatuses, fetchTaskStatuses,
     settings, fetchSettings,
     tenant, fetchTenant,

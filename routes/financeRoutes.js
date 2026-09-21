@@ -28,4 +28,41 @@ router.get('/invoices/:id', financeController.getInvoiceDetails);
 // @desc    Register a payment and run Smart Status calculation
 router.post('/payments', financeController.createPayment);
 
+// @route   POST api/finance/invoices/:id/payments
+// @desc    Register a payment directly to an invoice (nested route compatibility)
+router.post('/invoices/:id/payments', financeController.createInvoicePaymentDirect);
+
+// @route   GET api/finance/vouchers
+// @desc    Get all vouchers (Receipt & Payment) with optional type filter
+router.get('/vouchers', financeController.getVouchers);
+
+// @route   POST api/finance/vouchers
+// @desc    Create a new voucher (Receipt or Payment)
+router.post('/vouchers', financeController.createVoucher);
+
+// @route   GET api/finance/vouchers/:id
+// @desc    Get detailed voucher for preview & printing
+router.get('/vouchers/:id', financeController.getVoucherDetails);
+
+// @route   DELETE api/finance/vouchers/:id
+// @desc    Delete/Cancel a voucher
+router.delete('/vouchers/:id', financeController.deleteVoucher);
+
+// @route   GET api/finance/expenses
+// @desc    Get expenses under finance
+router.get('/expenses', financeController.getExpenses);
+
+// @route   POST api/finance/expenses
+// @desc    Create an expense under finance
+router.post('/expenses', financeController.createExpense);
+
+// @route   GET api/finance/income
+// @desc    Get income records under finance
+router.get('/income', financeController.getIncome);
+
+// @route   GET api/finance/summary
+// @desc    Get financial KPI summary
+router.get('/summary', financeController.getSummary);
+
 module.exports = router;
+

@@ -153,6 +153,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/lead-sources', leadSourceRoutes);
+app.use('/api/customer-classifications', require('./routes/customerClassificationRoutes'));
 app.use('/api/task-statuses', taskStatusRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/lead-statuses', require('./routes/leadStatusRoutes'));
