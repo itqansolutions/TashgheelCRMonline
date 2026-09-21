@@ -278,17 +278,38 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
         } catch (hwErr) {}
       }
 
-      // Try fallback languages with both with-params and without-params
-      const fallbackLanguages = languageCode.startsWith('ar') ? ['en_US', 'en'] : ['ar', 'en_US', 'en'];
+      // Try fallback languages with all component variations (no params, 1 body param, 1 header param, 2 body params)
+      const fallbackLanguages = languageCode === 'en_US' ? ['en', 'en_GB', 'ar', 'ar_EG'] :
+                                languageCode === 'en'    ? ['en_US', 'en_GB', 'ar', 'ar_EG'] :
+                                languageCode.startsWith('ar') ? ['ar_EG', 'ar_SA', 'ar', 'en', 'en_US'] :
+                                ['en', 'en_US', 'ar'];
+
+      const testVariants = [
+        [],
+        components,
+        [{ type: 'body', parameters: [{ type: 'text', text: 'Test Lead' }] }],
+        [{ type: 'header', parameters: [{ type: 'text', text: 'Test Lead' }] }],
+        [{ type: 'body', parameters: [{ type: 'text', text: 'Test Lead' }, { type: 'text', text: 'Itqan' }] }]
+      ];
+
       console.warn(`⚠️ [WhatsApp] Template/Language mismatch for '${templateName}' (${languageCode}). Testing fallback combinations...`);
       
       for (const altLang of fallbackLanguages) {
-        for (const compVariant of [components, []]) {
+        for (const compVariant of testVariants) {
           try {
             const lRes = await sendRequest(targetPhoneId, compVariant, altLang);
             const msgId = lRes.data?.messages?.[0]?.id || null;
-            console.log(`✅ [WhatsApp] Succeeded with fallback language '${altLang}'! ID: ${msgId}`);
-            return { success: true, messageId: msgId, error: null, resolvedPhoneId: targetPhoneId };
+            console.log(`✅ [WhatsApp] Succeeded with auto-adapted language '${altLang}'! ID: ${msgId}`);
+
+            if (tenantId) {
+              const langCol = altLang.startsWith('ar') ? 'template_language_ar' : 'template_language_en';
+              await db.query(
+                `UPDATE whatsapp_settings SET ${langCol} = $1, updated_at = NOW() WHERE tenant_id::text = $2::text`,
+                [altLang, tenantId]
+              ).catch(() => {});
+            }
+
+            return { success: true, messageId: msgId, error: null, resolvedPhoneId: targetPhoneId, resolvedLanguage: altLang };
           } catch (lErr) {
             // continue testing
           }

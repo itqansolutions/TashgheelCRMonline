@@ -215,7 +215,7 @@ exports.sendTestWhatsApp = async (req, res) => {
   await ensureWhatsAppTable();
   const tenantId = req.user.tenant_id;
 
-  const { to_phone, language } = req.body;
+  const { to_phone, language, language_code, template_name } = req.body;
 
   if (!to_phone) {
     return res.status(400).json({ status: 'error', message: 'Recipient phone number is required' });
@@ -237,19 +237,20 @@ exports.sendTestWhatsApp = async (req, res) => {
 
     const s = settingsRes.rows[0];
 
-    if (!s.phone_number_id || !s.access_token || !s.template_name) {
+    const targetTemplate = (template_name || s.template_name || '').trim();
+    if (!s.phone_number_id || !s.access_token || !targetTemplate) {
       return res.status(400).json({ status: 'error', message: 'Phone Number ID, Access Token and Template Name are all required.' });
     }
 
-    let langCode = language === 'en' ? (s.template_language_en || 'en_US') : (s.template_language_ar || 'ar');
+    let langCode = (language_code || '').trim() || (language === 'en' ? (s.template_language_en || 'en') : (s.template_language_ar || 'ar'));
     if (!langCode || langCode.length > 7 || !/^[a-z]{2}(_[A-Z]{2})?$/.test(langCode)) {
-      langCode = language === 'en' ? 'en_US' : 'ar';
+      langCode = language === 'en' ? 'en' : 'ar';
     }
 
     const result = await sendTestMessage({
       phoneNumberId: s.phone_number_id,
       accessToken: s.access_token,
-      templateName: s.template_name,
+      templateName: targetTemplate,
       languageCode: langCode,
       toPhone: to_phone,
       defaultCountryCode: s.default_country_code || '20',

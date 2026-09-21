@@ -150,7 +150,9 @@ const WhatsAppSettings = () => {
     try {
       const res = await api.post('/whatsapp/test', {
         to_phone: testPhone,
-        language: testLang
+        language: testLang,
+        language_code: testLang === 'en' ? settings.template_language_en : settings.template_language_ar,
+        template_name: settings.template_name
       });
       toast.success(res.data.message || 'Test message sent!');
       if (res.data?.data?.resolvedPhoneId && res.data.data.resolvedPhoneId !== settings.phone_number_id) {
