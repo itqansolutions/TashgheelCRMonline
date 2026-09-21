@@ -117,9 +117,29 @@ const InvoicePreview = () => {
                 <div className="meta-grid">
                     <div className="meta-box">
                         <span className="meta-label">Billed To</span>
-                        {/* If we joined customer data, we display it here. Assuming we did or will. */}
-                        <div className="meta-value">Customer / Deal Reference</div>
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>Deal ID: #{invoice.deal_id || 'N/A'}</div>
+                        <div className="meta-value" style={{ fontSize: '15px', fontWeight: 800 }}>
+                            {invoice.customer_name || invoice.party_name || 'Customer'}
+                        </div>
+                        {invoice.customer_phone && (
+                            <div style={{ fontSize: '12px', color: '#4b5563', marginTop: '3px' }}>
+                                📞 {invoice.customer_phone}
+                            </div>
+                        )}
+                        {invoice.customer_email && (
+                            <div style={{ fontSize: '12px', color: '#4b5563', marginTop: '2px' }}>
+                                ✉️ {invoice.customer_email}
+                            </div>
+                        )}
+                        {invoice.unit_no && (
+                            <div style={{ fontSize: '12px', color: '#4b5563', marginTop: '2px' }}>
+                                🏢 Unit: {invoice.unit_no} {invoice.project_name ? `(${invoice.project_name})` : ''}
+                            </div>
+                        )}
+                        {invoice.deal_id && invoice.deal_id !== 'N/A' && invoice.deal_id !== '#N/A' && String(invoice.deal_id).trim() !== '' && (
+                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                                Deal ID: #{invoice.deal_id}
+                            </div>
+                        )}
                     </div>
                     <div className="meta-box">
                         <span className="meta-label">Payment Terms</span>
@@ -140,7 +160,16 @@ const InvoicePreview = () => {
                     <tbody>
                         {items && items.length > 0 ? items.map((item, idx) => (
                             <tr key={idx}>
-                                <td>{item.product_name || `Product / Service ID #${item.product_id || 'Custom'}`}</td>
+                                <td>
+                                    <div style={{ fontWeight: 600, color: '#111827' }}>
+                                        {item.description || item.product_name || item.item_title || (item.product_id ? `Product #${item.product_id}` : 'Product / Service Item')}
+                                    </div>
+                                    {item.description && item.product_name && item.description !== item.product_name && (
+                                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                                            {item.product_name}
+                                        </div>
+                                    )}
+                                </td>
                                 <td style={{ textAlign: 'center' }}>{item.quantity}</td>
                                 <td style={{ textAlign: 'right' }}>{parseFloat(item.unit_price).toLocaleString()}</td>
                                 <td style={{ textAlign: 'right', fontWeight: 700 }}>{parseFloat(item.subtotal).toLocaleString()}</td>

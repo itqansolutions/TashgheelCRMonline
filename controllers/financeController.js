@@ -9,27 +9,42 @@ const ensureVouchersTable = async () => {
         await db.query(`
             CREATE TABLE IF NOT EXISTS finance_vouchers (
                 id SERIAL PRIMARY KEY,
-                voucher_number VARCHAR(50) NOT NULL,
+                voucher_number VARCHAR(100) NOT NULL,
                 voucher_type VARCHAR(20) NOT NULL, -- 'receipt' (قبض) | 'payment' (صرف)
                 party_type VARCHAR(50) DEFAULT 'customer', -- 'customer', 'vendor', 'employee', 'other'
                 party_name VARCHAR(255) NOT NULL,
-                customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
-                vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL,
-                invoice_id INTEGER REFERENCES invoices(id) ON DELETE SET NULL,
+                customer_id VARCHAR(255),
+                vendor_id VARCHAR(255),
+                invoice_id INTEGER,
                 amount DECIMAL(15, 2) NOT NULL,
                 payment_method VARCHAR(50) DEFAULT 'cash', -- 'cash', 'bank_transfer', 'check', 'card'
                 treasury_account VARCHAR(100) DEFAULT 'Main Cash / الخزينة الرئيسية',
                 reference_no VARCHAR(100),
                 notes TEXT,
                 voucher_date DATE DEFAULT CURRENT_DATE,
-                created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
-                branch_id INTEGER REFERENCES branches(id) ON DELETE CASCADE,
+                created_by INTEGER,
+                tenant_id UUID,
+                branch_id VARCHAR(255),
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             CREATE INDEX IF NOT EXISTS idx_finance_vouchers_tenant_branch ON finance_vouchers(tenant_id, branch_id);
             CREATE INDEX IF NOT EXISTS idx_finance_vouchers_type ON finance_vouchers(voucher_type);
         `);
+
+        // Safely ensure columns exist if table was created previously with older schema
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS party_type VARCHAR(50) DEFAULT 'customer';`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS party_name VARCHAR(255);`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS customer_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS vendor_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS invoice_id INTEGER;`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'cash';`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS treasury_account VARCHAR(100) DEFAULT 'Main Cash / الخزينة الرئيسية';`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS reference_no VARCHAR(100);`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS notes TEXT;`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS voucher_date DATE DEFAULT CURRENT_DATE;`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS created_by INTEGER;`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS tenant_id UUID;`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
         vouchersTableReady = true;
     } catch (err) {
         console.error('[Finance] Error ensuring finance_vouchers table:', err.message);
@@ -57,6 +72,7 @@ const ensureInvoicesTable = async () => {
 
         // Add missing columns to invoices safely
         await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS customer_id VARCHAR(255);`);
         await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255);`);
         await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS unit_id VARCHAR(255);`);
         await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
@@ -85,6 +101,15 @@ const ensureInvoicesTable = async () => {
         await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS quantity NUMERIC DEFAULT 1;`);
         await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS unit_price DECIMAL(15, 2) DEFAULT 0.00;`);
         await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS subtotal DECIMAL(15, 2) DEFAULT 0.00;`);
+
+        // Ensure payments and expenses have tenant_id and branch_id
+        await db.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS tenant_id UUID;`);
+        await db.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'cash';`);
+        await db.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS notes TEXT;`);
+
+        await db.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS tenant_id UUID;`);
+        await db.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
 
         // Drop legacy global UNIQUE constraint on invoices(invoice_number) that breaks multi-tenancy
         try {
@@ -184,11 +209,14 @@ const generateInvoiceNumber = async (tenant_id, branch_id) => {
 const generateVoucherNumber = async (tenant_id, branch_id, voucher_type) => {
     await ensureVouchersTable();
     const prefix = voucher_type === 'receipt' ? 'RV-' : 'PV-';
-    const seqRes = await db.query(
-        `SELECT COUNT(*) + 1 as next_id FROM finance_vouchers WHERE tenant_id::text = $1::text AND branch_id::text = $2::text AND voucher_type = $3`,
-        [tenant_id, branch_id, voucher_type]
-    );
-    const nextSeq = String(seqRes.rows[0].next_id).padStart(4, '0');
+    let query = `SELECT COUNT(*) + 1 as next_id FROM finance_vouchers WHERE tenant_id::text = $1::text AND voucher_type = $2`;
+    const params = [tenant_id, voucher_type];
+    if (branch_id) {
+        params.push(String(branch_id));
+        query += ` AND (branch_id::text = $3::text OR branch_id IS NULL)`;
+    }
+    const seqRes = await db.query(query, params);
+    const nextSeq = String(seqRes.rows[0]?.next_id || 1).padStart(4, '0');
     return `${prefix}${nextSeq}`;
 };
 
@@ -210,7 +238,10 @@ exports.getInvoices = async (req, res) => {
                 u.unit_number, u.project_name
             FROM invoices i
             LEFT JOIN deals d ON i.deal_id::text = d.id::text AND i.tenant_id::text = d.tenant_id::text 
-            LEFT JOIN customers c ON i.client_id::text = c.id::text AND i.tenant_id::text = c.tenant_id::text
+            LEFT JOIN customers c ON (
+                (i.client_id IS NOT NULL AND i.client_id != '' AND i.client_id::text = c.id::text) OR 
+                (i.customer_id IS NOT NULL AND i.customer_id != '' AND i.customer_id::text = c.id::text)
+            )
             LEFT JOIN re_units u ON i.unit_id::text = u.id::text
             WHERE i.tenant_id::text = $1::text
         `;
@@ -267,20 +298,25 @@ exports.createInvoice = async (req, res) => {
             total_amount += subtotal;
 
             let prodId = null;
-            if (item.product_id && item.product_id !== '' && item.product_id !== 'null') {
+            let itemDesc = (item.description || item.name || '').trim();
+            if (item.product_id && item.product_id !== '' && item.product_id !== 'null' && item.product_id !== 'Custom') {
                 const parsedPid = parseInt(item.product_id, 10);
                 if (!isNaN(parsedPid)) {
-                    // Verify product belongs to tenant to avoid FK violation
                     try {
                         const prodCheck = await db.query(
-                            'SELECT id FROM products WHERE id = $1 AND tenant_id::text = $2::text',
-                            [parsedPid, tenant_id]
+                            'SELECT id, name FROM products WHERE id = $1',
+                            [parsedPid]
                         );
                         if (prodCheck.rows.length > 0) {
                             prodId = prodCheck.rows[0].id;
+                            if (!itemDesc) itemDesc = prodCheck.rows[0].name;
                         }
                     } catch (e) {}
                 }
+            }
+
+            if (!itemDesc) {
+                itemDesc = prodId ? `Product #${prodId}` : 'Service / Product Item';
             }
 
             sanitizedItems.push({
@@ -288,37 +324,22 @@ exports.createInvoice = async (req, res) => {
                 quantity: qty,
                 unit_price: unitPrice,
                 subtotal: subtotal,
-                description: item.description || item.name || 'Service / Product Item'
+                description: itemDesc
             });
         }
 
-        // Sanitize client_id / customer_id
+        // Sanitize client_id / customer_id directly (never discard valid customer selection)
         let sanitizedClientId = null;
-        if (effectiveClientId && effectiveClientId !== '' && effectiveClientId !== 'null') {
-            const parsedCid = parseInt(effectiveClientId, 10);
-            if (!isNaN(parsedCid)) {
-                try {
-                    const custCheck = await db.query(
-                        'SELECT id FROM customers WHERE id = $1 AND tenant_id::text = $2::text',
-                        [parsedCid, tenant_id]
-                    );
-                    if (custCheck.rows.length > 0) {
-                        sanitizedClientId = custCheck.rows[0].id;
-                    }
-                } catch (e) {
-                    sanitizedClientId = parsedCid;
-                }
-            } else {
-                sanitizedClientId = String(effectiveClientId);
-            }
+        if (effectiveClientId && effectiveClientId !== '' && effectiveClientId !== 'null' && effectiveClientId !== 'undefined') {
+            sanitizedClientId = String(effectiveClientId).trim();
         }
 
-        const sanitizedDealId = (deal_id && deal_id !== '' && deal_id !== 'null') ? deal_id : null;
-        const sanitizedUnitId = (unit_id && unit_id !== '' && unit_id !== 'null') ? unit_id : null;
+        const sanitizedDealId = (deal_id && deal_id !== '' && deal_id !== 'null' && deal_id !== 'undefined' && deal_id !== 'N/A' && deal_id !== '#N/A') ? String(deal_id).trim() : null;
+        const sanitizedUnitId = (unit_id && unit_id !== '' && unit_id !== 'null' && unit_id !== 'undefined') ? String(unit_id).trim() : null;
 
         const invRes = await db.query(`
-            INSERT INTO invoices (invoice_number, total_amount, due_date, status, tenant_id, branch_id, client_id, deal_id, unit_id, notes)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            INSERT INTO invoices (invoice_number, total_amount, due_date, status, tenant_id, branch_id, client_id, customer_id, deal_id, unit_id, notes)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             RETURNING *
         `, [
             invoiceNumber, 
@@ -327,9 +348,10 @@ exports.createInvoice = async (req, res) => {
             'unpaid', 
             tenant_id, 
             branch_id ? String(branch_id) : null, 
-            sanitizedClientId ? String(sanitizedClientId) : null, 
-            sanitizedDealId ? String(sanitizedDealId) : null, 
-            sanitizedUnitId ? String(sanitizedUnitId) : null,
+            sanitizedClientId, 
+            sanitizedClientId,
+            sanitizedDealId, 
+            sanitizedUnitId,
             notes || null
         ]);
         
@@ -421,7 +443,11 @@ exports.createInvoiceFromDeal = async (req, res) => {
 
 // Internal reusable helper for payments
 const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount, payment_method, notes, user_id, req }) => {
-    const invRes = await db.query('SELECT total_amount, invoice_number, client_id FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text FOR UPDATE', [invoice_id, tenant_id, branch_id]);
+    await ensureInvoicesTable();
+    const invRes = await db.query(
+        'SELECT total_amount, invoice_number, client_id, customer_id FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) FOR UPDATE',
+        [invoice_id, tenant_id, branch_id ? String(branch_id) : null]
+    );
     if (invRes.rows.length === 0) throw new Error('Invoice not found or unauthorized');
     
     const invoice = invRes.rows[0];
@@ -438,7 +464,7 @@ const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount,
     const payRes = await db.query(`
         INSERT INTO payments (invoice_id, amount, payment_method, notes, tenant_id, branch_id)
         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
-    `, [invoice_id, amount, payment_method || 'cash', notes || null, tenant_id, branch_id]);
+    `, [invoice_id, amount, payment_method || 'cash', notes || null, tenant_id, branch_id ? String(branch_id) : null]);
 
     let newStatus = 'unpaid';
     if (newTotalPaid >= (invoiceTotal - 0.01)) {
@@ -456,8 +482,9 @@ const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount,
         const voucherNumber = await generateVoucherNumber(tenant_id, branch_id, 'receipt');
         
         let clientName = 'عميل';
-        if (invoice.client_id) {
-            const cRes = await db.query('SELECT name FROM customers WHERE id = $1', [invoice.client_id]);
+        const targetCustId = invoice.customer_id || invoice.client_id;
+        if (targetCustId) {
+            const cRes = await db.query('SELECT name FROM customers WHERE id::text = $1::text', [String(targetCustId)]);
             if (cRes.rows.length > 0) clientName = cRes.rows[0].name;
         }
 
@@ -468,9 +495,9 @@ const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount,
             ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, CURRENT_DATE, $8, $9, $10)
             RETURNING *
         `, [
-            voucherNumber, clientName, invoice.client_id, invoice_id, amount,
+            voucherNumber, clientName, targetCustId ? String(targetCustId) : null, invoice_id, amount,
             payment_method || 'cash', notes ? `${notes} (سداد فاتورة ${invoice.invoice_number})` : `سداد فاتورة رقم ${invoice.invoice_number}`,
-            user_id || null, tenant_id, branch_id
+            user_id || null, tenant_id, branch_id ? String(branch_id) : null
         ]);
         voucherData = vRes.rows[0];
     } catch (vErr) {
@@ -579,7 +606,10 @@ exports.getInvoiceDetails = async (req, res) => {
             FROM invoices i
             LEFT JOIN (SELECT invoice_id, SUM(amount) as total_paid FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id) p ON i.id::text = p.invoice_id::text
             LEFT JOIN re_units u ON i.unit_id::text = u.id::text
-            LEFT JOIN customers c ON i.client_id::text = c.id::text
+            LEFT JOIN customers c ON (
+                (i.client_id IS NOT NULL AND i.client_id != '' AND i.client_id::text = c.id::text) OR 
+                (i.customer_id IS NOT NULL AND i.customer_id != '' AND i.customer_id::text = c.id::text)
+            )
             WHERE i.id = $2 AND i.tenant_id::text = $1::text
         `;
         const invParams = [tenant_id, invoice_id];
@@ -593,8 +623,17 @@ exports.getInvoiceDetails = async (req, res) => {
 
         if (invRes.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Invoice not found' });
 
-        const itemsRes = await db.query('SELECT * FROM invoice_items WHERE invoice_id = $1 ORDER BY id ASC', [invoice_id]);
-        const paymentsRes = await db.query('SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id::text = $2::text ORDER BY payment_date DESC', [invoice_id, tenant_id]);
+        const itemsRes = await db.query(`
+            SELECT 
+                ii.*,
+                COALESCE(NULLIF(ii.description, ''), p.name, 'Service / Product Item') as item_title,
+                p.name as product_name
+            FROM invoice_items ii
+            LEFT JOIN products p ON ii.product_id = p.id
+            WHERE ii.invoice_id = $1 
+            ORDER BY ii.id ASC
+        `, [invoice_id]);
+        const paymentsRes = await db.query('SELECT * FROM payments WHERE invoice_id = $1 ORDER BY payment_date DESC', [invoice_id]);
 
         res.json({
             status: 'success',
@@ -618,7 +657,7 @@ exports.getInvoiceDetails = async (req, res) => {
 // @route   GET /api/finance/vouchers
 exports.getVouchers = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
+    let branch_id = req.branchId || req.user?.branch_id || null;
     const { type, party_type, start_date, end_date } = req.query;
 
     try {
@@ -631,9 +670,10 @@ exports.getVouchers = async (req, res) => {
             FROM finance_vouchers v
             LEFT JOIN users u ON v.created_by = u.id
             LEFT JOIN invoices i ON v.invoice_id = i.id
-            WHERE v.tenant_id::text = $1::text AND v.branch_id::text = $2::text
+            WHERE v.tenant_id::text = $1::text 
+              AND ($2::text IS NULL OR v.branch_id::text = $2::text OR v.branch_id IS NULL)
         `;
-        const params = [tenant_id, branch_id];
+        const params = [tenant_id, branch_id ? String(branch_id) : null];
 
         if (type) {
             params.push(type);
@@ -666,7 +706,7 @@ exports.getVouchers = async (req, res) => {
 // @route   POST /api/finance/vouchers
 exports.createVoucher = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
+    let branch_id = req.branchId || req.user?.branch_id || null;
     const {
         voucher_type, // 'receipt' or 'payment'
         party_type,   // 'customer', 'vendor', 'employee', 'other'
@@ -695,10 +735,10 @@ exports.createVoucher = async (req, res) => {
         let effectivePartyName = party_name;
         if (!effectivePartyName) {
             if (customer_id) {
-                const c = await db.query('SELECT name FROM customers WHERE id = $1', [customer_id]);
+                const c = await db.query('SELECT name FROM customers WHERE id::text = $1::text', [String(customer_id)]);
                 if (c.rows.length) effectivePartyName = c.rows[0].name;
             } else if (vendor_id) {
-                const v = await db.query('SELECT name FROM vendors WHERE id = $1', [vendor_id]);
+                const v = await db.query('SELECT name FROM vendors WHERE id::text = $1::text', [String(vendor_id)]);
                 if (v.rows.length) effectivePartyName = v.rows[0].name;
             }
         }
@@ -718,8 +758,8 @@ exports.createVoucher = async (req, res) => {
             voucher_type,
             party_type || (voucher_type === 'receipt' ? 'customer' : 'vendor'),
             effectivePartyName,
-            customer_id || null,
-            vendor_id || null,
+            customer_id ? String(customer_id) : null,
+            vendor_id ? String(vendor_id) : null,
             invoice_id || null,
             parseFloat(amount),
             payment_method || 'cash',
@@ -729,7 +769,7 @@ exports.createVoucher = async (req, res) => {
             voucher_date || new Date().toISOString().split('T')[0],
             req.user.id,
             tenant_id,
-            branch_id
+            branch_id ? String(branch_id) : null
         ]);
 
         const voucher = vRes.rows[0];
@@ -783,7 +823,7 @@ exports.createVoucher = async (req, res) => {
 // @route   GET /api/finance/vouchers/:id
 exports.getVoucherDetails = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
+    let branch_id = req.branchId || req.user?.branch_id || null;
     const voucher_id = req.params.id;
 
     try {
@@ -800,9 +840,9 @@ exports.getVoucherDetails = async (req, res) => {
             LEFT JOIN users u ON v.created_by = u.id
             LEFT JOIN invoices i ON v.invoice_id = i.id
             LEFT JOIN tenants t ON v.tenant_id = t.id
-            LEFT JOIN branches b ON v.branch_id = b.id
-            WHERE v.id = $1 AND v.tenant_id::text = $2::text AND v.branch_id::text = $3::text
-        `, [voucher_id, tenant_id, branch_id]);
+            LEFT JOIN branches b ON v.branch_id::text = b.id::text
+            WHERE v.id = $1 AND v.tenant_id::text = $2::text AND ($3::text IS NULL OR v.branch_id::text = $3::text OR v.branch_id IS NULL)
+        `, [voucher_id, tenant_id, branch_id ? String(branch_id) : null]);
 
         if (vRes.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Voucher not found or unauthorized' });
@@ -819,14 +859,14 @@ exports.getVoucherDetails = async (req, res) => {
 // @route   DELETE /api/finance/vouchers/:id
 exports.deleteVoucher = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
+    let branch_id = req.branchId || req.user?.branch_id || null;
     const voucher_id = req.params.id;
 
     try {
         await ensureVouchersTable();
         const vRes = await db.query(
-            `DELETE FROM finance_vouchers WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *`,
-            [voucher_id, tenant_id, branch_id]
+            `DELETE FROM finance_vouchers WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) RETURNING *`,
+            [voucher_id, tenant_id, branch_id ? String(branch_id) : null]
         );
         if (vRes.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Voucher not found' });
@@ -848,12 +888,16 @@ exports.deleteVoucher = async (req, res) => {
 // @route   GET /api/finance/expenses
 exports.getExpenses = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
+    let branch_id = req.branchId || req.user?.branch_id || null;
 
     try {
+        await ensureInvoicesTable();
         const result = await db.query(
-            `SELECT * FROM expenses WHERE tenant_id::text = $1::text AND branch_id::text = $2::text ORDER BY expense_date DESC`,
-            [tenant_id, branch_id]
+            `SELECT * FROM expenses 
+             WHERE tenant_id::text = $1::text 
+               AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL) 
+             ORDER BY expense_date DESC`,
+            [tenant_id, branch_id ? String(branch_id) : null]
         );
         res.json({ status: 'success', data: result.rows });
     } catch (err) {
@@ -866,14 +910,15 @@ exports.getExpenses = async (req, res) => {
 // @route   POST /api/finance/expenses
 exports.createExpense = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
+    let branch_id = req.branchId || req.user?.branch_id || null;
     const { title, amount, category, expense_date } = req.body;
 
     try {
+        await ensureInvoicesTable();
         const result = await db.query(`
             INSERT INTO expenses (title, amount, category, expense_date, recorded_by, tenant_id, branch_id)
             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
-        `, [title, amount, category || 'General', expense_date || new Date().toISOString().split('T')[0], req.user.id, tenant_id, branch_id]);
+        `, [title, amount, category || 'General', expense_date || new Date().toISOString().split('T')[0], req.user.id, tenant_id, branch_id ? String(branch_id) : null]);
 
         logCreate(req, 'Expense', result.rows[0].id, result.rows[0]);
         res.status(201).json({ status: 'success', data: result.rows[0] });
@@ -887,9 +932,10 @@ exports.createExpense = async (req, res) => {
 // @route   GET /api/finance/income
 exports.getIncome = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
+    let branch_id = req.branchId || req.user?.branch_id || null;
 
     try {
+        await ensureInvoicesTable();
         const result = await db.query(`
             SELECT 
                 p.id,
@@ -901,10 +947,14 @@ exports.getIncome = async (req, res) => {
                 c.name as customer_name
             FROM payments p
             JOIN invoices i ON p.invoice_id::text = i.id::text
-            LEFT JOIN customers c ON i.client_id::text = c.id::text
-            WHERE p.tenant_id::text = $1::text AND p.branch_id::text = $2::text
+            LEFT JOIN customers c ON (
+                (i.client_id IS NOT NULL AND i.client_id != '' AND i.client_id::text = c.id::text) OR 
+                (i.customer_id IS NOT NULL AND i.customer_id != '' AND i.customer_id::text = c.id::text)
+            )
+            WHERE p.tenant_id::text = $1::text 
+              AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
             ORDER BY p.payment_date DESC
-        `, [tenant_id, branch_id]);
+        `, [tenant_id, branch_id ? String(branch_id) : null]);
 
         res.json({ status: 'success', data: result.rows });
     } catch (err) {
@@ -917,17 +967,25 @@ exports.getIncome = async (req, res) => {
 // @route   GET /api/finance/summary
 exports.getSummary = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
+    let branch_id = req.branchId || req.user?.branch_id || null;
 
     try {
+        await ensureInvoicesTable();
+
         const incomeRes = await db.query(
-            `SELECT COALESCE(SUM(amount), 0) as total_income FROM payments WHERE tenant_id::text = $1::text AND branch_id::text = $2::text`,
-            [tenant_id, branch_id]
+            `SELECT COALESCE(SUM(amount), 0) as total_income 
+             FROM payments 
+             WHERE tenant_id::text = $1::text 
+               AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)`,
+            [tenant_id, branch_id ? String(branch_id) : null]
         );
 
         const expenseRes = await db.query(
-            `SELECT COALESCE(SUM(amount), 0) as total_expenses FROM expenses WHERE tenant_id::text = $1::text AND branch_id::text = $2::text`,
-            [tenant_id, branch_id]
+            `SELECT COALESCE(SUM(amount), 0) as total_expenses 
+             FROM expenses 
+             WHERE tenant_id::text = $1::text 
+               AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)`,
+            [tenant_id, branch_id ? String(branch_id) : null]
         );
 
         const invRes = await db.query(`
@@ -936,21 +994,31 @@ exports.getSummary = async (req, res) => {
                 COALESCE(SUM(CASE WHEN status != 'paid' THEN (total_amount - COALESCE(p.paid, 0)) ELSE 0 END), 0) as total_outstanding,
                 COUNT(*) as count_invoices
             FROM invoices i
-            LEFT JOIN (SELECT invoice_id, SUM(amount) as paid FROM payments GROUP BY invoice_id) p ON i.id::text = p.invoice_id::text
-            WHERE i.tenant_id::text = $1::text AND i.branch_id::text = $2::text
-        `, [tenant_id, branch_id]);
+            LEFT JOIN (SELECT invoice_id, SUM(amount) as paid FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id) p ON i.id::text = p.invoice_id::text
+            WHERE i.tenant_id::text = $1::text 
+              AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
+        `, [tenant_id, branch_id ? String(branch_id) : null]);
 
-        await ensureVouchersTable();
-        const vouchersCountRes = await db.query(`
-            SELECT 
-                COUNT(CASE WHEN voucher_type = 'receipt' THEN 1 END) as receipts_count,
-                COUNT(CASE WHEN voucher_type = 'payment' THEN 1 END) as payments_count
-            FROM finance_vouchers
-            WHERE tenant_id::text = $1::text AND branch_id::text = $2::text
-        `, [tenant_id, branch_id]);
+        let receiptsCount = 0;
+        let paymentsCount = 0;
+        try {
+            await ensureVouchersTable();
+            const vouchersCountRes = await db.query(`
+                SELECT 
+                    COUNT(CASE WHEN voucher_type = 'receipt' THEN 1 END) as receipts_count,
+                    COUNT(CASE WHEN voucher_type = 'payment' THEN 1 END) as payments_count
+                FROM finance_vouchers
+                WHERE tenant_id::text = $1::text 
+                  AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+            `, [tenant_id, branch_id ? String(branch_id) : null]);
+            receiptsCount = parseInt(vouchersCountRes.rows[0]?.receipts_count || 0);
+            paymentsCount = parseInt(vouchersCountRes.rows[0]?.payments_count || 0);
+        } catch (vErr) {
+            console.warn('[Finance Summary] Vouchers count fallback:', vErr.message);
+        }
 
-        const totalIncome = parseFloat(incomeRes.rows[0].total_income || 0);
-        const totalExpenses = parseFloat(expenseRes.rows[0].total_expenses || 0);
+        const totalIncome = parseFloat(incomeRes.rows[0]?.total_income || 0);
+        const totalExpenses = parseFloat(expenseRes.rows[0]?.total_expenses || 0);
         const totalInvoiced = parseFloat(invRes.rows[0]?.total_invoiced || 0);
         const totalOutstanding = parseFloat(invRes.rows[0]?.total_outstanding || 0);
         const netCashflow = totalIncome - totalExpenses;
@@ -964,8 +1032,8 @@ exports.getSummary = async (req, res) => {
                 totalOutstanding,
                 netCashflow,
                 countInvoices: parseInt(invRes.rows[0]?.count_invoices || 0),
-                receiptsCount: parseInt(vouchersCountRes.rows[0]?.receipts_count || 0),
-                paymentsCount: parseInt(vouchersCountRes.rows[0]?.payments_count || 0)
+                receiptsCount,
+                paymentsCount
             }
         });
     } catch (err) {
