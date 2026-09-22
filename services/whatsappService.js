@@ -60,6 +60,14 @@ function normalisePhone(rawPhone, defaultCountryCode = '20') {
     return cleaned.length >= 8 ? cleaned : null;
   }
 
+  // Already starts with default country code or known country code (e.g. Meta sends '2011xxxxxxxx' or '9665xxxxxxxx')
+  const knownPrefixes = [defaultCountryCode, '20', '966', '971', '965', '974', '968', '973', '962', '961', '964', '212', '213', '216', '249', '1'];
+  for (const p of knownPrefixes) {
+    if (cleaned.startsWith(p) && cleaned.length >= (p.length + 7)) {
+      return '+' + cleaned;
+    }
+  }
+
   // No prefix at all — assume default country
   cleaned = '+' + defaultCountryCode + cleaned;
   return cleaned.length >= 8 ? cleaned : null;

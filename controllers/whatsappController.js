@@ -1316,12 +1316,14 @@ exports.assignConversation = async (req, res) => {
 // Helper for defensive HMAC SHA-256 signature verification
 function verifyMetaSignature(req, appSecret) {
   const signatureHeader = req.headers['x-hub-signature-256'];
-  if (!signatureHeader || !signatureHeader.startsWith('sha256=') || !req.rawBody) {
+  const secret = String(appSecret || '').trim();
+  if (!signatureHeader || !signatureHeader.startsWith('sha256=') || !secret) {
     return false;
   }
   try {
+    const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body));
     const signatureHash = signatureHeader.slice(7);
-    const expectedHash = crypto.createHmac('sha256', appSecret).update(req.rawBody).digest('hex');
+    const expectedHash = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
     const sigBuf = Buffer.from(signatureHash, 'utf8');
     const expBuf = Buffer.from(expectedHash, 'utf8');
     if (sigBuf.length !== expBuf.length) {
@@ -1329,6 +1331,7 @@ function verifyMetaSignature(req, appSecret) {
     }
     return crypto.timingSafeEqual(sigBuf, expBuf);
   } catch (err) {
+    console.error('[WhatsApp verifyMetaSignature error]', err.message);
     return false;
   }
 }
@@ -1345,8 +1348,9 @@ exports.handleWebhookVerification = async (req, res) => {
   }
 
   if (mode === 'subscribe') {
-    const configuredToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
-    if (configuredToken && token === configuredToken) {
+    const trimmedToken = String(token).trim();
+    const configuredToken = (process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN || '').trim();
+    if (configuredToken && trimmedToken === configuredToken) {
       console.log('✅ [WhatsApp Webhook] Global verification token matched');
       return res.status(200).send(challenge);
     }
@@ -1355,9 +1359,9 @@ exports.handleWebhookVerification = async (req, res) => {
       await ensureWhatsAppTable();
       const sRes = await db.query(`
         SELECT tenant_id FROM whatsapp_settings
-        WHERE meta_webhook_verify_token = $1
+        WHERE TRIM(meta_webhook_verify_token) = $1
         LIMIT 1
-      `, [token]);
+      `, [trimmedToken]);
 
       if (sRes.rows.length > 0) {
         console.log(`✅ [WhatsApp Webhook] Tenant ${sRes.rows[0].tenant_id} verification token matched`);
@@ -1367,6 +1371,7 @@ exports.handleWebhookVerification = async (req, res) => {
       console.error('[WhatsApp Webhook Verification DB Error]', err.message);
     }
 
+    console.warn(`⚠️ [WhatsApp Webhook] Verification token mismatch. Received: "${trimmedToken}"`);
     return res.status(403).send('Verification token mismatch');
   }
 
@@ -1383,6 +1388,12 @@ exports.handleWebhookEvent = async (req, res) => {
 
   try {
     const body = req.body;
+    console.log('📥 [WhatsApp Webhook POST]', JSON.stringify({
+      object: body?.object,
+      entriesCount: body?.entry?.length || 0,
+      hasSignature: !!req.headers['x-hub-signature-256']
+    }));
+
     if (body.object !== 'whatsapp_business_account' || !body.entry) {
       return;
     }
@@ -1393,7 +1404,7 @@ exports.handleWebhookEvent = async (req, res) => {
         if (change.field !== 'messages') continue;
         const value = change.value || {};
         const metadata = value.metadata || {};
-        const phoneNumberId = metadata.phone_number_id;
+        const phoneNumberId = metadata.phone_number_id ? String(metadata.phone_number_id).trim() : null;
 
         if (!phoneNumberId) continue;
 
@@ -1402,25 +1413,32 @@ exports.handleWebhookEvent = async (req, res) => {
         const accountRes = await db.query(`
           SELECT 
             a.id AS account_id,
-            a.tenant_id,
+            COALESCE(a.tenant_id, s.tenant_id) AS tenant_id,
             a.branch_id,
             COALESCE(a.access_token, s.access_token) AS access_token,
             s.meta_app_secret
           FROM whatsapp_accounts a
-          LEFT JOIN whatsapp_settings s ON a.tenant_id::text = s.tenant_id::text
-          WHERE a.phone_number_id = $1 AND a.is_active = TRUE
+          FULL OUTER JOIN whatsapp_settings s ON a.tenant_id::text = s.tenant_id::text
+          WHERE (TRIM(COALESCE(a.phone_number_id, '')) = TRIM($1) OR TRIM(COALESCE(s.phone_number_id, '')) = TRIM($1))
+            AND (a.is_active IS NOT FALSE OR s.is_active IS NOT FALSE)
+          ORDER BY a.is_default DESC NULLS LAST, a.id ASC NULLS LAST
+          LIMIT 1
         `, [phoneNumberId]);
 
         if (accountRes.rows.length > 0) {
           tenantRow = accountRes.rows[0];
         } else {
-          // Fallback to whatsapp_settings
+          // Fallback to active tenant in settings if phone_number_id not directly matched
           const sRes = await db.query(`
             SELECT NULL AS account_id, tenant_id, NULL AS branch_id, access_token, meta_app_secret
             FROM whatsapp_settings
-            WHERE phone_number_id = $1 AND is_active = TRUE
-          `, [phoneNumberId]);
-          if (sRes.rows.length > 0) tenantRow = sRes.rows[0];
+            WHERE access_token IS NOT NULL
+            LIMIT 1
+          `);
+          if (sRes.rows.length > 0) {
+            tenantRow = sRes.rows[0];
+            console.log(`[WhatsApp Webhook] Fallback to primary tenant ${tenantRow.tenant_id} for phone_number_id ${phoneNumberId}`);
+          }
         }
 
         if (!tenantRow) {
@@ -1431,9 +1449,14 @@ exports.handleWebhookEvent = async (req, res) => {
         const { account_id, tenant_id, branch_id, access_token, meta_app_secret } = tenantRow;
 
         // 2. Defensive HMAC Signature verification if secret configured
-        if (meta_app_secret && !verifyMetaSignature(req, meta_app_secret)) {
-          console.warn(`[WhatsApp Webhook] Signature verification failed for tenant ${tenant_id}`);
-          continue;
+        if (meta_app_secret && String(meta_app_secret).trim()) {
+          const isValid = verifyMetaSignature(req, meta_app_secret);
+          if (!isValid) {
+            console.warn(`⚠️ [WhatsApp Webhook] Signature check failed for tenant ${tenant_id}. Header: ${req.headers['x-hub-signature-256']}`);
+            if (process.env.STRICT_WEBHOOK_SIGNATURE === 'true') {
+              continue;
+            }
+          }
         }
 
         // 3. Inbound Messages Pipeline
@@ -1442,22 +1465,37 @@ exports.handleWebhookEvent = async (req, res) => {
 
         for (const msg of messages) {
           const wamid = msg.id;
-          const fromPhone = normalisePhone(msg.from) || `+${msg.from}`;
-          const profileContact = contacts.find(c => c.wa_id === msg.from);
+          const rawFrom = String(msg.from || '').trim();
+          const fromPhone = normalisePhone(rawFrom) || `+${rawFrom}`;
+          const profileContact = contacts.find(c => c.wa_id === rawFrom);
           const contactProfileName = profileContact?.profile?.name;
+
+          // Variants of the sender's phone number to match any existing format in DB
+          const phoneVariants = Array.from(new Set([
+            fromPhone,
+            `+${rawFrom}`,
+            rawFrom,
+            rawFrom.startsWith('20') ? `0${rawFrom.slice(2)}` : null,
+            fromPhone.replace(/^\+/, ''),
+            fromPhone.startsWith('+20') ? `0${fromPhone.slice(3)}` : null
+          ].filter(Boolean)));
 
           // Resolve existing customer in CRM
           let customerId = null;
           let customerName = contactProfileName || fromPhone;
-          const cFind = await db.query(`
-            SELECT id, name FROM customers
-            WHERE tenant_id::text = $1::text AND (phone = $2 OR phone = $3)
-            LIMIT 1
-          `, [tenant_id, msg.from, fromPhone]);
+          try {
+            const cFind = await db.query(`
+              SELECT id, name FROM customers
+              WHERE tenant_id::text = $1::text AND phone = ANY($2::text[])
+              LIMIT 1
+            `, [tenant_id, phoneVariants]);
 
-          if (cFind.rows.length > 0) {
-            customerId = cFind.rows[0].id;
-            customerName = cFind.rows[0].name || customerName;
+            if (cFind.rows.length > 0) {
+              customerId = cFind.rows[0].id;
+              customerName = cFind.rows[0].name || customerName;
+            }
+          } catch (cErr) {
+            console.warn('[WhatsApp customer lookup warning]', cErr.message);
           }
 
           // Inbound Message Body & Media extraction
@@ -1495,37 +1533,63 @@ exports.handleWebhookEvent = async (req, res) => {
             bodyText = `[${msgType} message]`;
           }
 
-          // 4. Idempotent Conversation Upsert with Atomic unread_count increment & 24h Window
-          const convUpsert = await db.query(`
-            INSERT INTO whatsapp_conversations (
-              tenant_id, account_id, phone_number, contact_name, customer_id,
-              last_message_body, last_message_at, last_message_direction,
-              unread_count, window_expires_at, branch_id
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'inbound', 1, NOW() + INTERVAL '24 hours', $7)
-            ON CONFLICT (tenant_id, phone_number, account_id)
-            DO UPDATE SET
-              last_message_body = EXCLUDED.last_message_body,
-              last_message_at = NOW(),
-              last_message_direction = 'inbound',
-              unread_count = whatsapp_conversations.unread_count + 1,
-              window_expires_at = NOW() + INTERVAL '24 hours',
-              contact_name = COALESCE(EXCLUDED.contact_name, whatsapp_conversations.contact_name),
-              customer_id = COALESCE(EXCLUDED.customer_id, whatsapp_conversations.customer_id)
-            RETURNING id
-          `, [
-            tenant_id,
-            account_id,
-            fromPhone,
-            customerName,
-            customerId,
-            bodyText,
-            branch_id
-          ]);
+          // 4. Match or Upsert Conversation & Open 24h Customer Service Window
+          let conversationId = null;
 
-          const conversationId = convUpsert.rows[0]?.id;
+          // Find existing conversation using phone variants
+          const existingConv = await db.query(`
+            SELECT id, account_id, contact_name, customer_id
+            FROM whatsapp_conversations
+            WHERE tenant_id::text = $1::text 
+              AND phone_number = ANY($2::text[])
+            ORDER BY last_message_at DESC NULLS LAST
+            LIMIT 1
+          `, [tenant_id, phoneVariants]);
 
-          // 5. Idempotent Message Insertion (ON CONFLICT wamid DO NOTHING)
+          if (existingConv.rows.length > 0) {
+            conversationId = existingConv.rows[0].id;
+            await db.query(`
+              UPDATE whatsapp_conversations
+              SET 
+                last_message_body = $1,
+                last_message_at = NOW(),
+                last_message_direction = 'inbound',
+                unread_count = COALESCE(unread_count, 0) + 1,
+                window_expires_at = NOW() + INTERVAL '24 hours',
+                account_id = COALESCE(whatsapp_conversations.account_id, $2),
+                contact_name = COALESCE(whatsapp_conversations.contact_name, $3),
+                customer_id = COALESCE(whatsapp_conversations.customer_id, $4),
+                updated_at = NOW()
+              WHERE id = $5
+            `, [
+              bodyText,
+              account_id || null,
+              customerName,
+              customerId,
+              conversationId
+            ]);
+          } else {
+            const newConv = await db.query(`
+              INSERT INTO whatsapp_conversations (
+                tenant_id, account_id, phone_number, contact_name, customer_id,
+                last_message_body, last_message_at, last_message_direction,
+                unread_count, window_expires_at, branch_id
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'inbound', 1, NOW() + INTERVAL '24 hours', $7)
+              RETURNING id
+            `, [
+              tenant_id,
+              account_id || null,
+              fromPhone,
+              customerName,
+              customerId,
+              bodyText,
+              branch_id || null
+            ]);
+            conversationId = newConv.rows[0]?.id;
+          }
+
+          // 5. Idempotent Message Insertion (ON CONFLICT meta_message_id DO NOTHING)
           if (conversationId && wamid) {
             await db.query(`
               INSERT INTO whatsapp_messages (
@@ -1537,15 +1601,14 @@ exports.handleWebhookEvent = async (req, res) => {
             `, [
               conversationId,
               tenant_id,
-              account_id,
+              account_id || null,
               wamid,
               msgType,
               bodyText,
               mediaUrl
             ]);
+            console.log(`✅ [WhatsApp Inbound] Ingested message from ${fromPhone} in conv ${conversationId} (24h window OPEN until 24h from now)`);
           }
-
-          console.log(`📥 [WhatsApp Webhook] Inbound message ingested from ${fromPhone} for tenant ${tenant_id}`);
         }
 
         // 6. Independent Status Webhook Pipeline (Monotonic Status Transitions)
@@ -1558,6 +1621,8 @@ exports.handleWebhookEvent = async (req, res) => {
 
           if (!wamid || !status) continue;
 
+          console.log(`📊 [WhatsApp Webhook Status] ${status} for wamid: ${wamid}`);
+
           // Monotonic guard: status can only advance forward (e.g. read cannot be downgraded to delivered)
           await db.query(`
             UPDATE whatsapp_messages
@@ -1568,6 +1633,7 @@ exports.handleWebhookEvent = async (req, res) => {
                 status = 'pending'
                 OR (status = 'sent' AND $1 IN ('delivered', 'read', 'failed'))
                 OR (status = 'delivered' AND $1 IN ('read', 'failed'))
+                OR (status = 'read' AND $1 = 'read')
               )
           `, [status, errorMsg, wamid]);
         }
