@@ -5,7 +5,7 @@ import {
   MessageSquare, Send, Search, User, UserCheck, Clock, AlertCircle,
   Check, CheckCheck, RefreshCw, Plus, Phone, Shield, ExternalLink,
   FileText, Image as ImageIcon, Paperclip, ChevronRight, Info, Sparkles,
-  X, Filter, ArrowLeft, MoreVertical
+  X, Filter, ArrowLeft, MoreVertical, Users
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 import { useAuth } from '../../context/AuthContext';
@@ -41,11 +41,16 @@ const WhatsAppChat = () => {
     account_id: '',
     phone_number: '',
     contact_name: '',
+    customer_id: '',
     initial_message: '',
     template_name: '',
     language_code: 'ar'
   });
   const [startingChat, setStartingChat] = useState(false);
+
+  // CRM Customers state
+  const [crmCustomers, setCrmCustomers] = useState([]);
+  const [loadingCrmCustomers, setLoadingCrmCustomers] = useState(false);
 
   // Template Send Modal state
   const [selectedTemplateName, setSelectedTemplateName] = useState('');
@@ -55,12 +60,13 @@ const WhatsAppChat = () => {
   const pollingRef = useRef(null);
 
   // -------------------------------------------------------------------------
-  // Fetch initial accounts, users & templates
+  // Fetch initial accounts, users, templates & customers
   // -------------------------------------------------------------------------
   useEffect(() => {
     fetchAccounts();
     fetchUsers();
     fetchTemplates();
+    fetchCrmCustomers();
   }, []);
 
   const fetchAccounts = async () => {
@@ -86,6 +92,18 @@ const WhatsAppChat = () => {
     }
   };
 
+  const fetchCrmCustomers = async () => {
+    setLoadingCrmCustomers(true);
+    try {
+      const res = await api.get('/customers');
+      setCrmCustomers(res.data?.data || []);
+    } catch (err) {
+      console.warn('Failed to load CRM customers', err);
+    } finally {
+      setLoadingCrmCustomers(false);
+    }
+  };
+
   const fetchTemplates = async () => {
     try {
       const res = await api.get('/whatsapp/templates');
@@ -100,6 +118,32 @@ const WhatsAppChat = () => {
     }
   };
 
+  const handleSelectCustomerForChat = (customer) => {
+    if (!customer) return;
+    const cleanCPhone = (customer.phone || '').replace(/[\s\-().+]/g, '');
+    const existingConv = conversations.find(c => {
+      const p = (c.phone_number || '').replace(/[\s\-().+]/g, '');
+      return (cleanCPhone && p && (p.includes(cleanCPhone) || cleanCPhone.includes(p))) ||
+             (c.customer_id && String(c.customer_id) === String(customer.id));
+    });
+
+    if (existingConv) {
+      setActiveConversationId(existingConv.id);
+      setScope('all');
+    } else {
+      setNewChatData({
+        account_id: accounts.find(a => a.is_default)?.id || accounts[0]?.id || '',
+        customer_id: customer.id,
+        phone_number: customer.phone || '',
+        contact_name: customer.name || '',
+        initial_message: '',
+        template_name: templates[0]?.name || '',
+        language_code: 'ar'
+      });
+      setShowStartChatModal(true);
+    }
+  };
+
   // -------------------------------------------------------------------------
   // Fetch Conversations
   // -------------------------------------------------------------------------
@@ -108,7 +152,7 @@ const WhatsAppChat = () => {
     try {
       const params = {};
       if (selectedAccountId !== 'all') params.accountId = selectedAccountId;
-      if (scope !== 'all') params.scope = scope;
+      if (scope !== 'all' && scope !== 'customers') params.scope = scope;
       if (searchQuery.trim()) params.search = searchQuery.trim();
 
       const res = await api.get('/whatsapp/conversations', { params });
@@ -125,6 +169,16 @@ const WhatsAppChat = () => {
       if (!silent) setLoadingConversations(false);
     }
   };
+
+  const filteredCustomers = useMemo(() => {
+    if (!searchQuery.trim()) return crmCustomers;
+    const q = searchQuery.toLowerCase().trim();
+    return crmCustomers.filter(c =>
+      (c.name && c.name.toLowerCase().includes(q)) ||
+      (c.phone && c.phone.includes(q)) ||
+      (c.company_name && c.company_name.toLowerCase().includes(q))
+    );
+  }, [crmCustomers, searchQuery]);
 
   useEffect(() => {
     fetchConversations();
@@ -425,30 +479,32 @@ const WhatsAppChat = () => {
           {/* Scope Selector Tabs */}
           <div style={{
             display: 'flex',
-            padding: '10px 12px',
-            gap: '6px',
+            padding: '10px 10px',
+            gap: '4px',
             borderBottom: '1px solid #e2e8f0',
             background: 'white'
           }}>
             {[
               { id: 'all', label: 'All' },
               { id: 'my', label: 'My Chats' },
-              { id: 'unassigned', label: 'Unassigned' }
+              { id: 'unassigned', label: 'Unassigned' },
+              { id: 'customers', label: `Customers (${crmCustomers.length})` }
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setScope(tab.id)}
                 style={{
                   flex: 1,
-                  padding: '6px 0',
-                  fontSize: '12px',
+                  padding: '6px 2px',
+                  fontSize: '11px',
                   fontWeight: 700,
                   borderRadius: '8px',
                   border: 'none',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                   background: scope === tab.id ? '#25D366' : '#f1f5f9',
-                  color: scope === tab.id ? 'white' : '#64748b'
+                  color: scope === tab.id ? 'white' : '#64748b',
+                  whiteSpace: 'nowrap'
                 }}
               >
                 {tab.label}
@@ -470,7 +526,7 @@ const WhatsAppChat = () => {
               <Search size={14} color="#94a3b8" />
               <input
                 type="text"
-                placeholder="Search contact, phone or message..."
+                placeholder={scope === 'customers' ? "Search customers by name, phone or company..." : "Search contact, phone or message..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -493,9 +549,67 @@ const WhatsAppChat = () => {
             </div>
           </div>
 
-          {/* Conversation List */}
+          {/* Conversation or Customers List */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {loadingConversations ? (
+            {scope === 'customers' ? (
+              loadingCrmCustomers ? (
+                <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+                  <RefreshCw size={20} className="animate-spin" style={{ margin: '0 auto 8px', display: 'block' }} />
+                  Loading customers...
+                </div>
+              ) : filteredCustomers.length === 0 ? (
+                <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8' }}>
+                  <Users size={32} style={{ margin: '0 auto 10px', opacity: 0.4 }} />
+                  <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>No customers found</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '12px' }}>Try a different search query</p>
+                </div>
+              ) : (
+                filteredCustomers.map(cust => (
+                  <div
+                    key={cust.id}
+                    onClick={() => handleSelectCustomerForChat(cust)}
+                    style={{
+                      padding: '12px 14px',
+                      borderBottom: '1px solid #f1f5f9',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      transition: 'background 0.15s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{
+                      width: 40, height: 40, borderRadius: 20,
+                      background: '#e0f2fe', color: '#0369a1',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 800, fontSize: '14px', flexShrink: 0
+                    }}>
+                      {cust.name?.charAt(0)?.toUpperCase() || 'C'}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                        <span style={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '170px' }}>
+                          {cust.name}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#25D366', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <MessageSquare size={12} /> Chat
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>
+                        {cust.phone || 'No phone number'}
+                      </div>
+                      {cust.company_name && (
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {cust.company_name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )
+            ) : loadingConversations ? (
               <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
                 <RefreshCw size={20} className="animate-spin" style={{ margin: '0 auto 8px', display: 'block' }} />
                 Loading conversations...
@@ -504,7 +618,7 @@ const WhatsAppChat = () => {
               <div style={{ padding: '40px 20px', textAlign: 'center', color: '#94a3b8' }}>
                 <MessageSquare size={32} style={{ margin: '0 auto 10px', opacity: 0.4 }} />
                 <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>No conversations found</p>
-                <p style={{ margin: '4px 0 0', fontSize: '12px' }}>Start a new chat or adjust filters</p>
+                <p style={{ margin: '4px 0 0', fontSize: '12px' }}>Start a new chat or pick from Customers tab</p>
               </div>
             ) : (
               conversations.map(conv => {
@@ -939,6 +1053,43 @@ const WhatsAppChat = () => {
                   {accounts.map(acc => (
                     <option key={acc.id} value={acc.id}>
                       {acc.display_phone_number || acc.phone_number_id} {acc.verified_name ? `(${acc.verified_name})` : ''} {acc.is_default ? '★ Default' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* CRM Customer Picker */}
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: '#1e293b' }}>
+                  Select from CRM Customers (اختيار عميل مسجل)
+                </label>
+                <select
+                  value={newChatData.customer_id || ''}
+                  onChange={(e) => {
+                    const cId = e.target.value;
+                    if (!cId) {
+                      setNewChatData(prev => ({ ...prev, customer_id: '', contact_name: '', phone_number: '' }));
+                      return;
+                    }
+                    const cust = crmCustomers.find(c => String(c.id) === String(cId));
+                    if (cust) {
+                      setNewChatData(prev => ({
+                        ...prev,
+                        customer_id: cust.id,
+                        contact_name: cust.name || '',
+                        phone_number: cust.phone || ''
+                      }));
+                    }
+                  }}
+                  style={{
+                    width: '100%', padding: '9px 12px', borderRadius: '8px',
+                    border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', background: 'white'
+                  }}
+                >
+                  <option value="">-- Choose a customer or enter phone below --</option>
+                  {crmCustomers.map(cust => (
+                    <option key={cust.id} value={cust.id}>
+                      {cust.name} {cust.phone ? `(${cust.phone})` : ''} {cust.company_name ? `• ${cust.company_name}` : ''}
                     </option>
                   ))}
                 </select>
