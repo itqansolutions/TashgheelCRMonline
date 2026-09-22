@@ -23,12 +23,43 @@ const {
 // Ensure the settings and campaigns tables exist (lazy migration)
 // ---------------------------------------------------------------------------
 let tableReady = false;
+let tableEnsuringPromise = null;
+
 async function ensureWhatsAppTable() {
   if (tableReady) return;
-  try {
-    await db.query(`
+  if (tableEnsuringPromise) return tableEnsuringPromise;
+
+  tableEnsuringPromise = (async () => {
+    const safeExec = async (sql, label) => {
+      try {
+        await db.query(sql);
+      } catch (e) {
+        console.warn(`[WhatsApp Schema ${label || ''}]:`, e.message);
+      }
+    };
+
+    // 0. UUID extensions & compatibility polyfill
+    await safeExec(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`, 'uuid-ossp extension');
+    await safeExec(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`, 'pgcrypto extension');
+
+    // Universal polyfill: Ensure gen_random_uuid() is always available on any Postgres version
+    await safeExec(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'gen_random_uuid') THEN
+          IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'uuid_generate_v4') THEN
+            CREATE OR REPLACE FUNCTION gen_random_uuid() RETURNS uuid AS 'SELECT uuid_generate_v4();' LANGUAGE sql;
+          ELSE
+            CREATE OR REPLACE FUNCTION gen_random_uuid() RETURNS uuid AS 'SELECT md5(random()::text || clock_timestamp()::text)::uuid;' LANGUAGE sql;
+          END IF;
+        END IF;
+      END $$;
+    `, 'gen_random_uuid polyfill');
+
+    // 1. WhatsApp Settings Table
+    await safeExec(`
       CREATE TABLE IF NOT EXISTS whatsapp_settings (
-        tenant_id             UUID        PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+        tenant_id             UUID        PRIMARY KEY,
         phone_number_id       VARCHAR(255) NOT NULL DEFAULT '',
         waba_id               VARCHAR(255) NOT NULL DEFAULT '',
         access_token          TEXT         NOT NULL DEFAULT '',
@@ -42,18 +73,18 @@ async function ensureWhatsAppTable() {
         created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
         updated_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW()
       );
-    `);
-    await db.query(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS waba_id VARCHAR(255) DEFAULT '';`);
-    await db.query(`
-      CREATE INDEX IF NOT EXISTS idx_whatsapp_settings_tenant_id
-      ON whatsapp_settings(tenant_id);
-    `);
+    `, 'create whatsapp_settings');
 
-    // WhatsApp Campaigns Table
-    await db.query(`
+    await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS waba_id VARCHAR(255) DEFAULT '';`, 'alter settings waba_id');
+    await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS meta_app_secret TEXT;`, 'alter settings meta_app_secret');
+    await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS meta_webhook_verify_token TEXT;`, 'alter settings meta_webhook_verify_token');
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_whatsapp_settings_tenant_id ON whatsapp_settings(tenant_id);`, 'index settings tenant');
+
+    // 2. WhatsApp Campaigns Table
+    await safeExec(`
       CREATE TABLE IF NOT EXISTS whatsapp_campaigns (
         id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id         UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+        tenant_id         UUID,
         name              VARCHAR(255) NOT NULL,
         template_name     VARCHAR(100) NOT NULL,
         language_code     VARCHAR(20) NOT NULL DEFAULT 'en',
@@ -62,18 +93,18 @@ async function ensureWhatsAppTable() {
         successful_count  INTEGER DEFAULT 0,
         failed_count      INTEGER DEFAULT 0,
         status            VARCHAR(50) DEFAULT 'completed',
-        created_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_by        INTEGER,
         created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
-      CREATE INDEX IF NOT EXISTS idx_whatsapp_campaigns_tenant_id ON whatsapp_campaigns(tenant_id);
-    `);
+    `, 'create whatsapp_campaigns');
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_whatsapp_campaigns_tenant_id ON whatsapp_campaigns(tenant_id);`, 'index campaigns tenant');
 
-    // WhatsApp Campaign Recipients Table
-    await db.query(`
+    // 3. WhatsApp Campaign Recipients Table
+    await safeExec(`
       CREATE TABLE IF NOT EXISTS whatsapp_campaign_recipients (
         id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        campaign_id   UUID NOT NULL REFERENCES whatsapp_campaigns(id) ON DELETE CASCADE,
-        customer_id   INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+        campaign_id   UUID,
+        customer_id   INTEGER,
         customer_name VARCHAR(255) DEFAULT '',
         phone         VARCHAR(50) NOT NULL,
         status        VARCHAR(50) DEFAULT 'pending',
@@ -81,14 +112,14 @@ async function ensureWhatsAppTable() {
         error_message TEXT,
         sent_at       TIMESTAMPTZ
       );
-      CREATE INDEX IF NOT EXISTS idx_whatsapp_recipients_campaign_id ON whatsapp_campaign_recipients(campaign_id);
-    `);
+    `, 'create whatsapp_campaign_recipients');
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_whatsapp_recipients_campaign_id ON whatsapp_campaign_recipients(campaign_id);`, 'index recipients campaign');
 
-    // 1. WhatsApp Accounts Table (Multi-number support)
-    await db.query(`
+    // 4. WhatsApp Accounts Table (Multi-number support)
+    await safeExec(`
       CREATE TABLE IF NOT EXISTS whatsapp_accounts (
         id SERIAL PRIMARY KEY,
-        tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+        tenant_id UUID,
         branch_id VARCHAR(255),
         phone_number_id VARCHAR(100) NOT NULL,
         display_phone_number VARCHAR(50) NOT NULL,
@@ -99,27 +130,35 @@ async function ensureWhatsAppTable() {
         is_active BOOLEAN DEFAULT TRUE,
         quality_rating VARCHAR(50),
         created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        CONSTRAINT unique_tenant_whatsapp_phone_number UNIQUE (tenant_id, phone_number_id)
+        updated_at TIMESTAMPTZ DEFAULT NOW()
       );
-      CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_phone_id ON whatsapp_accounts(phone_number_id);
-      CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_tenant ON whatsapp_accounts(tenant_id);
-    `);
+    `, 'create whatsapp_accounts');
 
-    await db.query(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS meta_app_secret TEXT;`);
-    await db.query(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS meta_webhook_verify_token TEXT;`);
+    await safeExec(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'unique_tenant_whatsapp_phone_number'
+        ) THEN
+          ALTER TABLE whatsapp_accounts ADD CONSTRAINT unique_tenant_whatsapp_phone_number UNIQUE (tenant_id, phone_number_id);
+        END IF;
+      END $$;
+    `, 'unique constraint whatsapp_accounts');
 
-    // 2. WhatsApp Conversations Table
-    await db.query(`
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_phone_id ON whatsapp_accounts(phone_number_id);`, 'index accounts phone_id');
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_tenant ON whatsapp_accounts(tenant_id);`, 'index accounts tenant');
+
+    // 5. WhatsApp Conversations Table
+    await safeExec(`
       CREATE TABLE IF NOT EXISTS whatsapp_conversations (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+        tenant_id UUID,
         branch_id VARCHAR(255),
-        account_id INTEGER REFERENCES whatsapp_accounts(id) ON DELETE SET NULL,
-        assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        account_id INTEGER,
+        assigned_user_id INTEGER,
         phone_number VARCHAR(50) NOT NULL,
         contact_name VARCHAR(255),
-        customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
+        customer_id INTEGER,
         last_message_body TEXT,
         last_message_at TIMESTAMPTZ DEFAULT NOW(),
         last_message_direction VARCHAR(10) DEFAULT 'inbound',
@@ -127,30 +166,51 @@ async function ensureWhatsAppTable() {
         window_expires_at TIMESTAMPTZ,
         is_archived BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        CONSTRAINT unique_tenant_account_chat UNIQUE (tenant_id, phone_number, account_id)
+        updated_at TIMESTAMPTZ DEFAULT NOW()
       );
-      CREATE INDEX IF NOT EXISTS idx_wa_conv_tenant ON whatsapp_conversations(tenant_id, account_id);
-      CREATE INDEX IF NOT EXISTS idx_wa_conv_assigned ON whatsapp_conversations(assigned_user_id);
-      CREATE INDEX IF NOT EXISTS idx_wa_conv_phone ON whatsapp_conversations(phone_number);
-      CREATE INDEX IF NOT EXISTS idx_wa_conv_last_msg ON whatsapp_conversations(last_message_at DESC);
-    `);
+    `, 'create whatsapp_conversations');
 
-    await db.query(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;`);
-    await db.query(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS window_expires_at TIMESTAMPTZ;`);
-    await db.query(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;`);
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`, 'conv col branch_id');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS account_id INTEGER;`, 'conv col account_id');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS assigned_user_id INTEGER;`, 'conv col assigned_user_id');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS phone_number VARCHAR(50);`, 'conv col phone_number');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255);`, 'conv col contact_name');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS customer_id INTEGER;`, 'conv col customer_id');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS last_message_body TEXT;`, 'conv col last_msg_body');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ DEFAULT NOW();`, 'conv col last_msg_at');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS last_message_direction VARCHAR(10) DEFAULT 'inbound';`, 'conv col direction');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS unread_count INTEGER DEFAULT 0;`, 'conv col unread');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS window_expires_at TIMESTAMPTZ;`, 'conv col window');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE;`, 'conv col archived');
 
-    // 3. WhatsApp Messages Table
-    await db.query(`
+    // Unique constraint required for ON CONFLICT (tenant_id, phone_number, account_id)
+    await safeExec(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'unique_tenant_account_chat'
+        ) THEN
+          ALTER TABLE whatsapp_conversations ADD CONSTRAINT unique_tenant_account_chat UNIQUE (tenant_id, phone_number, account_id);
+        END IF;
+      END $$;
+    `, 'conv unique constraint');
+
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_wa_conv_tenant ON whatsapp_conversations(tenant_id, account_id);`, 'index conv tenant_account');
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_wa_conv_assigned ON whatsapp_conversations(assigned_user_id);`, 'index conv assigned');
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_wa_conv_phone ON whatsapp_conversations(phone_number);`, 'index conv phone');
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_wa_conv_last_msg ON whatsapp_conversations(last_message_at DESC);`, 'index conv last_msg');
+
+    // 6. WhatsApp Messages Table
+    await safeExec(`
       CREATE TABLE IF NOT EXISTS whatsapp_messages (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        conversation_id UUID REFERENCES whatsapp_conversations(id) ON DELETE CASCADE,
-        tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
-        account_id INTEGER REFERENCES whatsapp_accounts(id) ON DELETE SET NULL,
-        meta_message_id VARCHAR(255) UNIQUE,
-        direction VARCHAR(10) NOT NULL,
+        conversation_id UUID,
+        tenant_id UUID,
+        account_id INTEGER,
+        meta_message_id VARCHAR(255),
+        direction VARCHAR(10) NOT NULL DEFAULT 'inbound',
         sender_type VARCHAR(20) NOT NULL DEFAULT 'agent',
-        sender_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        sender_id INTEGER,
         message_type VARCHAR(30) NOT NULL DEFAULT 'text',
         body TEXT,
         template_name VARCHAR(100),
@@ -159,13 +219,43 @@ async function ensureWhatsAppTable() {
         error_message TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
-      CREATE INDEX IF NOT EXISTS idx_wa_msgs_conv ON whatsapp_messages(conversation_id, created_at ASC);
-      CREATE INDEX IF NOT EXISTS idx_wa_msgs_meta_id ON whatsapp_messages(meta_message_id);
-    `);
+    `, 'create whatsapp_messages');
+
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS conversation_id UUID;`, 'msg col conv_id');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS tenant_id UUID;`, 'msg col tenant_id');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS account_id INTEGER;`, 'msg col account_id');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS meta_message_id VARCHAR(255);`, 'msg col meta_id');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS direction VARCHAR(10) DEFAULT 'inbound';`, 'msg col direction');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS sender_type VARCHAR(20) DEFAULT 'agent';`, 'msg col sender_type');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS sender_id INTEGER;`, 'msg col sender_id');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(30) DEFAULT 'text';`, 'msg col msg_type');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS body TEXT;`, 'msg col body');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS template_name VARCHAR(100);`, 'msg col template_name');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media_url TEXT;`, 'msg col media_url');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'sent';`, 'msg col status');
+    await safeExec(`ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS error_message TEXT;`, 'msg col error_msg');
+
+    await safeExec(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'unique_meta_message_id'
+        ) THEN
+          ALTER TABLE whatsapp_messages ADD CONSTRAINT unique_meta_message_id UNIQUE (meta_message_id);
+        END IF;
+      END $$;
+    `, 'msg meta_id unique');
+
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_wa_msgs_conv ON whatsapp_messages(conversation_id, created_at ASC);`, 'index msgs conv');
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_wa_msgs_meta_id ON whatsapp_messages(meta_message_id);`, 'index msgs meta_id');
 
     tableReady = true;
-  } catch (err) {
-    console.error('[WhatsApp] Table ensure error:', err.message);
+  })();
+
+  try {
+    await tableEnsuringPromise;
+  } finally {
+    tableEnsuringPromise = null;
   }
 }
 
@@ -724,10 +814,10 @@ exports.getWhatsAppAccounts = async (req, res) => {
       ORDER BY is_default DESC, id ASC
     `, [tenantId]);
 
-    res.json({ status: 'success', data: result.rows });
+    res.json({ status: 'success', data: result.rows || [] });
   } catch (err) {
-    console.error('[WhatsApp getWhatsAppAccounts]', err.message);
-    res.status(500).json({ status: 'error', message: 'Failed to retrieve WhatsApp accounts' });
+    console.error('[WhatsApp getWhatsAppAccounts]', err);
+    res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve WhatsApp accounts' });
   }
 };
 
@@ -761,7 +851,7 @@ exports.setDefaultWhatsAppAccount = async (req, res) => {
     await db.query('BEGIN');
     await db.query(`
       UPDATE whatsapp_accounts 
-      SET is_default = (id = $1)
+      SET is_default = (id::text = $1::text)
       WHERE tenant_id::text = $2::text
     `, [accountId, tenantId]);
     await db.query('COMMIT');
@@ -770,7 +860,7 @@ exports.setDefaultWhatsAppAccount = async (req, res) => {
   } catch (err) {
     await db.query('ROLLBACK');
     console.error('[WhatsApp setDefaultWhatsAppAccount]', err.message);
-    res.status(500).json({ status: 'error', message: 'Failed to set default WhatsApp account' });
+    res.status(500).json({ status: 'error', message: err.message || 'Failed to set default WhatsApp account' });
   }
 };
 
@@ -785,7 +875,7 @@ exports.toggleWhatsAppAccount = async (req, res) => {
     const result = await db.query(`
       UPDATE whatsapp_accounts
       SET is_active = NOT is_active, updated_at = NOW()
-      WHERE id = $1 AND tenant_id::text = $2::text
+      WHERE id::text = $1::text AND tenant_id::text = $2::text
       RETURNING *
     `, [accountId, tenantId]);
 
@@ -796,7 +886,7 @@ exports.toggleWhatsAppAccount = async (req, res) => {
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error('[WhatsApp toggleWhatsAppAccount]', err.message);
-    res.status(500).json({ status: 'error', message: 'Failed to update account status' });
+    res.status(500).json({ status: 'error', message: err.message || 'Failed to update account status' });
   }
 };
 
@@ -825,21 +915,21 @@ exports.getConversations = async (req, res) => {
         cust.name AS customer_actual_name,
         cust.email AS customer_email
       FROM whatsapp_conversations c
-      LEFT JOIN whatsapp_accounts a ON c.account_id = a.id
-      LEFT JOIN users u ON c.assigned_user_id = u.id
-      LEFT JOIN customers cust ON c.customer_id = cust.id
+      LEFT JOIN whatsapp_accounts a ON c.account_id::text = a.id::text
+      LEFT JOIN users u ON c.assigned_user_id::text = u.id::text
+      LEFT JOIN customers cust ON c.customer_id::text = cust.id::text
       WHERE c.tenant_id::text = $1::text
     `;
     const params = [tenantId];
 
     if (accountId && accountId !== 'all') {
       params.push(accountId);
-      query += ` AND c.account_id = $${params.length}`;
+      query += ` AND c.account_id::text = $${params.length}::text`;
     }
 
     if (scope === 'my') {
       params.push(userId);
-      query += ` AND c.assigned_user_id = $${params.length}`;
+      query += ` AND c.assigned_user_id::text = $${params.length}::text`;
     } else if (scope === 'unassigned') {
       query += ` AND c.assigned_user_id IS NULL`;
     }
@@ -853,10 +943,10 @@ exports.getConversations = async (req, res) => {
     query += ` ORDER BY c.last_message_at DESC NULLS LAST LIMIT 100`;
 
     const result = await db.query(query, params);
-    res.json({ status: 'success', data: result.rows });
+    res.json({ status: 'success', data: result.rows || [] });
   } catch (err) {
-    console.error('[WhatsApp getConversations]', err.message);
-    res.status(500).json({ status: 'error', message: 'Failed to retrieve conversations' });
+    console.error('[WhatsApp getConversations]', err);
+    res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve conversations' });
   }
 };
 
@@ -877,9 +967,9 @@ exports.getMessages = async (req, res) => {
         cust.name AS customer_actual_name,
         cust.email AS customer_email
       FROM whatsapp_conversations c
-      LEFT JOIN whatsapp_accounts a ON c.account_id = a.id
-      LEFT JOIN users u ON c.assigned_user_id = u.id
-      LEFT JOIN customers cust ON c.customer_id = cust.id
+      LEFT JOIN whatsapp_accounts a ON c.account_id::text = a.id::text
+      LEFT JOIN users u ON c.assigned_user_id::text = u.id::text
+      LEFT JOIN customers cust ON c.customer_id::text = cust.id::text
       WHERE c.id::text = $1::text AND c.tenant_id::text = $2::text
     `, [conversationId, tenantId]);
 
@@ -890,7 +980,7 @@ exports.getMessages = async (req, res) => {
     const messagesRes = await db.query(`
       SELECT m.*, u.name AS sender_name
       FROM whatsapp_messages m
-      LEFT JOIN users u ON m.sender_id = u.id
+      LEFT JOIN users u ON m.sender_id::text = u.id::text
       WHERE m.conversation_id::text = $1::text AND m.tenant_id::text = $2::text
       ORDER BY m.created_at ASC
     `, [conversationId, tenantId]);
@@ -906,12 +996,12 @@ exports.getMessages = async (req, res) => {
       status: 'success',
       data: {
         conversation: convRes.rows[0],
-        messages: messagesRes.rows
+        messages: messagesRes.rows || []
       }
     });
   } catch (err) {
-    console.error('[WhatsApp getMessages]', err.message);
-    res.status(500).json({ status: 'error', message: 'Failed to retrieve messages' });
+    console.error('[WhatsApp getMessages]', err);
+    res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve messages' });
   }
 };
 
@@ -933,8 +1023,8 @@ exports.sendMessage = async (req, res) => {
         COALESCE(a.access_token, s.access_token) AS access_token,
         s.phone_number_id AS default_phone_id
       FROM whatsapp_conversations c
-      LEFT JOIN whatsapp_accounts a ON c.account_id = a.id
-      LEFT JOIN whatsapp_settings s ON c.tenant_id = s.tenant_id
+      LEFT JOIN whatsapp_accounts a ON c.account_id::text = a.id::text
+      LEFT JOIN whatsapp_settings s ON c.tenant_id::text = s.tenant_id::text
       WHERE c.id::text = $1::text AND c.tenant_id::text = $2::text
     `, [conversationId, tenantId]);
 
@@ -1098,26 +1188,56 @@ exports.startNewChat = async (req, res) => {
     }
 
     // 3. Idempotent conversation upsert
-    const upsertRes = await db.query(`
-      INSERT INTO whatsapp_conversations (
-        tenant_id, account_id, assigned_user_id, phone_number, contact_name, customer_id
-      )
-      VALUES ($1, $2, $3, $4, $5, $6)
-      ON CONFLICT (tenant_id, phone_number, account_id)
-      DO UPDATE SET
-        contact_name = COALESCE(EXCLUDED.contact_name, whatsapp_conversations.contact_name),
-        customer_id = COALESCE(EXCLUDED.customer_id, whatsapp_conversations.customer_id)
-      RETURNING *
-    `, [
-      tenantId,
-      resolvedAccountId || null,
-      userId,
-      normPhone,
-      effectiveName || normPhone,
-      effectiveCustomerId
-    ]);
+    let conversation = null;
+    try {
+      const upsertRes = await db.query(`
+        INSERT INTO whatsapp_conversations (
+          tenant_id, account_id, assigned_user_id, phone_number, contact_name, customer_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (tenant_id, phone_number, account_id)
+        DO UPDATE SET
+          contact_name = COALESCE(EXCLUDED.contact_name, whatsapp_conversations.contact_name),
+          customer_id = COALESCE(EXCLUDED.customer_id, whatsapp_conversations.customer_id)
+        RETURNING *
+      `, [
+        tenantId,
+        resolvedAccountId || null,
+        userId,
+        normPhone,
+        effectiveName || normPhone,
+        effectiveCustomerId
+      ]);
+      conversation = upsertRes.rows[0];
+    } catch (upsertErr) {
+      // Resilient fallback if constraint conflict target differs
+      const existing = await db.query(`
+        SELECT * FROM whatsapp_conversations
+        WHERE tenant_id::text = $1::text AND phone_number = $2
+        ORDER BY last_message_at DESC NULLS LAST
+        LIMIT 1
+      `, [tenantId, normPhone]);
 
-    const conversation = upsertRes.rows[0];
+      if (existing.rows.length > 0) {
+        conversation = existing.rows[0];
+      } else {
+        const insertRes = await db.query(`
+          INSERT INTO whatsapp_conversations (
+            tenant_id, account_id, assigned_user_id, phone_number, contact_name, customer_id
+          )
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING *
+        `, [
+          tenantId,
+          resolvedAccountId || null,
+          userId,
+          normPhone,
+          effectiveName || normPhone,
+          effectiveCustomerId
+        ]);
+        conversation = insertRes.rows[0];
+      }
+    }
 
     // 4. Send initial message if requested
     let messageRow = null;
@@ -1154,7 +1274,7 @@ exports.startNewChat = async (req, res) => {
 
   } catch (err) {
     console.error('[WhatsApp startNewChat]', err.message);
-    res.status(500).json({ status: 'error', message: err.message });
+    res.status(500).json({ status: 'error', message: err.message || 'Failed to start conversation' });
   }
 };
 
@@ -1172,16 +1292,20 @@ exports.assignConversation = async (req, res) => {
       SET assigned_user_id = $1, updated_at = NOW()
       WHERE id::text = $2::text AND tenant_id::text = $3::text
       RETURNING *
-    `, [assigned_user_id || null, conversationId, tenantId]);
+    `, [assigned_user_id ? parseInt(assigned_user_id, 10) : null, conversationId, tenantId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Conversation not found' });
     }
 
-    res.json({ status: 'success', data: result.rows[0] });
+    res.json({
+      status: 'success',
+      message: 'Conversation assigned successfully',
+      data: result.rows[0]
+    });
   } catch (err) {
     console.error('[WhatsApp assignConversation]', err.message);
-    res.status(500).json({ status: 'error', message: 'Failed to assign conversation' });
+    res.status(500).json({ status: 'error', message: err.message || 'Failed to assign conversation' });
   }
 };
 
@@ -1212,34 +1336,41 @@ function verifyMetaSignature(req, appSecret) {
 // @desc    Meta Webhook Verification (Handshake)
 // @route   GET /api/whatsapp/webhook
 exports.handleWebhookVerification = async (req, res) => {
-  await ensureWhatsAppTable();
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode !== 'subscribe' || !token) {
-    return res.status(400).send('Invalid verification request');
+  if (!mode || !token) {
+    return res.status(400).send('Missing webhook verification parameters');
   }
 
-  try {
-    // Check if token matches any tenant settings
-    const matchRes = await db.query(`
-      SELECT tenant_id FROM whatsapp_settings WHERE meta_webhook_verify_token = $1
-      UNION
-      SELECT tenant_id FROM meta_integration_settings WHERE meta_webhook_verify_token = $1
-    `, [token]);
-
-    if (matchRes.rows.length > 0 || (process.env.META_WEBHOOK_VERIFY_TOKEN && token === process.env.META_WEBHOOK_VERIFY_TOKEN)) {
-      console.log('✅ [WhatsApp Webhook] Handshake verified successfully');
+  if (mode === 'subscribe') {
+    const configuredToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
+    if (configuredToken && token === configuredToken) {
+      console.log('✅ [WhatsApp Webhook] Global verification token matched');
       return res.status(200).send(challenge);
     }
 
-    console.warn('⚠️ [WhatsApp Webhook] Token mismatch for token:', token);
-    return res.status(403).send('Forbidden: Token mismatch');
-  } catch (err) {
-    console.error('[WhatsApp Webhook Verify Error]', err.message);
-    return res.status(500).send('Server Error');
+    try {
+      await ensureWhatsAppTable();
+      const sRes = await db.query(`
+        SELECT tenant_id FROM whatsapp_settings
+        WHERE meta_webhook_verify_token = $1
+        LIMIT 1
+      `, [token]);
+
+      if (sRes.rows.length > 0) {
+        console.log(`✅ [WhatsApp Webhook] Tenant ${sRes.rows[0].tenant_id} verification token matched`);
+        return res.status(200).send(challenge);
+      }
+    } catch (err) {
+      console.error('[WhatsApp Webhook Verification DB Error]', err.message);
+    }
+
+    return res.status(403).send('Verification token mismatch');
   }
+
+  res.status(400).send('Invalid mode');
 };
 
 // @desc    Meta Webhook Event Ingestion (Real-Time Inbound Messages & Monotonic Statuses)
@@ -1276,7 +1407,7 @@ exports.handleWebhookEvent = async (req, res) => {
             COALESCE(a.access_token, s.access_token) AS access_token,
             s.meta_app_secret
           FROM whatsapp_accounts a
-          LEFT JOIN whatsapp_settings s ON a.tenant_id = s.tenant_id
+          LEFT JOIN whatsapp_settings s ON a.tenant_id::text = s.tenant_id::text
           WHERE a.phone_number_id = $1 AND a.is_active = TRUE
         `, [phoneNumberId]);
 
