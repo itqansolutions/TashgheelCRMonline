@@ -130,6 +130,51 @@ async function resolveActualPhoneNumberId(idOrWabaId, accessToken) {
     } catch (err) {
       console.log(`[WhatsApp] Direct /phone_numbers failed for ID ${cleanId}:`, err.response?.data?.error?.message || err.message);
     }
+
+    // 1.5 If cleanId is a Phone Number ID, inspect it directly and discover parent WABA
+    try {
+      const directPhoneRes = await axios.get(`${WA_BASE_URL}/${cleanId}`, {
+        params: { fields: 'id,display_phone_number,verified_name,code_verification_status,quality_rating,whatsapp_business_account' },
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000
+      });
+      const p = directPhoneRes.data;
+      if (p && p.id && p.display_phone_number) {
+        console.log(`💡 [WhatsApp] Inspected Phone Number ID ${cleanId}: ${p.display_phone_number} (${p.verified_name || ''})`);
+        let allNumbers = [{
+          id: p.id,
+          display_phone_number: p.display_phone_number,
+          verified_name: p.verified_name || 'WhatsApp Business',
+          quality_rating: p.quality_rating || 'UNKNOWN'
+        }];
+
+        const parentWabaId = p.whatsapp_business_account?.id;
+        if (parentWabaId) {
+          try {
+            const wRes = await axios.get(`${WA_BASE_URL}/${parentWabaId}/phone_numbers`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+              timeout: 10000
+            });
+            const wNumbers = wRes.data?.data || [];
+            if (wNumbers.length > 0) {
+              allNumbers = wNumbers;
+            }
+          } catch (e) {
+            console.warn(`[WhatsApp] Failed to query parent WABA ${parentWabaId} phone_numbers:`, e.message);
+          }
+        }
+
+        return {
+          phoneNumberId: p.id,
+          displayPhoneNumber: p.display_phone_number,
+          verifiedName: p.verified_name,
+          wabaId: parentWabaId || null,
+          allNumbers
+        };
+      }
+    } catch (err) {
+      console.log(`[WhatsApp] Direct phone inspect failed for ID ${cleanId}:`, err.response?.data?.error?.message || err.message);
+    }
   }
 
   // 2. Discover via assigned_whatsapp_business_accounts
@@ -1112,45 +1157,106 @@ async function downloadAndStoreMedia({ mediaId, accessToken, tenantId }) {
 async function syncWabaPhoneNumbers({ tenantId, wabaId, accessToken }) {
   let token = accessToken;
   let targetWaba = wabaId;
+  let targetPhoneId = null;
 
-  if (!token || !targetWaba) {
-    const sRes = await db.query(
-      'SELECT access_token, phone_number_id FROM whatsapp_settings WHERE tenant_id::text = $1::text',
-      [tenantId]
-    );
-    if (sRes.rows.length > 0) {
-      token = token || sRes.rows[0].access_token;
-      targetWaba = targetWaba || sRes.rows[0].phone_number_id;
-    }
+  const sRes = await db.query(
+    'SELECT access_token, phone_number_id, waba_id FROM whatsapp_settings WHERE tenant_id::text = $1::text',
+    [tenantId]
+  );
+  if (sRes.rows.length > 0) {
+    token = token || sRes.rows[0].access_token;
+    targetWaba = targetWaba || sRes.rows[0].waba_id;
+    targetPhoneId = sRes.rows[0].phone_number_id;
   }
 
   if (!token) {
     throw new Error('No WhatsApp access token available for this organization');
   }
 
-  let numbers = [];
-  const resolved = await resolveActualPhoneNumberId(targetWaba, token);
-  if (resolved?.allNumbers && resolved.allNumbers.length > 0) {
-    numbers = resolved.allNumbers;
-  } else if (targetWaba) {
+  const foundNumbersMap = new Map();
+
+  const addNumber = (num) => {
+    if (!num || !num.id) return;
+    const strId = String(num.id).trim();
+    if (!foundNumbersMap.has(strId)) {
+      foundNumbersMap.set(strId, {
+        id: strId,
+        display_phone_number: num.display_phone_number || num.id,
+        verified_name: num.verified_name || 'WhatsApp Business',
+        quality_rating: num.quality_rating || 'UNKNOWN'
+      });
+    }
+  };
+
+  // 1. If we have a WABA ID, query its phone numbers directly
+  if (targetWaba) {
     try {
       const pRes = await axios.get(`${WA_BASE_URL}/${targetWaba}/phone_numbers`, {
         headers: { Authorization: `Bearer ${token}` },
         timeout: 10000
       });
-      numbers = pRes.data?.data || [];
+      const arr = pRes.data?.data || [];
+      arr.forEach(addNumber);
     } catch (e) {
-      console.warn('[WhatsApp] Direct WABA phone_numbers fetch failed:', e.message);
+      console.warn('[WhatsApp] Direct WABA fetch failed:', e.response?.data?.error?.message || e.message);
     }
   }
 
-  if (numbers.length === 0 && resolved?.phoneNumberId) {
-    numbers = [{
-      id: resolved.phoneNumberId,
-      display_phone_number: resolved.displayPhoneNumber || 'Primary Number',
-      verified_name: resolved.verifiedName || 'WhatsApp Account'
-    }];
+  // 2. Inspect the configured phone number ID directly to get verified details and parent WABA
+  const phoneToInspect = targetPhoneId || (!targetWaba?.startsWith('waba_') ? targetWaba : null);
+  if (phoneToInspect) {
+    try {
+      const directPhoneRes = await axios.get(`${WA_BASE_URL}/${phoneToInspect}`, {
+        params: { fields: 'id,display_phone_number,verified_name,code_verification_status,quality_rating,whatsapp_business_account' },
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000
+      });
+      const p = directPhoneRes.data;
+      if (p && p.id && p.display_phone_number) {
+        addNumber(p);
+
+        // Discovered parent WABA ID: fetch all numbers under it and persist WABA ID
+        const parentWabaId = p.whatsapp_business_account?.id;
+        if (parentWabaId) {
+          try {
+            await db.query(
+              `UPDATE whatsapp_settings 
+               SET waba_id = $1 
+               WHERE tenant_id::text = $2::text AND (waba_id IS NULL OR waba_id = '')`,
+              [parentWabaId, tenantId]
+            );
+
+            const wRes = await axios.get(`${WA_BASE_URL}/${parentWabaId}/phone_numbers`, {
+              headers: { Authorization: `Bearer ${token}` },
+              timeout: 10000
+            });
+            const wArr = wRes.data?.data || [];
+            wArr.forEach(addNumber);
+          } catch (wErr) {
+            console.warn('[WhatsApp] Sister numbers fetch failed for WABA:', wErr.response?.data?.error?.message || wErr.message);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[WhatsApp] Direct phone inspect failed:', e.response?.data?.error?.message || e.message);
+    }
   }
+
+  // 3. Fallback to general discovery
+  if (foundNumbersMap.size === 0) {
+    const resolved = await resolveActualPhoneNumberId(targetWaba || targetPhoneId, token);
+    if (resolved?.allNumbers && resolved.allNumbers.length > 0) {
+      resolved.allNumbers.forEach(addNumber);
+    } else if (resolved?.phoneNumberId) {
+      addNumber({
+        id: resolved.phoneNumberId,
+        display_phone_number: resolved.displayPhoneNumber,
+        verified_name: resolved.verifiedName
+      });
+    }
+  }
+
+  const numbers = Array.from(foundNumbersMap.values());
 
   if (numbers.length === 0) {
     throw new Error('No WhatsApp phone numbers found for this Meta Business account.');
