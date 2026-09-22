@@ -158,9 +158,9 @@ exports.getWarehouses = async (req, res) => {
                     '[]'::json
                 ) as keepers
             FROM warehouses w
-            WHERE w.tenant_id::text = $1::text AND (w.branch_id::text = $2::text OR $2 IS NULL)
+            WHERE (w.tenant_id::text = $1::text OR ($1 IS NULL AND w.tenant_id IS NULL)) AND (w.branch_id::text = $2::text OR $2 IS NULL)
             ORDER BY w.name ASC
-        `, [tenant_id, branch_id || null]);
+        `, [tenant_id || null, branch_id || null]);
 
         res.json({ status: 'success', data: result.rows });
     } catch (err) {
@@ -373,12 +373,12 @@ exports.getWarehouseStock = async (req, res) => {
             LEFT JOIN stock_movements m 
                 ON p.id = m.product_id 
                 AND m.status = 'approved' 
-                AND m.tenant_id::text = $2::text
+                AND (m.tenant_id::text = $2::text OR ($2 IS NULL AND m.tenant_id IS NULL))
                 AND (m.to_warehouse_id = $1 OR m.from_warehouse_id = $1)
-            WHERE p.tenant_id::text = $2::text
+            WHERE (p.tenant_id::text = $2::text OR ($2 IS NULL AND p.tenant_id IS NULL))
             GROUP BY p.id
             ORDER BY p.name ASC
-        `, [warehouseId, tenant_id]);
+        `, [warehouseId, tenant_id || null]);
 
         const rowsWithValuation = result.rows.map(row => {
             const qty = parseFloat(row.quantity) || 0;
@@ -512,8 +512,8 @@ exports.recordStockTake = async (req, res) => {
                         END
                     ), 0) as current_stock
                 FROM stock_movements
-                WHERE product_id = $2 AND tenant_id::text = $3::text AND status = 'approved'
-            `, [warehouse_id, productId, tenant_id]);
+                WHERE product_id = $2 AND (tenant_id::text = $3::text OR ($3 IS NULL AND tenant_id IS NULL)) AND status = 'approved'
+            `, [warehouse_id, productId, tenant_id || null]);
 
             const systemQty = parseFloat(stockRes.rows[0]?.current_stock) || 0;
             const diff = actualQty - systemQty;

@@ -29,22 +29,34 @@ const StockBalances = () => {
 
   // 1. Fetch Warehouses
   const fetchWarehouses = async () => {
+    setLoading(true);
     try {
       const res = await api.get('/inventory/warehouses');
       const whs = res.data?.data || [];
       setWarehouses(whs);
-      if (whs.length > 0 && !selectedWarehouseId) {
-        setSelectedWarehouseId(String(whs[0].id));
+      if (whs.length > 0) {
+        const initialId = selectedWarehouseId && whs.some(w => String(w.id) === String(selectedWarehouseId))
+          ? selectedWarehouseId
+          : String(whs[0].id);
+        setSelectedWarehouseId(initialId);
+        fetchStock(initialId);
+      } else {
+        setStockItems([]);
+        setLoading(false);
       }
     } catch (err) {
       toast.error('Failed to load warehouses');
+      setLoading(false);
     }
   };
 
   // 2. Fetch Stock for Selected Warehouse
   const fetchStock = async (whId) => {
     const id = whId || selectedWarehouseId;
-    if (!id) return;
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await api.get(`/inventory/warehouses/${id}/stock`);
@@ -59,12 +71,6 @@ const StockBalances = () => {
   useEffect(() => {
     fetchWarehouses();
   }, []);
-
-  useEffect(() => {
-    if (selectedWarehouseId) {
-      fetchStock(selectedWarehouseId);
-    }
-  }, [selectedWarehouseId]);
 
   // Open Transfer Modal
   const handleOpenTransfer = (preselectedProduct = null) => {
@@ -198,7 +204,7 @@ const StockBalances = () => {
                 borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
               }}
             >
-              <ClipboardCheck size={16} /> Stock Taking / الجرد
+              <ClipboardCheck size={16} /> Stock Taking
             </button>
 
             <button
@@ -214,21 +220,66 @@ const StockBalances = () => {
           </div>
         </div>
 
-        {/* Warehouse Selector & Search Bar */}
-        <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '280px' }}>
-            <Building size={20} style={{ color: '#0ea5e9' }} />
-            <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155' }}>Warehouse:</label>
-            <select
-              value={selectedWarehouseId}
-              onChange={e => setSelectedWarehouseId(e.target.value)}
-              style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #0ea5e9', fontWeight: 700, outline: 'none', background: '#f0f9ff', color: '#0369a1', fontSize: '14px' }}
+        {warehouses.length === 0 && !loading ? (
+          <div style={{
+            background: 'white',
+            borderRadius: '16px',
+            border: '1px solid #e2e8f0',
+            padding: '60px 24px',
+            textAlign: 'center',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+            maxWidth: '560px',
+            margin: '40px auto'
+          }}>
+            <div style={{ width: '64px', height: '64px', background: '#f0f9ff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#0ea5e9' }}>
+              <Building size={32} />
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: '0 0 8px' }}>
+              No Warehouses Found
+            </h3>
+            <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 24px', lineHeight: 1.5 }}>
+              Please create at least one warehouse first to manage inventory levels, stock transfers, and physical stock counts.
+            </p>
+            <a
+              href="/inventory/warehouses"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 24px',
+                background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
+                color: 'white',
+                borderRadius: '10px',
+                fontWeight: 800,
+                textDecoration: 'none',
+                fontSize: '14px',
+                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)'
+              }}
             >
-              {warehouses.map(w => (
-                <option key={w.id} value={w.id}>{w.name} {w.code ? `(${w.code})` : ''}</option>
-              ))}
-            </select>
+              <Building size={16} /> Go to Warehouses
+            </a>
           </div>
+        ) : (
+          <>
+            {/* Warehouse Selector & Search Bar */}
+            <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '280px' }}>
+                <Building size={20} style={{ color: '#0ea5e9' }} />
+                <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155' }}>Warehouse:</label>
+                <select
+                  value={selectedWarehouseId}
+                  onChange={e => {
+                    const newId = e.target.value;
+                    setSelectedWarehouseId(newId);
+                    fetchStock(newId);
+                  }}
+                  style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #0ea5e9', fontWeight: 700, outline: 'none', background: '#f0f9ff', color: '#0369a1', fontSize: '14px' }}
+                >
+                  {warehouses.map(w => (
+                    <option key={w.id} value={w.id}>{w.name} {w.code ? `(${w.code})` : ''}</option>
+                  ))}
+                </select>
+              </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
             <Search size={18} style={{ color: '#94a3b8' }} />
@@ -320,6 +371,8 @@ const StockBalances = () => {
             </table>
           )}
         </div>
+        </>
+        )}
 
         {/* ── TRANSFER MODAL ── */}
         {showTransferModal && (
@@ -428,7 +481,7 @@ const StockBalances = () => {
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}>
                 <div>
                   <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <ClipboardCheck size={20} /> Stock Taking & Physical Count / جرد المخزن
+                    <ClipboardCheck size={20} /> Stock Taking & Physical Count
                   </h3>
                   <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>
                     Warehouse: <strong>{selectedWhObj?.name}</strong>. Enter actual counted quantities to auto-apply adjustments.

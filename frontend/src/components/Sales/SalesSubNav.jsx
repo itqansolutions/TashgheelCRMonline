@@ -4,7 +4,7 @@ import { Handshake, Users, Target as TargetIcon, ShoppingBag, FileText, Layers }
 
 const SalesSubNav = () => {
   const links = [
-    { path: '/deals', label: 'Deals (الصفقات)', icon: <Handshake size={16} /> },
+    { path: '/deals', label: 'Deals', icon: <Handshake size={16} /> },
     { path: '/sales/salesmen', label: 'Salesmen', icon: <Users size={16} /> },
     { path: '/sales/target', label: 'Target & Goals', icon: <TargetIcon size={16} /> },
     { path: '/sales/orders', label: 'Sales Orders', icon: <ShoppingBag size={16} /> },

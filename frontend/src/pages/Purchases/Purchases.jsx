@@ -187,7 +187,7 @@ const Purchases = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <ShoppingCart size={24} style={{ color: '#0ea5e9' }} /> Purchase Invoices (المشتريات)
+              <ShoppingCart size={24} style={{ color: '#0ea5e9' }} /> Purchase Invoices
             </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
               Record purchases from suppliers, automatically update warehouse stock, and track payable debt
@@ -289,7 +289,7 @@ const Purchases = () => {
             <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '780px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)' }}>
                 <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ShoppingCart size={20} /> Create Purchase Invoice / فاتورة مشتريات
+                  <ShoppingCart size={20} /> Create Purchase Invoice
                 </h3>
                 <button onClick={() => setShowModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>
                   <X size={18} />

@@ -60,7 +60,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   // Sales sub-items (Deals moved here)
   const salesItems = [
-    { name: 'Deals (الصفقات)',       icon: <Handshake size={18} />,   path: '/deals' },
+    { name: 'Deals',                 icon: <Handshake size={18} />,   path: '/deals' },
     { name: 'Sales Orders',          icon: <ShoppingBag size={18} />, path: '/sales/orders' },
     { name: 'Documents Hub',         icon: <FileCheck size={18} />,   path: '/sales/documents' },
     { name: 'Salesmen',              icon: <Users size={18} />,       path: '/sales/salesmen' },
@@ -83,7 +83,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const warehouseItems = [
     { name: 'Products',              icon: <ShoppingBag size={18} />,    path: '/products' },
     { name: 'Warehouses',            icon: <Building size={18} />,       path: '/inventory/warehouses' },
-    { name: 'Purchases (المشتريات)', icon: <ShoppingCart size={18} />,   path: '/purchases' },
+    { name: 'Purchases',             icon: <ShoppingCart size={18} />,   path: '/purchases' },
     { name: 'Balances',              icon: <Scale size={18} />,          path: '/inventory/balances' },
     { name: 'Movements Ledger',      icon: <ArrowLeftRight size={18} />, path: '/inventory/movements' },
     { name: 'Keepers',               icon: <ShieldCheck size={18} />,    path: '/inventory/keepers' },
@@ -92,10 +92,10 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   // Finance sub-items (Tab direct links added)
   const financeItems = [
-    { name: 'Invoices & Quotations',         icon: <FileText size={18} />,      path: '/finance?tab=Invoices' },
-    { name: 'Receipt Vouchers (سندات القبض)', icon: <ArrowDownLeft size={18} />, path: '/finance?tab=Receipts' },
-    { name: 'Payment Vouchers (سندات الصرف)', icon: <ArrowUpRight size={18} />,  path: '/finance?tab=Payments' },
-    { name: 'Expenses (المصروفات)',          icon: <DollarSign size={18} />,    path: '/finance?tab=Expenses' },
+    { name: 'Invoices & Quotations', icon: <FileText size={18} />,      path: '/finance?tab=Invoices' },
+    { name: 'Receipt Vouchers',      icon: <ArrowDownLeft size={18} />, path: '/finance?tab=Receipts' },
+    { name: 'Payment Vouchers',      icon: <ArrowUpRight size={18} />,  path: '/finance?tab=Payments' },
+    { name: 'Expenses',              icon: <DollarSign size={18} />,    path: '/finance?tab=Expenses' },
     { name: 'Chart of Accounts',             icon: <Wallet size={18} />,        path: '/erp/accounts' },
     { name: 'General Ledger',                icon: <BookOpen size={18} />,      path: '/erp/journals' },
     { name: 'Financial Reports',             icon: <BarChart3 size={18} />,     path: '/erp/reports' },

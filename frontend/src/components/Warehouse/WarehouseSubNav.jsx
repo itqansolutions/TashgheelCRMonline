@@ -7,7 +7,7 @@ const WarehouseSubNav = () => {
     { path: '/products', label: 'Products', icon: <ShoppingBag size={16} /> },
     { path: '/inventory/warehouses', label: 'Warehouses', icon: <Building size={16} /> },
     { path: '/inventory/balances', label: 'Stock Balances', icon: <Scale size={16} /> },
-    { path: '/purchases', label: 'Purchases (المشتريات)', icon: <ShoppingCart size={16} /> },
+    { path: '/purchases', label: 'Purchases', icon: <ShoppingCart size={16} /> },
     { path: '/inventory/movements', label: 'Movements Ledger', icon: <ArrowLeftRight size={16} /> },
   ];
 
