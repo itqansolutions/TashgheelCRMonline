@@ -56,6 +56,11 @@ let invoicesTableReady = false;
 const ensureInvoicesTable = async () => {
     if (invoicesTableReady) return;
     try {
+        const safeAlter = async (sql) => {
+            try { await db.query(sql); } catch (e) {}
+        };
+
+        // 1. Invoices Table
         await db.query(`
             CREATE TABLE IF NOT EXISTS invoices (
                 id SERIAL PRIMARY KEY,
@@ -71,16 +76,16 @@ const ensureInvoicesTable = async () => {
         `);
 
         // Add missing columns to invoices safely
-        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id VARCHAR(255);`);
-        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS customer_id VARCHAR(255);`);
-        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255);`);
-        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS unit_id VARCHAR(255);`);
-        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
-        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS notes TEXT;`);
-        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS accounting_status VARCHAR(20) DEFAULT 'unposted';`);
-        await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS journal_entry_id UUID;`);
+        await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id VARCHAR(255);`);
+        await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS customer_id VARCHAR(255);`);
+        await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255);`);
+        await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS unit_id VARCHAR(255);`);
+        await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
+        await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS notes TEXT;`);
+        await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS accounting_status VARCHAR(20) DEFAULT 'unposted';`);
+        await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS journal_entry_id UUID;`);
 
-        // Ensure invoice_items table and columns exist
+        // 2. Invoice Items Table
         await db.query(`
             CREATE TABLE IF NOT EXISTS invoice_items (
                 id SERIAL PRIMARY KEY,
@@ -94,22 +99,75 @@ const ensureInvoicesTable = async () => {
             );
         `);
 
-        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS tenant_id UUID;`);
-        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
-        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS description TEXT;`);
-        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS product_id INTEGER;`);
-        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS quantity NUMERIC DEFAULT 1;`);
-        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS unit_price DECIMAL(15, 2) DEFAULT 0.00;`);
-        await db.query(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS subtotal DECIMAL(15, 2) DEFAULT 0.00;`);
+        await safeAlter(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS tenant_id UUID;`);
+        await safeAlter(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
+        await safeAlter(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS description TEXT;`);
+        await safeAlter(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS product_id INTEGER;`);
+        await safeAlter(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS quantity NUMERIC DEFAULT 1;`);
+        await safeAlter(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS unit_price DECIMAL(15, 2) DEFAULT 0.00;`);
+        await safeAlter(`ALTER TABLE invoice_items ADD COLUMN IF NOT EXISTS subtotal DECIMAL(15, 2) DEFAULT 0.00;`);
 
-        // Ensure payments and expenses have tenant_id and branch_id
-        await db.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS tenant_id UUID;`);
-        await db.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
-        await db.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'cash';`);
-        await db.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS notes TEXT;`);
+        // 3. Payments Table (must exist for total_paid calculations)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS payments (
+                id SERIAL PRIMARY KEY,
+                invoice_id INTEGER,
+                amount DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+                payment_method VARCHAR(50) DEFAULT 'cash',
+                payment_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT,
+                tenant_id UUID,
+                branch_id VARCHAR(255),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await safeAlter(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS tenant_id UUID;`);
+        await safeAlter(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
+        await safeAlter(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'cash';`);
+        await safeAlter(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS notes TEXT;`);
 
-        await db.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS tenant_id UUID;`);
-        await db.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
+        // 4. Expenses Table
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS expenses (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255),
+                amount DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+                category VARCHAR(100) DEFAULT 'General',
+                expense_date DATE DEFAULT CURRENT_DATE,
+                recorded_by INTEGER,
+                tenant_id UUID,
+                branch_id VARCHAR(255),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await safeAlter(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS tenant_id UUID;`);
+        await safeAlter(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
+
+        // 5. Dependent join tables: re_units & deals
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS re_units (
+                id SERIAL PRIMARY KEY,
+                unit_number VARCHAR(100),
+                project_name VARCHAR(255),
+                status VARCHAR(50) DEFAULT 'Available',
+                tenant_id UUID,
+                branch_id VARCHAR(255),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS deals (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(255),
+                value DECIMAL(15, 2) DEFAULT 0.00,
+                client_id VARCHAR(255),
+                unit_id VARCHAR(255),
+                tenant_id UUID,
+                branch_id VARCHAR(255),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
 
         // Drop legacy global UNIQUE constraint on invoices(invoice_number) that breaks multi-tenancy
         try {
@@ -225,6 +283,9 @@ const generateVoucherNumber = async (tenant_id, branch_id, voucher_type) => {
 exports.getInvoices = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) {
+        branch_id = null;
+    }
 
     await ensureInvoicesTable();
 
@@ -232,24 +293,25 @@ exports.getInvoices = async (req, res) => {
         let query = `
             SELECT 
                 i.*,
-                COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text), 0) as total_paid,
-                (i.total_amount - COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text), 0)) as remaining_balance,
+                COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text AND (p.tenant_id IS NULL OR p.tenant_id::text = $1::text)), 0) as total_paid,
+                (i.total_amount - COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text AND (p.tenant_id IS NULL OR p.tenant_id::text = $1::text)), 0)) as remaining_balance,
                 c.name as customer_name,
-                u.unit_number, u.project_name
+                u.unit_number, u.project_name,
+                d.title as deal_title
             FROM invoices i
-            LEFT JOIN deals d ON i.deal_id::text = d.id::text AND i.tenant_id::text = d.tenant_id::text 
+            LEFT JOIN deals d ON (NULLIF(i.deal_id::text, '') IS NOT NULL AND i.deal_id::text = d.id::text AND (d.tenant_id IS NULL OR d.tenant_id::text = i.tenant_id::text))
             LEFT JOIN customers c ON (
-                (i.client_id IS NOT NULL AND i.client_id != '' AND i.client_id::text = c.id::text) OR 
-                (i.customer_id IS NOT NULL AND i.customer_id != '' AND i.customer_id::text = c.id::text)
+                (NULLIF(i.client_id::text, '') IS NOT NULL AND i.client_id::text = c.id::text) OR 
+                (NULLIF(i.customer_id::text, '') IS NOT NULL AND i.customer_id::text = c.id::text)
             )
-            LEFT JOIN re_units u ON i.unit_id::text = u.id::text
+            LEFT JOIN re_units u ON (NULLIF(i.unit_id::text, '') IS NOT NULL AND i.unit_id::text = u.id::text)
             WHERE i.tenant_id::text = $1::text
         `;
         const params = [tenant_id];
 
         if (branch_id) {
             params.push(String(branch_id));
-            query += ` AND (i.branch_id::text = $2::text OR i.branch_id IS NULL)`;
+            query += ` AND (i.branch_id::text = $${params.length}::text OR i.branch_id IS NULL)`;
         }
 
         query += ` ORDER BY i.created_at DESC`;
@@ -258,7 +320,7 @@ exports.getInvoices = async (req, res) => {
         res.json({ status: 'success', data: result.rows });
     } catch (err) {
         console.error('getInvoices Error:', err.message);
-        res.status(500).json({ status: 'error', message: 'Failed to retrieve invoices.' });
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve invoices.' });
     }
 };
 
@@ -593,6 +655,9 @@ exports.createInvoicePaymentDirect = async (req, res) => {
 exports.getInvoiceDetails = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) {
+        branch_id = null;
+    }
     const invoice_id = req.params.id;
 
     await ensureInvoicesTable();
@@ -605,18 +670,18 @@ exports.getInvoiceDetails = async (req, res) => {
                    (i.total_amount - COALESCE(p.total_paid, 0)) as remaining_balance 
             FROM invoices i
             LEFT JOIN (SELECT invoice_id, SUM(amount) as total_paid FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id) p ON i.id::text = p.invoice_id::text
-            LEFT JOIN re_units u ON i.unit_id::text = u.id::text
+            LEFT JOIN re_units u ON (NULLIF(i.unit_id::text, '') IS NOT NULL AND i.unit_id::text = u.id::text)
             LEFT JOIN customers c ON (
-                (i.client_id IS NOT NULL AND i.client_id != '' AND i.client_id::text = c.id::text) OR 
-                (i.customer_id IS NOT NULL AND i.customer_id != '' AND i.customer_id::text = c.id::text)
+                (NULLIF(i.client_id::text, '') IS NOT NULL AND i.client_id::text = c.id::text) OR 
+                (NULLIF(i.customer_id::text, '') IS NOT NULL AND i.customer_id::text = c.id::text)
             )
-            WHERE i.id = $2 AND i.tenant_id::text = $1::text
+            WHERE i.id::text = $2::text AND i.tenant_id::text = $1::text
         `;
         const invParams = [tenant_id, invoice_id];
 
         if (branch_id) {
             invParams.push(String(branch_id));
-            invQuery += ` AND (i.branch_id::text = $3::text OR i.branch_id IS NULL)`;
+            invQuery += ` AND (i.branch_id::text = $${invParams.length}::text OR i.branch_id IS NULL)`;
         }
 
         const invRes = await db.query(invQuery, invParams);
@@ -630,10 +695,10 @@ exports.getInvoiceDetails = async (req, res) => {
                 p.name as product_name
             FROM invoice_items ii
             LEFT JOIN products p ON ii.product_id = p.id
-            WHERE ii.invoice_id = $1 
+            WHERE ii.invoice_id::text = $1::text 
             ORDER BY ii.id ASC
         `, [invoice_id]);
-        const paymentsRes = await db.query('SELECT * FROM payments WHERE invoice_id = $1 ORDER BY payment_date DESC', [invoice_id]);
+        const paymentsRes = await db.query('SELECT * FROM payments WHERE invoice_id::text = $1::text ORDER BY payment_date DESC', [invoice_id]);
 
         res.json({
             status: 'success',
@@ -644,8 +709,8 @@ exports.getInvoiceDetails = async (req, res) => {
             }
         });
     } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ status: 'error', message: 'Failed to retrieve invoice details.' });
+        console.error('getInvoiceDetails Error:', err.message);
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve invoice details.' });
     }
 };
 
@@ -948,8 +1013,8 @@ exports.getIncome = async (req, res) => {
             FROM payments p
             JOIN invoices i ON p.invoice_id::text = i.id::text
             LEFT JOIN customers c ON (
-                (i.client_id IS NOT NULL AND i.client_id != '' AND i.client_id::text = c.id::text) OR 
-                (i.customer_id IS NOT NULL AND i.customer_id != '' AND i.customer_id::text = c.id::text)
+                (NULLIF(i.client_id::text, '') IS NOT NULL AND i.client_id::text = c.id::text) OR 
+                (NULLIF(i.customer_id::text, '') IS NOT NULL AND i.customer_id::text = c.id::text)
             )
             WHERE p.tenant_id::text = $1::text 
               AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
