@@ -616,6 +616,14 @@ exports.handleWebhookVerification = async (req, res) => {
       console.error('[Meta Webhook] Verification lookup failed:', err.message);
     }
 
+    // Fallback: check if this is a WhatsApp webhook verification token
+    try {
+      const whatsappController = require('./whatsappController');
+      return whatsappController.handleWebhookVerification(req, res);
+    } catch (waErr) {
+      console.error('[Meta Webhook] WhatsApp verification fallback failed:', waErr.message);
+    }
+
     console.warn('⚠️ [Meta Webhook] Verification token mismatch.');
     return res.sendStatus(403);
   }
@@ -627,6 +635,13 @@ exports.handleWebhookVerification = async (req, res) => {
 // @route   POST /api/meta/webhook
 // @access  Public
 exports.handleWebhookEvent = async (req, res) => {
+  const body = req.body || {};
+  if (body.object === 'whatsapp_business_account') {
+    console.log('🔄 [Meta Webhook] Forwarding WhatsApp payload from /api/meta/webhook to whatsappController');
+    const whatsappController = require('./whatsappController');
+    return whatsappController.handleWebhookEvent(req, res);
+  }
+
   let tenantId;
   try {
     await ensureMetaFormsTable();
@@ -644,7 +659,6 @@ exports.handleWebhookEvent = async (req, res) => {
   // Acknowledge only after the Meta HMAC signature has been verified.
   res.status(200).send('EVENT_RECEIVED');
 
-  const body = req.body || {};
   if (body.object === 'page') {
     for (const entry of (body.entry || [])) {
       for (const change of (entry.changes || [])) {
