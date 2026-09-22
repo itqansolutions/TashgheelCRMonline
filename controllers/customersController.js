@@ -222,6 +222,22 @@ exports.createCustomer = async (req, res) => {
         company_name: { to: company_name }
     });
 
+    // Trigger automated greeting sequence if configured for manual_customer trigger
+    if (phone) {
+      try {
+        const { triggerGreetingIfConfigured } = require('../services/chatbotRunnerService');
+        triggerGreetingIfConfigured({
+          tenantId: tenant_id,
+          customerId: result.rows[0].id,
+          phone,
+          name,
+          triggerType: 'manual_customer'
+        }).catch(e => console.warn('[Manual Customer Greeting Warning]:', e.message));
+      } catch (e) {
+        // non-blocking
+      }
+    }
+
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error('[Create Customer Error]', err.message);

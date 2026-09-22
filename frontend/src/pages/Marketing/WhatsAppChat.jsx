@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import {
   MessageSquare, Send, Search, User, UserCheck, Clock, AlertCircle,
   Check, CheckCheck, RefreshCw, Plus, Phone, Shield, ExternalLink,
   FileText, Image as ImageIcon, Paperclip, ChevronRight, Info, Sparkles,
-  X, Filter, ArrowLeft, MoreVertical, Users
+  X, Filter, ArrowLeft, MoreVertical, Users, Bot
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 import { useAuth } from '../../context/AuthContext';
 
 const WhatsAppChat = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Data states
   const [conversations, setConversations] = useState([]);
@@ -31,6 +33,7 @@ const WhatsAppChat = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [messageInput, setMessageInput] = useState('');
+  const [takingOver, setTakingOver] = useState(false);
 
   // Modals
   const [showStartChatModal, setShowStartChatModal] = useState(false);
@@ -340,6 +343,34 @@ const WhatsAppChat = () => {
   };
 
   // -------------------------------------------------------------------------
+  // Take Over Conversation (Pause Bot and Assign to Current User)
+  // -------------------------------------------------------------------------
+  const handleTakeOverChat = async () => {
+    if (!activeConversationId) return;
+    setTakingOver(true);
+    try {
+      const res = await api.post(`/whatsapp/conversations/${activeConversationId}/takeover`);
+      toast.success(res.data?.message || 'تم استلام المحادثة وإيقاف الشات بوت بنجاح');
+      
+      const updatedData = res.data?.data;
+      setConversations(prev =>
+        prev.map(c => c.id === activeConversationId ? {
+          ...c,
+          bot_status: 'handed_off',
+          assigned_user_id: user?.id,
+          assigned_user_name: user?.name,
+          ...(updatedData || {})
+        } : c)
+      );
+      fetchMessages(activeConversationId, true);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل تولي المحادثة');
+    } finally {
+      setTakingOver(false);
+    }
+  };
+
+  // -------------------------------------------------------------------------
   // Start New Chat
   // -------------------------------------------------------------------------
   const handleStartNewChat = async (e) => {
@@ -440,6 +471,20 @@ const WhatsAppChat = () => {
           >
             <RefreshCw size={16} />
           </button>
+
+          {['admin', 'manager'].includes(user?.role) && (
+            <button
+              onClick={() => navigate('/marketing/whatsapp-chatbots')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '8px 14px', borderRadius: '10px',
+                background: '#f5f3ff', color: '#6d28d9', fontWeight: 700, fontSize: '13px',
+                border: '1px solid #ddd6fe', cursor: 'pointer', transition: 'all 0.15s'
+              }}
+            >
+              <Bot size={15} /> ChatBots
+            </button>
+          )}
 
           <button
             onClick={() => setShowStartChatModal(true)}
@@ -704,6 +749,16 @@ const WhatsAppChat = () => {
                           Unassigned
                         </span>
                       )}
+                      {conv.bot_status === 'active' && (
+                        <span style={{ background: '#f5f3ff', color: '#7c3aed', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                          🤖 Bot
+                        </span>
+                      )}
+                      {conv.bot_status === 'waiting_agent' && (
+                        <span style={{ background: '#fef3c7', color: '#b45309', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                          🟡 Waiting
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -753,7 +808,77 @@ const WhatsAppChat = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {/* Bot Status & Takeover Action */}
+                  {activeConv.bot_status === 'active' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{
+                        display: 'flex', alignItems: 'center', gap: '5px',
+                        background: '#f5f3ff', border: '1px solid #ddd6fe',
+                        padding: '4px 10px', borderRadius: '20px',
+                        fontSize: '11px', fontWeight: 700, color: '#6d28d9'
+                      }}>
+                        <Bot size={13} />
+                        <span>Bot Active</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleTakeOverChat}
+                        disabled={takingOver}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                          background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+                          color: 'white', border: 'none', padding: '5px 12px',
+                          borderRadius: '8px', fontSize: '11px', fontWeight: 700,
+                          cursor: takingOver ? 'not-allowed' : 'pointer',
+                          boxShadow: '0 2px 6px rgba(109,40,217,0.25)',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <UserCheck size={13} />
+                        {takingOver ? 'جاري الاستلام...' : 'Take Over Chat (تولي المحادثة)'}
+                      </button>
+                    </div>
+                  )}
+
+                  {activeConv.bot_status === 'waiting_agent' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{
+                        display: 'flex', alignItems: 'center', gap: '5px',
+                        background: '#fffbeb', border: '1px solid #fde68a',
+                        padding: '4px 10px', borderRadius: '20px',
+                        fontSize: '11px', fontWeight: 700, color: '#b45309'
+                      }}>
+                        <span>🟡 Waiting for Agent</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleTakeOverChat}
+                        disabled={takingOver}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                          background: '#f59e0b', color: 'white', border: 'none',
+                          padding: '5px 12px', borderRadius: '8px',
+                          fontSize: '11px', fontWeight: 700,
+                          cursor: takingOver ? 'not-allowed' : 'pointer',
+                          boxShadow: '0 2px 6px rgba(245,158,11,0.25)'
+                        }}
+                      >
+                        <UserCheck size={13} />
+                        {takingOver ? 'جاري الاستلام...' : 'Assign to Me (استلام)'}
+                      </button>
+                    </div>
+                  )}
+
+                  {activeConv.bot_status === 'handed_off' && (
+                    <span style={{
+                      fontSize: '11px', color: '#64748b', background: '#f1f5f9',
+                      padding: '3px 8px', borderRadius: '6px', fontWeight: 600
+                    }}>
+                      👤 Handed Off
+                    </span>
+                  )}
+
                   {/* 24-hour service window pill */}
                   <div style={{
                     display: 'flex',

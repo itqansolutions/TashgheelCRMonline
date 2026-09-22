@@ -335,21 +335,37 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
         ? targetCustomer.name.trim()
         : targetCustomer.phone;
 
-      const waResult = await sendWelcomeMessage({
+      const { triggerGreetingIfConfigured } = require('./chatbotRunnerService');
+      const greetResult = await triggerGreetingIfConfigured({
         phone: targetCustomer.phone,
-        customerName: customerDisplayName,
-        tenantId
+        name: customerDisplayName,
+        customerId: targetCustomer.id,
+        tenantId,
+        triggerType: 'meta_lead'
       });
 
-      if (waResult.sent) {
+      if (greetResult.sent) {
         whatsappSent = true;
         await db.query(
           `UPDATE customers SET whatsapp_welcome_sent = TRUE, whatsapp_welcome_sent_at = NOW() WHERE id = $1`,
           [targetCustomer.id]
         ).catch(() => {});
-        console.log(`📱 [WhatsApp] Welcome message successfully sent to customer #${targetCustomer.id} (${customerDisplayName})`);
+        console.log(`📱 [WhatsApp] Auto-greeting successfully sent to Meta lead #${targetCustomer.id} (${customerDisplayName})`);
       } else {
-        console.log(`ℹ️ [WhatsApp] Welcome message skipped or failed for customer #${targetCustomer.id}`);
+        const waResult = await sendWelcomeMessage({
+          phone: targetCustomer.phone,
+          customerName: customerDisplayName,
+          tenantId
+        });
+
+        if (waResult.sent) {
+          whatsappSent = true;
+          await db.query(
+            `UPDATE customers SET whatsapp_welcome_sent = TRUE, whatsapp_welcome_sent_at = NOW() WHERE id = $1`,
+            [targetCustomer.id]
+          ).catch(() => {});
+          console.log(`📱 [WhatsApp] Welcome message successfully sent to customer #${targetCustomer.id} (${customerDisplayName})`);
+        }
       }
     } catch (waErr) {
       console.warn('[WhatsApp Welcome Message Error]', waErr.message);

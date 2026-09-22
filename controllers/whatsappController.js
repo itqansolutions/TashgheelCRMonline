@@ -249,6 +249,69 @@ async function ensureWhatsAppTable() {
     await safeExec(`CREATE INDEX IF NOT EXISTS idx_wa_msgs_conv ON whatsapp_messages(conversation_id, created_at ASC);`, 'index msgs conv');
     await safeExec(`CREATE INDEX IF NOT EXISTS idx_wa_msgs_meta_id ON whatsapp_messages(meta_message_id);`, 'index msgs meta_id');
 
+    // 7. WhatsApp Automated Greeting in whatsapp_settings
+    await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS auto_greeting_enabled BOOLEAN DEFAULT FALSE;`, 'col auto_greeting_enabled');
+    await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS auto_greeting_triggers TEXT[] DEFAULT ARRAY['meta_lead'];`, 'col auto_greeting_triggers');
+    await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS auto_greeting_template VARCHAR(100);`, 'col auto_greeting_template');
+    await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS auto_greeting_language VARCHAR(10) DEFAULT 'ar';`, 'col auto_greeting_language');
+
+    // 8. Bot State in whatsapp_conversations
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS bot_id UUID;`, 'conv col bot_id');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS bot_session_id UUID;`, 'conv col bot_session_id');
+    await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS bot_status VARCHAR(30) DEFAULT 'idle';`, 'conv col bot_status');
+
+    // 9. WhatsApp Chatbots Table
+    await safeExec(`
+      CREATE TABLE IF NOT EXISTS whatsapp_chatbots (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL,
+        account_id INTEGER REFERENCES whatsapp_accounts(id) ON DELETE SET NULL,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        target_role_key VARCHAR(100) DEFAULT 'sales',
+        trigger_type VARCHAR(50) DEFAULT 'keyword',
+        trigger_keywords TEXT[] DEFAULT '{}',
+        version INTEGER DEFAULT 1,
+        is_active BOOLEAN DEFAULT TRUE,
+        scenario_nodes JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `, 'create whatsapp_chatbots');
+
+    await safeExec(`ALTER TABLE whatsapp_chatbots ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES whatsapp_accounts(id) ON DELETE SET NULL;`, 'bot col account_id');
+    await safeExec(`ALTER TABLE whatsapp_chatbots ADD COLUMN IF NOT EXISTS target_role_key VARCHAR(100) DEFAULT 'sales';`, 'bot col target_role_key');
+    await safeExec(`ALTER TABLE whatsapp_chatbots ADD COLUMN IF NOT EXISTS trigger_type VARCHAR(50) DEFAULT 'keyword';`, 'bot col trigger_type');
+    await safeExec(`ALTER TABLE whatsapp_chatbots ADD COLUMN IF NOT EXISTS trigger_keywords TEXT[] DEFAULT '{}';`, 'bot col trigger_keywords');
+    await safeExec(`ALTER TABLE whatsapp_chatbots ADD COLUMN IF NOT EXISTS version INTEGER DEFAULT 1;`, 'bot col version');
+    await safeExec(`ALTER TABLE whatsapp_chatbots ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;`, 'bot col is_active');
+    await safeExec(`ALTER TABLE whatsapp_chatbots ADD COLUMN IF NOT EXISTS scenario_nodes JSONB DEFAULT '[]'::jsonb;`, 'bot col scenario_nodes');
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_chatbots_tenant ON whatsapp_chatbots(tenant_id, is_active);`, 'index chatbots tenant');
+
+    // 10. WhatsApp Bot Sessions Table
+    await safeExec(`
+      CREATE TABLE IF NOT EXISTS whatsapp_bot_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID NOT NULL,
+        account_id INTEGER REFERENCES whatsapp_accounts(id) ON DELETE SET NULL,
+        bot_id UUID REFERENCES whatsapp_chatbots(id) ON DELETE CASCADE,
+        bot_version INTEGER NOT NULL DEFAULT 1,
+        conversation_id UUID REFERENCES whatsapp_conversations(id) ON DELETE CASCADE,
+        phone_number VARCHAR(50) NOT NULL,
+        current_node_id VARCHAR(100),
+        collected_data JSONB DEFAULT '{}'::jsonb,
+        status VARCHAR(30) DEFAULT 'active',
+        last_interaction_at TIMESTAMPTZ DEFAULT NOW(),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `, 'create whatsapp_bot_sessions');
+
+    await safeExec(`ALTER TABLE whatsapp_bot_sessions ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES whatsapp_accounts(id) ON DELETE SET NULL;`, 'session col account_id');
+    await safeExec(`ALTER TABLE whatsapp_bot_sessions ADD COLUMN IF NOT EXISTS bot_version INTEGER NOT NULL DEFAULT 1;`, 'session col bot_version');
+    await safeExec(`ALTER TABLE whatsapp_bot_sessions ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'active';`, 'session col status');
+    await safeExec(`ALTER TABLE whatsapp_bot_sessions ADD COLUMN IF NOT EXISTS collected_data JSONB DEFAULT '{}'::jsonb;`, 'session col collected_data');
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_bot_sessions_lookup ON whatsapp_bot_sessions(tenant_id, phone_number, account_id, status);`, 'index bot sessions');
+
     tableReady = true;
   })();
 
@@ -279,6 +342,11 @@ exports.getWhatsAppSettings = async (req, res) => {
          default_country_code,
          is_active,
          access_token,
+         meta_webhook_verify_token,
+         auto_greeting_enabled,
+         auto_greeting_triggers,
+         auto_greeting_template,
+         auto_greeting_language,
          (access_token IS NOT NULL AND access_token <> '') AS has_access_token
        FROM whatsapp_settings
        WHERE tenant_id::text = $1::text`,
@@ -299,7 +367,11 @@ exports.getWhatsAppSettings = async (req, res) => {
           default_country_code: '20',
           is_active: false,
           has_access_token: false,
-          token_preview: ''
+          token_preview: '',
+          auto_greeting_enabled: false,
+          auto_greeting_triggers: ['meta_lead'],
+          auto_greeting_template: '',
+          auto_greeting_language: 'ar'
         }
       });
     }
@@ -342,7 +414,11 @@ exports.updateWhatsAppSettings = async (req, res) => {
     send_arabic,
     send_english,
     default_country_code,
-    is_active
+    is_active,
+    auto_greeting_enabled = false,
+    auto_greeting_triggers = ['meta_lead'],
+    auto_greeting_template = '',
+    auto_greeting_language = 'ar'
   } = req.body;
 
   if (!phone_number_id || !phone_number_id.trim()) {
@@ -369,23 +445,28 @@ exports.updateWhatsAppSettings = async (req, res) => {
          tenant_id, phone_number_id, waba_id, access_token,
          template_name, template_language_ar, template_language_en,
          send_arabic, send_english, default_country_code, is_active,
+         auto_greeting_enabled, auto_greeting_triggers, auto_greeting_template, auto_greeting_language,
          updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
        ON CONFLICT (tenant_id) DO UPDATE SET
-         phone_number_id      = EXCLUDED.phone_number_id,
-         waba_id              = EXCLUDED.waba_id,
-         access_token         = CASE 
-                                  WHEN EXCLUDED.access_token <> '' THEN EXCLUDED.access_token 
-                                  ELSE whatsapp_settings.access_token 
-                                END,
-         template_name        = EXCLUDED.template_name,
-         template_language_ar = EXCLUDED.template_language_ar,
-         template_language_en = EXCLUDED.template_language_en,
-         send_arabic          = EXCLUDED.send_arabic,
-         send_english         = EXCLUDED.send_english,
-         default_country_code = EXCLUDED.default_country_code,
-         is_active            = EXCLUDED.is_active,
-         updated_at           = NOW()`,
+         phone_number_id        = EXCLUDED.phone_number_id,
+         waba_id                = EXCLUDED.waba_id,
+         access_token           = CASE 
+                                    WHEN EXCLUDED.access_token <> '' THEN EXCLUDED.access_token 
+                                    ELSE whatsapp_settings.access_token 
+                                  END,
+         template_name          = EXCLUDED.template_name,
+         template_language_ar   = EXCLUDED.template_language_ar,
+         template_language_en   = EXCLUDED.template_language_en,
+         send_arabic            = EXCLUDED.send_arabic,
+         send_english           = EXCLUDED.send_english,
+         default_country_code   = EXCLUDED.default_country_code,
+         is_active              = EXCLUDED.is_active,
+         auto_greeting_enabled  = EXCLUDED.auto_greeting_enabled,
+         auto_greeting_triggers = EXCLUDED.auto_greeting_triggers,
+         auto_greeting_template = EXCLUDED.auto_greeting_template,
+         auto_greeting_language = EXCLUDED.auto_greeting_language,
+         updated_at             = NOW()`,
       [
         tenantId,
         phone_number_id.trim(),
@@ -397,7 +478,11 @@ exports.updateWhatsAppSettings = async (req, res) => {
         send_arabic !== false,
         send_english === true,
         (default_country_code || '20').trim(),
-        is_active === true
+        is_active === true,
+        Boolean(auto_greeting_enabled),
+        Array.isArray(auto_greeting_triggers) ? auto_greeting_triggers : ['meta_lead'],
+        (auto_greeting_template || '').trim(),
+        (auto_greeting_language || 'ar').trim()
       ]
     );
 
@@ -1613,6 +1698,23 @@ exports.handleWebhookEvent = async (req, res) => {
               mediaUrl
             ]);
             console.log(`✅ [WhatsApp Inbound] Ingested message from ${fromPhone} in conv ${conversationId} (24h window OPEN until 24h from now)`);
+
+            // 6. ChatBot Scenario Engine Evaluation
+            if (bodyText) {
+              try {
+                const { handleInboundBotInteraction } = require('../services/chatbotRunnerService');
+                await handleInboundBotInteraction({
+                  tenantId: tenant_id,
+                  accountId: account_id || null,
+                  conversationId,
+                  fromPhone,
+                  messageText: bodyText,
+                  contactProfileName: customerName
+                });
+              } catch (botErr) {
+                console.warn('[WhatsApp Bot Inbound Warning]:', botErr.message);
+              }
+            }
           }
         }
 

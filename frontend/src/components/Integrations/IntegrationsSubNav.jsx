@@ -1,10 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Cpu, FileCheck, Share2, MessageCircle, Send, MessageSquare } from 'lucide-react';
+import { Cpu, FileCheck, Share2, MessageCircle, Send, MessageSquare, Bot } from 'lucide-react';
 
 const IntegrationsSubNav = () => {
   const links = [
     { path: '/whatsapp-chat', label: 'WhatsApp Chat', icon: <MessageSquare size={16} /> },
+    { path: '/marketing/whatsapp-chatbots', label: 'ChatBots', icon: <Bot size={16} /> },
     { path: '/marketing/whatsapp-campaigns', label: 'WhatsApp Campaigns', icon: <Send size={16} /> },
     { path: '/integrations/whatsapp', label: 'WhatsApp Settings', icon: <MessageCircle size={16} /> },
     { path: '/integrations/meta-forms', label: 'Meta Lead Ads (Forms)', icon: <Share2 size={16} /> },

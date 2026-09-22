@@ -83,6 +83,7 @@ import MetaForms from './pages/Integrations/MetaForms';
 import WhatsAppSettings from './pages/Integrations/WhatsAppSettings';
 import WhatsAppCampaigns from './pages/Marketing/WhatsAppCampaigns';
 import WhatsAppChat from './pages/Marketing/WhatsAppChat';
+import WhatsAppChatbots from './pages/Marketing/WhatsAppChatbots';
 
 // Corporate Pages
 import CorporateLayout from './pages/Corporate/CorporateLayout';
@@ -231,6 +232,22 @@ function App() {
                     element={
                       <ProtectedRoute allowedRoles={['admin', 'manager', 'user']}>
                         <WhatsAppCampaigns />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="marketing/whatsapp-chatbots"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <WhatsAppChatbots />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="integrations/whatsapp-chatbots"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <WhatsAppChatbots />
                       </ProtectedRoute>
                     }
                   />

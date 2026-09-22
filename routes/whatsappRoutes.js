@@ -38,4 +38,19 @@ router.post('/test', authorize(['admin']), whatsappController.sendTestWhatsApp);
 router.get('/phone-numbers', authorize(['admin']), whatsappController.fetchPhoneNumbersFromMeta);
 router.get('/diagnose', authorize(['admin']), whatsappController.diagnoseWhatsApp);
 
+const chatbotController = require('../controllers/chatbotController');
+
+// Human Takeover action (Any agent can take over an active bot chat)
+router.post('/conversations/:id/takeover', chatbotController.takeOverChat);
+
+// ===========================================================================
+// CHATBOTS & SCENARIOS (Admin & Manager)
+// ===========================================================================
+router.get('/chatbots', chatbotController.getChatbots);
+router.post('/chatbots', authorize(['admin', 'manager']), chatbotController.createChatbot);
+router.put('/chatbots/:id', authorize(['admin', 'manager']), chatbotController.updateChatbot);
+router.patch('/chatbots/:id/toggle', authorize(['admin', 'manager']), chatbotController.toggleChatbot);
+router.delete('/chatbots/:id', authorize(['admin', 'manager']), chatbotController.deleteChatbot);
+router.post('/chatbots/simulate', chatbotController.simulateBotStep);
+
 module.exports = router;

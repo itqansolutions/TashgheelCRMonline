@@ -6,7 +6,7 @@ import {
   Settings as AdminSettingsIcon, ShieldAlert, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard,
   Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase, Sliders, Clock, Cpu,
   Building, ShieldCheck, TrendingUp, ArrowLeftRight, Scale, FileSpreadsheet, BookOpen,
-  Target as TargetIcon, Layers, TrendingUp as SalesIcon, Share2, FileCheck, Send, MessageCircle
+  Target as TargetIcon, Layers, TrendingUp as SalesIcon, Share2, FileCheck, Send, MessageCircle, Bot
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
@@ -104,6 +104,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // Integrations sub-items
   const integrationsItems = [
     { name: 'Whatsapp Chat',      icon: <MessageCircle size={18} />, path: '/whatsapp-chat' },
+    { name: 'WhatsApp ChatBots',  icon: <Bot size={18} />,           path: '/marketing/whatsapp-chatbots' },
     { name: 'WhatsApp Campaigns', icon: <Send size={18} />,          path: '/marketing/whatsapp-campaigns' },
     { name: 'WhatsApp Settings',  icon: <Phone size={18} />,         path: '/integrations/whatsapp' },
     { name: 'Meta Lead Ads',      icon: <Share2 size={18} />,        path: '/integrations/meta-forms' },

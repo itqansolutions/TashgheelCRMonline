@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import {
   MessageCircle, Save, Send, Eye, EyeOff, Globe, Phone,
   FileText, ToggleLeft, ToggleRight, CheckCircle, AlertCircle, Info, ShieldCheck,
-  Star, RefreshCw, ExternalLink, Sparkles
+  Star, RefreshCw, ExternalLink, Sparkles, Bot, Check
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 
@@ -23,7 +23,11 @@ const WhatsAppSettings = () => {
     default_country_code: '20',
     is_active: false,
     has_access_token: false,
-    token_preview: ''
+    token_preview: '',
+    auto_greeting_enabled: false,
+    auto_greeting_triggers: ['meta_lead'],
+    auto_greeting_template: '',
+    auto_greeting_language: 'ar'
   });
 
   const [loading, setLoading] = useState(true);
@@ -242,6 +246,16 @@ const WhatsAppSettings = () => {
 
   const handleChange = (field, value) => {
     setSettings(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleToggleTrigger = (trigger) => {
+    setSettings(prev => {
+      const current = Array.isArray(prev.auto_greeting_triggers) ? prev.auto_greeting_triggers : [];
+      const updated = current.includes(trigger)
+        ? current.filter(t => t !== trigger)
+        : [...current, trigger];
+      return { ...prev, auto_greeting_triggers: updated };
+    });
   };
 
   if (loading) {
@@ -806,6 +820,147 @@ const WhatsAppSettings = () => {
               <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>رمز لغة القالب المعتمد في Meta</p>
             </div>
           </div>
+        </div>
+
+        {/* ── Section 2.5: Automated Greeting Message (رسالة الترحيب التلقائية) ── */}
+        <div style={{
+          background: '#fff', border: '1px solid var(--border)',
+          borderRadius: 12, padding: 24, marginBottom: 20
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div>
+              <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#0f172a' }}>
+                <Sparkles size={18} color="#059669" /> Automated Welcome & Greeting Message (رسالة الترحيب التلقائية)
+              </h3>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
+                إرسال رسالة ترحيبية فورية للعملاء الجدد بقالب معتمد من Meta، لفتح نافذة خدمة الـ 24 ساعة بمجرد ردهم وبدء سيناريو الشات بوت أو فريق المبيعات.
+              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => handleChange('auto_greeting_enabled', !settings.auto_greeting_enabled)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              >
+                {settings.auto_greeting_enabled
+                  ? <ToggleRight size={36} color="#059669" />
+                  : <ToggleLeft size={36} color="#9ca3af" />}
+              </button>
+              <span style={{ fontSize: 13, fontWeight: 700, color: settings.auto_greeting_enabled ? '#059669' : '#64748b' }}>
+                {settings.auto_greeting_enabled ? 'مفعلة' : 'معطلة'}
+              </span>
+            </div>
+          </div>
+
+          {settings.auto_greeting_enabled && (
+            <div style={{ background: '#f8fafc', padding: 18, borderRadius: 10, border: '1px solid #e2e8f0', marginTop: 12 }}>
+              <h4 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+                متى يتم إرسال رسالة الترحيب تلقائياً؟ (اختر الحالات المستهدفة):
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 16 }}>
+                {[
+                  {
+                    id: 'meta_lead',
+                    title: 'عملاء إعلانات Meta Lead Ads',
+                    desc: 'إرسال ترحيب فور وصول عميل جديد من إعلانات فيسبوك / إنستغرام'
+                  },
+                  {
+                    id: 'manual_customer',
+                    title: 'إضافة عميل يدوياً بالـ CRM',
+                    desc: 'إرسال ترحيب عند قيام أحد موظفي المبيعات بإضافة عميل جديد يدوياً'
+                  },
+                  {
+                    id: 'new_inbound',
+                    title: 'أول تواصل من رقم جديد',
+                    desc: 'إرسال ترحيب عندما يرسل رقم غير مسجل أول رسالة واردة'
+                  }
+                ].map(trigger => {
+                  const isSelected = Array.isArray(settings.auto_greeting_triggers) && settings.auto_greeting_triggers.includes(trigger.id);
+                  return (
+                    <div
+                      key={trigger.id}
+                      onClick={() => handleToggleTrigger(trigger.id)}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: 8,
+                        background: isSelected ? '#ecfdf5' : 'white',
+                        border: `1.5px solid ${isSelected ? '#059669' : '#e2e8f0'}`,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <div style={{
+                          width: 18, height: 18, borderRadius: 4,
+                          background: isSelected ? '#059669' : 'white',
+                          border: `1.5px solid ${isSelected ? '#059669' : '#cbd5e1'}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                          {isSelected && <Check size={13} color="white" />}
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? '#065f46' : '#1e293b' }}>
+                          {trigger.title}
+                        </span>
+                      </div>
+                      <p style={{ margin: '0 0 0 26px', fontSize: 11, color: '#64748b', lineHeight: 1.4 }}>
+                        {trigger.desc}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    قالب رسالة الترحيب (Welcome Template Name) *
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.auto_greeting_template || ''}
+                    onChange={e => handleChange('auto_greeting_template', e.target.value)}
+                    placeholder={settings.template_name || 'e.g. welcome_new_lead'}
+                    style={{
+                      width: '100%', padding: '9px 12px', borderRadius: 8,
+                      border: '1px solid var(--border)', fontSize: 14,
+                      fontFamily: 'monospace', boxSizing: 'border-box'
+                    }}
+                  />
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>
+                    إذا تركته فارغاً سيتم استخدام القالب الرئيسي: <code>{settings.template_name || 'welcome_new_lead'}</code>
+                  </p>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    لغة قالب الترحيب (Template Language)
+                  </label>
+                  <select
+                    value={settings.auto_greeting_language || 'ar'}
+                    onChange={e => handleChange('auto_greeting_language', e.target.value)}
+                    style={{
+                      width: '100%', padding: '9px 12px', borderRadius: 8,
+                      border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box',
+                      background: 'white'
+                    }}
+                  >
+                    <option value="ar">العربية — Arabic (ar)</option>
+                    <option value="ar_SA">العربية (السعودية) — (ar_SA)</option>
+                    <option value="ar_EG">العربية (مصر) — (ar_EG)</option>
+                    <option value="en_US">English (US) — (en_US)</option>
+                    <option value="en">English — (en)</option>
+                  </select>
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>
+                    يجب أن تطابق لغة القالب المعتمد في Meta
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 14, padding: '10px 14px', background: '#ecfdf5', borderRadius: 8, border: '1px solid #a7f3d0', fontSize: 12, color: '#065f46', lineHeight: 1.5 }}>
+                💡 <strong>آلية العمل:</strong> ترسل المنصة قالب الترحيب المعتمد تلقائياً للعميل. وبمجرد رد العميل بأي رسالة، تفتح منصة Meta نافذة الـ 24 ساعة، ويبدأ الشات بوت تلقائياً بجمع تفاصيل العميل وتحديث حسابه في الـ CRM أو تحويله لمسؤول المبيعات.
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Section 3: Phone & Activation ── */}
