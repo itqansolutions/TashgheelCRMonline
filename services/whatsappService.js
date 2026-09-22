@@ -887,7 +887,8 @@ async function broadcastWhatsAppCampaign({
   templateName,
   languageCode,
   recipients = [], // Array of { customerId, name, phone }
-  customParam = null
+  customParam = null,
+  userId = null
 }) {
   const settings = await getWhatsAppSettings(tenantId);
   if (!settings) {
@@ -897,6 +898,20 @@ async function broadcastWhatsAppCampaign({
   const { phone_number_id, access_token, default_country_code } = settings;
   if (!phone_number_id || !access_token) {
     throw new Error('Active Phone Number ID and Access Token are required');
+  }
+
+  // Resolve active/default account_id for proper chat association
+  let resolvedAccountId = null;
+  try {
+    const accRes = await db.query(`
+      SELECT id FROM whatsapp_accounts
+      WHERE tenant_id::text = $1::text 
+      ORDER BY (phone_number_id = $2) DESC, is_default DESC, id ASC
+      LIMIT 1
+    `, [tenantId, phone_number_id]);
+    if (accRes.rows.length > 0) resolvedAccountId = accRes.rows[0].id;
+  } catch (e) {
+    console.warn('[broadcastWhatsAppCampaign account lookup warning]', e.message);
   }
 
   const isHelloWorld = templateName?.toLowerCase().trim() === 'hello_world';
@@ -963,11 +978,90 @@ async function broadcastWhatsAppCampaign({
 
       if (result.success) {
         successCount++;
+        const messageId = result.messageId || null;
         await db.query(`
           INSERT INTO whatsapp_campaign_recipients 
             (campaign_id, customer_id, customer_name, phone, status, message_id, sent_at)
           VALUES ($1, $2, $3, $4, 'sent', $5, NOW())
-        `, [campaignId, recipient.customerId || null, recipient.name || '', normPhone, result.messageId || null]);
+        `, [campaignId, recipient.customerId || null, recipient.name || '', normPhone, messageId]);
+
+        // Mirror campaign message into WhatsApp Chat Conversation
+        try {
+          const rawStr = String(rawPhone || '').trim();
+          const phoneVariants = Array.from(new Set([
+            normPhone,
+            rawStr,
+            `+${rawStr}`,
+            rawStr ? rawStr.replace(/^\+/, '') : null,
+            normPhone.replace(/^\+/, ''),
+            normPhone.startsWith('+20') ? `0${normPhone.slice(3)}` : null
+          ].filter(Boolean)));
+
+          let convId = null;
+          const existingConv = await db.query(`
+            SELECT id, contact_name, customer_id FROM whatsapp_conversations
+            WHERE tenant_id::text = $1::text 
+              AND phone_number = ANY($2::text[])
+            ORDER BY last_message_at DESC NULLS LAST
+            LIMIT 1
+          `, [tenantId, phoneVariants]);
+
+          const campaignMsgBody = `[Campaign: ${templateName}]`;
+
+          if (existingConv.rows.length > 0) {
+            convId = existingConv.rows[0].id;
+            await db.query(`
+              UPDATE whatsapp_conversations
+              SET last_message_body = $1,
+                  last_message_at = NOW(),
+                  last_message_direction = 'outbound',
+                  account_id = COALESCE(whatsapp_conversations.account_id, $2),
+                  customer_id = COALESCE(whatsapp_conversations.customer_id, $3),
+                  contact_name = COALESCE(whatsapp_conversations.contact_name, $4),
+                  updated_at = NOW()
+              WHERE id = $5
+            `, [campaignMsgBody, resolvedAccountId, recipient.customerId || null, recipient.name || null, convId]);
+          } else {
+            const newConv = await db.query(`
+              INSERT INTO whatsapp_conversations (
+                tenant_id, account_id, phone_number, contact_name, customer_id,
+                last_message_body, last_message_at, last_message_direction,
+                unread_count, created_at, updated_at
+              )
+              VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'outbound', 0, NOW(), NOW())
+              RETURNING id
+            `, [
+              tenantId,
+              resolvedAccountId,
+              normPhone,
+              recipient.name || normPhone,
+              recipient.customerId || null,
+              campaignMsgBody
+            ]);
+            convId = newConv.rows[0]?.id;
+          }
+
+          if (convId) {
+            await db.query(`
+              INSERT INTO whatsapp_messages (
+                conversation_id, tenant_id, account_id, meta_message_id,
+                direction, sender_type, sender_id, message_type, body, template_name, status, created_at
+              )
+              VALUES ($1, $2, $3, $4, 'outbound', 'system', $5, 'template', $6, $7, 'sent', NOW())
+              ON CONFLICT (meta_message_id) DO NOTHING
+            `, [
+              convId,
+              tenantId,
+              resolvedAccountId,
+              messageId,
+              userId || null,
+              campaignMsgBody,
+              templateName
+            ]);
+          }
+        } catch (chatErr) {
+          console.warn('[WhatsApp Campaign Chat Mirror Error]:', chatErr.message);
+        }
       } else {
         failedCount++;
         await db.query(`

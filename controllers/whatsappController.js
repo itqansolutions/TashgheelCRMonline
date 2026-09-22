@@ -777,7 +777,8 @@ exports.sendCampaign = async (req, res) => {
       templateName: template_name.trim(),
       languageCode: language_code.trim(),
       recipients,
-      customParam: custom_param
+      customParam: custom_param,
+      userId
     });
 
     res.json({
@@ -978,7 +979,11 @@ exports.getMessages = async (req, res) => {
     }
 
     const messagesRes = await db.query(`
-      SELECT m.*, u.name AS sender_name
+      SELECT m.*, 
+             CASE 
+               WHEN m.sender_type = 'system' THEN '📢 Campaign' 
+               ELSE COALESCE(u.name, 'Admin') 
+             END AS sender_name
       FROM whatsapp_messages m
       LEFT JOIN users u ON m.sender_id::text = u.id::text
       WHERE m.conversation_id::text = $1::text AND m.tenant_id::text = $2::text

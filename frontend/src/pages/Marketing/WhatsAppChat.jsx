@@ -863,7 +863,28 @@ const WhatsAppChat = () => {
 
                           {/* Message Text */}
                           <div style={{ fontSize: '13.5px', color: '#111b21', wordBreak: 'break-word', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
-                            {msg.body}
+                            {msg.body?.startsWith('[Campaign:') ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  color: '#047857',
+                                  background: '#ecfdf5',
+                                  border: '1px solid #a7f3d0',
+                                  padding: '2px 8px',
+                                  borderRadius: '12px',
+                                  width: 'fit-content'
+                                }}>
+                                  📢 Marketing Campaign
+                                </span>
+                                <span style={{ color: '#0f172a', fontWeight: 500 }}>{msg.body}</span>
+                              </div>
+                            ) : (
+                              msg.body
+                            )}
                           </div>
 
                           {/* Footer: Time + Status Ticks */}
