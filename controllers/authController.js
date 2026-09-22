@@ -5,7 +5,109 @@ const db = require('../config/db');
 const { logAction, logSecurity, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 const emailService = require('../services/emailService');
 
-// Register User & Create Tenant (SaaS Flow)
+// ── PUBLIC: Submit Registration Request ─────────────────────────
+// Creates a pending registration_requests row only.
+// Does NOT create any tenant, user, subscription, or modules.
+exports.registerRequest = async (req, res) => {
+  const { name, email, password, companyName, phone, templateName = 'general' } = req.body;
+
+  // Required field validation
+  if (!name || !name.trim()) {
+    return res.status(400).json({ status: 'error', message: 'Full name is required.' });
+  }
+  if (!email || !email.trim()) {
+    return res.status(400).json({ status: 'error', message: 'Email is required.' });
+  }
+  if (!companyName || !companyName.trim()) {
+    return res.status(400).json({ status: 'error', message: 'Company name is required.' });
+  }
+  if (!password) {
+    return res.status(400).json({ status: 'error', message: 'Password is required.' });
+  }
+
+  // Email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email.trim())) {
+    return res.status(400).json({ status: 'error', message: 'Please enter a valid email address.' });
+  }
+
+  // Password strength validation (same as register)
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Password must be at least 8 characters with 1 uppercase letter and 1 number.'
+    });
+  }
+
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Check if email already belongs to an existing user (safe error)
+    const existingUser = await db.query('SELECT id FROM users WHERE LOWER(email) = $1', [normalizedEmail]);
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({
+        status: 'error',
+        message: 'An account with this email address already exists. Please sign in instead.'
+      });
+    }
+
+    // 2. Check for existing pending request (partial unique index also enforces this at DB level)
+    const existingPending = await db.query(
+      `SELECT id FROM registration_requests WHERE LOWER(email) = $1 AND status = 'pending'`,
+      [normalizedEmail]
+    );
+    if (existingPending.rows.length > 0) {
+      return res.status(409).json({
+        status: 'error',
+        message: 'We already have a pending registration request for this email. Our team will be in touch soon.'
+      });
+    }
+
+    // 3. Hash password using existing bcrypt mechanism
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    // 4. Insert registration request — NO tenant/user created here
+    await db.query(
+      `INSERT INTO registration_requests
+         (company_name, contact_name, email, phone, password_hash, template_name, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
+      [companyName.trim(), name.trim(), normalizedEmail, phone || null, passwordHash, templateName]
+    );
+
+    // Notify Super Admin (non-critical)
+    try {
+      await db.query(`
+        INSERT INTO notifications (user_id, tenant_id, type, title, message, link)
+        SELECT u.id, u.tenant_id, 'info',
+          'New Registration Request',
+          $1,
+          '/itqan-crm-hud/registrations'
+        FROM users u
+        WHERE u.tenant_id::text = '00000000-0000-0000-0000-000000000000' AND u.role = 'admin'
+      `, [`${companyName.trim()} (${normalizedEmail}) submitted a registration request.`]);
+    } catch (_) {}
+
+    return res.status(201).json({
+      status: 'success',
+      message: 'Registration request received. Our team will contact you soon.'
+    });
+  } catch (err) {
+    // Handle partial unique index violation gracefully
+    if (err.code === '23505' && err.constraint === 'idx_reg_requests_pending_email') {
+      return res.status(409).json({
+        status: 'error',
+        message: 'We already have a pending registration request for this email.'
+      });
+    }
+    console.error('[RegisterRequest] Error:', err.message);
+    // Never expose internal errors to public callers
+    res.status(500).json({ status: 'error', message: 'Something went wrong. Please try again later.' });
+  }
+};
+
+// Register User & Create Tenant (SaaS Flow — kept for demo/internal use)
 exports.register = async (req, res) => {
   const { name, email, password, companyName, selectedPlan, phone, templateName = 'general' } = req.body;
 
@@ -37,95 +139,23 @@ exports.register = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'User already exists' });
     }
 
-    // 2. Create Tenant
-    const slug = companyName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const tenantResult = await db.query(
-      'INSERT INTO tenants (name, slug, plan, status, template_name, admin_name, admin_email, admin_phone) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
-      [companyName, `${slug}-${Date.now().toString().slice(-4)}`, selectedPlan || 'basic', 'active', templateName, name, email, phone]
-    );
-    const tenantId = tenantResult.rows[0].id;
-
-    // 3. Hash password
+    // 2. Hash password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // 4. Insert Admin User
-    const newUserResult = await db.query(
-      'INSERT INTO users (name, email, password_hash, role, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [name, email, passwordHash, 'admin', tenantId]
-    );
-
-    const user = newUserResult.rows[0];
-
-    // 🔥 5. AUTO-SEEDING CORE DATA (MVP Essentials)
-    console.log(`🚀 Seeding initial data for Tenant: ${tenantId}`);
-    
-    // Seed Departments
-    const departments = ['General', 'Sales', 'Accounting'];
-    for (const dep of departments) {
-      try {
-        await db.query(`
-          INSERT INTO departments (name, tenant_id)
-          SELECT $1, $2
-          WHERE NOT EXISTS (SELECT 1 FROM departments WHERE name = $1 AND tenant_id::text = $2::text)
-        `, [dep, tenantId]);
-      } catch (depErr) {}
-    }
-
-    // Seed Lead Sources
-    const leadSources = ['Facebook', 'Google', 'Referral', 'Direct'];
-    for (const src of leadSources) {
-      try {
-        await db.query(`
-          INSERT INTO lead_sources (name, tenant_id) 
-          SELECT $1, $2
-          WHERE NOT EXISTS (SELECT 1 FROM lead_sources WHERE name = $1 AND tenant_id::text = $2::text)
-        `, [src, tenantId]);
-      } catch (srcErr) {}
-    }
-
-    // 🔥 Seed First Branch (The "Main Branch")
-    try {
-      console.log(`🏢 Creating Main Branch for Tenant: ${tenantId}`);
-      const branchResult = await db.query(
-        'INSERT INTO branches (name, address, tenant_id, is_main) VALUES ($1, $2, $3, true) RETURNING id',
-        ['Main Branch', 'Corporate Headquarters', tenantId]
-      );
-      if (branchResult.rows.length > 0) {
-        const mainBranchId = branchResult.rows[0].id;
-        await db.query('INSERT INTO user_branches (user_id, branch_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [user.id, mainBranchId]);
-        await db.query('UPDATE users SET branch_id::text = $1::text WHERE id = $2', [String(mainBranchId), user.id]);
-      }
-    } catch (branchErr) {
-      console.warn('⚠️ [Register Warning] Main branch seeding notice (non-fatal):', branchErr.message);
-    }
-    
-    // Audit Logging
-    try {
-      logAction({ req, action: ACTIONS.REGISTER, entityType: 'Tenant', entityId: tenantId, userId: user.id });
-    } catch (logErr) {}
-
-    // ── AUTO-CREATE 14-DAY TRIAL SUBSCRIPTION ──
-    const planName = selectedPlan || 'basic';
-    let planId = null;
-    let modules = { crm: true, finance: true };
-    const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-
-    try {
-      const planRes = await db.query('SELECT id, modules FROM plans WHERE name = $1', [planName]);
-      if (planRes.rows.length > 0) {
-        planId = planRes.rows[0].id;
-        modules = planRes.rows[0].modules;
-      }
-
-      await db.query(`
-        INSERT INTO subscriptions (tenant_id, plan_id, status, trial_ends_at, expires_at)
-        VALUES ($1, $2, 'trial', $3, $3)
-        ON CONFLICT (tenant_id) DO NOTHING
-      `, [String(tenantId), planId, trialEnd]);
-    } catch (subErr) {
-      console.warn('⚠️ [Register Warning] Subscription binding (non-fatal):', subErr.message);
-    }
+    // 3. Provision tenant using the shared provisioning service
+    const { provisionTenant } = require('../services/provisioningService');
+    const { user, subscription } = await provisionTenant({
+      name,
+      email,
+      passwordHash,
+      companyName,
+      phone,
+      templateName,
+      selectedPlan,
+      moduleOverride: null,
+      req
+    });
 
     // Generate JWT
     const payload = { user: { id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id } };
@@ -142,7 +172,7 @@ exports.register = async (req, res) => {
         tenant_id: user.tenant_id,
         template_name: templateName 
       },
-      subscription: { status: 'trial', plan: planName, modules, trial_ends_at: trialEnd }
+      subscription
     });
   } catch (err) {
     console.error('🔥 SaaS Registration Error:', err.message);

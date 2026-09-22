@@ -37,4 +37,11 @@ router.post('/upgrade-requests/:id/approve',               billing.approveUpgrad
 router.post('/upgrade-requests/:id/reject',                billing.rejectUpgradeRequest);
 router.post('/tenants/:tenant_id/instant-upgrade',         billing.adminInstantUpgrade);
 
+// Registration Request Management (new request-first onboarding flow)
+const regReqCtrl = require('../controllers/registrationRequestsController');
+router.get('/registration-requests',             regReqCtrl.getAll);
+router.post('/registration-requests/:id/approve', regReqCtrl.approve);
+router.post('/registration-requests/:id/reject',  regReqCtrl.reject);
+
 module.exports = router;
+

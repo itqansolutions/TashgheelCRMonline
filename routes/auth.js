@@ -5,9 +5,15 @@ const authMiddleware = require('../middleware/auth');
 const { loginRateLimiter } = require('../middleware/rateLimit');
 
 // @route   POST api/auth/register
-// @desc    Register a new user & Create Tenant
+// @desc    Register a new user & Create Tenant (demo/internal — kept for compatibility)
 // @access  Public
 router.post('/register', authController.register);
+
+// @route   POST api/auth/register-request
+// @desc    Submit a registration request (no tenant/user created — pending Super Admin review)
+// @access  Public
+router.post('/register-request', loginRateLimiter, authController.registerRequest);
+
 
 // @route   POST api/auth/login
 // @desc    Login and get token

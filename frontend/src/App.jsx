@@ -47,6 +47,8 @@ import AdminUpgradeRequests from './pages/Admin/AdminUpgradeRequests';
 import Billing from './pages/Billing/Billing';
 import PlatformWrapper from './pages/SuperAdmin/PlatformWrapper';
 import SecretPortalHUD from './pages/SuperAdmin/SecretPortalHUD';
+import RegistrationRequests from './pages/SuperAdmin/RegistrationRequests';
+
 
 // Contacts Module Pages
 import ContactsCustomers from './pages/Contacts/ContactsCustomers';
@@ -373,6 +375,7 @@ function App() {
                   <Route path="hub" element={<SuperAdmin />} />
                   <Route path="pricing" element={<AdminPlans />} />
                   <Route path="upgrades" element={<AdminUpgradeRequests />} />
+                  <Route path="registrations" element={<RegistrationRequests />} />
                   <Route path="audit" element={<Logs />} />
                 </Route>
 

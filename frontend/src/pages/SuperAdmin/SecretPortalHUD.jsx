@@ -6,8 +6,9 @@ import {
     Clock, ArrowUpRight, ArrowDownRight, Eye, Key, Check, X, 
     Lock, Unlock, Mail, Phone, Layers, Box, Filter, Copy, 
     Calendar, ArrowLeft, MoreHorizontal, Sparkles, Terminal,
-    Maximize2, AlertCircle, CheckCheck
+    Maximize2, AlertCircle, CheckCheck, ClipboardList
 } from 'lucide-react';
+
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -88,17 +89,20 @@ const SecretPortalHUD = () => {
     const [resetPassModal, setResetPassModal] = useState(null); // tenant object
     const [newPassword, setNewPassword] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
+    const [pendingRegRequests, setPendingRegRequests] = useState(0);
+
 
     // Load all platform telemetry
     const fetchPlatformData = useCallback(async (isSilent = false) => {
         if (!isSilent) setRefreshing(true);
         try {
-            const [insightsRes, tenantsRes, plansRes, upgradesRes, logsRes] = await Promise.allSettled([
+            const [insightsRes, tenantsRes, plansRes, upgradesRes, logsRes, regReqsRes] = await Promise.allSettled([
                 api.get('/super-admin/insights'),
                 api.get('/admin/tenants'),
                 api.get('/admin/plans'),
                 api.get('/admin/upgrade-requests'),
-                api.get('/logs?limit=8')
+                api.get('/logs?limit=8'),
+                api.get('/admin/registration-requests?status=pending')
             ]);
 
             if (insightsRes.status === 'fulfilled' && insightsRes.value?.data?.data) {
@@ -123,7 +127,12 @@ const SecretPortalHUD = () => {
                 setRecentLogs(safeArray(logsRes.value.data.data));
             }
 
+            if (regReqsRes.status === 'fulfilled' && regReqsRes.value?.data?.data) {
+                setPendingRegRequests(regReqsRes.value.data.data.length);
+            }
+
             setLastUpdated(new Date());
+
         } catch (err) {
             console.error('HUD Telemetry sync failed', err);
             toast.error('Failed to sync real-time telemetry.');
@@ -371,6 +380,18 @@ const SecretPortalHUD = () => {
                             {metrics.pendingUpgrades > 0 && (
                                 <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white font-bold text-[10px]">
                                     {metrics.pendingUpgrades}
+                                </span>
+                            )}
+                        </button>
+                        <button 
+                            onClick={() => navigate('/itqan-crm-hud/registrations')} 
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-all flex items-center gap-1.5 relative"
+                        >
+                            <ClipboardList size={13} className={pendingRegRequests > 0 ? 'text-indigo-500' : ''} />
+                            Registrations
+                            {pendingRegRequests > 0 && (
+                                <span className="px-1.5 rounded-full bg-indigo-500 text-white font-bold text-[10px]">
+                                    {pendingRegRequests}
                                 </span>
                             )}
                         </button>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Users, CreditCard, Calendar, CheckCircle, XCircle, AlertCircle, Search, RefreshCw, Settings, Lock, Mail, Phone, LayoutDashboard, LogOut, ChevronRight, BarChart3, TrendingUp, Clock, ArrowLeft, Zap, History } from 'lucide-react';
+import { Building2, Users, CreditCard, Calendar, CheckCircle, XCircle, AlertCircle, Search, RefreshCw, Settings, Lock, Mail, Phone, LayoutDashboard, LogOut, ChevronRight, BarChart3, TrendingUp, Clock, ArrowLeft, Zap, History, ClipboardList } from 'lucide-react';
+
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { safeArray } from '../utils/dataUtils';
@@ -156,6 +157,13 @@ const SuperAdmin = () => {
                     >
                         <Zap size={13} />
                         Upgrades
+                    </button>
+                    <button 
+                        onClick={() => navigate('/itqan-crm-hud/registrations')} 
+                        className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-all flex items-center gap-1.5"
+                    >
+                        <ClipboardList size={13} />
+                        Registrations
                     </button>
                     <button 
                         onClick={() => navigate('/itqan-crm-hud/audit')} 
