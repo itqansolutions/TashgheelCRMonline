@@ -10,8 +10,8 @@ router.use(authMiddleware);
 
 // @route   GET api/users
 // @desc    Get all users (Employees)
-// @access  Private (Admin, Manager)
-router.get('/', authorize(['admin', 'manager', 'employee']), usersController.getUsers);
+// @access  Private (Authenticated users with screen permission or standard roles)
+router.get('/', authorize(['admin', 'manager', 'employee', 'sales', 'user']), usersController.getUsers);
 router.post('/', authorize(['admin']), usageLimits('users'), usersController.createUser);
 
 // @route   PUT api/users/:id/role
@@ -21,8 +21,8 @@ router.put('/:id/role', authorize(['admin']), usersController.updateUserRole);
 
 // @route   GET api/users/department/:deptId
 // @desc    Get users by department
-// @access  Private (Admin, Manager)
-router.get('/department/:deptId', authorize(['admin', 'manager']), usersController.getUsersByDepartment);
+// @access  Private (Authenticated users)
+router.get('/department/:deptId', authorize(['admin', 'manager', 'employee', 'sales', 'user']), usersController.getUsersByDepartment);
 
 // @route   GET api/users/:id/permissions
 // @desc    Get user permissions

@@ -21,17 +21,17 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   // Admin always has access to everything
   if (user?.role === 'admin') return children;
 
-  // RBAC: Check role
-  if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // PBAC: Check granular path access
+  // PBAC (Screen-Based Access Control)
   const currentPath = location.pathname;
   const checkPath = currentPath === '/' ? '/dashboard' : currentPath;
   const allowed = safeArray(user?.allowedPages);
 
-  // If user has allowedPages configured and current path is not included, redirect to dashboard or first allowed page
+  // If user has explicit screen permission in allowedPages, allow access immediately
+  if (allowed.length > 0 && allowed.includes(checkPath)) {
+    return children;
+  }
+
+  // If user has allowedPages configured and current path is not included, redirect
   if (allowed.length > 0 && !allowed.includes(checkPath)) {
     if (checkPath !== '/dashboard' && allowed.includes('/dashboard')) {
       return <Navigate to="/dashboard" replace />;
@@ -40,6 +40,11 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     if (checkPath !== fallback) {
       return <Navigate to={fallback} replace />;
     }
+  }
+
+  // RBAC Fallback: only check role if allowedPages is not configured
+  if (allowedRoles && !allowedRoles.includes(user?.role)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

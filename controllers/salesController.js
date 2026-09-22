@@ -120,7 +120,7 @@ exports.getTargets = async (req, res) => {
       const dealsRes = await db.query(
         `SELECT COALESCE(SUM(value), 0) as closed_val
          FROM deals
-         WHERE user_id = $1 AND tenant_id::text = $2::text AND pipeline_stage = 'won'`,
+         WHERE assigned_to = $1 AND tenant_id::text = $2::text AND pipeline_stage = 'won'`,
         [t.user_id, tenant_id]
       );
       const ordersRes = await db.query(
@@ -341,7 +341,7 @@ exports.getSalesmen = async (req, res) => {
              COALESCE(SUM(CASE WHEN d.pipeline_stage = 'won' THEN d.value ELSE 0 END), 0) as total_sales,
              COUNT(d.id) FILTER (WHERE d.pipeline_stage != 'won' AND d.pipeline_stage != 'lost') as active_deals
       FROM users u
-      LEFT JOIN deals d ON d.user_id = u.id AND d.tenant_id::text = u.tenant_id::text
+      LEFT JOIN deals d ON d.assigned_to = u.id AND d.tenant_id::text = u.tenant_id::text
       WHERE u.tenant_id::text = $1::text
       GROUP BY u.id, u.name, u.email, u.phone, u.role, u.is_working
       ORDER BY total_sales DESC, u.name ASC
