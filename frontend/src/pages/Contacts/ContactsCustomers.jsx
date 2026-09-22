@@ -166,6 +166,7 @@ const ContactsCustomers = () => {
     leadSources, fetchLeadSources, 
     customerClassifications, fetchCustomerClassifications, 
     customerAreas, fetchCustomerAreas,
+    users, fetchUsers,
     loading 
   } = useData();
   const [search, setSearch] = useState('');
@@ -173,6 +174,7 @@ const ContactsCustomers = () => {
   const [sourceFilter, setSourceFilter] = useState('all');
   const [classificationFilter, setClassificationFilter] = useState('all');
   const [areaFilter, setAreaFilter] = useState('all');
+  const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [viewingCustomer, setViewingCustomer] = useState(null);
@@ -191,7 +193,7 @@ const ContactsCustomers = () => {
   const [newAreaColor, setNewAreaColor] = useState('#0ea5e9');
   const [savingArea, setSavingArea] = useState(false);
 
-  const emptyForm = { name: '', phone: '', address: '', tax_no: '', reg_no: '', source_id: '', classification_id: '', area_id: '', is_active: true, is_blacklisted: false };
+  const emptyForm = { name: '', phone: '', address: '', tax_no: '', reg_no: '', source_id: '', classification_id: '', area_id: '', assigned_to: '', is_active: true, is_blacklisted: false };
   const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
@@ -199,6 +201,7 @@ const ContactsCustomers = () => {
     if (leadSources.length === 0) fetchLeadSources();
     if (!customerClassifications || customerClassifications.length === 0) fetchCustomerClassifications();
     if (!customerAreas || customerAreas.length === 0) fetchCustomerAreas();
+    if (!users || users.length === 0) fetchUsers();
   }, []);
 
   // Only show general customers (not RE vendors/brokers)
@@ -229,7 +232,10 @@ const ContactsCustomers = () => {
     const matchArea = areaFilter === 'all' ||
       (areaFilter === 'no_area' ? !c.area_id : String(c.area_id) === String(areaFilter));
 
-    return matchSearch && matchStatus && matchSource && matchClassification && matchArea;
+    const matchAssignee = assigneeFilter === 'all' ||
+      (assigneeFilter === 'unassigned' ? !c.assigned_to : String(c.assigned_to) === String(assigneeFilter));
+
+    return matchSearch && matchStatus && matchSource && matchClassification && matchArea && matchAssignee;
   });
 
   const openAdd = () => { setEditingCustomer(null); setForm(emptyForm); setIsModalOpen(true); };
@@ -244,6 +250,7 @@ const ContactsCustomers = () => {
       source_id: c.source_id || '', 
       classification_id: c.classification_id || '',
       area_id: c.area_id || '',
+      assigned_to: c.assigned_to || '',
       is_active: c.is_active !== false, 
       is_blacklisted: c.is_blacklisted === true 
     });
@@ -257,6 +264,7 @@ const ContactsCustomers = () => {
     try {
       const payload = { 
         ...form, 
+        assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
         classification_id: form.classification_id ? Number(form.classification_id) : null,
         area_id: form.area_id ? Number(form.area_id) : null,
         entity_type: 'customer', 
@@ -358,6 +366,16 @@ const ContactsCustomers = () => {
           {(customerAreas || []).map(a => <option key={a.id} value={a.id}>📍 {a.name}</option>)}
         </select>
 
+        <select 
+          value={assigneeFilter} 
+          onChange={e => setAssigneeFilter(e.target.value)} 
+          style={{ ...inputStyle, width: 'auto', minWidth: '180px' }}
+        >
+          <option value="all">All Employees / كل الموظفين</option>
+          <option value="unassigned">Unassigned / غير مسند</option>
+          {(users || []).map(u => <option key={u.id} value={u.id}>👤 {u.name}</option>)}
+        </select>
+
         {['all', 'active', 'blacklisted'].map(s => (
           <button key={s} onClick={() => setFilterStatus(s)} style={{ padding: '10px 18px', borderRadius: '10px', border: '1.5px solid', borderColor: filterStatus === s ? '#4f46e5' : '#e2e8f0', background: filterStatus === s ? '#4f46e5' : 'white', color: filterStatus === s ? 'white' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}>
             {s === 'all' ? 'All' : s === 'active' ? '✅ Active' : '⛔ Blacklisted'}
@@ -395,8 +413,17 @@ const ContactsCustomers = () => {
                         {c.name?.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        {c.name}
+                        <div>{c.name}</div>
                         {c.company_name && <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{c.company_name}</div>}
+                        {c.assigned_to_name && c.assigned_to_name !== 'Unassigned' ? (
+                          <div style={{ fontSize: '11px', color: '#4f46e5', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                            👤 {c.assigned_to_name}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic', marginTop: '2px' }}>
+                            Unassigned
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -573,6 +600,23 @@ const ContactsCustomers = () => {
                   {(customerAreas || []).map(a => <option key={a.id} value={a.id}>📍 {a.name}</option>)}
                 </select>
               </div>
+
+              {/* Assigned Employee / الموظف المسؤول */}
+              <div>
+                <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+                  Assigned Employee / الموظف المسؤول
+                </label>
+                <select 
+                  value={form.assigned_to} 
+                  onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))} 
+                  style={inputStyle}
+                >
+                  <option value="">-- Let System Decide / Me (Unassigned) --</option>
+                  {(users || []).map(u => (
+                    <option key={u.id} value={u.id}>👤 {u.name} ({u.role || 'Staff'})</option>
+                  ))}
+                </select>
+              </div>
               {/* Checkboxes */}
               <div style={{ display: 'flex', gap: '24px', padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '14px', color: '#374151' }}>
@@ -651,6 +695,13 @@ const ContactsCustomers = () => {
                   <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📋 Meta Form</div>
                   <div style={{ fontSize: '13px', fontWeight: 800, color: '#0284c7' }}>
                     {viewingCustomer.meta_form_name || '—'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>👤 Assigned Employee</div>
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: viewingCustomer.assigned_to_name && viewingCustomer.assigned_to_name !== 'Unassigned' ? '#4f46e5' : '#94a3b8' }}>
+                    {viewingCustomer.assigned_to_name || 'Unassigned'}
                   </div>
                 </div>
 
