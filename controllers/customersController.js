@@ -1,5 +1,7 @@
 const db = require('../config/db');
-const { logCreate, logUpdate, logDelete } = require('../services/loggerService');
+const accessScopeService = require('../services/accessScopeService');
+const notificationService = require('../services/notificationService');
+const { logAction, logCreate, logUpdate, logDelete, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 const { logActivity } = require('../utils/activityLogger');
 
 // Ensure customer columns exist to prevent missing-column 500 crashes
@@ -60,6 +62,19 @@ exports.getCustomers = async (req, res) => {
   `;
   const params = [tenant_id, branch_id];
   let paramIdx = 3;
+
+  // Centralized Row-Level Scoping: Employee sees own; Manager sees dept + child depts; Admin sees all
+  const scope = await accessScopeService.buildScopePredicate({
+    user: req.user,
+    tableAlias: 'c',
+    assigneeCol: 'assigned_to',
+    paramIndex: paramIdx
+  });
+  if (scope.sql && scope.sql !== '1=1') {
+    query += ` AND ${scope.sql}`;
+    params.push(...scope.params);
+    paramIdx = scope.nextParamIndex;
+  }
 
   // Dynamic Filters (Sanitized to prevent "invalid input syntax for type integer: '' ")
   if (req.query.classification_id && req.query.classification_id.trim() !== '') {
@@ -237,6 +252,19 @@ exports.createCustomer = async (req, res) => {
         // non-blocking
       }
     }
+    // Dispatch assignment notification if assigned to another user
+    if (cleanAssignedTo && String(cleanAssignedTo) !== String(req.user.id)) {
+      notificationService.notifyAssignment({
+        tenantId: tenant_id,
+        branchId: branch_id,
+        recipientUserId: cleanAssignedTo,
+        assignedByUserId: req.user.id,
+        assignedByName: req.user.name,
+        entityType: 'Customer / Lead',
+        entityName: name,
+        link: '/contacts/customers'
+      }).catch(e => console.warn('[Customer Assignment Notification Warning]:', e.message));
+    }
 
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
@@ -308,6 +336,18 @@ exports.updateCustomer = async (req, res) => {
         await logActivity(tenant_id, req.user, 'customer', req.params.id, 'assigned', { 
             assigned_to: { from: oldData.assigned_to, to: assigned_to } 
         });
+        if (String(assigned_to) !== String(req.user.id)) {
+          notificationService.notifyAssignment({
+            tenantId: tenant_id,
+            branchId: branch_id,
+            recipientUserId: assigned_to,
+            assignedByUserId: req.user.id,
+            assignedByName: req.user.name,
+            entityType: 'Customer / Lead',
+            entityName: result.rows[0]?.name || oldData.name,
+            link: '/contacts/customers'
+          }).catch(e => console.warn('[Customer Reassignment Notification Warning]:', e.message));
+        }
     } else {
         await logActivity(tenant_id, req.user, 'customer', req.params.id, 'updated', { 
             fields_updated: { to: Object.keys(req.body) } 

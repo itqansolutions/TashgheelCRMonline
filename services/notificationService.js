@@ -47,6 +47,48 @@ class NotificationService {
             console.error('NotificationService (notifyRole) Failed:', err.message);
         }
     }
+    /**
+     * Dispatch an assignment notification to a user
+     * Guards against self-notifications (if assignedByUserId === recipientUserId)
+     */
+    async notifyAssignment({
+        tenantId,
+        branchId = null,
+        recipientUserId,
+        assignedByUserId = null,
+        assignedByName = null,
+        entityType = 'Record',
+        entityName = '',
+        link = null,
+        metadata = null
+    }) {
+        if (!recipientUserId) return;
+        // Strict guard: Do not send notification to self
+        if (assignedByUserId && String(recipientUserId) === String(assignedByUserId)) return;
+
+        const title = `New ${entityType} Assigned`;
+        const sender = assignedByName ? `${assignedByName}` : 'A team member';
+        const message = entityName 
+            ? `${sender} assigned "${entityName}" to you.`
+            : `${sender} assigned a new ${entityType.toLowerCase()} to you.`;
+
+        await this.notify({
+            tenant_id: tenantId,
+            branch_id: branchId,
+            user_id: String(recipientUserId),
+            type: 'assignment',
+            title,
+            message,
+            link,
+            metadata: {
+                ...metadata,
+                entityType,
+                entityName,
+                assignedByUserId,
+                assignedByName
+            }
+        });
+    }
 }
 
 module.exports = new NotificationService();

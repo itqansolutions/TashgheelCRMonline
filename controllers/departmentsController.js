@@ -6,9 +6,10 @@ const db = require('../config/db');
 exports.getDepartments = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT d.*, u.name as manager_name 
+      `SELECT d.*, u.name as manager_name, pd.name as parent_department_name 
        FROM departments d 
        LEFT JOIN users u ON d.manager_id = u.id 
+       LEFT JOIN departments pd ON d.parent_department_id = pd.id
        WHERE d.tenant_id::text = $1::text ORDER BY d.name ASC`,
       [req.user.tenant_id]
     );
@@ -23,12 +24,13 @@ exports.getDepartments = async (req, res) => {
 // @route   POST /api/departments
 // @access  Private (Admin)
 exports.createDepartment = async (req, res) => {
-  const { name, description, manager_id } = req.body;
-  const cleanManagerId = (manager_id && manager_id !== '') ? parseInt(manager_id) : null;
+  const { name, description, manager_id, parent_department_id } = req.body;
+  const cleanManagerId = (manager_id && manager_id !== '') ? parseInt(manager_id, 10) : null;
+  const cleanParentId = (parent_department_id && parent_department_id !== '') ? parseInt(parent_department_id, 10) : null;
   try {
     const result = await db.query(
-      'INSERT INTO departments (name, description, manager_id, tenant_id) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, description, cleanManagerId, req.user.tenant_id]
+      'INSERT INTO departments (name, description, manager_id, parent_department_id, tenant_id) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [name, description, cleanManagerId, cleanParentId, req.user.tenant_id]
     );
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
@@ -41,12 +43,19 @@ exports.createDepartment = async (req, res) => {
 // @route   PUT /api/departments/:id
 // @access  Private (Admin)
 exports.updateDepartment = async (req, res) => {
-  const { name, description, manager_id } = req.body;
-  const cleanManagerId = (manager_id && manager_id !== '') ? parseInt(manager_id) : null;
+  const { name, description, manager_id, parent_department_id } = req.body;
+  const cleanManagerId = (manager_id && manager_id !== '') ? parseInt(manager_id, 10) : null;
+  const cleanParentId = (parent_department_id && parent_department_id !== '') ? parseInt(parent_department_id, 10) : null;
+  const deptId = parseInt(req.params.id, 10);
+
+  if (cleanParentId && cleanParentId === deptId) {
+    return res.status(400).json({ status: 'error', message: 'A department cannot be its own supervising parent' });
+  }
+
   try {
     const result = await db.query(
-      'UPDATE departments SET name = $1, description = $2, manager_id = $3 WHERE id = $4 AND tenant_id::text = $5::text RETURNING *',
-      [name, description, cleanManagerId, req.params.id, req.user.tenant_id]
+      'UPDATE departments SET name = $1, description = $2, manager_id = $3, parent_department_id = $4 WHERE id = $5 AND tenant_id::text = $6::text RETURNING *',
+      [name, description, cleanManagerId, cleanParentId, deptId, req.user.tenant_id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Department not found' });

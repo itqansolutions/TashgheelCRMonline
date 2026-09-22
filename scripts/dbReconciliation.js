@@ -115,6 +115,7 @@ const reconcileDatabase = async () => {
             await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
             await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
             await db.query(`ALTER TABLE departments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE departments ADD COLUMN IF NOT EXISTS parent_department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL`);
             await db.query(`ALTER TABLE lead_sources ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
             await db.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
             await db.query(`ALTER TABLE system_logs ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);

@@ -111,14 +111,30 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'EInvoice',           icon: <FileCheck size={18} />,     path: '/integrations/einvoice' },
   ];
 
+  const allowed = safeArray(user?.allowedPages);
+  const filterByAllowed = (items) => {
+    if (!user) return [];
+    if (user.role === 'admin') return items;
+    return (items || []).filter(item => allowed.includes(item.path));
+  };
+
+  const visibleContactItems = filterByAllowed(contactItems);
+  const visibleSalesItems = filterByAllowed(salesItems);
+  const visibleHrItems = filterByAllowed(hrItems);
+  const visibleWarehouseItems = filterByAllowed(warehouseItems);
+  const visibleFinanceItems = filterByAllowed(financeItems);
+  const visibleIntegrationsItems = filterByAllowed(integrationsItems);
+
   const filteredItems = (navItems || []).filter(item => {
     if (!user) return false;
     if (item.hidden) return false;
     if (user.role === 'admin') return true;
     const checkPath = item.path;
-    const allowed = safeArray(user?.allowedPages);
     return allowed.includes(checkPath);
   });
+
+  const topNavItems = filteredItems.filter(item => item.path === '/dashboard' || item.path === '/my-profile');
+  const bottomNavItems = filteredItems.filter(item => item.path !== '/dashboard' && item.path !== '/my-profile');
 
   const isHrLocked = !can('hr');
   const isInventoryLocked = !can('inventory') && !isRealEstate;
@@ -263,7 +279,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       {/* Nav */}
       <nav className="sidebar-nav">
         {/* Dashboard & Profile */}
-        {filteredItems.slice(0, 2).map((item) => (
+        {topNavItems.map((item) => (
           <NavLink key={item.name} to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>
             {item.icon}
             <span>{item.name}</span>
@@ -271,60 +287,70 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         ))}
 
         {/* Contacts Group */}
-        <div
-          className="group-header"
-          onClick={() => isOpen && setContactsOpen(prev => !prev)}
-          title={!isOpen ? 'Contacts' : undefined}
-        >
-          <Phone size={20} className="main-icon" />
-          <span className="group-label">Contacts</span>
-          {isOpen && (
-            contactsOpen 
-              ? <ChevronDown size={14} className="group-chevron" />
-              : <ChevronUp size={14} className="group-chevron" />
-          )}
-        </div>
-        <div className={`group-sub-items ${isOpen && contactsOpen ? 'expanded' : 'collapsed'}`}>
-          {contactItems.map(item => (
-            <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
-              {item.icon}
-              <span>{item.name}</span>
-            </NavLink>
-          ))}
-        </div>
+        {visibleContactItems.length > 0 && (
+          <>
+            <div
+              className="group-header"
+              onClick={() => isOpen && setContactsOpen(prev => !prev)}
+              title={!isOpen ? 'Contacts' : undefined}
+            >
+              <Phone size={20} className="main-icon" />
+              <span className="group-label">Contacts</span>
+              {isOpen && (
+                contactsOpen 
+                  ? <ChevronDown size={14} className="group-chevron" />
+                  : <ChevronUp size={14} className="group-chevron" />
+              )}
+            </div>
+            <div className={`group-sub-items ${isOpen && contactsOpen ? 'expanded' : 'collapsed'}`}>
+              {visibleContactItems.map(item => (
+                <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Sales Group */}
-        <div
-          className="group-header"
-          onClick={() => isOpen && setSalesOpen(prev => !prev)}
-          title={!isOpen ? 'Sales' : undefined}
-        >
-          <ShoppingBag size={20} className="main-icon" />
-          <span className="group-label">Sales</span>
-          {isOpen && (
-            salesOpen 
-              ? <ChevronDown size={14} className="group-chevron" />
-              : <ChevronUp size={14} className="group-chevron" />
-          )}
-        </div>
-        <div className={`group-sub-items ${isOpen && salesOpen ? 'expanded' : 'collapsed'}`}>
-          {salesItems.map(item => (
-            <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
-              {item.icon}
-              <span>{item.name}</span>
-            </NavLink>
-          ))}
-        </div>
+        {visibleSalesItems.length > 0 && (
+          <>
+            <div
+              className="group-header"
+              onClick={() => isOpen && setSalesOpen(prev => !prev)}
+              title={!isOpen ? 'Sales' : undefined}
+            >
+              <ShoppingBag size={20} className="main-icon" />
+              <span className="group-label">Sales</span>
+              {isOpen && (
+                salesOpen 
+                  ? <ChevronDown size={14} className="group-chevron" />
+                  : <ChevronUp size={14} className="group-chevron" />
+              )}
+            </div>
+            <div className={`group-sub-items ${isOpen && salesOpen ? 'expanded' : 'collapsed'}`}>
+              {visibleSalesItems.map(item => (
+                <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* HR Group */}
         {isHrLocked ? (
-          <div className="nav-locked" onClick={() => navigate('/pricing')} title="Upgrade to access HR Module">
-            <Users2 size={20} />
-            <span className="nav-label">HR & Attendance</span>
-            <span className="lock-badge"><Lock size={9}/> PRO</span>
-            <div className="lock-tooltip">🔒 Upgrade to unlock HR Module <ArrowRight size={11}/></div>
-          </div>
-        ) : (
+          user?.role === 'admin' ? (
+            <div className="nav-locked" onClick={() => navigate('/pricing')} title="Upgrade to access HR Module">
+              <Users2 size={20} />
+              <span className="nav-label">HR & Attendance</span>
+              <span className="lock-badge"><Lock size={9}/> PRO</span>
+              <div className="lock-tooltip">🔒 Upgrade to unlock HR Module <ArrowRight size={11}/></div>
+            </div>
+          ) : null
+        ) : visibleHrItems.length > 0 ? (
           <>
             <div
               className="group-header"
@@ -340,7 +366,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               )}
             </div>
             <div className={`group-sub-items ${isOpen && hrOpen ? 'expanded' : 'collapsed'}`}>
-              {hrItems.map(item => (
+              {visibleHrItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
                   {item.icon}
                   <span>{item.name}</span>
@@ -348,17 +374,19 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               ))}
             </div>
           </>
-        )}
+        ) : null}
 
         {/* Warehouse Group */}
         {isInventoryLocked ? (
-          <div className="nav-locked" onClick={() => navigate('/pricing')} title="Upgrade to access Warehouse Module">
-            <Package size={20} />
-            <span className="nav-label">Warehouse</span>
-            <span className="lock-badge"><Lock size={9}/> PRO</span>
-            <div className="lock-tooltip">🔒 Upgrade to unlock Warehouse <ArrowRight size={11}/></div>
-          </div>
-        ) : (
+          user?.role === 'admin' ? (
+            <div className="nav-locked" onClick={() => navigate('/pricing')} title="Upgrade to access Warehouse Module">
+              <Package size={20} />
+              <span className="nav-label">Warehouse</span>
+              <span className="lock-badge"><Lock size={9}/> PRO</span>
+              <div className="lock-tooltip">🔒 Upgrade to unlock Warehouse <ArrowRight size={11}/></div>
+            </div>
+          ) : null
+        ) : visibleWarehouseItems.length > 0 ? (
           <>
             <div
               className="group-header"
@@ -374,7 +402,34 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               )}
             </div>
             <div className={`group-sub-items ${isOpen && warehouseOpen ? 'expanded' : 'collapsed'}`}>
-              {warehouseItems.map(item => (
+              {visibleWarehouseItems.map(item => (
+                <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {/* Finance Group */}
+        {visibleFinanceItems.length > 0 && (
+          <>
+            <div
+              className="group-header"
+              onClick={() => isOpen && setFinanceOpen(prev => !prev)}
+              title={!isOpen ? 'Finance' : undefined}
+            >
+              <Wallet size={20} className="main-icon" />
+              <span className="group-label">Finance</span>
+              {isOpen && (
+                financeOpen 
+                  ? <ChevronDown size={14} className="group-chevron" />
+                  : <ChevronUp size={14} className="group-chevron" />
+              )}
+            </div>
+            <div className={`group-sub-items ${isOpen && financeOpen ? 'expanded' : 'collapsed'}`}>
+              {visibleFinanceItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
                   {item.icon}
                   <span>{item.name}</span>
@@ -384,65 +439,35 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </>
         )}
 
-        {/* Finance Group */}
-        <div
-          className="group-header"
-          onClick={() => isOpen && setFinanceOpen(prev => !prev)}
-          title={!isOpen ? 'Finance' : undefined}
-        >
-          <Wallet size={20} className="main-icon" />
-          <span className="group-label">Finance</span>
-          {isOpen && (
-            financeOpen 
-              ? <ChevronDown size={14} className="group-chevron" />
-              : <ChevronUp size={14} className="group-chevron" />
-          )}
-        </div>
-        <div className={`group-sub-items ${isOpen && financeOpen ? 'expanded' : 'collapsed'}`}>
-          {financeItems.map(item => (
-            <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
-              {item.icon}
-              <span>{item.name}</span>
-            </NavLink>
-          ))}
-        </div>
-
         {/* Integrations Group */}
-        {(() => {
-          const allowed = safeArray(user?.allowedPages);
-          const visibleIntegrations = user?.role === 'admin'
-            ? integrationsItems
-            : integrationsItems.filter(item => allowed.includes(item.path));
-          if (visibleIntegrations.length === 0) return null;
-          return (
-            <>
-              <div
-                className="group-header"
-                onClick={() => isOpen && setIntegrationsOpen(prev => !prev)}
-                title={!isOpen ? 'Integrations' : undefined}
-              >
-                <Share2 size={20} className="main-icon" />
-                <span className="group-label">Integrations</span>
-                {isOpen && (
-                  integrationsOpen
-                    ? <ChevronDown size={14} className="group-chevron" />
-                    : <ChevronUp size={14} className="group-chevron" />
-                )}
-              </div>
-              <div className={`group-sub-items ${isOpen && integrationsOpen ? 'expanded' : 'collapsed'}`}>
-                {visibleIntegrations.map(item => (
-                  <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
-                    {item.icon}
-                    <span>{item.name}</span>
-                  </NavLink>
-                ))}
-              </div>
-            </>
-          );
-        })()}
+        {visibleIntegrationsItems.length > 0 && (
+          <>
+            <div
+              className="group-header"
+              onClick={() => isOpen && setIntegrationsOpen(prev => !prev)}
+              title={!isOpen ? 'Integrations' : undefined}
+            >
+              <Share2 size={20} className="main-icon" />
+              <span className="group-label">Integrations</span>
+              {isOpen && (
+                integrationsOpen
+                  ? <ChevronDown size={14} className="group-chevron" />
+                  : <ChevronUp size={14} className="group-chevron" />
+              )}
+            </div>
+            <div className={`group-sub-items ${isOpen && integrationsOpen ? 'expanded' : 'collapsed'}`}>
+              {visibleIntegrationsItems.map(item => (
+                <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Remaining items */}
-        {filteredItems.slice(2).map((item) => {
+        {bottomNavItems.map((item) => {
           const isModuleLocked = item.module && !can(item.module);
 
           if (isModuleLocked) {

@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const accessScopeService = require('../services/accessScopeService');
 const notificationService = require('../services/notificationService');
 const { logAction, logCreate, logUpdate, logDelete, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 const { logActivity } = require('../utils/activityLogger');
@@ -13,6 +14,21 @@ exports.getDeals = async (req, res) => {
   const branch_id = req.branchId || req.user?.branch_id;
 
   try {
+    const scope = await accessScopeService.buildScopePredicate({
+      user: req.user,
+      tableAlias: 'd',
+      assigneeCol: 'assigned_to',
+      paramIndex: 3
+    });
+
+    let whereClause = `d.tenant_id::text = $1::text AND d.branch_id::text = $2::text`;
+    const params = [tenant_id, branch_id];
+
+    if (scope.sql && scope.sql !== '1=1') {
+      whereClause += ` AND ${scope.sql}`;
+      params.push(...scope.params);
+    }
+
     const result = await db.query(`
       SELECT 
         d.*, 
@@ -32,9 +48,9 @@ exports.getDeals = async (req, res) => {
       LEFT JOIN users u ON d.assigned_to::text = u.id::text AND d.tenant_id::text = u.tenant_id::text
       LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND d.tenant_id::text = ru.tenant_id::text
       LEFT JOIN re_payments_mvp rp ON d.id::text = rp.deal_id::text AND d.tenant_id::text = rp.tenant_id::text
-      WHERE d.tenant_id::text = $1::text AND d.branch_id::text = $2::text
+      WHERE ${whereClause}
       ORDER BY d.created_at DESC
-    `, [tenant_id, branch_id]);
+    `, params);
 
     const templateConfig = await getTenantTemplate(tenant_id);
 
@@ -190,6 +206,19 @@ exports.createDeal = async (req, res) => {
             _link: '/deals'
         }).catch(e => console.error('[RuleEngine] DEAL_CREATED error:', e.message));
     }
+    // Assignment notification
+    if (cleanAssignedTo && String(cleanAssignedTo) !== String(req.user.id)) {
+      notificationService.notifyAssignment({
+        tenantId: tenant_id,
+        branchId: branch_id,
+        recipientUserId: cleanAssignedTo,
+        assignedByUserId: req.user.id,
+        assignedByName: req.user.name,
+        entityType: 'Deal',
+        entityName: newDeal.title,
+        link: '/deals'
+      }).catch(e => console.warn('[Deal Assignment Notification Warning]:', e.message));
+    }
 
     res.status(201).json({ status: 'success', data: newDeal });
   } catch (err) {
@@ -259,6 +288,20 @@ exports.updateDeal = async (req, res) => {
         await logActivity(tenant_id, req.user, 'deal', req.params.id, 'updated', { 
             fields_updated: { to: Object.keys(req.body) } 
         });
+    }
+
+    // Assignment notification on reassignment
+    if (assigned_to && assigned_to !== oldData.assigned_to && String(assigned_to) !== String(req.user.id)) {
+      notificationService.notifyAssignment({
+        tenantId: tenant_id,
+        branchId: branch_id,
+        recipientUserId: assigned_to,
+        assignedByUserId: req.user.id,
+        assignedByName: req.user.name,
+        entityType: 'Deal',
+        entityName: result.rows[0]?.title || oldData.title,
+        link: '/deals'
+      }).catch(e => console.warn('[Deal Reassignment Notification Warning]:', e.message));
     }
 
     res.json({ status: 'success', data: result.rows[0] });

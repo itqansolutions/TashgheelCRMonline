@@ -21,8 +21,12 @@ const labelStyle = {
 };
 
 // ─── Department Modal ─────────────────────────────────────────────────────────
-const DeptModal = ({ dept, users, onClose, onSave }) => {
-  const [form, setForm] = useState({ name: dept?.name || '', manager_id: dept?.manager_id || '' });
+const DeptModal = ({ dept, departments = [], users, onClose, onSave }) => {
+  const [form, setForm] = useState({
+    name: dept?.name || '',
+    manager_id: dept?.manager_id || '',
+    parent_department_id: dept?.parent_department_id || ''
+  });
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -30,8 +34,13 @@ const DeptModal = ({ dept, users, onClose, onSave }) => {
     if (!form.name.trim()) return toast.error('Department name is required');
     setSaving(true);
     try {
-      if (dept) { await api.put(`/departments/${dept.id}`, form); toast.success('Department updated successfully'); }
-      else { await api.post('/departments', form); toast.success('Department added successfully'); }
+      const payload = {
+        name: form.name,
+        manager_id: form.manager_id || null,
+        parent_department_id: form.parent_department_id ? parseInt(form.parent_department_id, 10) : null
+      };
+      if (dept) { await api.put(`/departments/${dept.id}`, payload); toast.success('Department updated successfully'); }
+      else { await api.post('/departments', payload); toast.success('Department added successfully'); }
       onSave();
     } catch (err) { toast.error(err.response?.data?.message || 'An error occurred'); }
     finally { setSaving(false); }
@@ -50,7 +59,22 @@ const DeptModal = ({ dept, users, onClose, onSave }) => {
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Sales Department" style={inputStyle} required />
           </div>
           <div>
-            <label style={labelStyle}>Direct Manager</label>
+            <label style={labelStyle}>Supervising Department (القسم المشرف / الأعلى)</label>
+            <select
+              value={form.parent_department_id}
+              onChange={e => setForm(f => ({ ...f, parent_department_id: e.target.value }))}
+              style={inputStyle}
+            >
+              <option value="">-- None (Top Level Department) --</option>
+              {departments
+                .filter(d => !dept || d.id !== dept.id)
+                .map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Direct Manager (مدير القسم)</label>
             <select value={form.manager_id} onChange={e => setForm(f => ({ ...f, manager_id: e.target.value }))} style={inputStyle}>
               <option value="">-- Select Manager --</option>
               {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
@@ -133,6 +157,21 @@ const PERMISSION_GROUPS = [
     ]
   },
   {
+    title: 'WhatsApp & Marketing (الواتساب والتسويق)',
+    pages: [
+      { id: '/whatsapp-chat', label: 'WhatsApp Live Chat (محادثات الواتساب)' },
+      { id: '/marketing/whatsapp-campaigns', label: 'WhatsApp Campaigns (حملات الواتساب)' },
+      { id: '/marketing/whatsapp-chatbots', label: 'WhatsApp Chatbots (البوتات التفاعلية)' },
+      { id: '/integrations/whatsapp', label: 'WhatsApp Settings (إعدادات الواتساب)' },
+    ]
+  },
+  {
+    title: 'Real Estate & Properties (العقارات والوحدات)',
+    pages: [
+      { id: '/units-registry', label: 'Units Registry (سجل الوحدات العقارية)' },
+    ]
+  },
+  {
     title: 'HR & Attendance (الموارد البشرية)',
     pages: [
       { id: '/hr/my-attendance', label: 'My Attendance (تسجيل حضوري)' },
@@ -167,6 +206,7 @@ const PERMISSION_GROUPS = [
       { id: '/erp/banking', label: 'Bank Reconciliation (البنوك والمطابقة)' },
       { id: '/erp/closing', label: 'Period Closing (إقفال الفترات)' },
       { id: '/erp/entries', label: 'Entries (السندات)' },
+      { id: '/erp/purchasing', label: 'Purchasing / AP (المشتريات والموردين)' },
     ]
   },
   {
@@ -272,6 +312,16 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
         '/dashboard', '/my-profile', '/products', '/inventory/warehouses',
         '/inventory/movements', '/inventory/balances', '/inventory/item-card',
         '/inventory/keepers', '/inventory/transaction-impact', '/files'
+      ]);
+    } else if (presetType === 'WHATSAPP') {
+      setAllowedPages([
+        '/dashboard', '/my-profile', '/whatsapp-chat', '/marketing/whatsapp-campaigns',
+        '/marketing/whatsapp-chatbots', '/contacts/customers', '/deals', '/tasks', '/files'
+      ]);
+    } else if (presetType === 'REAL_ESTATE') {
+      setAllowedPages([
+        '/dashboard', '/my-profile', '/units-registry', '/contacts/customers',
+        '/deals', '/tasks', '/finance', '/files'
       ]);
     }
   };
@@ -433,6 +483,8 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
                 <button type="button" onClick={() => applyPreset('HR')} style={{ padding: '5px 10px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>HR Staff</button>
                 <button type="button" onClick={() => applyPreset('ACCOUNTANT')} style={{ padding: '5px 10px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Accountant</button>
                 <button type="button" onClick={() => applyPreset('WAREHOUSE')} style={{ padding: '5px 10px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Warehouse</button>
+                <button type="button" onClick={() => applyPreset('WHATSAPP')} style={{ padding: '5px 10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>WhatsApp Team</button>
+                <button type="button" onClick={() => applyPreset('REAL_ESTATE')} style={{ padding: '5px 10px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Real Estate</button>
                 <button type="button" onClick={() => applyPreset('CLEAR')} style={{ padding: '5px 10px', background: '#e2e8f0', color: '#64748b', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Clear</button>
               </div>
 
@@ -664,6 +716,12 @@ const ContactsEmployees = () => {
                     </div>
                   </div>
                   <h3 style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>{d.name}</h3>
+                  {d.parent_department_name && (
+                    <div style={{ margin: '0 0 6px', fontSize: '12px', color: '#0284c7', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>↳ Under:</span>
+                      <span style={{ background: '#e0f2fe', padding: '2px 6px', borderRadius: '4px' }}>{d.parent_department_name}</span>
+                    </div>
+                  )}
                   <p style={{ margin: 0, fontSize: '13px', color: '#64748b', fontWeight: 600 }}>
                     Manager: <span style={{ color: '#4f46e5' }}>{d.manager_name || 'Unassigned'}</span>
                   </p>
@@ -787,6 +845,7 @@ const ContactsEmployees = () => {
       {deptModal && (
         <DeptModal
           dept={deptModal === 'add' ? null : deptModal}
+          departments={departments}
           users={users}
           onClose={() => setDeptModal(null)}
           onSave={() => { setDeptModal(null); fetchAll(); }}

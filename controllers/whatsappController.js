@@ -6,6 +6,8 @@
 
 const crypto = require('crypto');
 const db = require('../config/db');
+const accessScopeService = require('../services/accessScopeService');
+const notificationService = require('../services/notificationService');
 const {
   sendTestMessage,
   sendDirectTextMessage,
@@ -1018,6 +1020,24 @@ exports.getConversations = async (req, res) => {
       query += ` AND c.assigned_user_id::text = $${params.length}::text`;
     } else if (scope === 'unassigned') {
       query += ` AND c.assigned_user_id IS NULL`;
+    } else {
+      // 'all' scope: apply enterprise role & department hierarchy scoping
+      if (req.user.role !== 'admin') {
+        const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+        if (accessibleDeptIds && accessibleDeptIds.length > 0) {
+          params.push(userId, accessibleDeptIds, tenantId);
+          const p1 = params.length - 2;
+          const p2 = params.length - 1;
+          const p3 = params.length;
+          query += ` AND (c.assigned_user_id IS NULL OR c.assigned_user_id::text = $${p1}::text OR c.assigned_user_id IN (
+            SELECT id FROM users WHERE department_id = ANY($${p2}::int[]) AND tenant_id::text = $${p3}::text
+          ))`;
+        } else {
+          // Regular employee in 'all' view: sees own chats + unassigned queue
+          params.push(userId);
+          query += ` AND (c.assigned_user_id IS NULL OR c.assigned_user_id::text = $${params.length}::text)`;
+        }
+      }
     }
 
     if (search && String(search).trim()) {
@@ -1386,6 +1406,20 @@ exports.assignConversation = async (req, res) => {
 
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Conversation not found' });
+    }
+
+    // Trigger assignment notification if assigned to another user
+    if (assigned_user_id && String(assigned_user_id) !== String(req.user.id)) {
+      notificationService.notifyAssignment({
+        tenantId,
+        branchId: result.rows[0]?.branch_id,
+        recipientUserId: assigned_user_id,
+        assignedByUserId: req.user.id,
+        assignedByName: req.user.name,
+        entityType: 'WhatsApp Chat',
+        entityName: result.rows[0]?.contact_name || result.rows[0]?.phone_number,
+        link: '/whatsapp-chat'
+      }).catch(e => console.warn('[WhatsApp Assignment Notification Warning]:', e.message));
     }
 
     res.json({

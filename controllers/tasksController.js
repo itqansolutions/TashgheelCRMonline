@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const accessScopeService = require('../services/accessScopeService');
 const notificationService = require('../services/notificationService');
 const { logCreate, logUpdate, logDelete } = require('../services/loggerService');
 const { logActivity } = require('../utils/activityLogger');
@@ -61,27 +62,33 @@ exports.getTasks = async (req, res) => {
 
     if (userRole === 'admin') {
       // Admin sees ALL tasks in the tenant/branch - no extra filter needed
-    } else if (userRole === 'manager') {
+    } else if (userRole === 'manager' || userRole === 'supervisor') {
+      const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+      queryParams.push(userId); // $3
+      let deptFilter = '';
+      if (accessibleDeptIds && accessibleDeptIds.length > 0) {
+        queryParams.push(accessibleDeptIds); // $4
+        deptFilter = `OR t.assigned_to IN (SELECT id FROM users WHERE department_id = ANY($4::int[]) AND tenant_id::text = $1::text)`;
+      }
       const managerFilter = ` 
         AND (t.assigned_to = $3 
              OR t.director_id = $3 
              OR t.created_by = $3
              OR t.assigned_to IN (SELECT id FROM users WHERE manager_id = $3 AND tenant_id::text = $1::text)
+             ${deptFilter}
              OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id = t.id AND tf.user_id = $3))
       `;
       query += managerFilter;
       fallbackQuery += managerFilter;
-      queryParams.push(userId);
     } else {
+      queryParams.push(userId); // $3
       const employeeFilter = ` 
         AND (t.assigned_to = $3 
              OR t.director_id = $3 
-             OR t.created_by = $3 
              OR EXISTS (SELECT 1 FROM task_followers tf WHERE tf.task_id = t.id AND tf.user_id = $3))
       `;
       query += employeeFilter;
       fallbackQuery += employeeFilter;
-      queryParams.push(userId);
     }
 
     query += ` ORDER BY t.due_date ASC NULLS LAST`;
@@ -217,7 +224,7 @@ exports.updateTask = async (req, res) => {
     // Verify task belongs to tenant
     const branch_id = req.branchId || req.user?.branch_id;
 
-    const verifyResult = await client.query('SELECT id, status_id FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
+    const verifyResult = await client.query('SELECT id, status_id, assigned_to FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
     if (verifyResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
@@ -237,6 +244,20 @@ exports.updateTask = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    // Trigger Notification if task was reassigned to another user
+    if (assigned_to && assigned_to !== verifyResult.rows[0].assigned_to && String(assigned_to) !== String(req.user.id)) {
+      notificationService.notifyAssignment({
+        tenantId: tenant_id,
+        branchId: branch_id,
+        recipientUserId: assigned_to,
+        assignedByUserId: req.user.id,
+        assignedByName: req.user.name,
+        entityType: 'Task',
+        entityName: result.rows[0].title,
+        link: '/tasks'
+      }).catch(e => console.warn('[Task Reassignment Notification Warning]:', e.message));
+    }
 
     // Detect status change for specific activity logging
     if (req.body.status_id && req.body.status_id !== verifyResult.rows[0].status_id) {
