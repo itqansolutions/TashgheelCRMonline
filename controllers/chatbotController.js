@@ -271,11 +271,18 @@ exports.simulateBotStep = async (req, res) => {
     let matchedOption = null;
 
     if (Array.isArray(current.options) && current.options.length > 0) {
+      const cleanInput = String(userInput || '').toLowerCase().trim();
       matchedOption = current.options.find((opt, idx) => {
         const num = String(idx + 1);
-        const text = String(opt.text || opt.label || '').toLowerCase();
-        const input = String(userInput || '').toLowerCase().trim();
-        return input === num || input === text || input.includes(text);
+        const text = String(opt.text || opt.label || '').toLowerCase().trim();
+        const val = String(opt.value || '').toLowerCase().trim();
+        const id = String(opt.id || '').toLowerCase().trim();
+        return cleanInput === num ||
+               cleanInput === text ||
+               cleanInput === val ||
+               cleanInput === id ||
+               (cleanInput.length >= 3 && text.includes(cleanInput)) ||
+               (cleanInput.length >= 3 && cleanInput.includes(text));
       });
 
       if (!matchedOption) {
@@ -289,21 +296,33 @@ exports.simulateBotStep = async (req, res) => {
           }
         });
       }
-
-      nextNodeId = matchedOption.next_node_id || current.next_node_id;
-    } else {
-      nextNodeId = current.next_node_id;
     }
 
-    const isHandoff = current.action === 'handoff' || matchedOption?.action === 'handoff';
+    const targetAction = matchedOption?.action || (matchedOption?.next_node_id ? 'next_step' : current.action) || 'next_step';
+    nextNodeId = matchedOption?.next_node_id || (targetAction === 'next_step' ? current.next_node_id : null);
+    const isHandoff = targetAction === 'handoff' || (!nextNodeId && current.action === 'handoff');
+    const isComplete = targetAction === 'complete' || (!nextNodeId && current.action === 'complete');
+
     if (isHandoff) {
       return res.json({
         status: 'success',
         data: {
           currentNodeId: null,
-          botReply: current.handoff_message || 'Thank you! Handing you off to a live agent now.',
+          botReply: matchedOption?.handoff_message || current.handoff_message || 'Thank you! Handing you off to a live agent now.',
           options: [],
           action: 'handed_off'
+        }
+      });
+    }
+
+    if (isComplete) {
+      return res.json({
+        status: 'success',
+        data: {
+          currentNodeId: null,
+          botReply: matchedOption?.completion_message || current.completion_message || 'Thank you! Your information has been recorded.',
+          options: [],
+          action: 'completed'
         }
       });
     }

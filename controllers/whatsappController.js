@@ -1617,8 +1617,20 @@ exports.handleWebhookEvent = async (req, res) => {
             }
           } else if (msgType === 'button') {
             bodyText = msg.button?.text || '[Button Click]';
+            interactiveData = {
+              type: 'button',
+              id: msg.button?.payload || null,
+              title: bodyText
+            };
           } else if (msgType === 'interactive') {
-            bodyText = msg.interactive?.button_reply?.title || msg.interactive?.list_reply?.title || '[Interactive Reply]';
+            const btn = msg.interactive?.button_reply;
+            const lst = msg.interactive?.list_reply;
+            bodyText = btn?.title || lst?.title || '[Interactive Reply]';
+            interactiveData = {
+              type: btn ? 'button' : 'list',
+              id: btn?.id || lst?.id || null,
+              title: bodyText
+            };
           } else {
             bodyText = `[${msgType} message]`;
           }
@@ -1709,6 +1721,7 @@ exports.handleWebhookEvent = async (req, res) => {
                   conversationId,
                   fromPhone,
                   messageText: bodyText,
+                  interactiveData,
                   contactProfileName: customerName
                 });
               } catch (botErr) {

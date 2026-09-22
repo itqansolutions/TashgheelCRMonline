@@ -1171,6 +1171,163 @@ async function sendDirectTextMessage({ phoneNumberId, accessToken, toPhone, text
   }
 }
 
+/**
+ * Send an interactive WhatsApp message (Buttons <= 3 or List Picker 4..10).
+ * Subject to Meta's Cloud API interactive requirements:
+ * - Up to 3 buttons: type 'button', title max 20 chars
+ * - 4 to 10 options: type 'list', button label max 20 chars, row title max 24 chars
+ * Automatically falls back to formatted numbered text message on any limit violation or API error.
+ *
+ * @param {object} params
+ * @param {string} params.phoneNumberId
+ * @param {string} params.accessToken
+ * @param {string} params.toPhone
+ * @param {string} params.text
+ * @param {Array<object>} [params.options]
+ * @param {string} [params.headerText]
+ * @param {string} [params.footerText]
+ * @param {string} [params.listButtonLabel]
+ * @returns {Promise<{success: boolean, messageId?: string, mode?: string, error?: string}>}
+ */
+async function sendInteractiveButtonsOrList({
+  phoneNumberId,
+  accessToken,
+  toPhone,
+  text,
+  options = [],
+  headerText = null,
+  footerText = null,
+  listButtonLabel = 'Select Option'
+}) {
+  if (!phoneNumberId || !accessToken || !toPhone || !text) {
+    return { success: false, error: 'Missing required parameters for interactive WhatsApp message' };
+  }
+
+  const normPhone = normalisePhone(toPhone);
+  if (!normPhone) {
+    return { success: false, error: `Invalid recipient phone number: ${toPhone}` };
+  }
+
+  // Fallback text generator for graceful degradation
+  const sendFallbackText = async () => {
+    let fallbackBody = String(text).trim();
+    if (Array.isArray(options) && options.length > 0) {
+      const optionLines = options.map((opt, idx) => `${idx + 1}. ${opt.text || opt.label || ''}`).join('\n');
+      fallbackBody = `${fallbackBody}\n\n${optionLines}`;
+    }
+    return await sendDirectTextMessage({
+      phoneNumberId,
+      accessToken,
+      toPhone: normPhone,
+      text: fallbackBody
+    });
+  };
+
+  // If no options provided or more than 10 options, send standard text
+  if (!Array.isArray(options) || options.length === 0 || options.length > 10) {
+    return await sendFallbackText();
+  }
+
+  const url = `${WA_BASE_URL}/${phoneNumberId.trim()}/messages`;
+  let interactivePayload = null;
+  let mode = 'button';
+
+  if (options.length <= 3) {
+    mode = 'button';
+    const buttons = options.map((opt, idx) => {
+      const title = String(opt.text || opt.label || `Option ${idx + 1}`).trim();
+      // Meta limits button title to 20 characters
+      const safeTitle = title.length > 20 ? title.substring(0, 19) + '…' : title;
+      const id = String(opt.id || opt.value || `opt_${idx + 1}`).slice(0, 250);
+      return {
+        type: 'reply',
+        reply: {
+          id,
+          title: safeTitle
+        }
+      };
+    });
+
+    interactivePayload = {
+      type: 'button',
+      body: { text: String(text).trim().slice(0, 1024) },
+      action: { buttons }
+    };
+  } else {
+    mode = 'list';
+    const rows = options.map((opt, idx) => {
+      const title = String(opt.text || opt.label || `Option ${idx + 1}`).trim();
+      // Meta limits list row title to 24 characters
+      const safeTitle = title.length > 24 ? title.substring(0, 23) + '…' : title;
+      const id = String(opt.id || opt.value || `opt_${idx + 1}`).slice(0, 200);
+      const row = { id, title: safeTitle };
+      if (opt.description) {
+        row.description = String(opt.description).slice(0, 72);
+      }
+      return row;
+    });
+
+    const safeButtonLabel = String(listButtonLabel || 'Select Option').trim().slice(0, 20);
+    interactivePayload = {
+      type: 'list',
+      body: { text: String(text).trim().slice(0, 1024) },
+      action: {
+        button: safeButtonLabel,
+        sections: [
+          {
+            title: 'Options',
+            rows
+          }
+        ]
+      }
+    };
+  }
+
+  if (headerText) {
+    interactivePayload.header = { type: 'text', text: String(headerText).slice(0, 60) };
+  }
+  if (footerText) {
+    interactivePayload.footer = { text: String(footerText).slice(0, 60) };
+  }
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: normPhone,
+    type: 'interactive',
+    interactive: interactivePayload
+  };
+
+  try {
+    const res = await axios.post(url, payload, {
+      headers: {
+        Authorization: `Bearer ${accessToken.trim()}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+
+    const messageId = res.data?.messages?.[0]?.id || null;
+    return { success: true, messageId, mode };
+  } catch (err) {
+    const metaError = err.response?.data?.error;
+    const errorCode = metaError?.code;
+    const errorMessage = metaError?.message || err.message;
+    console.warn(`[WhatsApp Interactive Send Warning] Code ${errorCode}: ${errorMessage}. Falling back to text.`);
+
+    if (errorCode === 131047) {
+      return {
+        success: false,
+        code: 'WINDOW_EXPIRED',
+        error: 'Customer service window (24h) has expired. Please send an approved template to continue.'
+      };
+    }
+
+    // Graceful fallback to text message
+    return await sendFallbackText();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Inbound Media Downloader & Persistent Storage
 // ---------------------------------------------------------------------------
@@ -1412,6 +1569,7 @@ module.exports = {
   sendTestMessage,
   callWhatsAppApi,
   sendDirectTextMessage,
+  sendInteractiveButtonsOrList,
   downloadAndStoreMedia,
   syncWabaPhoneNumbers,
   normalisePhone,

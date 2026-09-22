@@ -7,6 +7,7 @@
 const db = require('../config/db');
 const {
   sendDirectTextMessage,
+  sendInteractiveButtonsOrList,
   callWhatsAppApi,
   normalisePhone,
   getWhatsAppSettings
@@ -375,11 +376,12 @@ async function handleInboundBotInteraction({
   conversationId,
   fromPhone,
   messageText = '',
+  interactiveData = null,
   contactProfileName = null
 }) {
   try {
     const text = (messageText || '').trim();
-    if (!text) return { handled: false, reason: 'empty_text' };
+    if (!text && !interactiveData) return { handled: false, reason: 'empty_text' };
 
     // 1. Check if conversation has human takeover state
     const convCheck = await db.query(`
@@ -500,6 +502,7 @@ async function handleInboundBotInteraction({
         toPhone: fromPhone,
         text: promptText,
         options: rootNode.options || [],
+        displayMode: rootNode.display_mode || 'interactive',
         conversationId,
         tenantId,
         accountId
@@ -536,13 +539,34 @@ async function handleInboundBotInteraction({
     let matchedOption = null;
 
     if (Array.isArray(currentNode.options) && currentNode.options.length > 0) {
-      // Find option by index (1, 2, 3) or label text
-      matchedOption = currentNode.options.find((opt, idx) => {
-        const optionNumber = String(idx + 1);
-        const optText = String(opt.text || opt.label || '').toLowerCase().trim();
-        const inputLower = text.toLowerCase();
-        return text === optionNumber || inputLower === optText || inputLower.includes(optText);
-      });
+      // Try matching interactiveData if customer clicked a button or list row
+      if (interactiveData) {
+        matchedOption = currentNode.options.find((opt, idx) => {
+          const optId = String(opt.id || opt.value || `opt_${idx + 1}`).toLowerCase();
+          const intId = String(interactiveData.id || '').toLowerCase();
+          const optText = String(opt.text || opt.label || '').toLowerCase().trim();
+          const intTitle = String(interactiveData.title || '').toLowerCase().trim();
+          return (intId && (intId === optId || intId === String(opt.value).toLowerCase())) ||
+                 (intTitle && (intTitle === optText || intTitle.includes(optText) || optText.includes(intTitle)));
+        });
+      }
+
+      // If not matched via interactiveData, try matching by text / index / label / value
+      if (!matchedOption) {
+        const cleanInput = text.toLowerCase().trim();
+        matchedOption = currentNode.options.find((opt, idx) => {
+          const optionNumber = String(idx + 1);
+          const optText = String(opt.text || opt.label || '').toLowerCase().trim();
+          const optVal = String(opt.value || '').toLowerCase().trim();
+          const optId = String(opt.id || '').toLowerCase().trim();
+          return text === optionNumber ||
+                 cleanInput === optText ||
+                 cleanInput === optVal ||
+                 cleanInput === optId ||
+                 (cleanInput.length >= 3 && optText.includes(cleanInput)) ||
+                 (cleanInput.length >= 3 && cleanInput.includes(optText));
+        });
+      }
 
       if (matchedOption) {
         if (capturedField) {
@@ -550,7 +574,7 @@ async function handleInboundBotInteraction({
         }
       } else {
         // Did not match an option -> politely prompt again
-        const retryPrompt = `يرجى اختيار أحد الأرقام المتاحة:\n` +
+        const retryPrompt = `Please select one of the available options:\n` +
           currentNode.options.map((o, idx) => `${idx + 1}. ${o.text || o.label}`).join('\n');
         
         await sendBotReply({
@@ -559,6 +583,7 @@ async function handleInboundBotInteraction({
           toPhone: fromPhone,
           text: retryPrompt,
           options: currentNode.options,
+          displayMode: currentNode.display_mode || 'interactive',
           conversationId,
           tenantId,
           accountId
@@ -590,13 +615,15 @@ async function handleInboundBotInteraction({
       `, [syncRes.customerId, syncRes.customerName, conversationId]);
     }
 
-    // 3. Determine next node or action
-    let nextNodeId = matchedOption?.next_node_id || currentNode.next_node_id || null;
-    const isHandoff = currentNode.action === 'handoff' || matchedOption?.action === 'handoff' || !nextNodeId;
+    // 3. Determine next node or action (Option-level branching takes priority)
+    const targetAction = matchedOption?.action || (matchedOption?.next_node_id ? 'next_step' : currentNode.action) || 'next_step';
+    const nextNodeId = matchedOption?.next_node_id || (targetAction === 'next_step' ? currentNode.next_node_id : null);
+    const isHandoff = targetAction === 'handoff' || (!nextNodeId && currentNode.action === 'handoff');
+    const isComplete = targetAction === 'complete' || (!nextNodeId && currentNode.action === 'complete');
 
     if (isHandoff) {
       // Execute Least-Loaded Agent Handoff
-      const targetRole = currentNode.target_role_key || session.target_role_key || 'sales';
+      const targetRole = matchedOption?.target_role_key || currentNode.target_role_key || session.target_role_key || 'sales';
       const assignedAgent = await resolveLeastLoadedAgent({ tenantId, targetRoleKey: targetRole });
 
       if (assignedAgent) {
@@ -616,8 +643,8 @@ async function handleInboundBotInteraction({
         WHERE id::text = $2::text
         `, [assignedAgent.id, conversationId]);
 
-        const handoffMessage = currentNode.handoff_message || 
-          `شكراً لك! تم تحويل محادثتك لأحد ممثلي خدمة العملاء وسيقوم بالرد عليك في أقرب وقت.`;
+        const handoffMessage = matchedOption?.handoff_message || currentNode.handoff_message || 
+          `Thank you! Your conversation has been transferred to our team and a representative will reply shortly.`;
 
         await sendBotReply({
           phoneNumberId: phone_number_id,
@@ -629,7 +656,7 @@ async function handleInboundBotInteraction({
           accountId
         });
 
-        console.log(`🤝 [WhatsApp Bot] Handed off conversation ${conversationId} to agent ${assignedAgent.name} (Role: ${targetRole})`);
+        console.log(`🤝 [WhatsApp Bot] Handed off conversation ${conversationId} to agent ${assignedAgent.name} (Role/Department: ${targetRole})`);
         return { handled: true, action: 'handed_off', agentId: assignedAgent.id, agentName: assignedAgent.name };
       } else {
         // No agent online -> place in waiting queue
@@ -650,7 +677,7 @@ async function handleInboundBotInteraction({
         `, [conversationId]);
 
         const waitMessage = currentNode.waiting_message ||
-          `تم استلام طلبك وبانتظار تواصل أحد مسؤولي المبيعات معك قريباً.`;
+          `Your request has been received and our team will get back to you shortly.`;
 
         await sendBotReply({
           phoneNumberId: phone_number_id,
@@ -666,7 +693,37 @@ async function handleInboundBotInteraction({
       }
     }
 
-    // Advance to next node
+    if (isComplete) {
+      await db.query(`
+        UPDATE whatsapp_bot_sessions
+        SET status = 'completed',
+            collected_data = $1,
+            last_interaction_at = NOW()
+        WHERE id = $2
+      `, [JSON.stringify(collectedData), session.id]);
+
+      await db.query(`
+        UPDATE whatsapp_conversations
+        SET bot_status = 'completed',
+            updated_at = NOW()
+        WHERE id::text = $1::text
+      `, [conversationId]);
+
+      const completionMessage = matchedOption?.completion_message || currentNode.completion_message || `Thank you for contacting us!`;
+      await sendBotReply({
+        phoneNumberId: phone_number_id,
+        accessToken: access_token,
+        toPhone: fromPhone,
+        text: completionMessage,
+        conversationId,
+        tenantId,
+        accountId
+      });
+
+      return { handled: true, action: 'completed' };
+    }
+
+    // Advance to mapped next node
     const nextNode = nodes.find(n => String(n.id) === String(nextNodeId));
     if (nextNode) {
       await db.query(`
@@ -684,6 +741,7 @@ async function handleInboundBotInteraction({
         toPhone: fromPhone,
         text: nextPrompt,
         options: nextNode.options || [],
+        displayMode: nextNode.display_mode || 'interactive',
         conversationId,
         tenantId,
         accountId
@@ -707,7 +765,7 @@ async function handleInboundBotInteraction({
         WHERE id::text = $1::text
       `, [conversationId]);
 
-      const completionMessage = currentNode.completion_message || `شكراً لتواصلك معنا!`;
+      const completionMessage = currentNode.completion_message || `Thank you for contacting us!`;
       await sendBotReply({
         phoneNumberId: phone_number_id,
         accessToken: access_token,
@@ -736,26 +794,42 @@ async function sendBotReply({
   toPhone,
   text,
   options = [],
+  displayMode = 'interactive',
   conversationId,
   tenantId,
   accountId = null
 }) {
   try {
     let formattedText = text;
-    if (Array.isArray(options) && options.length > 0) {
-      const optionLines = options.map((opt, idx) => `${idx + 1}. ${opt.text || opt.label}`).join('\n');
-      formattedText = `${text}\n\n${optionLines}`;
-    }
+    let sendRes;
+    const hasOptions = Array.isArray(options) && options.length > 0;
 
-    const sendRes = await sendDirectTextMessage({
-      phoneNumberId,
-      accessToken,
-      toPhone,
-      text: formattedText
-    });
+    if (hasOptions && displayMode !== 'text') {
+      sendRes = await sendInteractiveButtonsOrList({
+        phoneNumberId,
+        accessToken,
+        toPhone,
+        text,
+        options
+      });
+      const optionLabels = options.map((opt, idx) => `[${opt.text || opt.label}]`).join('  ');
+      formattedText = `${text}\n\n${optionLabels}`;
+    } else {
+      if (hasOptions) {
+        const optionLines = options.map((opt, idx) => `${idx + 1}. ${opt.text || opt.label}`).join('\n');
+        formattedText = `${text}\n\n${optionLines}`;
+      }
+      sendRes = await sendDirectTextMessage({
+        phoneNumberId,
+        accessToken,
+        toPhone,
+        text: formattedText
+      });
+    }
 
     if (sendRes.success) {
       const messageId = sendRes.messageId || null;
+      const msgType = (hasOptions && displayMode !== 'text') ? 'interactive' : 'text';
 
       // Insert message into chat thread
       await db.query(`
@@ -763,9 +837,9 @@ async function sendBotReply({
           conversation_id, tenant_id, account_id, meta_message_id,
           direction, sender_type, message_type, body, status, created_at
         )
-        VALUES ($1, $2, $3, $4, 'outbound', 'system', 'text', $5, 'sent', NOW())
+        VALUES ($1, $2, $3, $4, 'outbound', 'system', $5, $6, 'sent', NOW())
         ON CONFLICT (meta_message_id) DO NOTHING
-      `, [conversationId, tenantId, accountId, messageId, formattedText]);
+      `, [conversationId, tenantId, accountId, messageId, msgType, formattedText]);
 
       // Update conversation summary
       await db.query(`

@@ -234,6 +234,7 @@ const WhatsAppChatbots = () => {
           id: newId,
           message: 'Type the bot prompt or question here...',
           options: [],
+          display_mode: 'interactive',
           save_to_field: '',
           action: 'next_step',
           target_role_key: prev.target_role_key || 'sales'
@@ -263,7 +264,12 @@ const WhatsAppChatbots = () => {
       const currentOptions = nodes[nodeIndex].options || [];
       nodes[nodeIndex].options = [
         ...currentOptions,
-        { text: `Option ${currentOptions.length + 1}`, value: `opt_${currentOptions.length + 1}`, next_node_id: '' }
+        {
+          text: `Option ${currentOptions.length + 1}`,
+          value: `opt_${currentOptions.length + 1}`,
+          action: 'next_step',
+          next_node_id: ''
+        }
       ];
       return { ...prev, scenario_nodes: nodes };
     });
@@ -870,51 +876,173 @@ const WhatsAppChatbots = () => {
                         </div>
                       </div>
 
-                      {/* Multiple choice options */}
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <label style={{ fontSize: 12, fontWeight: 700, color: '#475569' }}>
-                            Multiple Choice Options (Optional):
-                          </label>
-                          <button
-                            type="button"
-                            onClick={() => handleAddOptionToNode(nodeIdx)}
-                            style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}
-                          >
-                            + Add Option
-                          </button>
+                      {/* Multiple choice options & Interactive WhatsApp Buttons/List */}
+                      <div style={{ marginTop: 12, background: '#f1f5f9', borderRadius: 8, padding: 12, border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <label style={{ fontSize: 12.5, fontWeight: 800, color: '#1e293b' }}>
+                              Multiple Choice Options & Branching:
+                            </label>
+                            <span style={{ fontSize: 11, color: '#64748b' }}>
+                              (Interactive WhatsApp Buttons or Selection Menu)
+                            </span>
+                          </div>
+                          
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <select
+                              value={node.display_mode || 'interactive'}
+                              onChange={e => handleUpdateNode(nodeIdx, 'display_mode', e.target.value)}
+                              style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11.5, background: 'white', color: '#334155' }}
+                              title="Display format sent to customer on WhatsApp"
+                            >
+                              <option value="interactive">Auto: Interactive Buttons (≤3) / List Menu (4-10)</option>
+                              <option value="text">Numbered Plain Text (1, 2, 3...)</option>
+                            </select>
+
+                            <button
+                              type="button"
+                              onClick={() => handleAddOptionToNode(nodeIdx)}
+                              style={{
+                                background: '#0284c7', color: 'white', border: 'none',
+                                padding: '4px 10px', borderRadius: 6, fontSize: 11.5, fontWeight: 700,
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
+                              }}
+                            >
+                              <Plus size={13} /> Add Option
+                            </button>
+                          </div>
                         </div>
+
                         {Array.isArray(node.options) && node.options.length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {node.options.map((opt, optIdx) => (
-                              <div key={optIdx} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                <span style={{ fontSize: 11.5, fontWeight: 700, color: '#64748b', minWidth: 20 }}>
-                                  {optIdx + 1}.
-                                </span>
-                                <input
-                                  type="text"
-                                  placeholder="Option text (e.g. Residential Apartments)"
-                                  value={opt.text || ''}
-                                  onChange={e => {
-                                    const opts = [...node.options];
-                                    opts[optIdx] = { ...opts[optIdx], text: e.target.value };
-                                    handleUpdateNode(nodeIdx, 'options', opts);
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {node.options.map((opt, optIdx) => {
+                              const currentTargetVal = opt.action === 'handoff' 
+                                ? 'action:handoff' 
+                                : opt.action === 'complete' 
+                                  ? 'action:complete' 
+                                  : (opt.next_node_id ? `node:${opt.next_node_id}` : '');
+
+                              return (
+                                <div
+                                  key={optIdx}
+                                  style={{
+                                    background: 'white', border: '1px solid #cbd5e1', borderRadius: 8,
+                                    padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6
                                   }}
-                                  style={{ flex: 1, padding: '4px 8px', borderRadius: 4, border: '1px solid #cbd5e1', fontSize: 12 }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveOptionFromNode(nodeIdx, optIdx)}
-                                  style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 13 }}
                                 >
-                                  ✕
-                                </button>
-                              </div>
-                            ))}
+                                  {/* Top Row: Option Number, Label, Value, Remove */}
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <span style={{
+                                      fontSize: 11, fontWeight: 800, color: '#0369a1', background: '#e0f2fe',
+                                      padding: '2px 8px', borderRadius: 12, minWidth: 24, textAlign: 'center'
+                                    }}>
+                                      #{optIdx + 1}
+                                    </span>
+
+                                    <input
+                                      type="text"
+                                      placeholder="Option label displayed to customer (e.g. Sales Inquiry)"
+                                      value={opt.text || ''}
+                                      onChange={e => {
+                                        const opts = [...node.options];
+                                        opts[optIdx] = { ...opts[optIdx], text: e.target.value };
+                                        handleUpdateNode(nodeIdx, 'options', opts);
+                                      }}
+                                      style={{ flex: 2, padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12.5 }}
+                                    />
+
+                                    <input
+                                      type="text"
+                                      placeholder="Stored value (optional)"
+                                      value={opt.value || ''}
+                                      onChange={e => {
+                                        const opts = [...node.options];
+                                        opts[optIdx] = { ...opts[optIdx], value: e.target.value };
+                                        handleUpdateNode(nodeIdx, 'options', opts);
+                                      }}
+                                      style={{ flex: 1, padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
+                                    />
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveOptionFromNode(nodeIdx, optIdx)}
+                                      title="Delete Option"
+                                      style={{
+                                        background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626',
+                                        borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12
+                                      }}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+
+                                  {/* Bottom Row: Branching Destination Selector */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 4, background: '#f8fafc', padding: '4px 8px', borderRadius: 6 }}>
+                                    <span style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                                      <ArrowRight size={12} color="#0284c7" />
+                                      When chosen, branch to:
+                                    </span>
+
+                                    <select
+                                      value={currentTargetVal}
+                                      onChange={e => {
+                                        const val = e.target.value;
+                                        const opts = [...node.options];
+                                        if (val === 'action:handoff') {
+                                          opts[optIdx] = { ...opts[optIdx], action: 'handoff', next_node_id: '' };
+                                        } else if (val === 'action:complete') {
+                                          opts[optIdx] = { ...opts[optIdx], action: 'complete', next_node_id: '' };
+                                        } else if (val.startsWith('node:')) {
+                                          opts[optIdx] = { ...opts[optIdx], action: 'next_step', next_node_id: val.replace('node:', '') };
+                                        } else {
+                                          opts[optIdx] = { ...opts[optIdx], action: 'next_step', next_node_id: '' };
+                                        }
+                                        handleUpdateNode(nodeIdx, 'options', opts);
+                                      }}
+                                      style={{
+                                        flex: 1, padding: '4px 8px', borderRadius: 6, border: '1px solid #94a3b8',
+                                        fontSize: 12, background: 'white', color: '#0f172a'
+                                      }}
+                                    >
+                                      <option value="">Next Step (Sequential / Default Node Action)</option>
+                                      <optgroup label="Branch to Specific Step">
+                                        {botForm.scenario_nodes.map((targetNode, tIdx) => {
+                                          if (targetNode.id === node.id) return null;
+                                          return (
+                                            <option key={targetNode.id || tIdx} value={`node:${targetNode.id}`}>
+                                              Step #{tIdx + 1}: {(targetNode.message || targetNode.text || targetNode.id).substring(0, 45)}...
+                                            </option>
+                                          );
+                                        })}
+                                      </optgroup>
+                                      <optgroup label="Direct Actions">
+                                        <option value="action:handoff">Transfer to Department Agent (Handoff)</option>
+                                        <option value="action:complete">Complete & Close Conversation</option>
+                                      </optgroup>
+                                    </select>
+
+                                    {/* Visual Route Indicator Badge */}
+                                    {opt.action === 'handoff' ? (
+                                      <span style={{ fontSize: 10.5, fontWeight: 700, background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>
+                                        → Agent Handoff
+                                      </span>
+                                    ) : opt.action === 'complete' ? (
+                                      <span style={{ fontSize: 10.5, fontWeight: 700, background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>
+                                        → Complete
+                                      </span>
+                                    ) : opt.next_node_id ? (
+                                      <span style={{ fontSize: 10.5, fontWeight: 700, background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: 4, whiteSpace: 'nowrap' }}>
+                                        → Step #{botForm.scenario_nodes.findIndex(n => n.id === opt.next_node_id) + 1}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
-                          <div style={{ fontSize: 11.5, color: '#94a3b8', fontStyle: 'italic' }}>
-                            No options added — Accepts any free text typed by the customer.
+                          <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic', padding: '4px 0' }}>
+                            No options configured. The bot will wait for free-form customer text (e.g. Name, Phone, Notes).
                           </div>
                         )}
                       </div>
@@ -985,34 +1113,74 @@ const WhatsAppChatbots = () => {
                     {msg.text}
                   </div>
 
-                  {/* If options available, render quick buttons */}
+                  {/* If options available, render WhatsApp interactive buttons or list */}
                   {!isUser && Array.isArray(msg.options) && msg.options.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                      {msg.options.map((opt, oi) => (
-                        <button
-                          key={oi}
-                          onClick={() => handleSendSimReply(opt.text || opt.value)}
-                          disabled={simLoading}
-                          style={{
-                            background: '#25D366', color: 'white', border: 'none',
-                            padding: '4px 10px', borderRadius: 16, fontSize: 11.5,
-                            fontWeight: 700, cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                          }}
-                        >
-                          {opt.text}
-                        </button>
-                      ))}
+                    <div style={{
+                      marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6,
+                      maxWidth: '85%', width: '100%'
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span>⚡ WhatsApp Interactive Options ({msg.options.length <= 3 ? 'Buttons' : 'List Menu'}):</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {msg.options.map((opt, oi) => {
+                          const branchHint = opt.action === 'handoff' 
+                            ? '→ Handoff' 
+                            : opt.action === 'complete' 
+                              ? '→ Complete' 
+                              : opt.next_node_id 
+                                ? `→ Step #${(simulatingBot?.scenario_nodes || []).findIndex(n => n.id === opt.next_node_id) + 1 || opt.next_node_id}`
+                                : '';
+
+                          return (
+                            <button
+                              key={oi}
+                              onClick={() => handleSendSimReply(opt.text || opt.value)}
+                              disabled={simLoading}
+                              style={{
+                                background: 'white', color: '#075e54', border: '1px solid #128c7e',
+                                padding: '7px 12px', borderRadius: 8, fontSize: 12,
+                                fontWeight: 700, cursor: 'pointer', textAlign: 'left',
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.06)', transition: 'all 0.15s ease'
+                              }}
+                              onMouseOver={e => { e.currentTarget.style.background = '#e6f7f2'; }}
+                              onMouseOut={e => { e.currentTarget.style.background = 'white'; }}
+                            >
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ color: '#25D366' }}>●</span> {opt.text || opt.label}
+                              </span>
+                              {branchHint && (
+                                <span style={{ fontSize: 10, color: '#0284c7', background: '#f0f9ff', padding: '2px 6px', borderRadius: 4 }}>
+                                  {branchHint}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
                   {/* Handoff banner */}
-                  {!isUser && msg.action === 'handoff' && (
+                  {!isUser && (msg.action === 'handed_off' || msg.action === 'handoff') && (
                     <div style={{
-                      marginTop: 6, padding: '4px 8px', borderRadius: 6,
-                      background: '#ecfdf5', color: '#065f46', fontSize: 11, fontWeight: 700,
-                      display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #a7f3d0'
+                      marginTop: 6, padding: '5px 10px', borderRadius: 6,
+                      background: '#ecfdf5', color: '#065f46', fontSize: 11.5, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #a7f3d0'
                     }}>
-                      <CheckCircle size={12} /> Transferred to Department Agent
+                      <CheckCircle size={13} /> Transferred to Department Agent
+                    </div>
+                  )}
+
+                  {/* Complete banner */}
+                  {!isUser && msg.action === 'completed' && (
+                    <div style={{
+                      marginTop: 6, padding: '5px 10px', borderRadius: 6,
+                      background: '#f8fafc', color: '#334155', fontSize: 11.5, fontWeight: 700,
+                      display: 'flex', alignItems: 'center', gap: 6, border: '1px solid #cbd5e1'
+                    }}>
+                      <CheckCircle size={13} /> Conversation Completed
                     </div>
                   )}
                 </div>
