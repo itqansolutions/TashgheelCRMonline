@@ -350,7 +350,7 @@ const WhatsAppChat = () => {
     setTakingOver(true);
     try {
       const res = await api.post(`/whatsapp/conversations/${activeConversationId}/takeover`);
-      toast.success(res.data?.message || 'تم استلام المحادثة وإيقاف الشات بوت بنجاح');
+      toast.success(res.data?.message || 'Chat taken over successfully. Bot paused for this conversation.');
       
       const updatedData = res.data?.data;
       setConversations(prev =>
@@ -364,7 +364,7 @@ const WhatsAppChat = () => {
       );
       fetchMessages(activeConversationId, true);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'فشل تولي المحادثة');
+      toast.error(err.response?.data?.message || 'Failed to take over chat');
     } finally {
       setTakingOver(false);
     }
@@ -836,7 +836,7 @@ const WhatsAppChat = () => {
                         }}
                       >
                         <UserCheck size={13} />
-                        {takingOver ? 'جاري الاستلام...' : 'Take Over Chat (تولي المحادثة)'}
+                        {takingOver ? 'Taking over...' : 'Take Over Chat'}
                       </button>
                     </div>
                   )}
@@ -865,7 +865,7 @@ const WhatsAppChat = () => {
                         }}
                       >
                         <UserCheck size={13} />
-                        {takingOver ? 'جاري الاستلام...' : 'Assign to Me (استلام)'}
+                        {takingOver ? 'Assigning...' : 'Assign to Me'}
                       </button>
                     </div>
                   )}

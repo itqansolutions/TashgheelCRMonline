@@ -158,7 +158,7 @@ async function triggerGreetingIfConfigured({
 }
 
 // ---------------------------------------------------------------------------
-// 2. Least-Loaded Agent Availability Resolver
+// 2. Least-Loaded Agent Availability Resolver (Department / Role Based)
 // ---------------------------------------------------------------------------
 async function resolveLeastLoadedAgent({ tenantId, targetRoleKey = 'sales' }) {
   try {
@@ -166,17 +166,25 @@ async function resolveLeastLoadedAgent({ tenantId, targetRoleKey = 'sales' }) {
     const queryRole = (rolePattern === 'all' || rolePattern === '*' || !rolePattern) ? null : rolePattern;
 
     const res = await db.query(`
-      SELECT u.id, u.name, u.email, u.role,
+      SELECT u.id, u.name, u.email, u.role, u.department_id, d.name AS department_name,
              COUNT(c.id) AS active_chats
       FROM users u
+      LEFT JOIN departments d ON u.department_id = d.id
       LEFT JOIN whatsapp_conversations c 
         ON c.assigned_user_id = u.id 
         AND c.bot_status IN ('active', 'waiting_agent', 'handed_off')
         AND (c.is_archived IS NOT TRUE)
       WHERE u.tenant_id::text = $1::text 
-        AND ($2::text IS NULL OR LOWER(u.role) = LOWER($2) OR LOWER(u.role) LIKE '%' || LOWER($2) || '%')
+        AND (
+          $2::text IS NULL 
+          OR (u.department_id::text = $2::text)
+          OR LOWER(COALESCE(d.name, '')) = LOWER($2)
+          OR LOWER(COALESCE(d.name, '')) LIKE '%' || LOWER($2) || '%'
+          OR LOWER(COALESCE(u.role, '')) = LOWER($2)
+          OR LOWER(COALESCE(u.role, '')) LIKE '%' || LOWER($2) || '%'
+        )
         AND (u.is_active IS NOT FALSE)
-      GROUP BY u.id, u.name, u.email, u.role
+      GROUP BY u.id, u.name, u.email, u.role, u.department_id, d.name
       ORDER BY active_chats ASC, u.id ASC
       LIMIT 1
     `, [tenantId, queryRole]);
@@ -234,7 +242,7 @@ async function takeOverConversation({ tenantId, conversationId, userId }) {
 }
 
 // ---------------------------------------------------------------------------
-// 4. CRM Customer Synchronization Helper
+// 4. CRM Customer Synchronization Helper (Maps to Customer Insert Sections)
 // ---------------------------------------------------------------------------
 async function syncCustomerWithBotData({ tenantId, phone, collectedData = {}, customerName = null }) {
   try {
@@ -251,21 +259,35 @@ async function syncCustomerWithBotData({ tenantId, phone, collectedData = {}, cu
     ].filter(Boolean)));
 
     const cFind = await db.query(`
-      SELECT id, name, email, notes, custom_fields
+      SELECT id, name, email, company_name, address, preferred_location, budget_min, budget_max, preferred_rooms, notes
       FROM customers
       WHERE tenant_id::text = $1::text AND phone = ANY($2::text[])
       LIMIT 1
     `, [tenantId, phoneVariants]);
 
+    // Extract all fields based on the Customer Insert Form sections
     const extractedName = (collectedData.name || collectedData.customer_name || customerName || '').trim();
     const extractedEmail = (collectedData.email || '').trim();
-    const extractedInterest = (collectedData.interest || collectedData.service || collectedData.budget || '').trim();
+    const extractedCompany = (collectedData.company_name || collectedData.company || '').trim();
+    const extractedAddress = (collectedData.address || '').trim();
+    const extractedLocation = (collectedData.preferred_location || collectedData.location || '').trim();
+    const extractedEntityType = (collectedData.entity_type || 'customer').trim();
+    const extractedStatus = (collectedData.status || 'lead').trim();
+    const extractedSource = (collectedData.source || 'whatsapp_bot').trim();
+    const extractedClassification = (collectedData.classification_name || '').trim();
+
+    const cleanBudgetMin = parseFloat(collectedData.budget_min) || (parseFloat(collectedData.budget) || 0);
+    const cleanBudgetMax = parseFloat(collectedData.budget_max) || 0;
+    const cleanRooms = parseInt(collectedData.preferred_rooms, 10) || (parseInt(collectedData.rooms, 10) || 0);
+    const cleanAreaMin = parseFloat(collectedData.preferred_area_min) || 0;
+    const cleanAreaMax = parseFloat(collectedData.preferred_area_max) || 0;
+
     const collectedNotesSummary = Object.entries(collectedData)
       .map(([k, v]) => `${k}: ${v}`)
       .join(' | ');
 
     if (cFind.rows.length > 0) {
-      // Customer already exists -> update notes and missing fields
+      // Customer already exists -> update fields and append to notes
       const existing = cFind.rows[0];
       const newNotes = existing.notes 
         ? `${existing.notes}\n[WhatsApp Bot]: ${collectedNotesSummary}`
@@ -275,13 +297,25 @@ async function syncCustomerWithBotData({ tenantId, phone, collectedData = {}, cu
         UPDATE customers
         SET name = COALESCE(NULLIF($1, ''), name),
             email = COALESCE(NULLIF($2, ''), email),
-            notes = $3,
+            company_name = COALESCE(NULLIF($3, ''), company_name),
+            address = COALESCE(NULLIF($4, ''), address),
+            preferred_location = COALESCE(NULLIF($5, ''), preferred_location),
+            budget_min = CASE WHEN $6 > 0 THEN $6 ELSE budget_min END,
+            budget_max = CASE WHEN $7 > 0 THEN $7 ELSE budget_max END,
+            preferred_rooms = CASE WHEN $8 > 0 THEN $8 ELSE preferred_rooms END,
+            notes = $9,
             updated_at = NOW()
-        WHERE id = $4
+        WHERE id = $10
         RETURNING id, name
       `, [
         extractedName,
         extractedEmail,
+        extractedCompany,
+        extractedAddress,
+        extractedLocation,
+        cleanBudgetMin,
+        cleanBudgetMax,
+        cleanRooms,
         newNotes,
         existing.id
       ]);
@@ -294,19 +328,32 @@ async function syncCustomerWithBotData({ tenantId, phone, collectedData = {}, cu
 
       const insertRes = await db.query(`
         INSERT INTO customers (
-          tenant_id, name, phone, email, notes, source, status, created_at, updated_at
+          tenant_id, name, phone, email, company_name, address, preferred_location,
+          budget_min, budget_max, preferred_rooms, preferred_area_min, preferred_area_max,
+          notes, source, status, entity_type, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, 'whatsapp_bot', 'lead', NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
         RETURNING id, name
       `, [
         tenantId,
         finalName,
         normPhone,
         extractedEmail || null,
-        initialNotes
+        extractedCompany || null,
+        extractedAddress || null,
+        extractedLocation || null,
+        cleanBudgetMin,
+        cleanBudgetMax,
+        cleanRooms,
+        cleanAreaMin,
+        cleanAreaMax,
+        initialNotes,
+        extractedSource,
+        extractedStatus,
+        extractedEntityType
       ]);
 
-      console.log(`👤 [WhatsApp Bot] Auto-registered new customer ${finalName} (${normPhone}) in CRM!`);
+      console.log(`👤 [WhatsApp Bot] Auto-registered new customer "${finalName}" (${normPhone}) in CRM!`);
       return { customerId: insertRes.rows[0].id, customerName: finalName, created: true };
     }
   } catch (err) {

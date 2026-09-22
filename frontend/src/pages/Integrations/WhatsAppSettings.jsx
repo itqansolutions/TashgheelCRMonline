@@ -822,7 +822,7 @@ const WhatsAppSettings = () => {
           </div>
         </div>
 
-        {/* ── Section 2.5: Automated Greeting Message (رسالة الترحيب التلقائية) ── */}
+        {/* ── Section 2.5: Automated Greeting Message ── */}
         <div style={{
           background: '#fff', border: '1px solid var(--border)',
           borderRadius: 12, padding: 24, marginBottom: 20
@@ -830,10 +830,10 @@ const WhatsAppSettings = () => {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div>
               <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, color: '#0f172a' }}>
-                <Sparkles size={18} color="#059669" /> Automated Welcome & Greeting Message (رسالة الترحيب التلقائية)
+                <Sparkles size={18} color="#059669" /> Automated Welcome & Greeting Message
               </h3>
               <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
-                إرسال رسالة ترحيبية فورية للعملاء الجدد بقالب معتمد من Meta، لفتح نافذة خدمة الـ 24 ساعة بمجرد ردهم وبدء سيناريو الشات بوت أو فريق المبيعات.
+                Automatically send an approved Meta template to new leads to initiate conversation and open Meta's 24-hour service window once they reply.
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -847,7 +847,7 @@ const WhatsAppSettings = () => {
                   : <ToggleLeft size={36} color="#9ca3af" />}
               </button>
               <span style={{ fontSize: 13, fontWeight: 700, color: settings.auto_greeting_enabled ? '#059669' : '#64748b' }}>
-                {settings.auto_greeting_enabled ? 'مفعلة' : 'معطلة'}
+                {settings.auto_greeting_enabled ? 'Enabled' : 'Disabled'}
               </span>
             </div>
           </div>
@@ -855,24 +855,24 @@ const WhatsAppSettings = () => {
           {settings.auto_greeting_enabled && (
             <div style={{ background: '#f8fafc', padding: 18, borderRadius: 10, border: '1px solid #e2e8f0', marginTop: 12 }}>
               <h4 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
-                متى يتم إرسال رسالة الترحيب تلقائياً؟ (اختر الحالات المستهدفة):
+                When should the automated greeting message be sent? (Select triggers):
               </h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 16 }}>
                 {[
                   {
                     id: 'meta_lead',
-                    title: 'عملاء إعلانات Meta Lead Ads',
-                    desc: 'إرسال ترحيب فور وصول عميل جديد من إعلانات فيسبوك / إنستغرام'
+                    title: 'Meta Lead Ads Leads',
+                    desc: 'Send welcome message immediately when a new lead arrives from Facebook / Instagram Lead Ads'
                   },
                   {
                     id: 'manual_customer',
-                    title: 'إضافة عميل يدوياً بالـ CRM',
-                    desc: 'إرسال ترحيب عند قيام أحد موظفي المبيعات بإضافة عميل جديد يدوياً'
+                    title: 'Manual CRM Customer Creation',
+                    desc: 'Send welcome message when an agent manually adds a new customer into the CRM'
                   },
                   {
                     id: 'new_inbound',
-                    title: 'أول تواصل من رقم جديد',
-                    desc: 'إرسال ترحيب عندما يرسل رقم غير مسجل أول رسالة واردة'
+                    title: 'First Inbound from Unknown Number',
+                    desc: 'Send welcome template when an unrecorded phone number sends its first message'
                   }
                 ].map(trigger => {
                   const isSelected = Array.isArray(settings.auto_greeting_triggers) && settings.auto_greeting_triggers.includes(trigger.id);
@@ -913,7 +913,7 @@ const WhatsAppSettings = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                    قالب رسالة الترحيب (Welcome Template Name) *
+                    Welcome Message Template Name *
                   </label>
                   <input
                     type="text"
@@ -927,13 +927,13 @@ const WhatsAppSettings = () => {
                     }}
                   />
                   <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>
-                    إذا تركته فارغاً سيتم استخدام القالب الرئيسي: <code>{settings.template_name || 'welcome_new_lead'}</code>
+                    Leave blank to use primary template: <code>{settings.template_name || 'welcome_new_lead'}</code>
                   </p>
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                    لغة قالب الترحيب (Template Language)
+                    Welcome Template Language
                   </label>
                   <select
                     value={settings.auto_greeting_language || 'ar'}
@@ -944,20 +944,20 @@ const WhatsAppSettings = () => {
                       background: 'white'
                     }}
                   >
-                    <option value="ar">العربية — Arabic (ar)</option>
-                    <option value="ar_SA">العربية (السعودية) — (ar_SA)</option>
-                    <option value="ar_EG">العربية (مصر) — (ar_EG)</option>
+                    <option value="ar">Arabic (ar)</option>
+                    <option value="ar_SA">Arabic - Saudi Arabia (ar_SA)</option>
+                    <option value="ar_EG">Arabic - Egypt (ar_EG)</option>
                     <option value="en_US">English (US) — (en_US)</option>
-                    <option value="en">English — (en)</option>
+                    <option value="en">English (en)</option>
                   </select>
                   <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>
-                    يجب أن تطابق لغة القالب المعتمد في Meta
+                    Must match the approved template language code registered in Meta
                   </p>
                 </div>
               </div>
 
               <div style={{ marginTop: 14, padding: '10px 14px', background: '#ecfdf5', borderRadius: 8, border: '1px solid #a7f3d0', fontSize: 12, color: '#065f46', lineHeight: 1.5 }}>
-                💡 <strong>آلية العمل:</strong> ترسل المنصة قالب الترحيب المعتمد تلقائياً للعميل. وبمجرد رد العميل بأي رسالة، تفتح منصة Meta نافذة الـ 24 ساعة، ويبدأ الشات بوت تلقائياً بجمع تفاصيل العميل وتحديث حسابه في الـ CRM أو تحويله لمسؤول المبيعات.
+                💡 <strong>How it works:</strong> The system sends your pre-approved Meta template to initiate contact. Once the customer replies with any message, Meta automatically opens the 24-hour service window, allowing your ChatBot scenario or sales representatives to engage without template restrictions.
               </div>
             </div>
           )}
