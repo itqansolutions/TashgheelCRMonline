@@ -131,18 +131,23 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     <div className={`sidebar ${isOpen ? 'open' : 'closed'}`}>
       <style>{`
         .sidebar {
-          height: 100vh; background: var(--glass-bg); backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px); color: var(--text-main);
-          width: var(--sidebar-w); position: fixed; left: 0; top: 0;
-          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1001;
+          height: 100vh; background: var(--glass-bg, rgba(255, 255, 255, 0.85)); backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px); color: var(--text-main, #0f172a);
+          width: var(--sidebar-w, 280px); position: fixed; left: 0; top: 0;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1001;
           display: flex; flex-direction: column;
-          border-right: 1px solid var(--glass-border);
+          border-right: 1px solid var(--glass-border, #e2e8f0);
           box-shadow: 10px 0 30px rgba(0,0,0,0.03);
+          font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
         .sidebar.closed { width: 90px; }
+        @media (max-width: 768px) {
+          .sidebar.closed { transform: translateX(-100%); width: var(--sidebar-w, 280px); }
+          .sidebar.open { transform: translateX(0); width: var(--sidebar-w, 280px); }
+        }
         .sidebar-header {
-          height: var(--header-h); display: flex; align-items: center;
-          padding: 0 24px; border-bottom: 1px solid var(--glass-border);
+          height: var(--header-h, 72px); display: flex; align-items: center;
+          padding: 0 24px; border-bottom: 1px solid var(--glass-border, #e2e8f0);
           justify-content: space-between;
         }
         .sidebar-header h2 {

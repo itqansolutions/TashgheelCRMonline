@@ -36,6 +36,7 @@ const Login = () => {
           padding: 24px;
           position: relative;
           overflow: hidden;
+          font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
         .login-container::before {
           content: "";
