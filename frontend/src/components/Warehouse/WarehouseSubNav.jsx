@@ -1,16 +1,14 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { ShoppingBag, Building, ShieldCheck, TrendingUp, ArrowLeftRight, Scale, CreditCard } from 'lucide-react';
+import { ShoppingBag, Building, ArrowLeftRight, Scale, ShoppingCart } from 'lucide-react';
 
 const WarehouseSubNav = () => {
   const links = [
     { path: '/products', label: 'Products', icon: <ShoppingBag size={16} /> },
     { path: '/inventory/warehouses', label: 'Warehouses', icon: <Building size={16} /> },
-    { path: '/inventory/keepers', label: 'Keepers', icon: <ShieldCheck size={16} /> },
-    { path: '/inventory/transaction-impact', label: 'Transaction Impact', icon: <TrendingUp size={16} /> },
-    { path: '/inventory/movements', label: 'Transactions', icon: <ArrowLeftRight size={16} /> },
-    { path: '/inventory/balances', label: 'Balances', icon: <Scale size={16} /> },
-    { path: '/inventory/item-card', label: 'Item Card', icon: <CreditCard size={16} /> },
+    { path: '/inventory/balances', label: 'Stock Balances', icon: <Scale size={16} /> },
+    { path: '/purchases', label: 'Purchases (المشتريات)', icon: <ShoppingCart size={16} /> },
+    { path: '/inventory/movements', label: 'Movements Ledger', icon: <ArrowLeftRight size={16} /> },
   ];
 
   return (

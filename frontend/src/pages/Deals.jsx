@@ -8,6 +8,7 @@ import DataTable from '../components/Common/DataTable';
 import KanbanBoard from '../components/Deals/KanbanBoard';
 import Modal from '../components/Common/Modal';
 import ActivityTimeline from '../components/Common/ActivityTimeline';
+import SalesSubNav from '../components/Sales/SalesSubNav';
 import { useAuth } from '../context/AuthContext';
 
 const Deals = () => {
@@ -328,7 +329,9 @@ const Deals = () => {
   ];
 
   return (
-    <div className="deals-page">
+    <div>
+      <SalesSubNav />
+      <div className="deals-page">
       <style>{`
         .btn-add { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; transition: background 0.2s; }
         .btn-add:hover { background-color: var(--primary-hover); }
@@ -659,6 +662,7 @@ const Deals = () => {
           </div>
         )}
       </Modal>
+      </div>
     </div>
   );
 };

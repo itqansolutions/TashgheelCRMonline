@@ -1,30 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { Building, Plus, Edit2, Trash2, MapPin, User, Package, Search } from 'lucide-react';
+import { Building, Plus, Edit2, Trash2, MapPin, Users, Search, X } from 'lucide-react';
 import WarehouseSubNav from '../../components/Warehouse/WarehouseSubNav';
 
 const Warehouses = () => {
   const [warehouses, setWarehouses] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
     code: '',
     location: '',
-    keeper_name: '',
-    capacity: '',
     is_active: true,
+    keeper_ids: [],
   });
 
   const fetchWarehouses = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/inventory/warehouses').catch(() => ({ data: { data: [] } }));
-      setWarehouses(res.data?.data || res.data || []);
+      const res = await api.get('/inventory/warehouses');
+      setWarehouses(res.data?.data || []);
     } catch (err) {
       toast.error('Failed to load warehouses');
     } finally {
@@ -32,20 +33,29 @@ const Warehouses = () => {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get('/users');
+      setUsers(res.data?.data || []);
+    } catch (err) {
+      console.warn('Failed to load users for keepers assignment');
+    }
+  };
+
   useEffect(() => {
     fetchWarehouses();
+    fetchUsers();
   }, []);
 
   const handleOpenModal = (w = null) => {
     if (w) {
       setEditingId(w.id);
       setForm({
-        name: w.name,
+        name: w.name || '',
         code: w.code || '',
         location: w.location || '',
-        keeper_name: w.keeper_name || '',
-        capacity: w.capacity || '',
         is_active: w.is_active !== false,
+        keeper_ids: (w.keepers || []).map(k => k.id),
       });
     } else {
       setEditingId(null);
@@ -53,39 +63,62 @@ const Warehouses = () => {
         name: '',
         code: `WH-0${warehouses.length + 1}`,
         location: '',
-        keeper_name: '',
-        capacity: '',
         is_active: true,
+        keeper_ids: [],
       });
     }
     setShowModal(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleKeeperToggle = (userId) => {
+    setForm(prev => {
+      const exists = prev.keeper_ids.includes(userId);
+      return {
+        ...prev,
+        keeper_ids: exists
+          ? prev.keeper_ids.filter(id => id !== userId)
+          : [...prev.keeper_ids, userId]
+      };
+    });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return toast.error('Warehouse name is required');
 
-    if (editingId) {
-      setWarehouses(warehouses.map(w => w.id === editingId ? { ...w, ...form } : w));
-      toast.success('Warehouse updated successfully');
-    } else {
-      const newWh = { id: Date.now(), ...form };
-      setWarehouses([...warehouses, newWh]);
-      toast.success('Warehouse added successfully');
+    setSubmitting(true);
+    try {
+      if (editingId) {
+        await api.put(`/inventory/warehouses/${editingId}`, form);
+        toast.success('Warehouse updated successfully');
+      } else {
+        await api.post('/inventory/warehouses', form);
+        toast.success('Warehouse created successfully');
+      }
+      setShowModal(false);
+      fetchWarehouses();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save warehouse');
+    } finally {
+      setSubmitting(false);
     }
-    setShowModal(false);
   };
 
-  const handleDelete = (id) => {
-    if (!window.confirm('Are you sure you want to delete this warehouse?')) return;
-    setWarehouses(warehouses.filter(w => w.id !== id));
-    toast.success('Warehouse deleted successfully');
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete or deactivate this warehouse?')) return;
+    try {
+      const res = await api.delete(`/inventory/warehouses/${id}`);
+      toast.success(res.data?.message || 'Warehouse removed');
+      fetchWarehouses();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete warehouse');
+    }
   };
 
   const filtered = warehouses.filter(w => 
-    w.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    w.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    w.location.toLowerCase().includes(searchTerm.toLowerCase())
+    (w.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (w.code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (w.location || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const modalStyle = {
@@ -110,7 +143,7 @@ const Warehouses = () => {
               <Building size={24} style={{ color: '#0ea5e9' }} /> Warehouses Directory
             </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
-              Manage physical and virtual storage facilities, locations, and capacities
+              Manage physical stores, facility locations, and assigned storekeepers
             </p>
           </div>
           <button
@@ -140,7 +173,7 @@ const Warehouses = () => {
 
         {/* Grid Cards */}
         {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>Loading...</div>
+          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>Loading warehouses...</div>
         ) : filtered.length === 0 ? (
           <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
             <Building size={48} style={{ opacity: 0.3, marginBottom: '12px' }} />
@@ -153,9 +186,11 @@ const Warehouses = () => {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                     <div>
-                      <span style={{ fontSize: '12px', fontWeight: 800, color: '#0ea5e9', background: '#e0f2fe', padding: '2px 8px', borderRadius: '6px', fontFamily: 'monospace' }}>
-                        {w.code}
-                      </span>
+                      {w.code && (
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#0ea5e9', background: '#e0f2fe', padding: '2px 8px', borderRadius: '6px', fontFamily: 'monospace' }}>
+                          {w.code}
+                        </span>
+                      )}
                       <h3 style={{ margin: '6px 0 0 0', fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>{w.name}</h3>
                     </div>
                     <span style={{
@@ -169,15 +204,25 @@ const Warehouses = () => {
                   <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '10px', marginBottom: '14px', border: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569' }}>
                       <MapPin size={16} style={{ color: '#0ea5e9' }} />
-                      <span>{w.location || 'Location Not Set'}</span>
+                      <span>{w.location || 'Location Not Specified'}</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569' }}>
-                      <User size={16} style={{ color: '#8b5cf6' }} />
-                      <span>Keeper: <strong>{w.keeper_name || 'Unassigned'}</strong></span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#475569' }}>
-                      <Package size={16} style={{ color: '#10b981' }} />
-                      <span>Capacity: {w.capacity || 'N/A'}</span>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', color: '#475569' }}>
+                      <Users size={16} style={{ color: '#8b5cf6', marginTop: '2px' }} />
+                      <div>
+                        <span style={{ fontWeight: 700, display: 'block', marginBottom: '4px' }}>Keepers:</span>
+                        {(!w.keepers || w.keepers.length === 0) ? (
+                          <span style={{ color: '#94a3b8', fontSize: '12px' }}>No keepers assigned</span>
+                        ) : (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                            {w.keepers.map(k => (
+                              <span key={k.id} style={{ background: '#ede9fe', color: '#6d28d9', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
+                                {k.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -198,22 +243,25 @@ const Warehouses = () => {
         {/* Modal */}
         {showModal && (
           <div style={modalStyle}>
-            <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-              <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  {editingId ? 'Edit Warehouse' : 'Add Warehouse'}
+            <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '540px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)' }}>
+                <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px' }}>
+                  {editingId ? 'Edit Warehouse' : 'Add New Warehouse'}
                 </h3>
-                <button onClick={() => setShowModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>✕</button>
+                <button onClick={() => setShowModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>
+                  <X size={18} />
+                </button>
               </div>
 
-              <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <form onSubmit={handleSubmit} style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Warehouse Name</label>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+                    Warehouse Name *
+                  </label>
                   <input
-                    type="text"
-                    placeholder="e.g. Main Central Warehouse"
                     value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    onChange={e => setForm({ ...form, name: e.target.value })}
+                    placeholder="e.g. Main Central Warehouse"
                     style={inputStyle}
                     required
                   />
@@ -221,62 +269,81 @@ const Warehouses = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Code</label>
+                    <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+                      Warehouse Code
+                    </label>
                     <input
-                      type="text"
-                      placeholder="e.g. WH-01"
                       value={form.code}
-                      onChange={(e) => setForm({ ...form, code: e.target.value })}
+                      onChange={e => setForm({ ...form, code: e.target.value })}
+                      placeholder="e.g. WH-01"
                       style={inputStyle}
                     />
                   </div>
+
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Capacity</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 5,000 sqm"
-                      value={form.capacity}
-                      onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                    <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+                      Status
+                    </label>
+                    <select
+                      value={form.is_active ? 'active' : 'inactive'}
+                      onChange={e => setForm({ ...form, is_active: e.target.value === 'active' })}
                       style={inputStyle}
-                    />
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
                   </div>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Location Address</label>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+                    Location / Address
+                  </label>
                   <input
-                    type="text"
-                    placeholder="e.g. Industrial Area, Zone B"
                     value={form.location}
-                    onChange={(e) => setForm({ ...form, location: e.target.value })}
+                    onChange={e => setForm({ ...form, location: e.target.value })}
+                    placeholder="e.g. 10th of Ramadan City, Cairo"
                     style={inputStyle}
                   />
                 </div>
 
+                {/* Keepers Multi-Select */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Keeper / Manager Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Ahmed Hassan"
-                    value={form.keeper_name}
-                    onChange={(e) => setForm({ ...form, keeper_name: e.target.value })}
-                    style={inputStyle}
-                  />
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+                    Assign Keepers (Employees)
+                  </label>
+                  <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#64748b' }}>
+                    Select one or more employees responsible for this warehouse.
+                  </p>
+                  <div style={{ maxHeight: '160px', overflowY: 'auto', border: '1.5px solid #e2e8f0', borderRadius: '10px', padding: '10px', background: '#fafafa' }}>
+                    {users.length === 0 ? (
+                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>No employees found</span>
+                    ) : (
+                      users.map(u => {
+                        const checked = form.keeper_ids.includes(u.id);
+                        return (
+                          <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', background: checked ? '#f0f9ff' : 'transparent', marginBottom: '4px' }}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => handleKeeperToggle(u.id)}
+                            />
+                            <span style={{ fontSize: '13px', fontWeight: checked ? 700 : 500, color: '#1e293b' }}>
+                              {u.name} {u.email ? `(${u.email})` : ''}
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                  >
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
+                  <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
-                  >
-                    {editingId ? 'Update' : 'Save'}
+                  <button type="submit" disabled={submitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
+                    {submitting ? 'Saving...' : editingId ? 'Update Warehouse' : 'Create Warehouse'}
                   </button>
                 </div>
               </form>

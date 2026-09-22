@@ -176,6 +176,7 @@ app.use('/api/re-payments', rePaymentRoutes);
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/vendors', vendorRoutes);
+app.use('/api/purchases', require('./routes/purchaseRoutes'));
 app.use('/api/job-titles', jobTitleRoutes);
 
 // HR Extension Modules
@@ -517,6 +518,14 @@ app.listen(PORT, '0.0.0.0', async () => {
     `, 'sales_price_tiers table');
 
     await reconcileDatabase();
+
+    // 12. CRM Lightweight Inventory & Purchasing Migration
+    try {
+      const runCrmInventoryMigration = require('./scripts/inventory-crm-migration');
+      await runCrmInventoryMigration();
+    } catch (crmMigErr) {
+      console.warn('⚠️ [CRM Inventory Migration Notice]:', crmMigErr.message);
+    }
 
     // ── Activities Table Schema Reconciliation ────────────────────────────────
     // The activities table may have been created by either:

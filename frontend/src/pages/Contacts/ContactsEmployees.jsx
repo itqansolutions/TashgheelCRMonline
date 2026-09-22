@@ -141,19 +141,18 @@ const PERMISSION_GROUPS = [
       { id: '/contacts/customers', label: 'Customers (العملاء)' },
       { id: '/contacts/vendors', label: 'Vendors (الموردين)' },
       { id: '/contacts/employees', label: 'Employees (الموظفين)' },
-      { id: '/deals', label: 'Deals (الصفقات)' },
       { id: '/tasks', label: 'Tasks (المهام)' },
     ]
   },
   {
-    title: 'Sales & Invoicing (المبيعات والفواتير)',
+    title: 'Sales & Pipeline (المبيعات والصفقات)',
     pages: [
+      { id: '/deals', label: 'Deals (الصفقات)' },
       { id: '/sales/orders', label: 'Sales Orders (طلبات البيع)' },
       { id: '/sales/salesmen', label: 'Salesmen (المناديب)' },
       { id: '/sales/target', label: 'Target & Goals (الأهداف)' },
       { id: '/sales/documents', label: 'Documents (المستندات)' },
       { id: '/sales/price-tiers', label: 'Price Tiers (شرائح الأسعار)' },
-      { id: '/finance', label: 'Invoices & Quotations (الفواتير والعروض)' },
     ]
   },
   {
@@ -190,6 +189,7 @@ const PERMISSION_GROUPS = [
     pages: [
       { id: '/products', label: 'Products (المنتجات)' },
       { id: '/inventory/warehouses', label: 'Warehouses (المستودعات)' },
+      { id: '/purchases', label: 'Purchases (المشتريات)' },
       { id: '/inventory/movements', label: 'Stock Movements (حركات المخزون)' },
       { id: '/inventory/balances', label: 'Stock Balances (أرصدة المخزون)' },
       { id: '/inventory/item-card', label: 'Item Card (كارت الصنف)' },
@@ -200,13 +200,13 @@ const PERMISSION_GROUPS = [
   {
     title: 'Finance & Accounting (المالية والمحاسبة)',
     pages: [
+      { id: '/finance', label: 'Invoices & Quotations (الفواتير والعروض)' },
       { id: '/erp/accounts', label: 'Chart of Accounts (شجرة الحسابات)' },
       { id: '/erp/journals', label: 'General Ledger (القيود اليومية)' },
       { id: '/erp/reports', label: 'Financial Reports (التقارير المالية)' },
       { id: '/erp/banking', label: 'Bank Reconciliation (البنوك والمطابقة)' },
       { id: '/erp/closing', label: 'Period Closing (إقفال الفترات)' },
       { id: '/erp/entries', label: 'Entries (السندات)' },
-      { id: '/erp/purchasing', label: 'Purchasing / AP (المشتريات والموردين)' },
     ]
   },
   {

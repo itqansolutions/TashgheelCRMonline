@@ -178,7 +178,7 @@ const getUserAllowedPages = async (userId, userRole) => {
       '/contacts/employees', '/products', '/deals', '/tasks', '/finance', '/erp/accounts',
       '/erp/journals', '/erp/reports', '/erp/banking', '/erp/closing', '/erp/entries',
       '/inventory/warehouses', '/inventory/keepers', '/inventory/transaction-impact',
-      '/inventory/balances', '/inventory/item-card', '/inventory/movements',
+      '/inventory/balances', '/inventory/item-card', '/inventory/movements', '/purchases',
       '/sales/salesmen', '/sales/target', '/sales/orders', '/sales/documents',
       '/sales/price-tiers', '/integrations/einvoice', '/integrations/meta-forms',
       '/employees', '/hr/my-attendance', '/hr/dashboard', '/hr/approvals',

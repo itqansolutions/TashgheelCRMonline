@@ -1,14 +1,6 @@
-const { Pool } = require('pg');
+const db = require('../config/db');
 const eventBus = require('../services/eventBus');
-require('dotenv').config();
 
-const pool = new Pool({
-    user: process.env.DB_USER || 'postgres',
-    host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'tashgheel_crm',
-    password: process.env.DB_PASSWORD || 'postgres',
-    port: process.env.DB_PORT || 5432,
-});
 
 /**
  * Log an activity to the activities timeline and emit an event for the Automation Engine.
@@ -40,7 +32,7 @@ const logActivity = async (tenant_id, user, entity_type, entity_id, action, chan
             RETURNING *
         `;
         const values = [tenant_id, user?.id || null, entity_type, entity_id, action, JSON.stringify(meta)];
-        const result = await pool.query(query, values);
+        const result = await db.query(query, values);
 
         const activityRecord = result.rows[0];
 

@@ -200,10 +200,12 @@ const reconcileDatabase = async () => {
             // Core Stability (Phase 1)
             await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS reservation_expires_at TIMESTAMP NULL`);
 
-            // UI Power (Phase 2 - Kanban Metrics)
+            // UI Power (Phase 2 - Kanban Metrics & Polymorphic Source)
             await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS probability INTEGER DEFAULT 0`);
             await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS expected_close_date DATE NULL`);
             await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS next_action VARCHAR(255) NULL`);
+            await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS source_type VARCHAR(50) NULL`);
+            await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS source_id VARCHAR(255) NULL`);
 
             // Attachments System (Required for Logo/Files)
             await db.query(`

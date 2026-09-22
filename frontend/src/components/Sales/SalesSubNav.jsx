@@ -1,9 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Users, Target as TargetIcon, ShoppingBag, FileText, Layers } from 'lucide-react';
+import { Handshake, Users, Target as TargetIcon, ShoppingBag, FileText, Layers } from 'lucide-react';
 
 const SalesSubNav = () => {
   const links = [
+    { path: '/deals', label: 'Deals (الصفقات)', icon: <Handshake size={16} /> },
     { path: '/sales/salesmen', label: 'Salesmen', icon: <Users size={16} /> },
     { path: '/sales/target', label: 'Target & Goals', icon: <TargetIcon size={16} /> },
     { path: '/sales/orders', label: 'Sales Orders', icon: <ShoppingBag size={16} /> },

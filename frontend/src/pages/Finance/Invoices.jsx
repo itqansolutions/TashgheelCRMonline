@@ -69,14 +69,25 @@ const FinanceDashboard = () => {
   const isRealEstate = user?.template_name === 'real_estate';
 
   useEffect(() => {
-    if (location.state?.tab) {
+    const qTab = new URLSearchParams(location.search).get('tab');
+    if (qTab) {
+      const match = ['Invoices', 'Receipts', 'Payments', 'Expenses', 'Quotations'].find(
+        t => t.toLowerCase() === qTab.toLowerCase()
+      );
+      if (match) setActiveTab(match);
+    } else if (location.state?.tab) {
       setActiveTab(location.state.tab);
     }
     if (location.state?.create) {
       setQuickActionType(location.state.create);
       setShowQuickAction(true);
     }
-  }, [location.state]);
+  }, [location.state, location.search]);
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    navigate(`/finance?tab=${tabId}`, { replace: true });
+  };
 
   useEffect(() => {
     fetchSummary();
@@ -612,22 +623,32 @@ const FinanceDashboard = () => {
           <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800' }}>Financial Hub</h2>
           <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>Comprehensive management for invoices, vouchers, payments, and expenses.</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button className="action-btn" style={{ borderColor: '#10b981', color: '#10b981' }} onClick={() => { setQuickActionType('Receipt Voucher'); setShowQuickAction(true); }}>
-                <Plus size={16} /> Receipt Voucher
-            </button>
-            <button className="action-btn" style={{ borderColor: '#ef4444', color: '#ef4444' }} onClick={() => { setQuickActionType('Payment Voucher'); setShowQuickAction(true); }}>
-                <Plus size={16} /> Payment Voucher
-            </button>
-            <button className="action-btn" style={{ borderColor: '#f59e0b', color: '#f59e0b' }} onClick={() => { setQuickActionType('Expense'); setShowQuickAction(true); }}>
-                <Plus size={16} /> New Expense
-            </button>
-            <button className="action-btn" style={{ borderColor: '#6366f1', color: '#6366f1' }} onClick={() => { setQuickActionType('Quotation'); setShowQuickAction(true); }}>
-                <Plus size={16} /> Quotation
-            </button>
-            <button className="btn-primary" onClick={() => { setQuickActionType('Invoice'); setShowQuickAction(true); }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {activeTab === 'Invoices' && (
+              <button className="btn-primary" onClick={() => { setQuickActionType('Invoice'); setShowQuickAction(true); }}>
                 <Plus size={18} /> New Invoice
-            </button>
+              </button>
+            )}
+            {activeTab === 'Receipts' && (
+              <button className="btn-primary" style={{ background: '#10b981', borderColor: '#10b981' }} onClick={() => { setQuickActionType('Receipt Voucher'); setShowQuickAction(true); }}>
+                <Plus size={16} /> New Receipt Voucher (سند قبض)
+              </button>
+            )}
+            {activeTab === 'Payments' && (
+              <button className="btn-primary" style={{ background: '#ef4444', borderColor: '#ef4444' }} onClick={() => { setQuickActionType('Payment Voucher'); setShowQuickAction(true); }}>
+                <Plus size={16} /> New Payment Voucher (سند صرف)
+              </button>
+            )}
+            {activeTab === 'Expenses' && (
+              <button className="btn-primary" style={{ background: '#f59e0b', borderColor: '#f59e0b' }} onClick={() => { setQuickActionType('Expense'); setShowQuickAction(true); }}>
+                <Plus size={16} /> New Expense (مصروف جديد)
+              </button>
+            )}
+            {activeTab === 'Quotations' && (
+              <button className="btn-primary" style={{ background: '#6366f1', borderColor: '#6366f1' }} onClick={() => { setQuickActionType('Quotation'); setShowQuickAction(true); }}>
+                <Plus size={16} /> New Quotation (عرض سعر)
+              </button>
+            )}
         </div>
       </div>
 
@@ -686,16 +707,16 @@ const FinanceDashboard = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
         <div className="tabs-nav" style={{ marginBottom: 0 }}>
             {[
-                { id: 'Invoices', label: 'Invoices', icon: <FileText size={16} /> },
-                { id: 'Receipts', label: 'Receipt Vouchers', icon: <ArrowDownLeft size={16} /> },
-                { id: 'Payments', label: 'Payment Vouchers', icon: <ArrowUpRight size={16} /> },
-                { id: 'Expenses', label: 'Expenses', icon: <DollarSign size={16} /> },
-                { id: 'Quotations', label: 'Quotations', icon: <Receipt size={16} /> }
+                { id: 'Invoices', label: 'Invoices (الفواتير)', icon: <FileText size={16} /> },
+                { id: 'Receipts', label: 'Receipt Vouchers (سندات القبض)', icon: <ArrowDownLeft size={16} /> },
+                { id: 'Payments', label: 'Payment Vouchers (سندات الصرف)', icon: <ArrowUpRight size={16} /> },
+                { id: 'Expenses', label: 'Expenses (المصروفات)', icon: <DollarSign size={16} /> },
+                { id: 'Quotations', label: 'Quotations (عروض الأسعار)', icon: <Receipt size={16} /> }
             ].map(tab => (
                 <div 
                   key={tab.id} 
                   className={`tab-item ${activeTab === tab.id ? 'active' : ''}`}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                 >
                     {tab.icon}
                     {tab.label}

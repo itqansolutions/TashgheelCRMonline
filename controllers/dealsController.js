@@ -5,15 +5,37 @@ const { logAction, logCreate, logUpdate, logDelete, ACTIONS, LOG_LEVELS } = requ
 const { logActivity } = require('../utils/activityLogger');
 const { getTenantTemplate } = require('../services/templateService');
 const templateAutomationService = require('../services/templateAutomationService');
+// Ensure deal columns exist to prevent missing-column 500 crashes
+let dealColumnsEnsured = false;
+async function ensureDealColumns() {
+  if (dealColumnsEnsured) return;
+  const run = async (sql) => {
+    try { await db.query(sql); } catch (e) { /* ignore – column already exists or handled */ }
+  };
+  await run(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)`);
+  await run(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS unit_id VARCHAR(255)`);
+  await run(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS probability INTEGER DEFAULT 0`);
+  await run(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS expected_close_date DATE NULL`);
+  await run(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS next_action VARCHAR(255) NULL`);
+  await run(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS source_type VARCHAR(50) NULL`);
+  await run(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS source_id VARCHAR(255) NULL`);
+  await run(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}'`);
+  await run(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS product_id INTEGER`);
+  await run(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS project_id INTEGER`);
+  dealColumnsEnsured = true;
+  console.log('[Deals] Column guard completed.');
+}
 
 // @desc    Get all deals
 // @route   GET /api/deals
 // @access  Private
 exports.getDeals = async (req, res) => {
   const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId || req.user?.branch_id;
+  const branch_id = req.branchId || req.user?.branch_id || null;
 
   try {
+    await ensureDealColumns();
+
     const scope = await accessScopeService.buildScopePredicate({
       user: req.user,
       tableAlias: 'd',
@@ -21,7 +43,7 @@ exports.getDeals = async (req, res) => {
       paramIndex: 3
     });
 
-    let whereClause = `d.tenant_id::text = $1::text AND d.branch_id::text = $2::text`;
+    let whereClause = `d.tenant_id::text = $1::text AND ($2::text IS NULL OR d.branch_id::text = $2::text OR d.branch_id IS NULL)`;
     const params = [tenant_id, branch_id];
 
     if (scope.sql && scope.sql !== '1=1') {
@@ -61,7 +83,7 @@ exports.getDeals = async (req, res) => {
     });
   } catch (err) {
     console.error('[Deals API Error]', err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    res.status(500).json({ status: 'error', message: err.message || 'Server error' });
   }
 };
 
@@ -70,14 +92,16 @@ exports.getDeals = async (req, res) => {
 // @access  Private
 exports.getDealById = async (req, res) => {
   const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId || req.user?.branch_id;
+  const branch_id = req.branchId || req.user?.branch_id || null;
 
   try {
+    await ensureDealColumns();
+
     const result = await db.query(`
       SELECT d.*, p.name as product_name 
       FROM deals d 
       LEFT JOIN products p ON d.product_id::text = p.id::text AND d.tenant_id::text = p.tenant_id::text 
-      WHERE d.id = $1 AND d.tenant_id::text = $2::text AND d.branch_id::text = $3::text
+      WHERE d.id = $1 AND d.tenant_id::text = $2::text AND ($3::text IS NULL OR d.branch_id::text = $3::text OR d.branch_id IS NULL)
     `, [req.params.id, tenant_id, branch_id]);
     
     if (result.rows.length === 0) {
@@ -86,7 +110,7 @@ exports.getDealById = async (req, res) => {
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error('[Deal Detail Error]', err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    res.status(500).json({ status: 'error', message: err.message || 'Server error' });
   }
 };
 
@@ -96,9 +120,15 @@ exports.getDealById = async (req, res) => {
 exports.createDeal = async (req, res) => {
   const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields, unit_id, probability, expected_close_date, next_action, source_type, source_id } = req.body;
   const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId || req.user?.branch_id;
+  const branch_id = req.branchId || req.user?.branch_id || null;
 
   try {
+    await ensureDealColumns();
+
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ status: 'error', message: 'Deal title is required.' });
+    }
+
     // 1. Real Estate Validation: If unit_id is provided, check availability
     if (unit_id) {
         const unitCheck = await db.query('SELECT status FROM re_units WHERE id = $1 AND tenant_id::text = $2::text', [unit_id, tenant_id]);
@@ -108,40 +138,53 @@ exports.createDeal = async (req, res) => {
         }
     }
 
-    // DEFINITIVE SANITIZATION: Prevent 500 Server Error for Empty String UUID conversions
-    const cleanClientId = (client_id && client_id !== '') ? client_id : null;
-    const cleanProductId = (product_id && product_id !== '') ? product_id : null;
-    const cleanProjectId = (project_id && project_id !== '') ? project_id : null;
-    const cleanUnitId = (unit_id && unit_id !== '') ? unit_id : null;
-    const cleanAssignedTo = (assigned_to && assigned_to !== '') ? assigned_to : req.user.id;
-    const cleanProbability = (probability && probability !== '') ? parseInt(probability) : 0;
-    const cleanExpectedDate = (expected_close_date && expected_close_date !== '') ? expected_close_date : null;
+    // DEFINITIVE SANITIZATION: Prevent 500 Server Error for Empty String / Type mismatches
+    const cleanClientId = (client_id && client_id !== '') ? (!isNaN(client_id) ? parseInt(client_id) : client_id) : null;
+    const cleanProductId = (product_id && product_id !== '' && !isNaN(product_id)) ? parseInt(product_id) : null;
+    const cleanProjectId = (project_id && project_id !== '' && !isNaN(project_id)) ? parseInt(project_id) : null;
+    const cleanUnitId = (unit_id && unit_id !== '') ? String(unit_id) : null;
+    const cleanAssignedTo = (assigned_to && assigned_to !== '') ? (!isNaN(assigned_to) ? parseInt(assigned_to) : assigned_to) : (!isNaN(req.user.id) ? parseInt(req.user.id) : req.user.id);
+    const cleanValue = (value !== undefined && value !== null && value !== '' && !isNaN(Number(value))) ? Number(value) : 0;
+    const cleanProbability = (probability !== undefined && probability !== null && probability !== '' && !isNaN(probability)) ? Math.min(100, Math.max(0, parseInt(probability))) : 0;
+
+    let cleanExpectedDate = null;
+    if (expected_close_date && typeof expected_close_date === 'string' && expected_close_date.trim() !== '') {
+      const d = new Date(expected_close_date);
+      if (!isNaN(d.getTime())) {
+        cleanExpectedDate = expected_close_date.split('T')[0];
+      }
+    }
+
     const cleanSourceType = (source_type && source_type !== '') ? source_type : null;
     const cleanSourceId = (source_id && source_id !== '') ? String(source_id) : null;
+    const cleanCustomFields = (custom_fields && typeof custom_fields === 'object') ? custom_fields : {};
 
     // Phase 8: Task to Deal Conversion Validation & Auto-Transition
     if (cleanSourceType === 'task' && cleanSourceId) {
-        // Validate if task belongs to tenant and status permits deal creation
+      try {
         const taskRes = await db.query(
-            "SELECT t.id, ts.can_make_deal " +
+            "SELECT t.id, COALESCE(ts.can_make_deal, true) as can_make_deal " +
             "FROM tasks t " +
             "LEFT JOIN task_statuses ts ON t.status_id = ts.id " +
-            "WHERE t.id = $1 AND t.tenant_id::text = $2::text AND t.branch_id::text = $3::text",
+            "WHERE t.id = $1 AND t.tenant_id::text = $2::text AND ($3::text IS NULL OR t.branch_id::text = $3::text OR t.branch_id IS NULL)",
             [cleanSourceId, tenant_id, branch_id]
         );
 
         if (taskRes.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Source task not found.' });
         }
-        if (taskRes.rows[0].can_make_deal !== true) {
+        if (taskRes.rows[0].can_make_deal === false) {
             return res.status(400).json({ status: 'error', message: 'This task status does not permit conversion to a deal.' });
         }
+      } catch (taskErr) {
+        console.warn('[Deal Task Conversion Check Warning]:', taskErr.message);
+      }
     }
 
     // 2. Insert Deal (With branch_id injection and new Phase 2 schema)
     const result = await db.query(
       'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, branch_id, custom_fields, unit_id, probability, expected_close_date, next_action, source_type, source_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *',
-      [title, value || 0, pipeline_stage || 'discovery', cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, tenant_id, branch_id, custom_fields || {}, cleanUnitId, cleanProbability, cleanExpectedDate, next_action || '', cleanSourceType, cleanSourceId]
+      [String(title).trim(), cleanValue, pipeline_stage || 'discovery', cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, tenant_id, branch_id, cleanCustomFields, cleanUnitId, cleanProbability, cleanExpectedDate, next_action || '', cleanSourceType, cleanSourceId]
     );
 
     const newDeal = result.rows[0];
@@ -166,18 +209,21 @@ exports.createDeal = async (req, res) => {
     // Activity Timeline Logging
     await logActivity(tenant_id, req.user, 'deal', newDeal.id, 'created', { 
         title: { to: title },
-        value: { to: value },
-        pipeline_stage: { to: pipeline_stage }
+        value: { to: cleanValue },
+        pipeline_stage: { to: pipeline_stage || 'discovery' }
     });
 
     // Auto Transition Task if converted
     if (cleanSourceType === 'task' && cleanSourceId) {
-        // Find a "Converted" or final status for the tenant
-        const statusRes = await db.query('SELECT id FROM task_statuses WHERE tenant_id::text = $1::text AND (name ILIKE $2 OR is_final = true) ORDER BY is_final DESC LIMIT 1', [tenant_id, '%converted%']);
-        if (statusRes.rows.length > 0) {
-             const convertedStatusId = statusRes.rows[0].id;
-             await db.query('UPDATE tasks SET status_id = $1 WHERE id = $2', [convertedStatusId, cleanSourceId]);
-             logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Task', entityId: cleanSourceId, details: { deal_id: newDeal.id, status_change: 'Converted' } });
+        try {
+          const statusRes = await db.query('SELECT id FROM task_statuses WHERE tenant_id::text = $1::text AND (name ILIKE $2 OR is_final = true) ORDER BY is_final DESC LIMIT 1', [tenant_id, '%converted%']);
+          if (statusRes.rows.length > 0) {
+              const convertedStatusId = statusRes.rows[0].id;
+              await db.query('UPDATE tasks SET status_id = $1 WHERE id = $2', [convertedStatusId, cleanSourceId]);
+              logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Task', entityId: cleanSourceId, details: { deal_id: newDeal.id, status_change: 'Converted' } });
+          }
+        } catch (stErr) {
+          console.warn('[Task Status Transition Warning]:', stErr.message);
         }
     }
 
@@ -222,8 +268,8 @@ exports.createDeal = async (req, res) => {
 
     res.status(201).json({ status: 'success', data: newDeal });
   } catch (err) {
-    console.error('[Deal Create Error]', err.message);
-    res.status(500).json({ status: 'error', message: 'Failed to create deal' });
+    console.error('[Deal Create Error]', err);
+    res.status(500).json({ status: 'error', message: err.message || 'Failed to create deal' });
   }
 };
 
@@ -233,32 +279,49 @@ exports.createDeal = async (req, res) => {
 exports.updateDeal = async (req, res) => {
   const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields, probability, expected_close_date, next_action, source_type, source_id } = req.body;
   const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId || req.user?.branch_id;
+  const branch_id = req.branchId || req.user?.branch_id || null;
 
   try {
+    await ensureDealColumns();
+
     // 1. Get old version for logging & security check (Triple Isolation)
-    const oldResult = await db.query('SELECT * FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
+    const oldResult = await db.query(
+      'SELECT * FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)', 
+      [req.params.id, tenant_id, branch_id]
+    );
     if (oldResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
     const oldData = oldResult.rows[0];
 
     // DEFINITIVE SANITIZATION
-    const cleanClientId = (client_id && client_id !== '') ? client_id : null;
-    const cleanProductId = (product_id && product_id !== '') ? product_id : null;
-    const cleanProjectId = (project_id && project_id !== '') ? project_id : null;
-    const cleanAssignedTo = (assigned_to && assigned_to !== '') ? assigned_to : oldData.assigned_to;
-    const cleanProbability = (probability && probability !== '') ? parseInt(probability) : 0;
-    const cleanExpectedDate = (expected_close_date && expected_close_date !== '') ? expected_close_date : null;
-    const cleanSourceType = (source_type && source_type !== '') ? source_type : oldData.source_type;
-    const cleanSourceId = (source_id && source_id !== '') ? String(source_id) : oldData.source_id;
+    const cleanClientId = (client_id !== undefined && client_id !== null && client_id !== '') ? (!isNaN(client_id) ? parseInt(client_id) : client_id) : oldData.client_id;
+    const cleanProductId = (product_id !== undefined && product_id !== null && product_id !== '' && !isNaN(product_id)) ? parseInt(product_id) : (product_id === '' || product_id === null ? null : oldData.product_id);
+    const cleanProjectId = (project_id !== undefined && project_id !== null && project_id !== '' && !isNaN(project_id)) ? parseInt(project_id) : (project_id === '' || project_id === null ? null : oldData.project_id);
+    const cleanAssignedTo = (assigned_to && assigned_to !== '') ? (!isNaN(assigned_to) ? parseInt(assigned_to) : assigned_to) : oldData.assigned_to;
+    const cleanValue = (value !== undefined && value !== null && value !== '' && !isNaN(Number(value))) ? Number(value) : oldData.value;
+    const cleanProbability = (probability !== undefined && probability !== null && probability !== '' && !isNaN(probability)) ? Math.min(100, Math.max(0, parseInt(probability))) : (oldData.probability || 0);
+
+    let cleanExpectedDate = oldData.expected_close_date;
+    if (expected_close_date !== undefined) {
+      if (expected_close_date && typeof expected_close_date === 'string' && expected_close_date.trim() !== '') {
+        const d = new Date(expected_close_date);
+        cleanExpectedDate = !isNaN(d.getTime()) ? expected_close_date.split('T')[0] : null;
+      } else {
+        cleanExpectedDate = null;
+      }
+    }
+
+    const cleanSourceType = (source_type !== undefined) ? (source_type || null) : oldData.source_type;
+    const cleanSourceId = (source_id !== undefined) ? (source_id ? String(source_id) : null) : oldData.source_id;
+    const cleanCustomFields = (custom_fields && typeof custom_fields === 'object') ? custom_fields : (oldData.custom_fields || {});
 
     // 2. Perform Update (With phase 2 metrics)
     const result = await db.query(
       `UPDATE deals 
        SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, probability = $9, expected_close_date = $10, next_action = $11, source_type = $12, source_id = $13, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $14 AND tenant_id::text = $15::text AND branch_id::text = $16::text RETURNING *`,
-      [title, value, pipeline_stage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, custom_fields || oldData.custom_fields, cleanProbability, cleanExpectedDate, next_action || '', cleanSourceType, cleanSourceId, req.params.id, tenant_id, branch_id]
+       WHERE id = $14 AND tenant_id::text = $15::text AND ($16::text IS NULL OR branch_id::text = $16::text OR branch_id IS NULL) RETURNING *`,
+      [title || oldData.title, cleanValue, pipeline_stage || oldData.pipeline_stage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, cleanCustomFields, cleanProbability, cleanExpectedDate, next_action !== undefined ? next_action : (oldData.next_action || ''), cleanSourceType, cleanSourceId, req.params.id, tenant_id, branch_id]
     );
 
     // Audit Logging
@@ -306,8 +369,8 @@ exports.updateDeal = async (req, res) => {
 
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
-    console.error('[Deal Update Error]', err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    console.error('[Deal Update Error]', err);
+    res.status(500).json({ status: 'error', message: err.message || 'Server error' });
   }
 };
 
@@ -317,11 +380,16 @@ exports.updateDeal = async (req, res) => {
 exports.updateDealStatus = async (req, res) => {
   const { pipeline_stage } = req.body;
   const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId || req.user?.branch_id;
+  const branch_id = req.branchId || req.user?.branch_id || null;
 
   try {
+    await ensureDealColumns();
+
     // 1. Get old status & security check
-    const oldResult = await db.query('SELECT title, pipeline_stage, assigned_to FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
+    const oldResult = await db.query(
+      'SELECT title, pipeline_stage, assigned_to FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)', 
+      [req.params.id, tenant_id, branch_id]
+    );
     if (oldResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
@@ -329,7 +397,7 @@ exports.updateDealStatus = async (req, res) => {
 
     // 2. Update status
     const result = await db.query(
-      'UPDATE deals SET pipeline_stage = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text AND branch_id::text = $4::text RETURNING *',
+      'UPDATE deals SET pipeline_stage = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) RETURNING *',
       [pipeline_stage, req.params.id, tenant_id, branch_id]
     );
 
@@ -390,8 +458,8 @@ exports.updateDealStatus = async (req, res) => {
 
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
-    console.error('[Deal Status Update Error]', err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    console.error('[Deal Status Update Error]', err);
+    res.status(500).json({ status: 'error', message: err.message || 'Server error' });
   }
 };
 
@@ -400,10 +468,15 @@ exports.updateDealStatus = async (req, res) => {
 // @access  Private
 exports.deleteDeal = async (req, res) => {
   const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId || req.user?.branch_id;
+  const branch_id = req.branchId || req.user?.branch_id || null;
 
   try {
-    const result = await db.query('DELETE FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *', [req.params.id, tenant_id, branch_id]);
+    await ensureDealColumns();
+
+    const result = await db.query(
+      'DELETE FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) RETURNING *', 
+      [req.params.id, tenant_id, branch_id]
+    );
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
@@ -422,7 +495,7 @@ exports.deleteDeal = async (req, res) => {
 
     res.json({ status: 'success', message: 'Deal deleted' });
   } catch (err) {
-    console.error('[Deal Delete Error]', err.message);
-    res.status(500).json({ status: 'error', message: 'Server error' });
+    console.error('[Deal Delete Error]', err);
+    res.status(500).json({ status: 'error', message: err.message || 'Server error' });
   }
 };

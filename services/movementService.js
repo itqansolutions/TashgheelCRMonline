@@ -33,7 +33,10 @@ class MovementService {
                     END
                 ), 0) as current_stock
             FROM stock_movements 
-            WHERE product_id = $1 AND tenant_id = $2 AND branch_id = $4 AND status = 'approved'
+            WHERE product_id = $1 
+              AND tenant_id::text = $2::text 
+              AND (branch_id::text = $4::text OR ($4 IS NULL AND (branch_id IS NULL OR branch_id = ''))) 
+              AND status = 'approved'
         `;
 
         const params = [product_id, tenant_id, warehouse_id, branch_id];

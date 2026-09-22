@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, ShoppingBag, Handshake, CheckSquare, Wallet, 
   Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, 
   Settings as AdminSettingsIcon, ShieldAlert, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard,
   Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase, Sliders, Clock, Cpu,
   Building, ShieldCheck, TrendingUp, ArrowLeftRight, Scale, FileSpreadsheet, BookOpen,
-  Target as TargetIcon, Layers, TrendingUp as SalesIcon, Share2, FileCheck, Send, MessageCircle, Bot
+  Target as TargetIcon, Layers, TrendingUp as SalesIcon, Share2, FileCheck, Send, MessageCircle, Bot,
+  ShoppingCart, ArrowDownLeft, ArrowUpRight
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
@@ -16,6 +17,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { user } = useAuth();
   const { can, planName, trialDaysLeft } = useModule();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Collapsible Group States
   const [contactsOpen, setContactsOpen] = useState(true);
@@ -37,9 +39,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     // Finance group handled separately
     // Integrations group handled separately
     ...(isRealEstate ? [{ name: 'Units Registry', icon: <Building2 />, path: '/units-registry' }] : []),
-    { name: 'Deals',           icon: <Handshake />,       path: '/deals' },
     { name: 'Tasks',           icon: <CheckSquare />,     path: '/tasks' },
-    { name: 'Purchasing (AP)', icon: <Package />,         path: '/erp/purchasing' },
     { name: 'Automation',      icon: <Zap />,             path: '/automation', module: 'automation' },
     { name: 'Files',           icon: <FileText />,        path: '/files' },
     { name: 'System Logs',     icon: <History />,         path: '/logs' },
@@ -58,9 +58,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Employees',  icon: <Briefcase size={18} />, path: '/contacts/employees' },
   ];
 
-  // Sales sub-items
+  // Sales sub-items (Deals moved here)
   const salesItems = [
-    { name: 'Invoices & Quotations', icon: <FileText size={18} />,    path: '/finance' },
+    { name: 'Deals (الصفقات)',       icon: <Handshake size={18} />,   path: '/deals' },
     { name: 'Sales Orders',          icon: <ShoppingBag size={18} />, path: '/sales/orders' },
     { name: 'Documents Hub',         icon: <FileCheck size={18} />,   path: '/sales/documents' },
     { name: 'Salesmen',              icon: <Users size={18} />,       path: '/sales/salesmen' },
@@ -79,26 +79,29 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'ZkTeco Devices',     icon: <Cpu size={18} />,       path: '/hr/devices' },
   ];
 
-  // Warehouse sub-items
+  // Warehouse sub-items (Purchases kept exclusively here)
   const warehouseItems = [
-    { name: 'Products',           icon: <ShoppingBag size={18} />,   path: '/products' },
-    { name: 'Warehouses',         icon: <Building size={18} />,      path: '/inventory/warehouses' },
-    { name: 'Keepers',            icon: <ShieldCheck size={18} />,   path: '/inventory/keepers' },
-    { name: 'Transaction Impact', icon: <TrendingUp size={18} />,    path: '/inventory/transaction-impact' },
-    { name: 'Transactions',       icon: <ArrowLeftRight size={18} />,path: '/inventory/movements' },
-    { name: 'Balances',           icon: <Scale size={18} />,         path: '/inventory/balances' },
-    { name: 'Item Card',          icon: <CreditCard size={18} />,    path: '/inventory/item-card' },
+    { name: 'Products',              icon: <ShoppingBag size={18} />,    path: '/products' },
+    { name: 'Warehouses',            icon: <Building size={18} />,       path: '/inventory/warehouses' },
+    { name: 'Purchases (المشتريات)', icon: <ShoppingCart size={18} />,   path: '/purchases' },
+    { name: 'Balances',              icon: <Scale size={18} />,          path: '/inventory/balances' },
+    { name: 'Movements Ledger',      icon: <ArrowLeftRight size={18} />, path: '/inventory/movements' },
+    { name: 'Keepers',               icon: <ShieldCheck size={18} />,    path: '/inventory/keepers' },
+    { name: 'Item Card',             icon: <CreditCard size={18} />,     path: '/inventory/item-card' },
   ];
 
-  // Finance sub-items
+  // Finance sub-items (Tab direct links added)
   const financeItems = [
-    { name: 'Invoices & Quotations', icon: <FileText size={18} />,     path: '/finance' },
-    { name: 'Chart of Accounts',     icon: <Wallet size={18} />,       path: '/erp/accounts' },
-    { name: 'General Ledger',        icon: <BookOpen size={18} />,     path: '/erp/journals' },
-    { name: 'Financial Reports',     icon: <BarChart3 size={18} />,    path: '/erp/reports' },
-    { name: 'Bank Reconciliation',   icon: <CreditCard size={18} />,   path: '/erp/banking' },
-    { name: 'Period Closing',        icon: <Lock size={18} />,         path: '/erp/closing' },
-    { name: 'Entries',               icon: <FileSpreadsheet size={18} />,path: '/erp/entries' },
+    { name: 'Invoices & Quotations',         icon: <FileText size={18} />,      path: '/finance?tab=Invoices' },
+    { name: 'Receipt Vouchers (سندات القبض)', icon: <ArrowDownLeft size={18} />, path: '/finance?tab=Receipts' },
+    { name: 'Payment Vouchers (سندات الصرف)', icon: <ArrowUpRight size={18} />,  path: '/finance?tab=Payments' },
+    { name: 'Expenses (المصروفات)',          icon: <DollarSign size={18} />,    path: '/finance?tab=Expenses' },
+    { name: 'Chart of Accounts',             icon: <Wallet size={18} />,        path: '/erp/accounts' },
+    { name: 'General Ledger',                icon: <BookOpen size={18} />,      path: '/erp/journals' },
+    { name: 'Financial Reports',             icon: <BarChart3 size={18} />,     path: '/erp/reports' },
+    { name: 'Bank Reconciliation',           icon: <CreditCard size={18} />,    path: '/erp/banking' },
+    { name: 'Period Closing',                icon: <Lock size={18} />,          path: '/erp/closing' },
+    { name: 'Entries',                       icon: <FileSpreadsheet size={18} />,path: '/erp/entries' },
   ];
 
   // Integrations sub-items
@@ -115,7 +118,22 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const filterByAllowed = (items) => {
     if (!user) return [];
     if (user.role === 'admin') return items;
-    return (items || []).filter(item => allowed.includes(item.path));
+    return (items || []).filter(item => {
+      const basePath = item.path.split('?')[0];
+      return allowed.includes(item.path) || allowed.includes(basePath);
+    });
+  };
+
+  const isItemActive = (itemPath) => {
+    if (!itemPath) return false;
+    const [itemBase, itemQuery] = itemPath.split('?');
+    if (location.pathname !== itemBase) return false;
+    if (!itemQuery) return true;
+    const itemParams = new URLSearchParams(itemQuery);
+    const currentParams = new URLSearchParams(location.search);
+    const itemTab = itemParams.get('tab');
+    const currentTab = currentParams.get('tab') || 'Invoices';
+    return itemTab?.toLowerCase() === currentTab.toLowerCase();
   };
 
   const visibleContactItems = filterByAllowed(contactItems);
@@ -430,7 +448,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             </div>
             <div className={`group-sub-items ${isOpen && financeOpen ? 'expanded' : 'collapsed'}`}>
               {visibleFinanceItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                <NavLink 
+                  key={item.name} 
+                  to={item.path} 
+                  className={({ isActive }) => (item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : ''))}
+                >
                   {item.icon}
                   <span>{item.name}</span>
                 </NavLink>

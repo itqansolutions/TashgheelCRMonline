@@ -21,7 +21,8 @@ const Products = () => {
     description: '',
     cost_price: 0,
     selling_price: 0,
-    category: ''
+    category: '',
+    unit: 'piece'
   });
 
   useEffect(() => {
@@ -37,11 +38,12 @@ const Products = () => {
         description: product.description || '',
         cost_price: product.cost_price || 0,
         selling_price: product.selling_price || 0,
-        category: product.category || ''
+        category: product.category || '',
+        unit: product.unit || 'piece'
       });
     } else {
       setEditingProduct(null);
-      setFormData({ name: '', sku: '', description: '', cost_price: 0, selling_price: 0, category: '' });
+      setFormData({ name: '', sku: '', description: '', cost_price: 0, selling_price: 0, category: '', unit: 'piece' });
     }
     setIsModalOpen(true);
   };
@@ -89,6 +91,7 @@ const Products = () => {
       )
     },
     { key: 'sku', label: 'SKU' },
+    { key: 'unit', label: 'Unit', render: (val) => val || 'piece' },
     { key: 'category', label: 'Category' },
     { 
       key: 'cost_price', 
@@ -178,6 +181,15 @@ const Products = () => {
               placeholder="e.g. Services"
               value={formData.category}
               onChange={(e) => setFormData({...formData, category: e.target.value})}
+            />
+          </div>
+          <div className="form-group">
+            <label>Unit of Measure</label>
+            <input 
+              type="text" 
+              placeholder="e.g. piece, kg, box, meter"
+              value={formData.unit}
+              onChange={(e) => setFormData({...formData, unit: e.target.value})}
             />
           </div>
           <div className="form-group">

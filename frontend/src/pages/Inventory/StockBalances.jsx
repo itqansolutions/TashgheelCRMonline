@@ -1,188 +1,500 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { Scale, Search, Filter, AlertTriangle, CheckCircle2, Building, RefreshCw } from 'lucide-react';
+import { Scale, Search, ArrowRightLeft, ClipboardCheck, Building, RefreshCw, X, AlertCircle } from 'lucide-react';
 import WarehouseSubNav from '../../components/Warehouse/WarehouseSubNav';
 
 const StockBalances = () => {
-  const [balances, setBalances] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+  const [stockItems, setStockItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedWarehouse, setSelectedWarehouse] = useState('All Warehouses');
 
-  const fetchStockBalances = async () => {
+  // Transfer Modal State
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferForm, setTransferForm] = useState({
+    from_warehouse_id: '',
+    to_warehouse_id: '',
+    product_id: '',
+    quantity: '',
+    notes: '',
+  });
+
+  // Stock Take Modal State
+  const [showStockTakeModal, setShowStockTakeModal] = useState(false);
+  const [stockTakeSubmitting, setStockTakeSubmitting] = useState(false);
+  const [stockTakeCounts, setStockTakeCounts] = useState({}); // { [productId]: actualQty }
+
+  // 1. Fetch Warehouses
+  const fetchWarehouses = async () => {
+    try {
+      const res = await api.get('/inventory/warehouses');
+      const whs = res.data?.data || [];
+      setWarehouses(whs);
+      if (whs.length > 0 && !selectedWarehouseId) {
+        setSelectedWarehouseId(String(whs[0].id));
+      }
+    } catch (err) {
+      toast.error('Failed to load warehouses');
+    }
+  };
+
+  // 2. Fetch Stock for Selected Warehouse
+  const fetchStock = async (whId) => {
+    const id = whId || selectedWarehouseId;
+    if (!id) return;
     setLoading(true);
     try {
-      const res = await api.get('/products').catch(() => ({ data: { data: [] } }));
-      const rawProducts = res.data.data || res.data || [];
-
-      // Map to stock balance rows
-      const mapped = rawProducts.map((p, idx) => ({
-        id: p.id || idx + 1,
-        sku: p.sku || `SKU-${100 + idx}`,
-        product_name: p.name || 'Product',
-        category: p.category || 'General',
-        warehouse: p.warehouse_name || 'Main Warehouse',
-        on_hand: parseInt(p.stock_quantity || p.quantity || 0),
-        reserved: parseInt(p.reserved_quantity || 0),
-        min_reorder: parseInt(p.min_reorder_level || 10),
-        unit_cost: parseFloat(p.cost_price || p.price || 0),
-      }));
-
-      setBalances(mapped);
+      const res = await api.get(`/inventory/warehouses/${id}/stock`);
+      setStockItems(res.data?.data || []);
     } catch (err) {
-      toast.error('Failed to load stock balances');
+      toast.error('Failed to load warehouse stock');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStockBalances();
+    fetchWarehouses();
   }, []);
 
-  const filtered = balances.filter(b => {
-    const matchesSearch = b.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          b.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesWh = selectedWarehouse === 'All Warehouses' || b.warehouse === selectedWarehouse;
-    return matchesSearch && matchesWh;
-  });
+  useEffect(() => {
+    if (selectedWarehouseId) {
+      fetchStock(selectedWarehouseId);
+    }
+  }, [selectedWarehouseId]);
 
-  const totalInventoryValuation = filtered.reduce((acc, b) => acc + (b.on_hand * b.unit_cost), 0);
-  const lowStockCount = filtered.filter(b => b.on_hand <= b.min_reorder).length;
+  // Open Transfer Modal
+  const handleOpenTransfer = (preselectedProduct = null) => {
+    const otherWh = warehouses.find(w => String(w.id) !== String(selectedWarehouseId));
+    setTransferForm({
+      from_warehouse_id: selectedWarehouseId,
+      to_warehouse_id: otherWh ? String(otherWh.id) : '',
+      product_id: preselectedProduct ? String(preselectedProduct.product_id) : (stockItems[0]?.product_id ? String(stockItems[0].product_id) : ''),
+      quantity: '',
+      notes: '',
+    });
+    setShowTransferModal(true);
+  };
+
+  // Submit Transfer
+  const handleTransferSubmit = async (e) => {
+    e.preventDefault();
+    if (!transferForm.from_warehouse_id || !transferForm.to_warehouse_id) {
+      return toast.error('Source and destination warehouses are required');
+    }
+    if (transferForm.from_warehouse_id === transferForm.to_warehouse_id) {
+      return toast.error('Destination must be different from source warehouse');
+    }
+    const qty = parseFloat(transferForm.quantity);
+    if (!qty || qty <= 0) {
+      return toast.error('Please enter a valid quantity greater than 0');
+    }
+
+    setTransferSubmitting(true);
+    try {
+      await api.post('/inventory/transfers', transferForm);
+      toast.success('Stock transferred successfully!');
+      setShowTransferModal(false);
+      fetchStock(selectedWarehouseId);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Transfer failed');
+    } finally {
+      setTransferSubmitting(false);
+    }
+  };
+
+  // Open Stock Take Modal
+  const handleOpenStockTake = () => {
+    const initialCounts = {};
+    stockItems.forEach(item => {
+      initialCounts[item.product_id] = item.quantity;
+    });
+    setStockTakeCounts(initialCounts);
+    setShowStockTakeModal(true);
+  };
+
+  // Submit Stock Take
+  const handleStockTakeSubmit = async (e) => {
+    e.preventDefault();
+    const itemsPayload = Object.keys(stockTakeCounts).map(prodId => ({
+      product_id: parseInt(prodId),
+      actual_quantity: parseFloat(stockTakeCounts[prodId] || 0)
+    }));
+
+    setStockTakeSubmitting(true);
+    try {
+      const res = await api.post('/inventory/stock-take', {
+        warehouse_id: parseInt(selectedWarehouseId),
+        items: itemsPayload,
+        notes: `Physical Stock Count on ${new Date().toLocaleDateString()}`
+      });
+      toast.success(res.data?.message || 'Stock adjustments applied!');
+      setShowStockTakeModal(false);
+      fetchStock(selectedWarehouseId);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Stock count adjustment failed');
+    } finally {
+      setStockTakeSubmitting(false);
+    }
+  };
+
+  const filtered = stockItems.filter(item => 
+    (item.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.sku || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const totalValuation = filtered.reduce((acc, item) => acc + (item.total_value || 0), 0);
+  const totalQuantity = filtered.reduce((acc, item) => acc + (item.quantity || 0), 0);
+
+  const selectedWhObj = warehouses.find(w => String(w.id) === String(selectedWarehouseId));
+
+  const modalStyle = {
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+    background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px'
+  };
+
+  const inputStyle = {
+    width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px',
+    fontSize: '14px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box'
+  };
 
   return (
     <div>
       <WarehouseSubNav />
       <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Scale size={24} style={{ color: '#0284c7' }} /> Real-time Stock Balances
+              <Scale size={24} style={{ color: '#0ea5e9' }} /> Warehouse Stock Balances
             </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
-              Live inventory levels, allocated stock, reorder thresholds, and warehouse valuation
+              Live inventory levels, valuation, direct transfers, and physical stock taking
             </p>
           </div>
-          <button
-            onClick={fetchStockBalances}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px',
-              background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1',
-              borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
-            }}
-          >
-            <RefreshCw size={16} /> Refresh Balances
-          </button>
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              onClick={() => handleOpenTransfer()}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px',
+                background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #bbf7d0',
+                borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
+              }}
+            >
+              <ArrowRightLeft size={16} /> Direct Transfer
+            </button>
+
+            <button
+              onClick={handleOpenStockTake}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px',
+                background: '#f5f3ff', color: '#7c3aed', border: '1.5px solid #ddd6fe',
+                borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
+              }}
+            >
+              <ClipboardCheck size={16} /> Stock Taking / الجرد
+            </button>
+
+            <button
+              onClick={() => fetchStock(selectedWarehouseId)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px',
+                background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1',
+                borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
+              }}
+            >
+              <RefreshCw size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* Warehouse Selector & Search Bar */}
+        <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '280px' }}>
+            <Building size={20} style={{ color: '#0ea5e9' }} />
+            <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155' }}>Warehouse:</label>
+            <select
+              value={selectedWarehouseId}
+              onChange={e => setSelectedWarehouseId(e.target.value)}
+              style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #0ea5e9', fontWeight: 700, outline: 'none', background: '#f0f9ff', color: '#0369a1', fontSize: '14px' }}
+            >
+              {warehouses.map(w => (
+                <option key={w.id} value={w.id}>{w.name} {w.code ? `(${w.code})` : ''}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
+            <Search size={18} style={{ color: '#94a3b8' }} />
+            <input
+              type="text"
+              placeholder="Search product name or SKU..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', fontWeight: 600, color: '#1e293b' }}
+            />
+          </div>
         </div>
 
         {/* KPI Summary */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>Total Asset Valuation</span>
-            <span style={{ fontSize: '24px', fontWeight: 800, color: '#0ea5e9' }}>${totalInventoryValuation.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>Active Warehouse</span>
+            <span style={{ fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>{selectedWhObj?.name || 'Loading...'}</span>
+            <span style={{ fontSize: '12px', color: '#94a3b8' }}>{selectedWhObj?.location || 'General'}</span>
           </div>
 
           <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>Low Stock Reorder Alerts</span>
-            <span style={{ fontSize: '24px', fontWeight: 800, color: lowStockCount > 0 ? '#ef4444' : '#10b981' }}>{lowStockCount} Items</span>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #e2e8f0', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
-            <Search size={18} style={{ color: '#94a3b8' }} />
-            <input
-              type="text"
-              placeholder="Search product or SKU..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', fontWeight: 600, color: '#1e293b' }}
-            />
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>Total Units in Stock</span>
+            <span style={{ fontSize: '24px', fontWeight: 800, color: '#10b981' }}>{totalQuantity.toLocaleString()} Units</span>
           </div>
 
-          <select
-            value={selectedWarehouse}
-            onChange={(e) => setSelectedWarehouse(e.target.value)}
-            style={{ padding: '8px 14px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontWeight: 700, outline: 'none', background: '#f8fafc', fontSize: '13px' }}
-          >
-            <option value="All Warehouses">All Warehouses</option>
-            <option value="Main Central Warehouse">Main Central Warehouse</option>
-            <option value="Retail Branch Store">Retail Branch Store</option>
-          </select>
+          <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>Total Stock Valuation (Cost)</span>
+            <span style={{ fontSize: '24px', fontWeight: 800, color: '#0ea5e9' }}>{totalValuation.toLocaleString(undefined, { minimumFractionDigits: 2 })} EGP</span>
+          </div>
         </div>
 
         {/* Table */}
         <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
           {loading ? (
-            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>Loading balances...</div>
+            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>Loading stock balances...</div>
           ) : filtered.length === 0 ? (
-            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>No matching stock balances</div>
+            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+              <Scale size={44} style={{ opacity: 0.3, marginBottom: '12px' }} />
+              <p style={{ fontWeight: 700, margin: 0 }}>No products found in this warehouse</p>
+            </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>SKU</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Product Name</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Warehouse</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>On Hand</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Reserved</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Available</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>SKU</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Unit</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Quantity on Hand</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Unit Cost</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Total Value</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Reorder Status</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((b) => {
-                  const available = b.on_hand - b.reserved;
-                  const isLow = b.on_hand <= b.min_reorder;
-                  return (
-                    <tr key={`${b.id}-${b.warehouse}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '14px 18px', fontFamily: 'monospace', fontWeight: 800, color: '#0ea5e9' }}>
-                        {b.sku}
-                      </td>
-                      <td style={{ padding: '14px 18px', fontWeight: 800, color: '#1e293b' }}>
-                        {b.product_name}
-                      </td>
-                      <td style={{ padding: '14px 18px', color: '#64748b', fontWeight: 600, fontSize: '13px' }}>
-                        🏢 {b.warehouse}
-                      </td>
-                      <td style={{ padding: '14px 18px', fontWeight: 800, color: '#0f172a' }}>
-                        {b.on_hand}
-                      </td>
-                      <td style={{ padding: '14px 18px', fontWeight: 700, color: '#f59e0b' }}>
-                        {b.reserved}
-                      </td>
-                      <td style={{ padding: '14px 18px', fontWeight: 800, color: '#10b981' }}>
-                        {available}
-                      </td>
-                      <td style={{ padding: '14px 18px', fontWeight: 600, color: '#64748b' }}>
-                        ${b.unit_cost.toFixed(2)}
-                      </td>
-                      <td style={{ padding: '14px 18px', fontWeight: 800, color: '#1e293b' }}>
-                        ${(b.on_hand * b.unit_cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td style={{ padding: '14px 18px' }}>
-                        {isLow ? (
-                          <span style={{ padding: '4px 10px', background: '#fee2e2', color: '#b91c1c', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <AlertTriangle size={12} /> Low Stock (Min: {b.min_reorder})
-                          </span>
-                        ) : (
-                          <span style={{ padding: '4px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '20px', fontSize: '11px', fontWeight: 800, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <CheckCircle2 size={12} /> Optimal
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filtered.map(item => (
+                  <tr key={item.product_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '14px 18px', fontWeight: 800, color: '#1e293b' }}>
+                      {item.product_name}
+                    </td>
+                    <td style={{ padding: '14px 18px', fontFamily: 'monospace', fontSize: '13px', color: '#64748b' }}>
+                      {item.sku || '—'}
+                    </td>
+                    <td style={{ padding: '14px 18px', fontSize: '13px', color: '#475569' }}>
+                      <span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700 }}>
+                        {item.unit || 'piece'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 18px', fontWeight: 900, fontSize: '15px', color: item.quantity > 0 ? '#10b981' : '#ef4444' }}>
+                      {item.quantity.toLocaleString()}
+                    </td>
+                    <td style={{ padding: '14px 18px', fontWeight: 700, color: '#475569' }}>
+                      {item.cost_price.toLocaleString(undefined, { minimumFractionDigits: 2 })} EGP
+                    </td>
+                    <td style={{ padding: '14px 18px', fontWeight: 800, color: '#0ea5e9' }}>
+                      {item.total_value.toLocaleString(undefined, { minimumFractionDigits: 2 })} EGP
+                    </td>
+                    <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                      <button
+                        onClick={() => handleOpenTransfer(item)}
+                        style={{ padding: '6px 12px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                      >
+                        Transfer
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
         </div>
+
+        {/* ── TRANSFER MODAL ── */}
+        {showTransferModal && (
+          <div style={modalStyle}>
+            <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '500px', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ArrowRightLeft size={20} /> Direct Warehouse Transfer
+                </h3>
+                <button onClick={() => setShowTransferModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleTransferSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Source Warehouse (From) *</label>
+                  <select
+                    value={transferForm.from_warehouse_id}
+                    onChange={e => setTransferForm({ ...transferForm, from_warehouse_id: e.target.value })}
+                    style={inputStyle}
+                    required
+                  >
+                    {warehouses.map(w => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Destination Warehouse (To) *</label>
+                  <select
+                    value={transferForm.to_warehouse_id}
+                    onChange={e => setTransferForm({ ...transferForm, to_warehouse_id: e.target.value })}
+                    style={inputStyle}
+                    required
+                  >
+                    <option value="">Select Destination...</option>
+                    {warehouses
+                      .filter(w => String(w.id) !== String(transferForm.from_warehouse_id))
+                      .map(w => (
+                        <option key={w.id} value={w.id}>{w.name}</option>
+                      ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Product to Move *</label>
+                  <select
+                    value={transferForm.product_id}
+                    onChange={e => setTransferForm({ ...transferForm, product_id: e.target.value })}
+                    style={inputStyle}
+                    required
+                  >
+                    <option value="">Select Product...</option>
+                    {stockItems.map(p => (
+                      <option key={p.product_id} value={p.product_id}>
+                        {p.product_name} (Available: {p.quantity} {p.unit})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Quantity to Transfer *</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0.001"
+                    placeholder="Enter quantity..."
+                    value={transferForm.quantity}
+                    onChange={e => setTransferForm({ ...transferForm, quantity: e.target.value })}
+                    style={inputStyle}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Notes / Reason (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Branch replenishment"
+                    value={transferForm.notes}
+                    onChange={e => setTransferForm({ ...transferForm, notes: e.target.value })}
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
+                  <button type="button" onClick={() => setShowTransferModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={transferSubmitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: transferSubmitting ? 'not-allowed' : 'pointer', opacity: transferSubmitting ? 0.7 : 1 }}>
+                    {transferSubmitting ? 'Transferring...' : 'Confirm Transfer'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ── STOCK TAKING / ADJUSTMENT MODAL ── */}
+        {showStockTakeModal && (
+          <div style={modalStyle}>
+            <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '750px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ClipboardCheck size={20} /> Stock Taking & Physical Count / جرد المخزن
+                  </h3>
+                  <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>
+                    Warehouse: <strong>{selectedWhObj?.name}</strong>. Enter actual counted quantities to auto-apply adjustments.
+                  </p>
+                </div>
+                <button onClick={() => setShowStockTakeModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleStockTakeSubmit} style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
+                      <th style={{ padding: '10px' }}>Product</th>
+                      <th style={{ padding: '10px' }}>System Qty</th>
+                      <th style={{ padding: '10px' }}>Actual Counted Qty</th>
+                      <th style={{ padding: '10px' }}>Difference</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stockItems.map(item => {
+                      const actual = parseFloat(stockTakeCounts[item.product_id] ?? item.quantity);
+                      const diff = actual - item.quantity;
+                      return (
+                        <tr key={item.product_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '10px', fontWeight: 700 }}>
+                            {item.product_name}
+                            <span style={{ display: 'block', fontSize: '11px', color: '#94a3b8' }}>{item.sku || 'No SKU'}</span>
+                          </td>
+                          <td style={{ padding: '10px', fontWeight: 700, color: '#64748b' }}>
+                            {item.quantity} {item.unit}
+                          </td>
+                          <td style={{ padding: '10px', width: '150px' }}>
+                            <input
+                              type="number"
+                              step="any"
+                              value={stockTakeCounts[item.product_id] ?? item.quantity}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setStockTakeCounts(prev => ({ ...prev, [item.product_id]: val }));
+                              }}
+                              style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontWeight: 800, fontSize: '14px', outline: 'none' }}
+                            />
+                          </td>
+                          <td style={{ padding: '10px', fontWeight: 800, color: diff > 0 ? '#10b981' : diff < 0 ? '#ef4444' : '#94a3b8' }}>
+                            {diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : '0'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+                  <button type="button" onClick={() => setShowStockTakeModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={stockTakeSubmitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #7c3aed, #6d28d9)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: stockTakeSubmitting ? 'not-allowed' : 'pointer', opacity: stockTakeSubmitting ? 0.7 : 1 }}>
+                    {stockTakeSubmitting ? 'Applying Adjustments...' : 'Apply Stock Adjustments'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
