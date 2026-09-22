@@ -59,7 +59,7 @@ const DeptModal = ({ dept, departments = [], users, onClose, onSave }) => {
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Sales Department" style={inputStyle} required />
           </div>
           <div>
-            <label style={labelStyle}>Supervising Department (القسم المشرف / الأعلى)</label>
+            <label style={labelStyle}>Supervising Department</label>
             <select
               value={form.parent_department_id}
               onChange={e => setForm(f => ({ ...f, parent_department_id: e.target.value }))}
@@ -74,7 +74,7 @@ const DeptModal = ({ dept, departments = [], users, onClose, onSave }) => {
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Direct Manager (مدير القسم)</label>
+            <label style={labelStyle}>Direct Manager</label>
             <select value={form.manager_id} onChange={e => setForm(f => ({ ...f, manager_id: e.target.value }))} style={inputStyle}>
               <option value="">-- Select Manager --</option>
               {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
@@ -136,91 +136,91 @@ const JobTitleModal = ({ jt, onClose, onSave }) => {
 // ─── Permission Groups Definition ─────────────────────────────────────────────
 const PERMISSION_GROUPS = [
   {
-    title: 'CRM & Contacts (العملاء وجهات الاتصال)',
+    title: 'CRM & Contacts',
     pages: [
-      { id: '/contacts/customers', label: 'Customers (العملاء)' },
-      { id: '/contacts/vendors', label: 'Vendors (الموردين)' },
-      { id: '/contacts/employees', label: 'Employees (الموظفين)' },
-      { id: '/tasks', label: 'Tasks (المهام)' },
+      { id: '/contacts/customers', label: 'Customers' },
+      { id: '/contacts/vendors', label: 'Vendors' },
+      { id: '/contacts/employees', label: 'Employees' },
+      { id: '/tasks', label: 'Tasks' },
     ]
   },
   {
-    title: 'Sales & Pipeline (المبيعات والصفقات)',
+    title: 'Sales & Pipeline',
     pages: [
-      { id: '/deals', label: 'Deals (الصفقات)' },
-      { id: '/sales/orders', label: 'Sales Orders (طلبات البيع)' },
-      { id: '/sales/salesmen', label: 'Salesmen (المناديب)' },
-      { id: '/sales/target', label: 'Target & Goals (الأهداف)' },
-      { id: '/sales/documents', label: 'Documents (المستندات)' },
-      { id: '/sales/price-tiers', label: 'Price Tiers (شرائح الأسعار)' },
+      { id: '/deals', label: 'Deals' },
+      { id: '/sales/orders', label: 'Sales Orders' },
+      { id: '/sales/salesmen', label: 'Salesmen' },
+      { id: '/sales/target', label: 'Target & Goals' },
+      { id: '/sales/documents', label: 'Documents Hub' },
+      { id: '/sales/price-tiers', label: 'Price Tiers' },
     ]
   },
   {
-    title: 'WhatsApp & Marketing (الواتساب والتسويق)',
+    title: 'WhatsApp & Marketing',
     pages: [
-      { id: '/whatsapp-chat', label: 'WhatsApp Live Chat (محادثات الواتساب)' },
-      { id: '/marketing/whatsapp-campaigns', label: 'WhatsApp Campaigns (حملات الواتساب)' },
-      { id: '/marketing/whatsapp-chatbots', label: 'WhatsApp Chatbots (البوتات التفاعلية)' },
-      { id: '/integrations/whatsapp', label: 'WhatsApp Settings (إعدادات الواتساب)' },
+      { id: '/whatsapp-chat', label: 'WhatsApp Live Chat' },
+      { id: '/marketing/whatsapp-campaigns', label: 'WhatsApp Campaigns' },
+      { id: '/marketing/whatsapp-chatbots', label: 'WhatsApp Chatbots' },
+      { id: '/integrations/whatsapp', label: 'WhatsApp Settings' },
     ]
   },
   {
-    title: 'Real Estate & Properties (العقارات والوحدات)',
+    title: 'Real Estate & Properties',
     pages: [
-      { id: '/units-registry', label: 'Units Registry (سجل الوحدات العقارية)' },
+      { id: '/units-registry', label: 'Units Registry' },
     ]
   },
   {
-    title: 'HR & Attendance (الموارد البشرية)',
+    title: 'HR & Attendance',
     pages: [
-      { id: '/hr/my-attendance', label: 'My Attendance (تسجيل حضوري)' },
-      { id: '/hr/my-requests', label: 'My Requests (طلباتي وإجازاتي)' },
-      { id: '/hr/dashboard', label: 'Attendance Admin (إدارة الحضور)' },
-      { id: '/hr/approvals', label: 'Approvals (مركز الموافقات)' },
-      { id: '/hr/payroll', label: 'Payroll Engine (مسيرات الرواتب)' },
-      { id: '/hr/shifts', label: 'Shifts (الورديات)' },
-      { id: '/hr/devices', label: 'Biometric Devices (أجهزة البصمة)' },
+      { id: '/hr/my-attendance', label: 'My Attendance' },
+      { id: '/hr/my-requests', label: 'My Requests' },
+      { id: '/hr/dashboard', label: 'Attendance Admin' },
+      { id: '/hr/approvals', label: 'Approvals Center' },
+      { id: '/hr/payroll', label: 'Payroll Engine' },
+      { id: '/hr/shifts', label: 'Shifts' },
+      { id: '/hr/devices', label: 'Biometric Devices' },
       { id: '/hr/activity-definition', label: 'Activity Definition' },
       { id: '/hr/activity-balance', label: 'Activity Balance' },
     ]
   },
   {
-    title: 'Warehouse & Inventory (المخزون والمستودعات)',
+    title: 'Warehouse & Inventory',
     pages: [
-      { id: '/products', label: 'Products (المنتجات)' },
-      { id: '/inventory/warehouses', label: 'Warehouses (المستودعات)' },
-      { id: '/purchases', label: 'Purchases (المشتريات)' },
-      { id: '/inventory/movements', label: 'Stock Movements (حركات المخزون)' },
-      { id: '/inventory/balances', label: 'Stock Balances (أرصدة المخزون)' },
-      { id: '/inventory/item-card', label: 'Item Card (كارت الصنف)' },
+      { id: '/products', label: 'Products' },
+      { id: '/inventory/warehouses', label: 'Warehouses' },
+      { id: '/purchases', label: 'Purchases' },
+      { id: '/inventory/movements', label: 'Stock Movements' },
+      { id: '/inventory/balances', label: 'Stock Balances' },
+      { id: '/inventory/item-card', label: 'Item Card' },
       { id: '/inventory/keepers', label: 'Warehouse Keepers' },
       { id: '/inventory/transaction-impact', label: 'Transaction Impact' },
     ]
   },
   {
-    title: 'Finance & Accounting (المالية والمحاسبة)',
+    title: 'Finance & Accounting',
     pages: [
-      { id: '/finance', label: 'Invoices & Quotations (الفواتير والعروض)' },
-      { id: '/erp/accounts', label: 'Chart of Accounts (شجرة الحسابات)' },
-      { id: '/erp/journals', label: 'General Ledger (القيود اليومية)' },
-      { id: '/erp/reports', label: 'Financial Reports (التقارير المالية)' },
-      { id: '/erp/banking', label: 'Bank Reconciliation (البنوك والمطابقة)' },
-      { id: '/erp/closing', label: 'Period Closing (إقفال الفترات)' },
-      { id: '/erp/entries', label: 'Entries (السندات)' },
+      { id: '/finance', label: 'Invoices & Quotations' },
+      { id: '/erp/accounts', label: 'Chart of Accounts' },
+      { id: '/erp/journals', label: 'General Ledger' },
+      { id: '/erp/reports', label: 'Financial Reports' },
+      { id: '/erp/banking', label: 'Bank Reconciliation' },
+      { id: '/erp/closing', label: 'Period Closing' },
+      { id: '/erp/entries', label: 'Entries' },
     ]
   },
   {
-    title: 'General & Administration (عام والإدارة)',
+    title: 'General & Administration',
     pages: [
-      { id: '/dashboard', label: 'Dashboard (الرئيسية)' },
-      { id: '/my-profile', label: 'My Profile (الملف الشخصي)' },
-      { id: '/files', label: 'Files (الملفات والمستندات)' },
-      { id: '/reports', label: 'Reports (التقارير)' },
-      { id: '/automation', label: 'Automation (الأتمتة)' },
-      { id: '/integrations/einvoice', label: 'E-Invoice (الفاتورة الإلكترونية)' },
+      { id: '/dashboard', label: 'Dashboard' },
+      { id: '/my-profile', label: 'My Profile' },
+      { id: '/files', label: 'Files' },
+      { id: '/reports', label: 'Reports' },
+      { id: '/automation', label: 'Automation' },
+      { id: '/integrations/einvoice', label: 'E-Invoice' },
       { id: '/integrations/meta-forms', label: 'Meta Lead Ads' },
-      { id: '/settings', label: 'Admin Settings (الإعدادات)' },
-      { id: '/billing', label: 'Billing (الاشتراكات)' },
+      { id: '/settings', label: 'Admin Settings' },
+      { id: '/billing', label: 'Billing' },
     ]
   }
 ];
@@ -274,7 +274,7 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
     setSavingPerms(true);
     try {
       await api.post(`/users/${emp.id}/permissions`, { allowedPages });
-      toast.success('Permissions updated successfully / تم حفظ الصلاحيات بنجاح');
+      toast.success('Permissions updated successfully');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save permissions');
     } finally {
@@ -311,7 +311,7 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
       setAllowedPages([
         '/dashboard', '/my-profile', '/products', '/inventory/warehouses',
         '/inventory/movements', '/inventory/balances', '/inventory/item-card',
-        '/inventory/keepers', '/inventory/transaction-impact', '/files'
+        '/inventory/keepers', '/inventory/transaction-impact', '/purchases', '/files'
       ]);
     } else if (presetType === 'WHATSAPP') {
       setAllowedPages([
@@ -350,7 +350,7 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
 
   const tabs = [
     { id: 'info', label: 'Basic Info', icon: <User size={14} /> },
-    { id: 'permissions', label: 'Page Permissions (الصلاحيات)', icon: <Shield size={14} />, disabled: !emp },
+    { id: 'permissions', label: 'Page Permissions', icon: <Shield size={14} />, disabled: !emp },
     { id: 'attachments', label: 'Attachments', icon: <Paperclip size={14} />, disabled: !emp },
   ];
 

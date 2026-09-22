@@ -7,15 +7,62 @@ import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 
 const ALL_PAGES = [
-  { id: '/dashboard', label: 'Dashboard' },
-  { id: '/customers', label: 'Customers' },
-  { id: '/products', label: 'Products' },
-  { id: '/deals', label: 'Deals' },
+  // CRM & Contacts
+  { id: '/contacts/customers', label: 'Customers' },
+  { id: '/contacts/vendors', label: 'Vendors' },
+  { id: '/contacts/employees', label: 'Employees' },
   { id: '/tasks', label: 'Tasks' },
-  { id: '/accounting', label: 'Accounting' },
+  // Sales & Pipeline
+  { id: '/deals', label: 'Deals' },
+  { id: '/sales/orders', label: 'Sales Orders' },
+  { id: '/sales/salesmen', label: 'Salesmen' },
+  { id: '/sales/target', label: 'Target & Goals' },
+  { id: '/sales/documents', label: 'Documents Hub' },
+  { id: '/sales/price-tiers', label: 'Price Tiers' },
+  // HR & Attendance
+  { id: '/hr/my-attendance', label: 'My Attendance' },
+  { id: '/hr/my-requests', label: 'My Requests' },
+  { id: '/hr/dashboard', label: 'Attendance Admin' },
+  { id: '/hr/approvals', label: 'Approvals Center' },
+  { id: '/hr/payroll', label: 'Payroll Engine' },
+  { id: '/hr/shifts', label: 'Shifts' },
+  { id: '/hr/devices', label: 'Biometric Devices' },
+  { id: '/hr/activity-definition', label: 'Activity Definition' },
+  { id: '/hr/activity-balance', label: 'Activity Balance' },
+  // Warehouse & Inventory
+  { id: '/products', label: 'Products' },
+  { id: '/inventory/warehouses', label: 'Warehouses' },
+  { id: '/purchases', label: 'Purchases' },
+  { id: '/inventory/movements', label: 'Stock Movements' },
+  { id: '/inventory/balances', label: 'Stock Balances' },
+  { id: '/inventory/item-card', label: 'Item Card' },
+  { id: '/inventory/keepers', label: 'Warehouse Keepers' },
+  { id: '/inventory/transaction-impact', label: 'Transaction Impact' },
+  // Finance & Accounting
+  { id: '/finance', label: 'Invoices & Quotations' },
+  { id: '/erp/accounts', label: 'Chart of Accounts' },
+  { id: '/erp/journals', label: 'General Ledger' },
+  { id: '/erp/reports', label: 'Financial Reports' },
+  { id: '/erp/banking', label: 'Bank Reconciliation' },
+  { id: '/erp/closing', label: 'Period Closing' },
+  { id: '/erp/entries', label: 'Entries' },
+  // WhatsApp & Marketing
+  { id: '/whatsapp-chat', label: 'WhatsApp Live Chat' },
+  { id: '/marketing/whatsapp-campaigns', label: 'WhatsApp Campaigns' },
+  { id: '/marketing/whatsapp-chatbots', label: 'WhatsApp Chatbots' },
+  { id: '/integrations/whatsapp', label: 'WhatsApp Settings' },
+  // Real Estate
+  { id: '/units-registry', label: 'Units Registry' },
+  // General & Administration
+  { id: '/dashboard', label: 'Dashboard' },
+  { id: '/my-profile', label: 'My Profile' },
   { id: '/files', label: 'Files' },
   { id: '/reports', label: 'Reports' },
-  { id: '/employees', label: 'Employees' }
+  { id: '/automation', label: 'Automation' },
+  { id: '/integrations/einvoice', label: 'E-Invoice' },
+  { id: '/integrations/meta-forms', label: 'Meta Lead Ads' },
+  { id: '/settings', label: 'Admin Settings' },
+  { id: '/billing', label: 'Billing' }
 ];
 
 const Employees = () => {

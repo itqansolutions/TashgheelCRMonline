@@ -254,14 +254,7 @@ function App() {
                     }
                   />
 
-                  <Route 
-                    path="employees" 
-                    element={
-                      <ProtectedRoute allowedRoles={['admin']}>
-                        <Employees />
-                      </ProtectedRoute>
-                    } 
-                  />
+                  <Route path="employees" element={<Navigate to="/contacts/employees" replace />} />
                   <Route path="hr/my-attendance" element={<Attendance />} />
                   <Route path="hr" element={<Navigate to="/hr/dashboard" replace />} />
                   <Route path="hr/my-requests" element={<MyRequests />} />
