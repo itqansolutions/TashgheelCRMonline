@@ -16,7 +16,7 @@ router.patch('/conversations/:id/assign', whatsappController.assignConversation)
 router.get('/accounts', whatsappController.getWhatsAppAccounts);
 
 // Templates discovery (Agents can pick templates to send)
-router.get('/templates', whatsappController.fetchApprovedTemplates);
+router.get('/templates', whatsappController.fetchTemplatesFromMeta);
 
 // ===========================================================================
 // CAMPAIGNS (Admin & Manager)
