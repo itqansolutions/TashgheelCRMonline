@@ -1592,6 +1592,7 @@ exports.handleWebhookEvent = async (req, res) => {
           const msgType = msg.type || 'text';
           let bodyText = '';
           let mediaUrl = null;
+          let interactiveData = null;
 
           if (msgType === 'text') {
             bodyText = msg.text?.body || '';
