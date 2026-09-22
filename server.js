@@ -105,6 +105,12 @@ app.use('/api/auth', authRoutes);
 const metaRoutes = require('./routes/metaRoutes');
 const metaController = require('./controllers/metaController');
 
+// Public Legal Endpoints (Privacy Policy & Terms for Meta App Verification)
+const legalController = require('./controllers/legalController');
+app.get('/privacy', legalController.getPrivacyPolicy);
+app.get('/terms', legalController.getTermsOfService);
+app.get('/data-deletion', legalController.getDataDeletion);
+
 // Public SaaS endpoints (no auth required)
 app.get('/api/plans', plansController.getPlans);
 app.use('/api/settings', settingsRoutes);
