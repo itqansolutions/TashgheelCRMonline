@@ -23,8 +23,8 @@ app.use(morgan('dev'));
 app.use(express.json({
   verify: (req, res, buffer) => {
     // Meta signs the exact request body. Keep the raw bytes only for its
-    // webhook endpoint so the controller can verify X-Hub-Signature-256.
-    if (req.originalUrl.startsWith('/api/meta/webhook')) {
+    // webhook endpoints so the controller can verify X-Hub-Signature-256.
+    if (req.originalUrl.startsWith('/api/meta/webhook') || req.originalUrl.startsWith('/api/whatsapp/webhook')) {
       req.rawBody = Buffer.from(buffer);
     }
   }
@@ -112,6 +112,11 @@ app.use('/api/settings', settingsRoutes);
 // Public Meta Webhook Handshake & Events (no JWT auth header sent by Meta)
 app.get('/api/meta/webhook', metaController.handleWebhookVerification);
 app.post('/api/meta/webhook', metaController.handleWebhookEvent);
+
+// Public WhatsApp Webhook Handshake & Events (no JWT auth header sent by Meta)
+const whatsappController = require('./controllers/whatsappController');
+app.get('/api/whatsapp/webhook', whatsappController.handleWebhookVerification);
+app.post('/api/whatsapp/webhook', whatsappController.handleWebhookEvent);
 
 // Protected SaaS subscription endpoint
 app.get('/api/me/subscription', authMiddleware, subscriptionGuard, plansController.getMySubscription);

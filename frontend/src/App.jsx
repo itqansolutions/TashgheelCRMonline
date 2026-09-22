@@ -82,6 +82,7 @@ import EInvoice from './pages/Integrations/EInvoice';
 import MetaForms from './pages/Integrations/MetaForms';
 import WhatsAppSettings from './pages/Integrations/WhatsAppSettings';
 import WhatsAppCampaigns from './pages/Marketing/WhatsAppCampaigns';
+import WhatsAppChat from './pages/Marketing/WhatsAppChat';
 
 // Corporate Pages
 import CorporateLayout from './pages/Corporate/CorporateLayout';
@@ -198,6 +199,22 @@ function App() {
                     element={
                       <ProtectedRoute allowedRoles={['admin']}>
                         <WhatsAppSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="whatsapp-chat"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager', 'user', 'employee']}>
+                        <WhatsAppChat />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="marketing/whatsapp-chat"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager', 'user', 'employee']}>
+                        <WhatsAppChat />
                       </ProtectedRoute>
                     }
                   />

@@ -3,30 +3,39 @@ const router = express.Router();
 const whatsappController = require('../controllers/whatsappController');
 const { authorize } = require('../middleware/roleMiddleware');
 
-// All WhatsApp settings routes require admin role
-router.use(authorize(['admin']));
+// ===========================================================================
+// WHATSAPP CHAT & MESSAGING (Accessible by all agents & managers)
+// ===========================================================================
+router.get('/conversations', whatsappController.getConversations);
+router.get('/conversations/:id/messages', whatsappController.getMessages);
+router.post('/conversations/:id/messages', whatsappController.sendMessage);
+router.post('/conversations/start', whatsappController.startNewChat);
+router.patch('/conversations/:id/assign', whatsappController.assignConversation);
 
-// Get current tenant's WhatsApp configuration
-router.get('/settings', whatsappController.getWhatsAppSettings);
+// Connected numbers (Listing is allowed for agent sender selection)
+router.get('/accounts', whatsappController.getWhatsAppAccounts);
 
-// Save / update WhatsApp configuration
-router.post('/settings', whatsappController.updateWhatsAppSettings);
+// Templates discovery (Agents can pick templates to send)
+router.get('/templates', whatsappController.fetchApprovedTemplates);
 
-// Send a test WhatsApp message to verify the integration
-router.post('/test', whatsappController.sendTestWhatsApp);
+// ===========================================================================
+// CAMPAIGNS (Admin & Manager)
+// ===========================================================================
+router.get('/campaigns', authorize(['admin', 'manager']), whatsappController.getCampaigns);
+router.get('/campaigns/:id', authorize(['admin', 'manager']), whatsappController.getCampaignDetails);
+router.post('/campaigns/send', authorize(['admin', 'manager']), whatsappController.sendCampaign);
 
-// Fetch registered Phone Number IDs from Meta for a given WABA account
-router.get('/phone-numbers', whatsappController.fetchPhoneNumbersFromMeta);
+// ===========================================================================
+// ACCOUNT MANAGEMENT & SETTINGS (Admin only)
+// ===========================================================================
+router.post('/accounts/sync', authorize(['admin']), whatsappController.syncWhatsAppAccounts);
+router.post('/accounts/:id/default', authorize(['admin']), whatsappController.setDefaultWhatsAppAccount);
+router.patch('/accounts/:id/toggle', authorize(['admin']), whatsappController.toggleWhatsAppAccount);
 
-// Diagnostic test endpoint
-router.get('/diagnose', whatsappController.diagnoseWhatsApp);
-
-// Fetch approved message templates from Meta
-router.get('/templates', whatsappController.fetchTemplatesFromMeta);
-
-// WhatsApp Campaigns
-router.get('/campaigns', whatsappController.getCampaigns);
-router.get('/campaigns/:id', whatsappController.getCampaignDetails);
-router.post('/campaigns/send', whatsappController.sendCampaign);
+router.get('/settings', authorize(['admin']), whatsappController.getWhatsAppSettings);
+router.post('/settings', authorize(['admin']), whatsappController.updateWhatsAppSettings);
+router.post('/test', authorize(['admin']), whatsappController.sendTestWhatsApp);
+router.get('/phone-numbers', authorize(['admin']), whatsappController.fetchPhoneNumbersFromMeta);
+router.get('/diagnose', authorize(['admin']), whatsappController.diagnoseWhatsApp);
 
 module.exports = router;

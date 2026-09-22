@@ -9,6 +9,8 @@
  * that each organisation can connect its own WhatsApp Business Number.
  */
 
+const fs = require('fs');
+const path = require('path');
 const axios = require('axios');
 const db = require('../config/db');
 
@@ -952,10 +954,258 @@ async function broadcastWhatsAppCampaign({
   };
 }
 
+// ---------------------------------------------------------------------------
+// Direct Free-Form Text Messaging (Within 24h Customer Service Window)
+// ---------------------------------------------------------------------------
+
+/**
+ * Send a direct free-form text message to a customer.
+ * Subject to Meta's 24-hour customer service window rule.
+ *
+ * @param {object} params
+ * @param {string} params.phoneNumberId
+ * @param {string} params.accessToken
+ * @param {string} params.toPhone
+ * @param {string} params.text
+ * @returns {Promise<{success: boolean, messageId?: string, code?: string|number, error?: string}>}
+ */
+async function sendDirectTextMessage({ phoneNumberId, accessToken, toPhone, text }) {
+  if (!phoneNumberId || !accessToken || !toPhone || !text) {
+    return { success: false, error: 'Missing required parameters for direct WhatsApp message' };
+  }
+
+  const normPhone = normalisePhone(toPhone);
+  if (!normPhone) {
+    return { success: false, error: `Invalid recipient phone number: ${toPhone}` };
+  }
+
+  const url = `${WA_BASE_URL}/${phoneNumberId.trim()}/messages`;
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: normPhone,
+    type: 'text',
+    text: {
+      preview_url: false,
+      body: String(text).trim()
+    }
+  };
+
+  try {
+    const res = await axios.post(url, payload, {
+      headers: {
+        Authorization: `Bearer ${accessToken.trim()}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 15000
+    });
+
+    const messageId = res.data?.messages?.[0]?.id || null;
+    return { success: true, messageId };
+  } catch (err) {
+    const metaError = err.response?.data?.error;
+    const errorCode = metaError?.code;
+    const errorMessage = metaError?.message || err.message;
+    console.error(`[WhatsApp Direct Send Error] Code ${errorCode}:`, errorMessage);
+
+    if (errorCode === 131047) {
+      return {
+        success: false,
+        code: 'WINDOW_EXPIRED',
+        error: 'Customer service window (24h) has expired. Please send an approved template to continue.'
+      };
+    }
+
+    return {
+      success: false,
+      code: errorCode || 'SEND_FAILED',
+      error: errorMessage
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Inbound Media Downloader & Persistent Storage
+// ---------------------------------------------------------------------------
+
+const MIME_EXTENSION_MAP = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'audio/aac': 'aac',
+  'audio/mp4': 'm4a',
+  'audio/mpeg': 'mp3',
+  'audio/amr': 'amr',
+  'audio/ogg': 'ogg',
+  'video/mp4': 'mp4',
+  'video/3gpp': '3gp',
+  'application/pdf': 'pdf',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-powerpoint': 'ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'text/plain': 'txt'
+};
+
+/**
+ * Downloads media from Meta's temporary storage and saves it persistently to CRM uploads.
+ *
+ * @param {object} params
+ * @param {string} params.mediaId
+ * @param {string} params.accessToken
+ * @param {string} params.tenantId
+ * @returns {Promise<string|null>} Relative local path (e.g. /uploads/whatsapp/...) or null on failure
+ */
+async function downloadAndStoreMedia({ mediaId, accessToken, tenantId }) {
+  if (!mediaId || !accessToken) return null;
+
+  try {
+    // 1. Get temporary media URL from Meta Graph API
+    const metaRes = await axios.get(`${WA_BASE_URL}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${accessToken.trim()}` },
+      timeout: 10000
+    });
+
+    const tempUrl = metaRes.data?.url;
+    const mimeType = metaRes.data?.mime_type || 'application/octet-stream';
+    if (!tempUrl) return null;
+
+    // 2. Download binary stream
+    const fileRes = await axios.get(tempUrl, {
+      headers: { Authorization: `Bearer ${accessToken.trim()}` },
+      responseType: 'arraybuffer',
+      timeout: 25000
+    });
+
+    const ext = MIME_EXTENSION_MAP[mimeType] || 'bin';
+    const targetDir = path.join(__dirname, '..', 'uploads', 'whatsapp', String(tenantId || 'global'));
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+
+    const safeFilename = `${mediaId}.${ext}`;
+    const filePath = path.join(targetDir, safeFilename);
+    fs.writeFileSync(filePath, Buffer.from(fileRes.data));
+
+    return `/uploads/whatsapp/${String(tenantId || 'global')}/${safeFilename}`;
+  } catch (err) {
+    console.error(`[WhatsApp Media Download Error] MediaID ${mediaId}:`, err.response?.data || err.message);
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// WABA Phone Number Discovery & Multi-Number Sync
+// ---------------------------------------------------------------------------
+
+/**
+ * Discover and synchronize all registered phone numbers for a WABA into whatsapp_accounts.
+ *
+ * @param {object} params
+ * @param {string} params.tenantId
+ * @param {string} [params.wabaId]
+ * @param {string} [params.accessToken]
+ * @returns {Promise<Array>} List of upserted whatsapp_accounts rows
+ */
+async function syncWabaPhoneNumbers({ tenantId, wabaId, accessToken }) {
+  let token = accessToken;
+  let targetWaba = wabaId;
+
+  if (!token || !targetWaba) {
+    const sRes = await db.query(
+      'SELECT access_token, phone_number_id FROM whatsapp_settings WHERE tenant_id::text = $1::text',
+      [tenantId]
+    );
+    if (sRes.rows.length > 0) {
+      token = token || sRes.rows[0].access_token;
+      targetWaba = targetWaba || sRes.rows[0].phone_number_id;
+    }
+  }
+
+  if (!token) {
+    throw new Error('No WhatsApp access token available for this organization');
+  }
+
+  let numbers = [];
+  const resolved = await resolveActualPhoneNumberId(targetWaba, token);
+  if (resolved?.allNumbers && resolved.allNumbers.length > 0) {
+    numbers = resolved.allNumbers;
+  } else if (targetWaba) {
+    try {
+      const pRes = await axios.get(`${WA_BASE_URL}/${targetWaba}/phone_numbers`, {
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 10000
+      });
+      numbers = pRes.data?.data || [];
+    } catch (e) {
+      console.warn('[WhatsApp] Direct WABA phone_numbers fetch failed:', e.message);
+    }
+  }
+
+  if (numbers.length === 0 && resolved?.phoneNumberId) {
+    numbers = [{
+      id: resolved.phoneNumberId,
+      display_phone_number: resolved.displayPhoneNumber || 'Primary Number',
+      verified_name: resolved.verifiedName || 'WhatsApp Account'
+    }];
+  }
+
+  if (numbers.length === 0) {
+    throw new Error('No WhatsApp phone numbers found for this Meta Business account.');
+  }
+
+  const upserted = [];
+  for (const num of numbers) {
+    const res = await db.query(`
+      INSERT INTO whatsapp_accounts (
+        tenant_id, phone_number_id, display_phone_number, verified_name, quality_rating, is_active
+      )
+      VALUES ($1, $2, $3, $4, $5, TRUE)
+      ON CONFLICT (tenant_id, phone_number_id)
+      DO UPDATE SET
+        display_phone_number = EXCLUDED.display_phone_number,
+        verified_name = EXCLUDED.verified_name,
+        quality_rating = EXCLUDED.quality_rating,
+        is_active = TRUE,
+        updated_at = NOW()
+      RETURNING *
+    `, [
+      tenantId,
+      num.id,
+      num.display_phone_number || num.id,
+      num.verified_name || 'Business Account',
+      num.quality_rating || 'UNKNOWN'
+    ]);
+    upserted.push(res.rows[0]);
+  }
+
+  // If no default number exists, mark the first one as default
+  await db.query(`
+    UPDATE whatsapp_accounts 
+    SET is_default = TRUE 
+    WHERE id = (
+      SELECT id FROM whatsapp_accounts 
+      WHERE tenant_id::text = $1::text AND is_active = TRUE 
+      ORDER BY id ASC LIMIT 1
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM whatsapp_accounts 
+      WHERE tenant_id::text = $1::text AND is_default = TRUE AND is_active = TRUE
+    )
+  `, [tenantId]);
+
+  return upserted;
+}
+
 module.exports = {
   sendWelcomeMessage,
   sendTestMessage,
   callWhatsAppApi,
+  sendDirectTextMessage,
+  downloadAndStoreMedia,
+  syncWabaPhoneNumbers,
   normalisePhone,
   getWhatsAppSettings,
   resolveActualPhoneNumberId,

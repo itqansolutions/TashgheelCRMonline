@@ -103,9 +103,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   // Integrations sub-items
   const integrationsItems = [
-    { name: 'EInvoice',           icon: <FileCheck size={18} />,     path: '/integrations/einvoice' },
-    { name: 'Meta Lead Ads',      icon: <Share2 size={18} />,        path: '/integrations/meta-forms' },
+    { name: 'Whatsapp Chat',      icon: <MessageCircle size={18} />, path: '/whatsapp-chat' },
     { name: 'WhatsApp Campaigns', icon: <Send size={18} />,          path: '/marketing/whatsapp-campaigns' },
+    { name: 'WhatsApp Settings',  icon: <Phone size={18} />,         path: '/integrations/whatsapp' },
+    { name: 'Meta Lead Ads',      icon: <Share2 size={18} />,        path: '/integrations/meta-forms' },
+    { name: 'EInvoice',           icon: <FileCheck size={18} />,     path: '/integrations/einvoice' },
   ];
 
   const filteredItems = (navItems || []).filter(item => {

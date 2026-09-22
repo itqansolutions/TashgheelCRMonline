@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import {
   MessageCircle, Save, Send, Eye, EyeOff, Globe, Phone,
-  FileText, ToggleLeft, ToggleRight, CheckCircle, AlertCircle, Info, ShieldCheck
+  FileText, ToggleLeft, ToggleRight, CheckCircle, AlertCircle, Info, ShieldCheck,
+  Star, RefreshCw, ExternalLink, Sparkles
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 
 const WhatsAppSettings = () => {
+  const navigate = useNavigate();
   const [settings, setSettings] = useState({
     phone_number_id: '',
     waba_id: '',
@@ -37,11 +40,17 @@ const WhatsAppSettings = () => {
   const [diagnosing, setDiagnosing] = useState(false);
   const [diagnosticReport, setDiagnosticReport] = useState(null);
 
+  // Multi-number WhatsApp accounts
+  const [accounts, setAccounts] = useState([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [syncingAccounts, setSyncingAccounts] = useState(false);
+
   // -------------------------------------------------------------------
-  // Load settings on mount
+  // Load settings & accounts on mount
   // -------------------------------------------------------------------
   useEffect(() => {
     fetchSettings();
+    fetchAccounts();
   }, []);
 
   const fetchSettings = async () => {
@@ -60,6 +69,51 @@ const WhatsAppSettings = () => {
       toast.error('Failed to load WhatsApp settings');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAccounts = async () => {
+    setLoadingAccounts(true);
+    try {
+      const res = await api.get('/whatsapp/accounts');
+      setAccounts(res.data?.data || []);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+
+  const handleSyncAccounts = async () => {
+    setSyncingAccounts(true);
+    try {
+      const res = await api.post('/whatsapp/accounts/sync');
+      toast.success(res.data?.message || 'تمت مزامنة أرقام واتساب بنجاح من Meta');
+      fetchAccounts();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشلت مزامنة الأرقام من Meta');
+    } finally {
+      setSyncingAccounts(false);
+    }
+  };
+
+  const handleSetDefaultAccount = async (id) => {
+    try {
+      await api.post(`/whatsapp/accounts/${id}/default`);
+      toast.success('تم تعيين الرقم الافتراضي بنجاح');
+      fetchAccounts();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل تغيير الرقم الافتراضي');
+    }
+  };
+
+  const handleToggleAccount = async (id) => {
+    try {
+      await api.patch(`/whatsapp/accounts/${id}/toggle`);
+      toast.success('تم تحديث حالة تفعيل الرقم');
+      fetchAccounts();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل تحديث حالة الرقم');
     }
   };
 
@@ -256,6 +310,142 @@ const WhatsAppSettings = () => {
           You must create a <strong>pre-approved template</strong> in your Meta Business account first,
           then enter its name below.
         </div>
+      </div>
+
+      {/* ── Connected WhatsApp Numbers (Multi-Number Management) ── */}
+      <div style={{
+        background: '#fff', border: '1px solid var(--border)',
+        borderRadius: 12, padding: 24, marginBottom: 24,
+        boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Phone size={18} color="#25D366" /> Connected WhatsApp Numbers ({accounts.length})
+            </h3>
+            <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+              Manage multiple WhatsApp Business phone numbers for your organization and team inbox
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              type="button"
+              onClick={handleSyncAccounts}
+              disabled={syncingAccounts}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
+                background: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac',
+                borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: syncingAccounts ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <RefreshCw size={14} className={syncingAccounts ? 'animate-spin' : ''} />
+              {syncingAccounts ? 'Syncing...' : 'Sync Numbers from Meta'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/whatsapp-chat')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px',
+                background: 'linear-gradient(135deg, #25D366, #128C7E)', color: 'white', border: 'none',
+                borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(37,211,102,0.3)'
+              }}
+            >
+              <MessageCircle size={14} /> Open WhatsApp Chat
+            </button>
+          </div>
+        </div>
+
+        {loadingAccounts ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+            Loading connected numbers...
+          </div>
+        ) : accounts.length === 0 ? (
+          <div style={{ padding: '24px', textAlign: 'center', background: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
+            <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#475569' }}>No WhatsApp numbers synced yet</p>
+            <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>
+              Ensure your WABA credentials are saved below, then click "Sync Numbers from Meta" to import all attached numbers automatically.
+            </p>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#475569' }}>Phone Number</th>
+                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#475569' }}>Verified Name</th>
+                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#475569' }}>Phone Number ID</th>
+                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#475569' }}>Status</th>
+                  <th style={{ padding: '10px 14px', fontWeight: 700, color: '#475569', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.map(acc => (
+                  <tr key={acc.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '12px 14px', fontWeight: 700, color: '#0f172a' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>{acc.display_phone_number || acc.phone_number_id}</span>
+                        {acc.is_default && (
+                          <span style={{
+                            background: '#dbeafe', color: '#1d4ed8', fontSize: 11,
+                            padding: '1px 7px', borderRadius: 12, fontWeight: 700
+                          }}>
+                            ★ Primary Default
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ padding: '12px 14px', color: '#475569' }}>
+                      {acc.verified_name || '—'}
+                    </td>
+                    <td style={{ padding: '12px 14px', color: '#64748b', fontFamily: 'monospace', fontSize: 12 }}>
+                      {acc.phone_number_id}
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <span style={{
+                        padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                        background: acc.is_active ? '#ecfdf5' : '#fef2f2',
+                        color: acc.is_active ? '#15803d' : '#b91c1c'
+                      }}>
+                        {acc.is_active ? 'Active' : 'Disabled'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                        {!acc.is_default && (
+                          <button
+                            type="button"
+                            onClick={() => handleSetDefaultAccount(acc.id)}
+                            style={{
+                              background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155',
+                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer'
+                            }}
+                          >
+                            Set as Default
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleAccount(acc.id)}
+                          style={{
+                            background: acc.is_active ? '#fff1f2' : '#f0fdf4',
+                            border: `1px solid ${acc.is_active ? '#fecdd3' : '#bbf7d0'}`,
+                            color: acc.is_active ? '#e11d48' : '#16a34a',
+                            padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer'
+                          }}
+                        >
+                          {acc.is_active ? 'Disable' : 'Enable'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSave}>
