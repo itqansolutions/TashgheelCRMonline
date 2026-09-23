@@ -544,6 +544,32 @@ app.listen(PORT, '0.0.0.0', async () => {
     await execSql(`ALTER TABLE activities ALTER COLUMN tenant_id DROP NOT NULL;`, 'activities.tenant_id drop NOT NULL');
     await execSql(`CREATE INDEX IF NOT EXISTS idx_activities_entity_full ON activities(tenant_id, entity_type, entity_id);`, 'idx_activities_entity_full');
     // ─────────────────────────────────────────────────────────────────────────
+
+    // Registration Requests table (public self-signup pending HUD approval)
+    await execSql(`
+      CREATE TABLE IF NOT EXISTS registration_requests (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_name  VARCHAR(255) NOT NULL,
+        contact_name  VARCHAR(255) NOT NULL,
+        email         VARCHAR(255) NOT NULL,
+        phone         VARCHAR(50),
+        password_hash VARCHAR(255) NOT NULL,
+        template_name VARCHAR(100) DEFAULT 'general',
+        status        VARCHAR(20)  NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending','approved','rejected')),
+        modules       JSONB,
+        plan          VARCHAR(50),
+        notes         TEXT,
+        approved_by   INTEGER,
+        created_at    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        approved_at   TIMESTAMP WITH TIME ZONE
+      );
+    `, 'registration_requests table');
+    await execSql(`CREATE INDEX IF NOT EXISTS idx_reg_requests_status ON registration_requests (status);`, 'idx_reg_requests_status');
+    await execSql(`CREATE INDEX IF NOT EXISTS idx_reg_requests_email ON registration_requests (email);`, 'idx_reg_requests_email');
+    await execSql(`CREATE INDEX IF NOT EXISTS idx_reg_requests_created_at ON registration_requests (created_at DESC);`, 'idx_reg_requests_created_at');
+    await execSql(`CREATE UNIQUE INDEX IF NOT EXISTS idx_reg_requests_pending_email ON registration_requests (email) WHERE status = 'pending';`, 'idx_reg_requests_pending_email');
+
     if (metaController && metaController.ensureMetaFormsTable) {
       await metaController.ensureMetaFormsTable();
     }
