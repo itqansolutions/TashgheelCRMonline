@@ -931,25 +931,64 @@ const WhatsAppChatbots = () => {
                                   }}
                                 >
                                   {/* Top Row: Option Number, Label, Value, Remove */}
-                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                                     <span style={{
                                       fontSize: 11, fontWeight: 800, color: '#0369a1', background: '#e0f2fe',
-                                      padding: '2px 8px', borderRadius: 12, minWidth: 24, textAlign: 'center'
+                                      padding: '2px 8px', borderRadius: 12, minWidth: 24, textAlign: 'center', marginTop: 5
                                     }}>
                                       #{optIdx + 1}
                                     </span>
 
-                                    <input
-                                      type="text"
-                                      placeholder="Option label displayed to customer (e.g. Sales Inquiry)"
-                                      value={opt.text || ''}
-                                      onChange={e => {
-                                        const opts = [...node.options];
-                                        opts[optIdx] = { ...opts[optIdx], text: e.target.value };
-                                        handleUpdateNode(nodeIdx, 'options', opts);
-                                      }}
-                                      style={{ flex: 2, padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12.5 }}
-                                    />
+                                    {/* Option label with character counter */}
+                                    <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                      {(() => {
+                                        const optCount = node.options?.length || 1;
+                                        const charLimit = optCount <= 3 ? 20 : 24;
+                                        const currentLen = (opt.text || '').length;
+                                        const isOver = currentLen > charLimit;
+                                        const isNear = !isOver && currentLen >= charLimit - 3;
+                                        const counterColor = isOver ? '#dc2626' : isNear ? '#d97706' : '#94a3b8';
+                                        const borderColor = isOver ? '#dc2626' : isNear ? '#f59e0b' : '#cbd5e1';
+                                        return (
+                                          <>
+                                            <input
+                                              type="text"
+                                              placeholder="Option label displayed to customer (e.g. Sales Inquiry)"
+                                              value={opt.text || ''}
+                                              maxLength={charLimit + 5}
+                                              onChange={e => {
+                                                const opts = [...node.options];
+                                                opts[optIdx] = { ...opts[optIdx], text: e.target.value };
+                                                handleUpdateNode(nodeIdx, 'options', opts);
+                                              }}
+                                              style={{
+                                                width: '100%', padding: '5px 8px', borderRadius: 6,
+                                                border: `1.5px solid ${borderColor}`, fontSize: 12.5,
+                                                outline: 'none', boxSizing: 'border-box'
+                                              }}
+                                            />
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingInline: 2 }}>
+                                              {isOver ? (
+                                                <span style={{ fontSize: 10.5, color: '#dc2626', fontWeight: 700 }}>
+                                                  ⚠️ يتجاوز الحد! WhatsApp سيقطع النص
+                                                </span>
+                                              ) : isNear ? (
+                                                <span style={{ fontSize: 10.5, color: '#d97706', fontWeight: 600 }}>
+                                                  تقترب من الحد المسموح
+                                                </span>
+                                              ) : (
+                                                <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                                                  {optCount <= 3 ? 'Button ≤3' : 'List Menu 4-10'}
+                                                </span>
+                                              )}
+                                              <span style={{ fontSize: 10.5, color: counterColor, fontWeight: isOver ? 800 : 600 }}>
+                                                {currentLen}/{charLimit}
+                                              </span>
+                                            </div>
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
 
                                     <input
                                       type="text"
@@ -960,7 +999,7 @@ const WhatsAppChatbots = () => {
                                         opts[optIdx] = { ...opts[optIdx], value: e.target.value };
                                         handleUpdateNode(nodeIdx, 'options', opts);
                                       }}
-                                      style={{ flex: 1, padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12 }}
+                                      style={{ flex: 1, padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 12, marginTop: 0 }}
                                     />
 
                                     <button
@@ -969,12 +1008,13 @@ const WhatsAppChatbots = () => {
                                       title="Delete Option"
                                       style={{
                                         background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626',
-                                        borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12
+                                        borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12, marginTop: 2
                                       }}
                                     >
                                       ✕
                                     </button>
                                   </div>
+
 
                                   {/* Bottom Row: Branching Destination Selector */}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 4, background: '#f8fafc', padding: '4px 8px', borderRadius: 6 }}>
