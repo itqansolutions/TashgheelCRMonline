@@ -271,15 +271,16 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
   // If we already know this template's component structure, prepare it directly
   let initialComponents = components;
   if (cachedVariant && components && components.length > 0) {
-    const textVal = components[0]?.parameters?.[0]?.text || toPhone;
+    const bodyParams = components.find(c => c.type === 'body')?.parameters || components[0]?.parameters || [];
+    const textVal = bodyParams[0]?.text || toPhone;
     if (cachedVariant === 'header') {
       initialComponents = [{ type: 'header', parameters: [{ type: 'text', text: textVal }] }];
     } else if (cachedVariant === 'body') {
-      initialComponents = [{ type: 'body', parameters: [{ type: 'text', text: textVal }] }];
+      initialComponents = [{ type: 'body', parameters: bodyParams.length > 0 ? bodyParams : [{ type: 'text', text: textVal }] }];
     } else if (cachedVariant === 'header_body') {
       initialComponents = [
         { type: 'header', parameters: [{ type: 'text', text: textVal }] },
-        { type: 'body', parameters: [{ type: 'text', text: textVal }] }
+        { type: 'body', parameters: bodyParams.length > 0 ? bodyParams : [{ type: 'text', text: textVal }] }
       ];
     } else if (cachedVariant === 'none') {
       initialComponents = [];
@@ -321,9 +322,10 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
     // e.g. Variable is in HEADER instead of BODY (like: أهلاً / {{1}}), or no variables
     if (rawError?.code === 132000 || apiError.includes('number of parameters') || apiError.includes('expected number of params') || apiError.includes('param')) {
       console.warn(`⚠️ [WhatsApp] Parameter mismatch for '${templateName}'. Auto-adapting (Header vs Body vs None)...`);
-      const extractedName = components?.[0]?.parameters?.[0]?.text?.trim() || toPhone;
+      const bodyParams = components.find(c => c.type === 'body')?.parameters || components?.[0]?.parameters || [];
+      const extractedName = bodyParams[0]?.text?.trim() || toPhone;
       const headerComp = { type: 'header', parameters: [{ type: 'text', text: extractedName }] };
-      const bodyComp = { type: 'body', parameters: [{ type: 'text', text: extractedName }] };
+      const bodyComp = { type: 'body', parameters: bodyParams.length > 0 ? bodyParams : [{ type: 'text', text: extractedName }] };
 
       const variations = [
         { type: 'header', comps: [headerComp] },            // Case 1: Variable in Header only (e.g. أهلاً أ/ {{1}})
@@ -505,7 +507,7 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
  * @param {string} opts.tenantId     UUID of the tenant
  * @returns {Promise<{sent: boolean, results: Array}>}
  */
-async function sendWelcomeMessage({ phone, customerName, tenantId }) {
+async function sendWelcomeMessage({ phone, customerName, tenantId, templateName = null, components = null, languageCode = null }) {
   const settings = await getWhatsAppSettings(tenantId);
 
   if (!settings) {
@@ -524,40 +526,58 @@ async function sendWelcomeMessage({ phone, customerName, tenantId }) {
     ? customerName.trim()
     : phone;
 
-  // Template body parameter (position 1)
-  const nameComponent = {
-    type: 'body',
-    parameters: [{ type: 'text', text: safeCustomerName }]
-  };
+  // Use passed components or default single-parameter body component
+  const effectiveComponents = (Array.isArray(components) && components.length > 0)
+    ? components
+    : [{
+        type: 'body',
+        parameters: [{ type: 'text', text: safeCustomerName }]
+      }];
+
+  const effectiveTemplateName = (templateName && templateName.trim()) || settings.template_name;
 
   const results = [];
 
-  // Arabic template
-  if (settings.send_arabic && settings.template_language_ar) {
+  // If a specific languageCode was explicitly requested (e.g. per-form setting)
+  if (languageCode) {
     const res = await callWhatsAppApi({
       phoneNumberId: settings.phone_number_id,
       accessToken: settings.access_token,
       toPhone: e164,
-      templateName: settings.template_name,
-      languageCode: settings.template_language_ar,
+      templateName: effectiveTemplateName,
+      languageCode: languageCode.trim(),
       tenantId,
-      components: [nameComponent]
+      components: effectiveComponents
     });
-    results.push({ language: settings.template_language_ar, ...res });
-  }
+    results.push({ language: languageCode, ...res });
+  } else {
+    // Arabic template
+    if (settings.send_arabic && settings.template_language_ar) {
+      const res = await callWhatsAppApi({
+        phoneNumberId: settings.phone_number_id,
+        accessToken: settings.access_token,
+        toPhone: e164,
+        templateName: effectiveTemplateName,
+        languageCode: settings.template_language_ar,
+        tenantId,
+        components: effectiveComponents
+      });
+      results.push({ language: settings.template_language_ar, ...res });
+    }
 
-  // English template
-  if (settings.send_english && settings.template_language_en) {
-    const res = await callWhatsAppApi({
-      phoneNumberId: settings.phone_number_id,
-      accessToken: settings.access_token,
-      toPhone: e164,
-      templateName: settings.template_name,
-      languageCode: settings.template_language_en,
-      tenantId,
-      components: [nameComponent]
-    });
-    results.push({ language: settings.template_language_en, ...res });
+    // English template
+    if (settings.send_english && settings.template_language_en) {
+      const res = await callWhatsAppApi({
+        phoneNumberId: settings.phone_number_id,
+        accessToken: settings.access_token,
+        toPhone: e164,
+        templateName: effectiveTemplateName,
+        languageCode: settings.template_language_en,
+        tenantId,
+        components: effectiveComponents
+      });
+      results.push({ language: settings.template_language_en, ...res });
+    }
   }
 
   const sent = results.length > 0 && results.some(r => r.success);

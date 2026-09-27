@@ -325,6 +325,192 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
     }
   }
 
+/**
+ * Resolves dynamic template variables mapping ({1}, {2}, {3}, ...) into WhatsApp components
+ */
+async function resolveTemplateVariables({ formRecord, targetCustomer, lead = {}, tenantId, defaultName }) {
+  let product = null;
+  let assignedUser = null;
+  let branch = null;
+  let tenant = null;
+
+  // 1. Fetch linked product if configured
+  if (formRecord?.product_id) {
+    try {
+      const pRes = await db.query(
+        'SELECT id, name, sku, description, selling_price, category FROM products WHERE id = $1 AND tenant_id::text = $2::text LIMIT 1',
+        [formRecord.product_id, tenantId]
+      );
+      if (pRes.rows.length > 0) product = pRes.rows[0];
+    } catch (pErr) {
+      console.warn('[Resolve Variables] Error fetching product:', pErr.message);
+    }
+  }
+
+  // 2. Fetch assigned user
+  const userId = formRecord?.assigned_to || targetCustomer?.assigned_to;
+  if (userId) {
+    try {
+      const uRes = await db.query(
+        'SELECT id, name, email, phone, role FROM users WHERE id = $1 AND tenant_id::text = $2::text LIMIT 1',
+        [userId, tenantId]
+      );
+      if (uRes.rows.length > 0) assignedUser = uRes.rows[0];
+    } catch (uErr) {
+      console.warn('[Resolve Variables] Error fetching user:', uErr.message);
+    }
+  }
+
+  // 3. Fetch branch
+  const branchId = formRecord?.branch_id || targetCustomer?.branch_id;
+  if (branchId && branchId !== 'default-branch') {
+    try {
+      const bRes = await db.query(
+        'SELECT id, name, address, phone FROM branches WHERE id::text = $1::text LIMIT 1',
+        [branchId]
+      );
+      if (bRes.rows.length > 0) branch = bRes.rows[0];
+    } catch (bErr) {
+      console.warn('[Resolve Variables] Error fetching branch:', bErr.message);
+    }
+  }
+
+  // 4. Fetch tenant info
+  if (tenantId) {
+    try {
+      const tRes = await db.query('SELECT id, name FROM tenants WHERE id::text = $1::text LIMIT 1', [tenantId]);
+      if (tRes.rows.length > 0) tenant = tRes.rows[0];
+    } catch (tErr) {}
+  }
+
+  // 5. Determine variable mapping: Form override -> Meta Settings -> WhatsApp Settings -> Fallback
+  let mapping = [];
+  if (Array.isArray(formRecord?.variable_mapping) && formRecord.variable_mapping.length > 0) {
+    mapping = formRecord.variable_mapping;
+  } else if (typeof formRecord?.variable_mapping === 'string') {
+    try {
+      const parsed = JSON.parse(formRecord.variable_mapping);
+      if (Array.isArray(parsed) && parsed.length > 0) mapping = parsed;
+    } catch {}
+  }
+
+  if (mapping.length === 0) {
+    try {
+      const mRes = await db.query(
+        'SELECT default_variable_mapping, default_template_name FROM meta_integration_settings WHERE tenant_id::text = $1::text LIMIT 1',
+        [tenantId]
+      );
+      if (mRes.rows.length > 0 && Array.isArray(mRes.rows[0].default_variable_mapping) && mRes.rows[0].default_variable_mapping.length > 0) {
+        mapping = mRes.rows[0].default_variable_mapping;
+      }
+    } catch {}
+  }
+
+  if (mapping.length === 0) {
+    try {
+      const wRes = await db.query(
+        'SELECT variable_mapping FROM whatsapp_settings WHERE tenant_id::text = $1::text LIMIT 1',
+        [tenantId]
+      );
+      if (wRes.rows.length > 0 && Array.isArray(wRes.rows[0].variable_mapping) && wRes.rows[0].variable_mapping.length > 0) {
+        mapping = wRes.rows[0].variable_mapping;
+      }
+    } catch {}
+  }
+
+  // Fallback default: position 1 = customer name
+  if (mapping.length === 0) {
+    mapping = [{ index: 1, type: 'customer_name', fallback: defaultName || 'عميلنا العزيز' }];
+  }
+
+  // Sort mapping by index (1, 2, 3...)
+  mapping.sort((a, b) => (Number(a.index) || 0) - (Number(b.index) || 0));
+
+  const customVars = formRecord?.custom_variables || {};
+
+  const parameters = [];
+  for (const item of mapping) {
+    const fallback = item.fallback || '—';
+    let val = '';
+
+    switch (item.type) {
+      case 'customer_name':
+        val = (targetCustomer.name && targetCustomer.name.trim() !== 'Meta Lead') ? targetCustomer.name.trim() : (item.fallback || defaultName || 'عميلنا العزيز');
+        break;
+      case 'customer_phone':
+        val = targetCustomer.phone || fallback;
+        break;
+      case 'customer_company':
+        val = targetCustomer.company_name || fallback;
+        break;
+      case 'customer_city':
+        val = targetCustomer.address || fallback;
+        break;
+      case 'customer_email':
+        val = targetCustomer.email || fallback;
+        break;
+      case 'product_name':
+        val = product?.name || fallback || 'منتجنا المميز';
+        break;
+      case 'product_price':
+        val = product?.selling_price !== undefined && product?.selling_price !== null ? String(product.selling_price) : fallback;
+        break;
+      case 'product_sku':
+        val = product?.sku || fallback;
+        break;
+      case 'product_category':
+        val = product?.category || fallback;
+        break;
+      case 'product_description':
+        val = product?.description || fallback;
+        break;
+      case 'employee_name':
+        val = assignedUser?.name || fallback || 'فريق المبيعات';
+        break;
+      case 'employee_phone':
+        val = assignedUser?.phone || fallback;
+        break;
+      case 'employee_email':
+        val = assignedUser?.email || fallback;
+        break;
+      case 'form_name':
+        val = formRecord?.form_name || fallback;
+        break;
+      case 'campaign_name':
+        val = lead?.campaign_name || formRecord?.form_name || fallback;
+        break;
+      case 'branch_name':
+        val = branch?.name || fallback || 'الفرع الرئيسي';
+        break;
+      case 'company_name':
+      case 'tenant_name':
+        val = tenant?.name || fallback || 'خدمة العملاء';
+        break;
+      case 'custom_text':
+        val = item.custom_value || customVars[item.index] || fallback;
+        break;
+      default:
+        val = item.custom_value || fallback;
+        break;
+    }
+
+    const cleanText = String(val || '').trim() || fallback || '—';
+    parameters.push({ type: 'text', text: cleanText });
+  }
+
+  const components = [
+    {
+      type: 'body',
+      parameters
+    }
+  ];
+
+  const templateName = (formRecord?.template_name && formRecord.template_name.trim()) || null;
+  const languageCode = (formRecord?.template_language && formRecord.template_language.trim()) || null;
+
+  return { components, templateName, languageCode, product, assignedUser };
+}
+
   // 🟢 WhatsApp Welcome Message
   // Fires asynchronously — a failure here never blocks lead creation/sync.
   let whatsappSent = false;
@@ -335,13 +521,24 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
         ? targetCustomer.name.trim()
         : targetCustomer.phone;
 
+      const resolved = await resolveTemplateVariables({
+        formRecord,
+        targetCustomer,
+        lead,
+        tenantId,
+        defaultName: customerDisplayName
+      });
+
       const { triggerGreetingIfConfigured } = require('./chatbotRunnerService');
       const greetResult = await triggerGreetingIfConfigured({
         phone: targetCustomer.phone,
         name: customerDisplayName,
         customerId: targetCustomer.id,
         tenantId,
-        triggerType: 'meta_lead'
+        triggerType: 'meta_lead',
+        customTemplateName: resolved.templateName,
+        customComponents: resolved.components,
+        customLanguage: resolved.languageCode
       });
 
       if (greetResult.sent) {
@@ -350,12 +547,15 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
           `UPDATE customers SET whatsapp_welcome_sent = TRUE, whatsapp_welcome_sent_at = NOW() WHERE id = $1`,
           [targetCustomer.id]
         ).catch(() => {});
-        console.log(`📱 [WhatsApp] Auto-greeting successfully sent to Meta lead #${targetCustomer.id} (${customerDisplayName})`);
+        console.log(`📱 [WhatsApp] Auto-greeting successfully sent to Meta lead #${targetCustomer.id} (${customerDisplayName}) with ${resolved.components[0].parameters.length} variable(s)`);
       } else {
         const waResult = await sendWelcomeMessage({
           phone: targetCustomer.phone,
           customerName: customerDisplayName,
-          tenantId
+          tenantId,
+          templateName: resolved.templateName,
+          components: resolved.components,
+          languageCode: resolved.languageCode
         });
 
         if (waResult.sent) {
@@ -364,7 +564,7 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
             `UPDATE customers SET whatsapp_welcome_sent = TRUE, whatsapp_welcome_sent_at = NOW() WHERE id = $1`,
             [targetCustomer.id]
           ).catch(() => {});
-          console.log(`📱 [WhatsApp] Welcome message successfully sent to customer #${targetCustomer.id} (${customerDisplayName})`);
+          console.log(`📱 [WhatsApp] Welcome message successfully sent to customer #${targetCustomer.id} (${customerDisplayName}) with ${resolved.components[0].parameters.length} variable(s)`);
         }
       }
     } catch (waErr) {

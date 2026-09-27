@@ -256,6 +256,7 @@ async function ensureWhatsAppTable() {
     await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS auto_greeting_triggers TEXT[] DEFAULT ARRAY['meta_lead'];`, 'col auto_greeting_triggers');
     await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS auto_greeting_template VARCHAR(100);`, 'col auto_greeting_template');
     await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS auto_greeting_language VARCHAR(10) DEFAULT 'ar';`, 'col auto_greeting_language');
+    await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS variable_mapping JSONB DEFAULT '[]'::jsonb;`, 'col variable_mapping');
 
     // 8. Bot State in whatsapp_conversations
     await safeExec(`ALTER TABLE whatsapp_conversations ADD COLUMN IF NOT EXISTS bot_id UUID;`, 'conv col bot_id');
@@ -420,7 +421,8 @@ exports.updateWhatsAppSettings = async (req, res) => {
     auto_greeting_enabled = false,
     auto_greeting_triggers = ['meta_lead'],
     auto_greeting_template = '',
-    auto_greeting_language = 'ar'
+    auto_greeting_language = 'ar',
+    variable_mapping = []
   } = req.body;
 
   if (!phone_number_id || !phone_number_id.trim()) {
@@ -448,8 +450,8 @@ exports.updateWhatsAppSettings = async (req, res) => {
          template_name, template_language_ar, template_language_en,
          send_arabic, send_english, default_country_code, is_active,
          auto_greeting_enabled, auto_greeting_triggers, auto_greeting_template, auto_greeting_language,
-         updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW())
+         variable_mapping, updated_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW())
        ON CONFLICT (tenant_id) DO UPDATE SET
          phone_number_id        = EXCLUDED.phone_number_id,
          waba_id                = EXCLUDED.waba_id,
@@ -468,6 +470,7 @@ exports.updateWhatsAppSettings = async (req, res) => {
          auto_greeting_triggers = EXCLUDED.auto_greeting_triggers,
          auto_greeting_template = EXCLUDED.auto_greeting_template,
          auto_greeting_language = EXCLUDED.auto_greeting_language,
+         variable_mapping       = COALESCE(EXCLUDED.variable_mapping, whatsapp_settings.variable_mapping),
          updated_at             = NOW()`,
       [
         tenantId,
@@ -484,7 +487,8 @@ exports.updateWhatsAppSettings = async (req, res) => {
         Boolean(auto_greeting_enabled),
         Array.isArray(auto_greeting_triggers) ? auto_greeting_triggers : ['meta_lead'],
         (auto_greeting_template || '').trim(),
-        (auto_greeting_language || 'ar').trim()
+        (auto_greeting_language || 'ar').trim(),
+        JSON.stringify(Array.isArray(variable_mapping) ? variable_mapping : [])
       ]
     );
 

@@ -32,7 +32,10 @@ async function triggerGreetingIfConfigured({
   customerId = null,
   phone,
   name,
-  triggerType = 'meta_lead'
+  triggerType = 'meta_lead',
+  customTemplateName = null,
+  customComponents = null,
+  customLanguage = null
 }) {
   try {
     const sRes = await db.query(`
@@ -61,7 +64,7 @@ async function triggerGreetingIfConfigured({
       return { sent: false, reason: 'trigger_type_unmatched' };
     }
 
-    const templateName = (settings.auto_greeting_template || '').trim();
+    const templateName = (customTemplateName && customTemplateName.trim()) || (settings.auto_greeting_template || '').trim();
     if (!templateName) {
       return { sent: false, reason: 'no_template_configured' };
     }
@@ -72,7 +75,16 @@ async function triggerGreetingIfConfigured({
     }
 
     const recipientName = (name || '').trim() || normPhone;
-    const lang = (settings.auto_greeting_language || 'ar').trim();
+    const lang = (customLanguage && customLanguage.trim()) || (settings.auto_greeting_language || 'ar').trim();
+
+    const effectiveComponents = (Array.isArray(customComponents) && customComponents.length > 0)
+      ? customComponents
+      : [
+          {
+            type: 'body',
+            parameters: [{ type: 'text', text: recipientName }]
+          }
+        ];
 
     // Call WhatsApp Cloud API with greeting template
     const sendResult = await callWhatsAppApi({
@@ -81,12 +93,7 @@ async function triggerGreetingIfConfigured({
       toPhone: normPhone,
       templateName,
       languageCode: lang,
-      components: [
-        {
-          type: 'body',
-          parameters: [{ type: 'text', text: recipientName }]
-        }
-      ],
+      components: effectiveComponents,
       tenantId
     });
 

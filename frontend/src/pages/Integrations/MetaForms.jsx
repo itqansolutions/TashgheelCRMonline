@@ -4,7 +4,8 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { 
   Share2, Plus, RefreshCw, Trash2, Edit2, ShieldCheck, Key, Settings, User,
-  Calendar, ExternalLink, Users, Eye, Search, X, Download, MessageCircle
+  Calendar, ExternalLink, Users, Eye, Search, X, Download, MessageCircle,
+  ShoppingBag, Sparkles, Tag, Check, HelpCircle
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 import { exportCustomersToExcel } from '../../utils/excelExport';
@@ -14,6 +15,8 @@ const MetaForms = () => {
   const [leadSources, setLeadSources] = useState([]);
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [whatsappTemplates, setWhatsappTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncingId, setSyncingId] = useState(null);
 
@@ -37,7 +40,12 @@ const MetaForms = () => {
     page_access_token: '',
     lead_source_id: '',
     assigned_to: '',
-    branch_id: ''
+    branch_id: '',
+    product_id: '',
+    template_name: '',
+    template_language: 'ar',
+    variable_mapping: [{ index: 1, type: 'customer_name', fallback: '' }],
+    custom_variables: {}
   });
 
   // Global Settings State
@@ -47,30 +55,44 @@ const MetaForms = () => {
     meta_webhook_verify_token: '',
     meta_default_access_token: '',
     has_default_access_token: false,
-    has_app_secret: false
+    has_app_secret: false,
+    default_template_name: '',
+    default_variable_mapping: [{ index: 1, type: 'customer_name', fallback: '' }]
   });
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [formsRes, sourcesRes, usersRes, settingsRes, branchesRes] = await Promise.all([
+      const [formsRes, sourcesRes, usersRes, settingsRes, branchesRes, prodsRes, tmplRes] = await Promise.all([
         api.get('/meta/forms'),
         api.get('/lead-sources'),
         api.get('/users'),
         api.get('/meta/settings'),
-        api.get('/branches').catch(() => ({ data: { data: [] } }))
+        api.get('/branches').catch(() => ({ data: { data: [] } })),
+        api.get('/products').catch(() => ({ data: { data: [] } })),
+        api.get('/whatsapp/templates').catch(() => ({ data: { data: [] } }))
       ]);
 
       setForms(formsRes.data.data || []);
       setLeadSources(sourcesRes.data.data || []);
       setUsers(usersRes.data.data || []);
       setBranches(branchesRes.data.data || []);
-      if (settingsRes.data.data) {
+      setProducts(prodsRes.data?.data || prodsRes.data || []);
+      setWhatsappTemplates(tmplRes.data?.data || []);
+
+      if (settingsRes.data?.data) {
+        const sData = settingsRes.data.data;
+        const defaultMap = Array.isArray(sData.default_variable_mapping) && sData.default_variable_mapping.length > 0
+          ? sData.default_variable_mapping
+          : [{ index: 1, type: 'customer_name', fallback: '' }];
+
         setMetaSettings(prev => ({
           ...prev,
-          ...settingsRes.data.data,
+          ...sData,
           meta_app_secret: '',
-          meta_default_access_token: ''
+          meta_default_access_token: '',
+          default_variable_mapping: defaultMap,
+          default_template_name: sData.default_template_name || ''
         }));
       }
     } catch (err) {
@@ -87,6 +109,12 @@ const MetaForms = () => {
   const handleOpenAddModal = (form = null) => {
     if (form) {
       setEditingForm(form);
+      const varMap = Array.isArray(form.variable_mapping) && form.variable_mapping.length > 0
+        ? form.variable_mapping
+        : (metaSettings.default_variable_mapping && metaSettings.default_variable_mapping.length > 0
+            ? metaSettings.default_variable_mapping
+            : [{ index: 1, type: 'customer_name', fallback: '' }]);
+
       setFormData({
         form_id: form.form_id || '',
         form_name: form.form_name || '',
@@ -94,7 +122,12 @@ const MetaForms = () => {
         page_access_token: '',
         lead_source_id: form.lead_source_id || '',
         assigned_to: form.assigned_to || '',
-        branch_id: form.branch_id || ''
+        branch_id: form.branch_id || '',
+        product_id: form.product_id || '',
+        template_name: form.template_name || '',
+        template_language: form.template_language || 'ar',
+        variable_mapping: varMap,
+        custom_variables: form.custom_variables || {}
       });
     } else {
       setEditingForm(null);
@@ -105,10 +138,80 @@ const MetaForms = () => {
         page_access_token: '',
         lead_source_id: leadSources.length > 0 ? leadSources[0].id : '',
         assigned_to: '',
-        branch_id: branches.length > 0 ? branches[0].id : ''
+        branch_id: branches.length > 0 ? branches[0].id : '',
+        product_id: '',
+        template_name: metaSettings.default_template_name || '',
+        template_language: 'ar',
+        variable_mapping: metaSettings.default_variable_mapping?.length > 0
+          ? metaSettings.default_variable_mapping
+          : [
+              { index: 1, type: 'customer_name', fallback: '' },
+              { index: 2, type: 'product_name', fallback: '' }
+            ],
+        custom_variables: {}
       });
     }
     setShowAddModal(true);
+  };
+
+  // Variable Mapping Helpers for Form Modal
+  const handleAddVariable = () => {
+    setFormData(prev => {
+      const current = Array.isArray(prev.variable_mapping) ? prev.variable_mapping : [];
+      const nextIndex = current.length + 1;
+      const defaultType = nextIndex === 2 ? 'product_name' : (nextIndex === 3 ? 'product_price' : (nextIndex === 4 ? 'employee_name' : 'custom_text'));
+      return {
+        ...prev,
+        variable_mapping: [...current, { index: nextIndex, type: defaultType, fallback: '', custom_value: '' }]
+      };
+    });
+  };
+
+  const handleRemoveVariable = (idx) => {
+    setFormData(prev => {
+      const current = Array.isArray(prev.variable_mapping) ? prev.variable_mapping : [];
+      const updated = current.filter((_, i) => i !== idx).map((v, i) => ({ ...v, index: i + 1 }));
+      return { ...prev, variable_mapping: updated };
+    });
+  };
+
+  const handleUpdateVariable = (idx, field, value) => {
+    setFormData(prev => {
+      const current = Array.isArray(prev.variable_mapping) ? [...prev.variable_mapping] : [];
+      if (!current[idx]) return prev;
+      current[idx] = { ...current[idx], [field]: value };
+      return { ...prev, variable_mapping: current };
+    });
+  };
+
+  // Default Variable Mapping Helpers for Settings Modal
+  const handleAddDefaultVariable = () => {
+    setMetaSettings(prev => {
+      const current = Array.isArray(prev.default_variable_mapping) ? prev.default_variable_mapping : [];
+      const nextIndex = current.length + 1;
+      const defaultType = nextIndex === 2 ? 'product_name' : (nextIndex === 3 ? 'product_price' : 'custom_text');
+      return {
+        ...prev,
+        default_variable_mapping: [...current, { index: nextIndex, type: defaultType, fallback: '', custom_value: '' }]
+      };
+    });
+  };
+
+  const handleRemoveDefaultVariable = (idx) => {
+    setMetaSettings(prev => {
+      const current = Array.isArray(prev.default_variable_mapping) ? prev.default_variable_mapping : [];
+      const updated = current.filter((_, i) => i !== idx).map((v, i) => ({ ...v, index: i + 1 }));
+      return { ...prev, default_variable_mapping: updated };
+    });
+  };
+
+  const handleUpdateDefaultVariable = (idx, field, value) => {
+    setMetaSettings(prev => {
+      const current = Array.isArray(prev.default_variable_mapping) ? [...prev.default_variable_mapping] : [];
+      if (!current[idx]) return prev;
+      current[idx] = { ...current[idx], [field]: value };
+      return { ...prev, default_variable_mapping: current };
+    });
   };
 
   const handleSaveForm = async (e) => {
@@ -337,10 +440,12 @@ const MetaForms = () => {
               </button>
             </div>
           ) : (
-            <table style={{ width: '100%', minWidth: '900px', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <table style={{ width: '100%', minWidth: '1050px', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Form Name & ID</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Linked Product</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>WhatsApp Template</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Lead Source</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Target Branch</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Assigned Rep</th>
@@ -367,6 +472,49 @@ const MetaForms = () => {
                             <span style={{ fontSize: '11px', color: '#64748b' }}>
                               Page: {form.page_name}
                             </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Linked Product Column */}
+                      <td style={{ padding: '14px 18px' }}>
+                        {form.product_name ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <ShoppingBag size={14} color="#4f46e5" /> {form.product_name}
+                            </span>
+                            {form.product_price && (
+                              <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 700 }}>
+                                💰 {Number(form.product_price).toLocaleString()} EGP
+                                {form.product_sku ? ` • SKU: ${form.product_sku}` : ''}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '12px', color: '#94a3b8' }}>— No product</span>
+                        )}
+                      </td>
+
+                      {/* WhatsApp Template & Variables Column */}
+                      <td style={{ padding: '14px 18px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{
+                            fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px',
+                            background: form.template_name ? '#eff6ff' : '#f8fafc',
+                            color: form.template_name ? '#1d4ed8' : '#475569',
+                            border: `1px solid ${form.template_name ? '#bfdbfe' : '#e2e8f0'}`,
+                            display: 'inline-flex', alignItems: 'center', gap: '5px', width: 'fit-content'
+                          }}>
+                            <MessageCircle size={12} /> {form.template_name || 'Default Template'}
+                          </span>
+                          {Array.isArray(form.variable_mapping) && form.variable_mapping.length > 0 && (
+                            <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                              {form.variable_mapping.map((v, i) => (
+                                <span key={i} title={`Variable {${v.index || i + 1}}: ${v.type}`} style={{ fontSize: '10px', background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '1px 5px', borderRadius: '4px', color: '#334155', fontWeight: 700, fontFamily: 'monospace' }}>
+                                  {`{${v.index || i + 1}}`}
+                                </span>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </td>
@@ -466,15 +614,20 @@ const MetaForms = () => {
         {/* Add / Edit Form Modal */}
         {showAddModal && (
           <div style={modalStyle}>
-            <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '520px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
               <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  {editingForm ? 'Edit Meta Form Configuration' : 'Add Meta Lead Ads Form ID'}
-                </h3>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
+                    {editingForm ? 'Edit Meta Form Configuration' : 'Add Meta Lead Ads Form ID'}
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                    ربط الإعلان بمنتج محدد وتخصيص متغيرات قالب واتساب تلقائياً
+                  </p>
+                </div>
                 <button onClick={() => setShowAddModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>✕</button>
               </div>
 
-              <form onSubmit={handleSaveForm} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <form onSubmit={handleSaveForm} style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                     Meta Form ID <span style={{ color: '#ef4444' }}>*</span>
@@ -504,6 +657,181 @@ const MetaForms = () => {
                     onChange={(e) => setFormData({ ...formData, form_name: e.target.value })}
                     style={inputStyle}
                   />
+                </div>
+
+                {/* 🛍️ Linked Product Section */}
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1.5px solid #e2e8f0' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>
+                    🛍️ المنتج الترويجي المرتبط بالإعلان (Linked Product / Offer)
+                  </label>
+                  <select
+                    value={formData.product_id || ''}
+                    onChange={(e) => setFormData({ ...formData, product_id: e.target.value })}
+                    style={{ ...inputStyle, background: 'white' }}
+                  >
+                    <option value="">بدون منتج محدد (عام / Not Product Specific)</option>
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.selling_price ? `— (${Number(p.selling_price).toLocaleString()} EGP)` : ''} {p.sku ? `[${p.sku}]` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', display: 'block', lineHeight: 1.4 }}>
+                    💡 عند اختيار منتج، يمكنك استخدام متغيرات اسمه وسعره وكوده ({'{2}'}, {'{3}'}...) في قالب واتساب أدناه ليتم توجيه الإعلان للمنتج مباشرة.
+                  </span>
+                </div>
+
+                {/* 💬 Template Overrides */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                      💬 قالب واتساب المخصص للإعلان
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={metaSettings.default_template_name || 'واتساب الافتراضي'}
+                      value={formData.template_name || ''}
+                      onChange={(e) => setFormData({ ...formData, template_name: e.target.value })}
+                      style={inputStyle}
+                      list="meta-templates-list"
+                    />
+                    <datalist id="meta-templates-list">
+                      {whatsappTemplates.map(t => (
+                        <option key={t.id || t.name} value={t.name}>{t.name} ({t.language})</option>
+                      ))}
+                    </datalist>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+                      اتركه فارغاً لاستخدام القالب الافتراضي للمؤسسة.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                      🌐 لغة القالب (Language)
+                    </label>
+                    <select
+                      value={formData.template_language || 'ar'}
+                      onChange={(e) => setFormData({ ...formData, template_language: e.target.value })}
+                      style={inputStyle}
+                    >
+                      <option value="ar">العربية — Arabic (ar)</option>
+                      <option value="ar_SA">العربية (السعودية) — (ar_SA)</option>
+                      <option value="ar_EG">العربية (مصر) — (ar_EG)</option>
+                      <option value="en_US">English (US) — (en_US)</option>
+                      <option value="en">English — (en)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* ⚡ Variable Mapping Builder for this form */}
+                <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '12px', padding: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Sparkles size={16} color="#4f46e5" /> ربط متغيرات القالب (Template Variables Mapping)
+                      </h4>
+                      <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#64748b' }}>
+                        حدد دلالة كل متغير في نص القالب ({'{1}'}, {'{2}'}, {'{3}'}...) لملئه تلقائياً من السيستم.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddVariable}
+                      style={{
+                        padding: '6px 12px', background: '#eef2ff', color: '#4338ca',
+                        border: '1px solid #c7d2fe', borderRadius: '8px', fontSize: '11px',
+                        fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                      }}
+                    >
+                      <Plus size={13} /> إضافة متغير {'{' + (formData.variable_mapping.length + 1) + '}'}
+                    </button>
+                  </div>
+
+                  {/* Variable Rows */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {formData.variable_mapping.map((v, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '13px', color: '#4f46e5', minWidth: '32px' }}>
+                          {`{${idx + 1}}`}
+                        </span>
+                        <select
+                          value={v.type}
+                          onChange={(e) => handleUpdateVariable(idx, 'type', e.target.value)}
+                          style={{ ...inputStyle, padding: '7px 10px', fontSize: '12px', flex: 1.2 }}
+                        >
+                          <option value="customer_name">👤 اسم العميل (Customer Name)</option>
+                          <option value="product_name">🛍️ اسم المنتج المرتبط (Product Name)</option>
+                          <option value="product_price">💰 سعر المنتج (Product Price)</option>
+                          <option value="product_sku">🏷️ كود المنتج (Product SKU)</option>
+                          <option value="product_description">📝 وصف المنتج (Product Description)</option>
+                          <option value="employee_name">👔 اسم الموظف المسؤول (Assigned Rep)</option>
+                          <option value="employee_phone">📞 هاتف الموظف (Rep Phone)</option>
+                          <option value="employee_email">✉️ بريد الموظف (Rep Email)</option>
+                          <option value="customer_phone">📱 هاتف العميل (Customer Phone)</option>
+                          <option value="customer_company">🏢 شركة العميل (Customer Company)</option>
+                          <option value="customer_city">📍 مدينة / عنوان العميل (Customer City)</option>
+                          <option value="branch_name">🏢 اسم الفرع (Branch Name)</option>
+                          <option value="form_name">📋 اسم النموذج الإعلاني (Form Name)</option>
+                          <option value="campaign_name">📢 اسم الحملة الإعلانية (Campaign Name)</option>
+                          <option value="custom_text">✏️ نص مخصص / كود خصم (Custom Text)</option>
+                        </select>
+
+                        {v.type === 'custom_text' ? (
+                          <input
+                            type="text"
+                            placeholder="أدخل النص المخصص..."
+                            value={v.custom_value || ''}
+                            onChange={(e) => handleUpdateVariable(idx, 'custom_value', e.target.value)}
+                            style={{ ...inputStyle, padding: '7px 10px', fontSize: '12px', flex: 1 }}
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder="قيمة بديلة إذا لم تتوفر..."
+                            value={v.fallback || ''}
+                            onChange={(e) => handleUpdateVariable(idx, 'fallback', e.target.value)}
+                            style={{ ...inputStyle, padding: '7px 10px', fontSize: '12px', flex: 1 }}
+                            title="تُرسل في حال كانت القيمة الأساسية فارغة"
+                          />
+                        )}
+
+                        {formData.variable_mapping.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVariable(idx)}
+                            style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer' }}
+                            title="حذف المتغير"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Live Preview Box */}
+                  <div style={{ marginTop: '10px', padding: '10px 12px', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #a7f3d0', fontSize: '11px', color: '#065f46', lineHeight: 1.5 }}>
+                    <strong>معاينة محتوى المتغيرات عند الإرسال:</strong>
+                    <div style={{ marginTop: '4px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {formData.variable_mapping.map((v, i) => {
+                        let sample = 'أحمد محمد';
+                        if (v.type === 'product_name') sample = products.find(p => String(p.id) === String(formData.product_id))?.name || 'اسم المنتج';
+                        else if (v.type === 'product_price') sample = `${products.find(p => String(p.id) === String(formData.product_id))?.selling_price || '500'} EGP`;
+                        else if (v.type === 'product_sku') sample = products.find(p => String(p.id) === String(formData.product_id))?.sku || 'SKU-001';
+                        else if (v.type === 'employee_name') sample = users.find(u => String(u.id) === String(formData.assigned_to))?.name || 'فريق المبيعات';
+                        else if (v.type === 'employee_phone') sample = '01099887766';
+                        else if (v.type === 'branch_name') sample = branches.find(b => String(b.id) === String(formData.branch_id))?.name || 'الفرع الرئيسي';
+                        else if (v.type === 'custom_text') sample = v.custom_value || 'خصم 20%';
+                        else if (v.type === 'customer_phone') sample = '01012345678';
+                        else if (v.type === 'form_name') sample = formData.form_name || 'إعلان فيسبوك';
+                        return (
+                          <span key={i} style={{ background: 'white', padding: '2px 8px', borderRadius: '4px', border: '1px solid #bbf7d0', fontFamily: 'monospace' }}>
+                            <strong>{`{${i + 1}}`}</strong>: {sample}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -598,16 +926,116 @@ const MetaForms = () => {
         {/* Global Webhook & Settings Modal */}
         {showSettingsModal && (
           <div style={modalStyle}>
-            <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '560px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+            <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
               <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  Meta Integration & Webhook Credentials for This Organization
-                </h3>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
+                    إعدادات Meta وربط المتغيرات الافتراضية
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                    بيانات الربط مع Meta Developers وضبط المتغيرات الافتراضية لقوالب واتساب
+                  </p>
+                </div>
                 <button onClick={() => setShowSettingsModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>✕</button>
               </div>
 
-              <form onSubmit={handleSaveGlobalSettings} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <form onSubmit={handleSaveGlobalSettings} style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 
+                {/* ⚡ Default Variable Mapping Section */}
+                <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '12px', padding: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Sparkles size={16} color="#4f46e5" /> المتغيرات الافتراضية لقوالب واتساب (Default Variables)
+                      </h4>
+                      <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#64748b' }}>
+                        تُطبق تلقائياً على أي نموذج أو إعلان لا يحتوي على تخصيص يدوي للمتغيرات.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddDefaultVariable}
+                      style={{
+                        padding: '6px 12px', background: '#eef2ff', color: '#4338ca',
+                        border: '1px solid #c7d2fe', borderRadius: '8px', fontSize: '11px',
+                        fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px'
+                      }}
+                    >
+                      <Plus size={13} /> إضافة متغير {'{' + ((metaSettings.default_variable_mapping || []).length + 1) + '}'}
+                    </button>
+                  </div>
+
+                  <div style={{ marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                      اسم القالب الافتراضي في واتساب (Default Template Name)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. welcome_new_lead"
+                      value={metaSettings.default_template_name || ''}
+                      onChange={(e) => setMetaSettings({ ...metaSettings, default_template_name: e.target.value })}
+                      style={{ ...inputStyle, background: 'white' }}
+                    />
+                  </div>
+
+                  {/* Variable Rows */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {(metaSettings.default_variable_mapping || []).map((v, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '13px', color: '#4f46e5', minWidth: '32px' }}>
+                          {`{${idx + 1}}`}
+                        </span>
+                        <select
+                          value={v.type}
+                          onChange={(e) => handleUpdateDefaultVariable(idx, 'type', e.target.value)}
+                          style={{ ...inputStyle, padding: '7px 10px', fontSize: '12px', flex: 1.2 }}
+                        >
+                          <option value="customer_name">👤 اسم العميل (Customer Name)</option>
+                          <option value="product_name">🛍️ اسم المنتج المرتبط (Product Name)</option>
+                          <option value="product_price">💰 سعر المنتج (Product Price)</option>
+                          <option value="product_sku">🏷️ كود المنتج (Product SKU)</option>
+                          <option value="employee_name">👔 اسم الموظف المسؤول (Assigned Rep)</option>
+                          <option value="employee_phone">📞 هاتف الموظف (Rep Phone)</option>
+                          <option value="customer_phone">📱 هاتف العميل (Customer Phone)</option>
+                          <option value="customer_company">🏢 شركة العميل (Customer Company)</option>
+                          <option value="branch_name">🏢 اسم الفرع (Branch Name)</option>
+                          <option value="form_name">📋 اسم النموذج الإعلاني (Form Name)</option>
+                          <option value="custom_text">✏️ نص مخصص (Custom Text)</option>
+                        </select>
+
+                        {v.type === 'custom_text' ? (
+                          <input
+                            type="text"
+                            placeholder="أدخل النص..."
+                            value={v.custom_value || ''}
+                            onChange={(e) => handleUpdateDefaultVariable(idx, 'custom_value', e.target.value)}
+                            style={{ ...inputStyle, padding: '7px 10px', fontSize: '12px', flex: 1 }}
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            placeholder="قيمة بديلة..."
+                            value={v.fallback || ''}
+                            onChange={(e) => handleUpdateDefaultVariable(idx, 'fallback', e.target.value)}
+                            style={{ ...inputStyle, padding: '7px 10px', fontSize: '12px', flex: 1 }}
+                          />
+                        )}
+
+                        {(metaSettings.default_variable_mapping || []).length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDefaultVariable(idx)}
+                            style={{ background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer' }}
+                            title="حذف المتغير"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Webhook Instructions Box */}
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '14px' }}>
                   <div style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -695,7 +1123,7 @@ const MetaForms = () => {
                     type="submit"
                     style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #1877F2, #0066ee)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
                   >
-                    Save Credentials
+                    Save Settings
                   </button>
                 </div>
               </form>

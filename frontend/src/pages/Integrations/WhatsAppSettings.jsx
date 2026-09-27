@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import {
   MessageCircle, Save, Send, Eye, EyeOff, Globe, Phone,
   FileText, ToggleLeft, ToggleRight, CheckCircle, AlertCircle, Info, ShieldCheck,
-  Star, RefreshCw, ExternalLink, Sparkles, Bot, Check
+  Star, RefreshCw, ExternalLink, Sparkles, Bot, Check, Plus, Trash2
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 
@@ -27,7 +27,8 @@ const WhatsAppSettings = () => {
     auto_greeting_enabled: false,
     auto_greeting_triggers: ['meta_lead'],
     auto_greeting_template: '',
-    auto_greeting_language: 'ar'
+    auto_greeting_language: 'ar',
+    variable_mapping: [{ index: 1, type: 'customer_name', fallback: '' }]
   });
 
   const [loading, setLoading] = useState(true);
@@ -62,11 +63,16 @@ const WhatsAppSettings = () => {
     try {
       const res = await api.get('/whatsapp/settings');
       if (res.data?.data) {
+        const d = res.data.data;
+        const vMap = Array.isArray(d.variable_mapping) && d.variable_mapping.length > 0
+          ? d.variable_mapping
+          : [{ index: 1, type: 'customer_name', fallback: '' }];
         setSettings(prev => ({
           ...prev,
-          ...res.data.data,
+          ...d,
           access_token: '',
-          token_preview: res.data.data.token_preview || ''
+          token_preview: d.token_preview || '',
+          variable_mapping: vMap
         }));
       }
     } catch {
@@ -74,6 +80,35 @@ const WhatsAppSettings = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAddVariable = () => {
+    setSettings(prev => {
+      const current = Array.isArray(prev.variable_mapping) ? prev.variable_mapping : [];
+      const nextIndex = current.length + 1;
+      const defaultType = nextIndex === 2 ? 'product_name' : (nextIndex === 3 ? 'product_price' : (nextIndex === 4 ? 'employee_name' : 'custom_text'));
+      return {
+        ...prev,
+        variable_mapping: [...current, { index: nextIndex, type: defaultType, fallback: '', custom_value: '' }]
+      };
+    });
+  };
+
+  const handleRemoveVariable = (idx) => {
+    setSettings(prev => {
+      const current = Array.isArray(prev.variable_mapping) ? prev.variable_mapping : [];
+      const updated = current.filter((_, i) => i !== idx).map((v, i) => ({ ...v, index: i + 1 }));
+      return { ...prev, variable_mapping: updated };
+    });
+  };
+
+  const handleUpdateVariable = (idx, field, value) => {
+    setSettings(prev => {
+      const current = Array.isArray(prev.variable_mapping) ? [...prev.variable_mapping] : [];
+      if (!current[idx]) return prev;
+      current[idx] = { ...current[idx], [field]: value };
+      return { ...prev, variable_mapping: current };
+    });
   };
 
   const fetchAccounts = async () => {
@@ -818,6 +853,134 @@ const WhatsAppSettings = () => {
                 </select>
               )}
               <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-secondary)' }}>رمز لغة القالب المعتمد في Meta</p>
+            </div>
+          </div>
+
+          {/* ── Variable Mapping Configuration ── */}
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div>
+                <label style={{ fontSize: 14, fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>🧩</span> ربط متغيرات قالب واتساب الافتراضية (Default Variable Mapping)
+                </label>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  حدد الحقول التي ستملأ المتغيرات <code>{`{1}`}</code>, <code>{`{2}`}</code>... عند إرسال رسائل الترحيب للعملاء الجدد (يمكن تخصيص كل نموذج Meta Form على حدة أيضاً).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddVariable}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac',
+                  padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer'
+                }}
+              >
+                <Plus size={14} /> إضافة متغير
+              </button>
+            </div>
+
+            {/* Variable Rows */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+              {Array.isArray(settings.variable_mapping) && settings.variable_mapping.map((v, idx) => (
+                <div key={idx} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: '#f8fafc', padding: '10px 14px', borderRadius: 8,
+                  border: '1px solid #e2e8f0'
+                }}>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 13, color: '#2563eb', minWidth: 36 }}>
+                    {`{${idx + 1}}`}
+                  </span>
+
+                  <select
+                    value={v.type}
+                    onChange={(e) => handleUpdateVariable(idx, 'type', e.target.value)}
+                    style={{
+                      padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                      fontSize: 13, background: 'white', flex: 1.2
+                    }}
+                  >
+                    <option value="customer_name">👤 اسم العميل (Customer Name)</option>
+                    <option value="product_name">🛍️ اسم المنتج (Product Name - من إعلان العميل)</option>
+                    <option value="product_price">💰 سعر المنتج (Product Price)</option>
+                    <option value="product_sku">🏷️ كود المنتج (Product SKU)</option>
+                    <option value="product_description">📝 وصف المنتج (Product Description)</option>
+                    <option value="employee_name">👔 اسم الموظف المسؤول (Assigned Rep)</option>
+                    <option value="employee_phone">📞 هاتف الموظف (Rep Phone)</option>
+                    <option value="employee_email">✉️ بريد الموظف (Rep Email)</option>
+                    <option value="customer_phone">📱 هاتف العميل (Customer Phone)</option>
+                    <option value="customer_company">🏢 شركة العميل (Customer Company)</option>
+                    <option value="customer_city">📍 مدينة / عنوان العميل (Customer City)</option>
+                    <option value="branch_name">🏢 اسم الفرع (Branch Name)</option>
+                    <option value="form_name">📋 اسم النموذج الإعلاني (Form Name)</option>
+                    <option value="campaign_name">📢 اسم الحملة الإعلانية (Campaign Name)</option>
+                    <option value="custom_text">✏️ نص مخصص / كود خصم (Custom Text)</option>
+                  </select>
+
+                  {v.type === 'custom_text' ? (
+                    <input
+                      type="text"
+                      placeholder="أدخل النص المخصص (مثال: كود الخصم)..."
+                      value={v.custom_value || ''}
+                      onChange={(e) => handleUpdateVariable(idx, 'custom_value', e.target.value)}
+                      style={{
+                        padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                        fontSize: 13, background: 'white', flex: 1
+                      }}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="قيمة بديلة إذا كانت فارغة (Fallback)..."
+                      value={v.fallback || ''}
+                      onChange={(e) => handleUpdateVariable(idx, 'fallback', e.target.value)}
+                      style={{
+                        padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
+                        fontSize: 13, background: 'white', flex: 1
+                      }}
+                      title="تُرسل في حال كانت القيمة الأساسية فارغة"
+                    />
+                  )}
+
+                  {settings.variable_mapping.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveVariable(idx)}
+                      style={{
+                        background: '#fee2e2', color: '#dc2626', border: 'none',
+                        borderRadius: 6, padding: '7px', cursor: 'pointer', display: 'flex', alignItems: 'center'
+                      }}
+                      title="حذف المتغير"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Live Preview */}
+            <div style={{ padding: '10px 14px', background: '#ecfdf5', borderRadius: 8, border: '1px solid #a7f3d0', fontSize: 12, color: '#065f46', lineHeight: 1.5 }}>
+              <strong>معاينة تلقائية للمتغيرات عند الإرسال:</strong>
+              <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {Array.isArray(settings.variable_mapping) && settings.variable_mapping.map((v, i) => {
+                  let sample = 'أحمد محمد';
+                  if (v.type === 'product_name') sample = 'باقة التسويق الرقمي (أو المنتج المحدد)';
+                  else if (v.type === 'product_price') sample = '1,500 EGP';
+                  else if (v.type === 'product_sku') sample = 'PRD-001';
+                  else if (v.type === 'employee_name') sample = 'فريق المبيعات';
+                  else if (v.type === 'employee_phone') sample = '01012345678';
+                  else if (v.type === 'branch_name') sample = 'الفرع الرئيسي';
+                  else if (v.type === 'custom_text') sample = v.custom_value || 'PROMO20';
+                  else if (v.type === 'customer_phone') sample = '01099887766';
+                  else if (v.type === 'form_name') sample = 'نموذج فيسبوك ليدز';
+                  return (
+                    <span key={i} style={{ background: 'white', padding: '3px 10px', borderRadius: 6, border: '1px solid #bbf7d0', fontFamily: 'monospace' }}>
+                      <strong>{`{${i + 1}}`}</strong>: {sample}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

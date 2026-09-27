@@ -57,6 +57,17 @@ async function ensureMetaFormsTable() {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_customers_meta_lead_id ON customers(meta_lead_id);`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_customers_meta_form_id ON customers(meta_form_id);`);
 
+    // Dynamic template variables and linked product
+    await db.query(`ALTER TABLE meta_forms ADD COLUMN IF NOT EXISTS product_id INTEGER REFERENCES products(id) ON DELETE SET NULL;`);
+    await db.query(`ALTER TABLE meta_forms ADD COLUMN IF NOT EXISTS template_name VARCHAR(120);`);
+    await db.query(`ALTER TABLE meta_forms ADD COLUMN IF NOT EXISTS template_language VARCHAR(20) DEFAULT 'ar';`);
+    await db.query(`ALTER TABLE meta_forms ADD COLUMN IF NOT EXISTS variable_mapping JSONB DEFAULT '[]'::jsonb;`);
+    await db.query(`ALTER TABLE meta_forms ADD COLUMN IF NOT EXISTS custom_variables JSONB DEFAULT '{}'::jsonb;`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_meta_forms_product_id ON meta_forms(product_id);`);
+
+    await db.query(`ALTER TABLE meta_integration_settings ADD COLUMN IF NOT EXISTS default_variable_mapping JSONB DEFAULT '[]'::jsonb;`);
+    await db.query(`ALTER TABLE meta_integration_settings ADD COLUMN IF NOT EXISTS default_template_name VARCHAR(120);`);
+
     // A real Meta form must not be configured by multiple organizations. Do
     // not silently delete legacy duplicates; log them and reject all new
     // duplicates in the controller until an administrator resolves them.
@@ -88,7 +99,7 @@ function parseOptionalId(value, fieldName) {
   return parsed;
 }
 
-async function validateTenantRelations(tenantId, leadSourceId, assignedTo) {
+async function validateTenantRelations(tenantId, leadSourceId, assignedTo, productId = null) {
   if (leadSourceId !== null) {
     const source = await db.query(
       'SELECT 1 FROM lead_sources WHERE id = $1 AND tenant_id::text = $2::text',
@@ -108,11 +119,22 @@ async function validateTenantRelations(tenantId, leadSourceId, assignedTo) {
       throw new Error('Assigned user does not belong to this organization');
     }
   }
+
+  if (productId !== null) {
+    const prod = await db.query(
+      'SELECT 1 FROM products WHERE id = $1 AND tenant_id::text = $2::text',
+      [productId, tenantId]
+    );
+    if (prod.rows.length === 0) {
+      throw new Error('Selected product does not belong to this organization');
+    }
+  }
 }
 
 async function getMetaSettingsForTenant(tenantId) {
   const result = await db.query(
-    `SELECT meta_app_id, meta_app_secret, meta_webhook_verify_token, meta_default_access_token
+    `SELECT meta_app_id, meta_app_secret, meta_webhook_verify_token, meta_default_access_token,
+            default_variable_mapping, default_template_name
      FROM meta_integration_settings
      WHERE tenant_id::text = $1::text`,
     [tenantId]
@@ -167,11 +189,15 @@ exports.getMetaForms = async (req, res) => {
         mf.*,
         COALESCE(u.name, 'Unassigned') as assigned_to_name,
         COALESCE(ls.name, 'Meta Lead Ads') as lead_source_name,
-        COALESCE(b.name, 'Main Branch') as branch_name
+        COALESCE(b.name, 'Main Branch') as branch_name,
+        p.name as product_name,
+        p.selling_price as product_price,
+        p.sku as product_sku
       FROM meta_forms mf
       LEFT JOIN users u ON mf.assigned_to::text = u.id::text AND mf.tenant_id::text = u.tenant_id::text
       LEFT JOIN lead_sources ls ON mf.lead_source_id::text = ls.id::text AND mf.tenant_id::text = ls.tenant_id::text
       LEFT JOIN branches b ON mf.branch_id::text = b.id::text
+      LEFT JOIN products p ON mf.product_id::text = p.id::text AND mf.tenant_id::text = p.tenant_id::text
       WHERE (mf.tenant_id::text = $1::text OR $1::text = '00000000-0000-0000-0000-000000000000')
       ORDER BY mf.created_at DESC
     `, [tenant_id]);
@@ -193,7 +219,19 @@ exports.createMetaForm = async (req, res) => {
   await ensureMetaFormsTable();
   let tenant_id = req.user.tenant_id;
   let branch_id = req.body.branch_id || req.branchId || req.user?.branch_id || 'default-branch';
-  const { form_id, form_name, page_name, page_access_token, lead_source_id, assigned_to } = req.body;
+  const {
+    form_id,
+    form_name,
+    page_name,
+    page_access_token,
+    lead_source_id,
+    assigned_to,
+    product_id,
+    template_name,
+    template_language,
+    variable_mapping,
+    custom_variables
+  } = req.body;
 
   if (!form_id || !form_name) {
     return res.status(400).json({ status: 'error', message: 'Form ID and Form Name are required' });
@@ -206,6 +244,7 @@ exports.createMetaForm = async (req, res) => {
   }
   let cleanSourceId;
   let cleanAssignedTo;
+  let cleanProductId;
 
   try {
     // If branch is explicitly specified or resolved, ensure tenant matches branch's tenant
@@ -218,7 +257,8 @@ exports.createMetaForm = async (req, res) => {
 
     cleanSourceId = parseOptionalId(lead_source_id, 'Lead source ID');
     cleanAssignedTo = parseOptionalId(assigned_to, 'Assigned user ID');
-    await validateTenantRelations(tenant_id, cleanSourceId, cleanAssignedTo);
+    cleanProductId = parseOptionalId(product_id, 'Product ID');
+    await validateTenantRelations(tenant_id, cleanSourceId, cleanAssignedTo, cleanProductId);
 
     const ownership = await db.query(
       'SELECT tenant_id FROM meta_forms WHERE form_id = $1 LIMIT 1',
@@ -235,8 +275,10 @@ exports.createMetaForm = async (req, res) => {
     const insertQuery = `
       INSERT INTO meta_forms (
         form_id, form_name, page_name, page_access_token,
-        lead_source_id, assigned_to, tenant_id, branch_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        lead_source_id, assigned_to, tenant_id, branch_id,
+        product_id, template_name, template_language,
+        variable_mapping, custom_variables
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       ON CONFLICT (tenant_id, form_id) 
       DO UPDATE SET
         form_name = EXCLUDED.form_name,
@@ -245,13 +287,29 @@ exports.createMetaForm = async (req, res) => {
         lead_source_id = EXCLUDED.lead_source_id,
         assigned_to = EXCLUDED.assigned_to,
         branch_id = EXCLUDED.branch_id,
+        product_id = EXCLUDED.product_id,
+        template_name = EXCLUDED.template_name,
+        template_language = EXCLUDED.template_language,
+        variable_mapping = EXCLUDED.variable_mapping,
+        custom_variables = EXCLUDED.custom_variables,
         updated_at = CURRENT_TIMESTAMP
       RETURNING *
     `;
 
     const result = await db.query(insertQuery, [
-      cleanFormId, cleanFormName, page_name || null, page_access_token ? page_access_token.trim() : null,
-      cleanSourceId, cleanAssignedTo, tenant_id, branch_id
+      cleanFormId,
+      cleanFormName,
+      page_name || null,
+      page_access_token ? page_access_token.trim() : null,
+      cleanSourceId,
+      cleanAssignedTo,
+      tenant_id,
+      branch_id,
+      cleanProductId,
+      template_name ? template_name.trim() : null,
+      template_language ? template_language.trim() : 'ar',
+      JSON.stringify(variable_mapping || []),
+      JSON.stringify(custom_variables || {})
     ]);
 
     res.status(201).json({ status: 'success', data: serializeMetaForm(result.rows[0]), message: 'Meta Form configured successfully' });
@@ -270,15 +328,29 @@ exports.createMetaForm = async (req, res) => {
 exports.updateMetaForm = async (req, res) => {
   await ensureMetaFormsTable();
   const tenant_id = req.user.tenant_id;
-  const { form_name, page_name, page_access_token, lead_source_id, assigned_to, is_active } = req.body;
+  const {
+    form_name,
+    page_name,
+    page_access_token,
+    lead_source_id,
+    assigned_to,
+    product_id,
+    template_name,
+    template_language,
+    variable_mapping,
+    custom_variables,
+    is_active
+  } = req.body;
 
   let cleanSourceId;
   let cleanAssignedTo;
+  let cleanProductId;
 
   try {
     cleanSourceId = parseOptionalId(lead_source_id, 'Lead source ID');
     cleanAssignedTo = parseOptionalId(assigned_to, 'Assigned user ID');
-    await validateTenantRelations(tenant_id, cleanSourceId, cleanAssignedTo);
+    cleanProductId = parseOptionalId(product_id, 'Product ID');
+    await validateTenantRelations(tenant_id, cleanSourceId, cleanAssignedTo, cleanProductId);
   } catch (err) {
     return res.status(400).json({ status: 'error', message: err.message });
   }
@@ -291,11 +363,27 @@ exports.updateMetaForm = async (req, res) => {
         page_name = COALESCE($2, page_name),
         lead_source_id = $3,
         assigned_to = $4,
-        is_active = COALESCE($5, is_active),
+        product_id = $5,
+        template_name = $6,
+        template_language = COALESCE($7, template_language),
+        variable_mapping = COALESCE($8, variable_mapping),
+        custom_variables = COALESCE($9, custom_variables),
+        is_active = COALESCE($10, is_active),
         updated_at = CURRENT_TIMESTAMP
     `;
-    const params = [form_name, page_name, cleanSourceId, cleanAssignedTo, is_active];
-    let pIdx = 6;
+    const params = [
+      form_name,
+      page_name,
+      cleanSourceId,
+      cleanAssignedTo,
+      cleanProductId,
+      template_name !== undefined ? (template_name ? template_name.trim() : null) : null,
+      template_language,
+      variable_mapping !== undefined ? JSON.stringify(variable_mapping) : null,
+      custom_variables !== undefined ? JSON.stringify(custom_variables) : null,
+      is_active
+    ];
+    let pIdx = 11;
 
     if (req.body.branch_id) {
       updateSql += `, branch_id = $${pIdx++}`;
@@ -532,7 +620,9 @@ exports.getMetaSettings = async (req, res) => {
         meta_app_id: settings.meta_app_id || '',
         meta_webhook_verify_token: settings.meta_webhook_verify_token || '',
         has_default_access_token: !!settings.meta_default_access_token,
-        has_app_secret: !!settings.meta_app_secret
+        has_app_secret: !!settings.meta_app_secret,
+        default_variable_mapping: settings.default_variable_mapping || [],
+        default_template_name: settings.default_template_name || ''
       }
     });
   } catch (err) {
@@ -549,7 +639,9 @@ exports.updateMetaSettings = async (req, res) => {
     meta_default_access_token,
     meta_webhook_verify_token,
     meta_app_id,
-    meta_app_secret
+    meta_app_secret,
+    default_variable_mapping,
+    default_template_name
   } = req.body;
 
   const verifyToken = String(meta_webhook_verify_token || '').trim();
@@ -564,20 +656,26 @@ exports.updateMetaSettings = async (req, res) => {
         meta_app_id,
         meta_app_secret,
         meta_webhook_verify_token,
-        meta_default_access_token
-      ) VALUES ($1, $2, NULLIF($3, ''), $4, NULLIF($5, ''))
+        meta_default_access_token,
+        default_variable_mapping,
+        default_template_name
+      ) VALUES ($1, $2, NULLIF($3, ''), $4, NULLIF($5, ''), $6, $7)
       ON CONFLICT (tenant_id) DO UPDATE SET
         meta_app_id = EXCLUDED.meta_app_id,
         meta_app_secret = COALESCE(NULLIF(EXCLUDED.meta_app_secret, ''), meta_integration_settings.meta_app_secret),
         meta_webhook_verify_token = EXCLUDED.meta_webhook_verify_token,
         meta_default_access_token = COALESCE(NULLIF(EXCLUDED.meta_default_access_token, ''), meta_integration_settings.meta_default_access_token),
+        default_variable_mapping = COALESCE(EXCLUDED.default_variable_mapping, meta_integration_settings.default_variable_mapping),
+        default_template_name = COALESCE(EXCLUDED.default_template_name, meta_integration_settings.default_template_name),
         updated_at = CURRENT_TIMESTAMP
     `, [
       req.user.tenant_id,
       String(meta_app_id || '').trim() || null,
       String(meta_app_secret || '').trim(),
       verifyToken,
-      String(meta_default_access_token || '').trim()
+      String(meta_default_access_token || '').trim(),
+      JSON.stringify(default_variable_mapping || []),
+      default_template_name ? default_template_name.trim() : null
     ]);
 
     res.json({ status: 'success', message: 'Meta settings updated' });
