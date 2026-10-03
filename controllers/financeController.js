@@ -1496,6 +1496,21 @@ exports.getTreasuryAccounts = async (req, res) => {
     if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
 
     try {
+        // Guard: return empty if treasury_accounts table doesn't exist yet (pre-migration)
+        try {
+            await db.query(`SELECT 1 FROM treasury_accounts LIMIT 1`);
+        } catch (tableErr) {
+            if (tableErr.message && tableErr.message.includes('does not exist')) {
+                return res.json({
+                    status: 'success',
+                    data: [],
+                    totals: { total_balance: 0, total_cash: 0, total_bank: 0, month_incoming: 0, month_outgoing: 0 },
+                    _warning: 'treasury_accounts table not yet created — run migrations/001_create_treasury_accounts.sql',
+                });
+            }
+            throw tableErr;
+        }
+
         // Get all active treasury accounts for this tenant+branch
         const accountsRes = await db.query(`
             SELECT
@@ -1593,6 +1608,14 @@ exports.createTreasuryAccount = async (req, res) => {
     }
 
     try {
+        // Guard: table must exist before we can insert
+        try { await db.query(`SELECT 1 FROM treasury_accounts LIMIT 1`); }
+        catch (e) {
+            if (e.message?.includes('does not exist'))
+                return res.status(503).json({ status: 'error', message: 'Run migration first: node migrate.js' });
+            throw e;
+        }
+
         // If setting as default, unset any existing default of the same type in this tenant+branch
         if (is_default) {
             await db.query(`
