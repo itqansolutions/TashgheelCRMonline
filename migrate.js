@@ -1,0 +1,91 @@
+/**
+ * migrate.js — One-time migration runner
+ * Runs via: node migrate.js
+ * Uses the project's existing config/db connection (no psql needed).
+ */
+
+const db = require('./config/db');
+
+const SQL = `
+BEGIN;
+
+-- 1. treasury_accounts table
+CREATE TABLE IF NOT EXISTS treasury_accounts (
+    id               SERIAL PRIMARY KEY,
+    name             VARCHAR(255) NOT NULL,
+    type             VARCHAR(20)  NOT NULL DEFAULT 'cash'
+                     CHECK (type IN ('cash', 'bank')),
+    bank_name        VARCHAR(255),
+    account_number   VARCHAR(100),
+    opening_balance  DECIMAL(15, 2) NOT NULL DEFAULT 0,
+    is_default       BOOLEAN NOT NULL DEFAULT false,
+    is_active        BOOLEAN NOT NULL DEFAULT true,
+    tenant_id        UUID NOT NULL,
+    branch_id        VARCHAR(255),
+    created_at       TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_treasury_accounts_tenant
+    ON treasury_accounts (tenant_id, branch_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_treasury_one_default_per_type
+    ON treasury_accounts (tenant_id, branch_id, type)
+    WHERE is_default = true;
+
+-- 2. payments.treasury_account_id
+ALTER TABLE payments
+    ADD COLUMN IF NOT EXISTS treasury_account_id INTEGER
+        REFERENCES treasury_accounts(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_payments_treasury_account
+    ON payments (treasury_account_id)
+    WHERE treasury_account_id IS NOT NULL;
+
+-- 3. expenses.treasury_account_id + expenses.payment_method
+ALTER TABLE expenses
+    ADD COLUMN IF NOT EXISTS treasury_account_id INTEGER
+        REFERENCES treasury_accounts(id) ON DELETE SET NULL;
+
+ALTER TABLE expenses
+    ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'cash';
+
+CREATE INDEX IF NOT EXISTS idx_expenses_treasury_account
+    ON expenses (treasury_account_id)
+    WHERE treasury_account_id IS NOT NULL;
+
+COMMIT;
+`;
+
+async function run() {
+  console.log('\n[migrate] Starting treasury migration...\n');
+  try {
+    await db.query(SQL);
+    console.log('[migrate] ✅ treasury_accounts created');
+    console.log('[migrate] ✅ payments.treasury_account_id added');
+    console.log('[migrate] ✅ expenses.treasury_account_id added');
+    console.log('[migrate] ✅ expenses.payment_method added');
+    console.log('\n[migrate] Migration complete.\n');
+  } catch (err) {
+    console.error('[migrate] ❌ Error:', err.message);
+    process.exit(1);
+  }
+
+  // Verify
+  try {
+    const r = await db.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name IN ('treasury_accounts','payments','expenses')
+        AND column_name IN ('treasury_account_id','payment_method','id','type','is_default')
+      ORDER BY table_name, column_name
+    `);
+    console.log('[migrate] Verification — relevant columns found:');
+    r.rows.forEach(c => console.log('  ', c.column_name));
+  } catch (e) {
+    console.log('[migrate] Verification skipped:', e.message);
+  }
+
+  process.exit(0);
+}
+
+run();
