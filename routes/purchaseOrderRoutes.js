@@ -23,4 +23,7 @@ router.post('/:id/approve', purchaseOrdersController.approvePurchaseOrder);
 router.post('/:id/send', purchaseOrdersController.sendPurchaseOrder);
 router.post('/:id/cancel', purchaseOrdersController.cancelPurchaseOrder);
 
+// Phase 5B.4: Receive Items against PO
+router.post('/:id/receive', purchaseOrdersController.receivePurchaseOrderItems);
+
 module.exports = router;

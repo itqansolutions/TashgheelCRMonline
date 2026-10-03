@@ -1090,3 +1090,299 @@ exports.cancelPurchaseOrder = async (req, res) => {
     client.release();
   }
 };
+
+/**
+ * POST /api/purchase-orders/:id/receive
+ * Phase 5B.4: Receive Items against CRM Purchase Order
+ * 
+ * Flow:
+ * - Single ACID transaction with FOR UPDATE row locking on both purchase_orders and purchase_order_items.
+ * - Enforces PO status in ('sent_to_vendor', 'partially_received').
+ * - Validates warehouse belongs to tenant and is active.
+ * - Validates every item: 0 < received_now <= (quantity - received_quantity).
+ * - Inserts stock_movements (type: 'in', reference_type: 'purchase_order', status: 'approved').
+ * - Updates purchase_order_items.received_quantity.
+ * - Recalculates PO status: if sum(received_quantity) == sum(quantity) -> 'completed', else 'partially_received'.
+ * - 0 finance vouchers, 0 purchase invoices, 0 payments, 0 ERP modification.
+ * - Rollback on any failure.
+ */
+exports.receivePurchaseOrderItems = async (req, res) => {
+  const client = await db.connect();
+  try {
+    const tenantId = req.user.tenant_id;
+    const { id } = req.params;
+    const { items, warehouse_id, notes } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one item must be specified for receiving.'
+      });
+    }
+
+    await client.query('BEGIN');
+
+    // 1. Lock and validate PO
+    const poRes = await client.query(
+      `SELECT * FROM purchase_orders WHERE id = $1 AND tenant_id = $2 FOR UPDATE`,
+      [id, tenantId]
+    );
+
+    if (poRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Purchase order not found.' });
+    }
+
+    const po = poRes.rows[0];
+
+    // Branch scoping
+    if (req.branchId && po.branch_id && String(po.branch_id) !== String(req.branchId)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Branch mismatch: PO belongs to another branch.' });
+    }
+
+    // Status validation: Allowed ONLY if sent_to_vendor or partially_received
+    if (po.status === 'draft' || po.status === 'approved') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: `Purchase Order must be sent to vendor before receiving items. Current status: '${po.status}'.`
+      });
+    }
+
+    if (po.status === 'cancelled') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot receive items for a cancelled purchase order.'
+      });
+    }
+
+    if (po.status === 'completed') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'This purchase order has already been fully received (completed).'
+      });
+    }
+
+    if (po.status !== 'sent_to_vendor' && po.status !== 'partially_received') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: `Cannot receive items for purchase order with status '${po.status}'.`
+      });
+    }
+
+    // 2. Validate receiving warehouse
+    const targetWarehouseId = warehouse_id || po.warehouse_id;
+    if (!targetWarehouseId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Destination warehouse is required for receiving.'
+      });
+    }
+
+    const whRes = await client.query(
+      `SELECT id, name, is_active FROM warehouses WHERE id = $1 AND tenant_id::text = $2::text`,
+      [targetWarehouseId, String(tenantId)]
+    );
+
+    if (whRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Specified warehouse was not found or does not belong to your organization.'
+      });
+    }
+
+    if (whRes.rows[0].is_active === false) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: `Destination warehouse '${whRes.rows[0].name}' is inactive.`
+      });
+    }
+
+    // 3. Lock PO items
+    const poiRes = await client.query(
+      `SELECT * FROM purchase_order_items WHERE po_id = $1 FOR UPDATE`,
+      [id]
+    );
+
+    if (poiRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: 'Purchase order has no items to receive.'
+      });
+    }
+
+    const poiRows = poiRes.rows;
+    const poiMap = new Map();
+    poiRows.forEach(row => {
+      poiMap.set(String(row.id), row);
+      poiMap.set(`prod_${row.product_id}`, row);
+    });
+
+    // 4. Validate all receiving quantities before making any changes
+    const validatedItems = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const itm = items[i];
+      const itemId = itm.item_id || itm.po_item_id || itm.id;
+      let matchedPoi = null;
+
+      if (itemId) {
+        matchedPoi = poiMap.get(String(itemId));
+      } else if (itm.product_id) {
+        matchedPoi = poiMap.get(`prod_${itm.product_id}`);
+      }
+
+      if (!matchedPoi) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: `Item at index ${i} (ID: ${itemId || itm.product_id}) does not belong to this purchase order.`
+        });
+      }
+
+      const receivedNowRaw = itm.quantity ?? itm.quantity_received ?? itm.received_now;
+      const receivedNow = parseFloat(receivedNowRaw);
+
+      if (isNaN(receivedNow) || receivedNow <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: `Received quantity must be greater than zero. Received: ${receivedNowRaw}`
+        });
+      }
+
+      const orderedQty = parseFloat(matchedPoi.quantity);
+      const alreadyReceived = parseFloat(matchedPoi.received_quantity || 0);
+      const remainingQty = round2(orderedQty - alreadyReceived);
+
+      if (remainingQty <= 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: `Item #${matchedPoi.id} is already fully received. Remaining quantity is 0.`
+        });
+      }
+
+      if (receivedNow > remainingQty) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: `Cannot receive ${receivedNow} units. Remaining quantity is only ${remainingQty} units.`
+        });
+      }
+
+      validatedItems.push({
+        poi: matchedPoi,
+        receivedNow: round2(receivedNow)
+      });
+    }
+
+    // 5. Apply receiving: insert stock_movements and update purchase_order_items
+    const createdMovements = [];
+
+    for (const v of validatedItems) {
+      // Create stock movement (Immediate physical stock arrival into destination warehouse)
+      const smRes = await client.query(
+        `INSERT INTO stock_movements (
+           tenant_id, branch_id, product_id, from_warehouse_id, to_warehouse_id,
+           type, quantity, reference_type, reference_id, status, created_by, approved_by, created_at
+         ) VALUES ($1, $2, $3, NULL, $4, 'in', $5, 'purchase_order', $6, 'approved', $7, $7, NOW())
+         RETURNING id, product_id, quantity, to_warehouse_id`,
+        [
+          tenantId,
+          po.branch_id || req.branchId || null,
+          v.poi.product_id,
+          targetWarehouseId,
+          v.receivedNow,
+          String(po.id),
+          req.user.id
+        ]
+      );
+      createdMovements.push(smRes.rows[0]);
+
+      // Update PO item received quantity
+      await client.query(
+        `UPDATE purchase_order_items 
+         SET received_quantity = received_quantity + $1
+         WHERE id = $2`,
+        [v.receivedNow, v.poi.id]
+      );
+    }
+
+    // 6. Recalculate overall PO receiving status
+    const statusQuery = await client.query(
+      `SELECT 
+         SUM(quantity) AS total_ordered,
+         SUM(received_quantity) AS total_received,
+         BOOL_AND(received_quantity >= quantity) AS all_completed
+       FROM purchase_order_items
+       WHERE po_id = $1`,
+      [id]
+    );
+
+    const { total_ordered, total_received, all_completed } = statusQuery.rows[0];
+    const totalOrderedNum = parseFloat(total_ordered || 0);
+    const totalReceivedNum = parseFloat(total_received || 0);
+
+    let nextStatus = 'partially_received';
+    if (all_completed || totalReceivedNum >= totalOrderedNum) {
+      nextStatus = 'completed';
+    }
+
+    const receivingNote = notes 
+      ? `${po.notes ? po.notes + ' | ' : ''}Received Note: ${notes}` 
+      : po.notes;
+
+    const updatedPoRes = await client.query(
+      `UPDATE purchase_orders
+       SET 
+         status = $1,
+         warehouse_id = COALESCE(warehouse_id, $2),
+         notes = $3,
+         updated_at = NOW()
+       WHERE id = $4 AND tenant_id = $5
+       RETURNING *`,
+      [nextStatus, targetWarehouseId, receivingNote, id, tenantId]
+    );
+
+    // Fetch refreshed items for response
+    const refreshedItemsRes = await client.query(
+      `SELECT poi.*, p.name AS product_name, p.sku AS product_sku, p.unit AS product_unit
+       FROM purchase_order_items poi
+       JOIN products p ON poi.product_id = p.id
+       WHERE poi.po_id = $1
+       ORDER BY poi.id ASC`,
+      [id]
+    );
+
+    await client.query('COMMIT');
+
+    return res.status(200).json({
+      success: true,
+      message: 'تم استلام البضاعة بنجاح.',
+      data: {
+        ...updatedPoRes.rows[0],
+        items: refreshedItemsRes.rows,
+        stock_movements: createdMovements
+      }
+    });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[receivePurchaseOrderItems] Error:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to receive purchase order items: ' + err.message
+    });
+  } finally {
+    client.release();
+  }
+};

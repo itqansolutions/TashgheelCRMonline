@@ -34,6 +34,14 @@ const PurchaseOrders = () => {
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const [submittingAction, setSubmittingAction] = useState(false);
 
+  // Receive Items Modal (Phase 5B.4)
+  const [showReceiveModal, setShowReceiveModal] = useState(false);
+  const [receivingOrder, setReceivingOrder] = useState(null);
+  const [receiveWarehouseId, setReceiveWarehouseId] = useState('');
+  const [receiveNotes, setReceiveNotes] = useState('');
+  const [receiveItemsList, setReceiveItemsList] = useState([]);
+  const [submittingReceive, setSubmittingReceive] = useState(false);
+
   // Cancel Modal
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -247,6 +255,106 @@ const PurchaseOrders = () => {
     }
   };
 
+  // Receive Items Handlers (Phase 5B.4)
+  const round2 = (val) => Math.round((parseFloat(val || 0) + Number.EPSILON) * 100) / 100;
+
+  const handleOpenReceiveModal = (order) => {
+    setReceivingOrder(order);
+    setReceiveWarehouseId(order.warehouse_id || (warehouses[0]?.id || ''));
+    setReceiveNotes('');
+
+    const items = (order.items || []).map(poi => {
+      const ordered = parseFloat(poi.quantity || 0);
+      const received = parseFloat(poi.received_quantity || 0);
+      const remaining = Math.max(0, round2(ordered - received));
+      return {
+        item_id: poi.id,
+        product_name: poi.product_name,
+        product_sku: poi.sku || poi.product_sku,
+        unit: poi.unit || poi.product_unit || 'piece',
+        ordered,
+        received,
+        remaining,
+        receive_now: remaining
+      };
+    });
+
+    setReceiveItemsList(items);
+    setShowReceiveModal(true);
+  };
+
+  const handleReceiveQtyChange = (itemId, val) => {
+    setReceiveItemsList(prev => prev.map(item => {
+      if (item.item_id === itemId) {
+        return { ...item, receive_now: val };
+      }
+      return item;
+    }));
+  };
+
+  const handleReceiveAllRemaining = () => {
+    setReceiveItemsList(prev => prev.map(item => ({
+      ...item,
+      receive_now: item.remaining
+    })));
+  };
+
+  const handleSubmitReceive = async (e) => {
+    e.preventDefault();
+    if (!receivingOrder) return;
+
+    if (!receiveWarehouseId) {
+      toast.error('يرجى اختيار مخزن الاستلام.');
+      return;
+    }
+
+    const itemsToReceive = [];
+    for (const item of receiveItemsList) {
+      const qty = parseFloat(item.receive_now);
+      if (isNaN(qty) || qty < 0) {
+        toast.error(`كمية غير صالحة للصنف ${item.product_name}`);
+        return;
+      }
+      if (qty > item.remaining) {
+        toast.error(`لا يمكن استلام ${qty} وحدة من ${item.product_name}. المتبقي ${item.remaining} وحدة فقط.`);
+        return;
+      }
+      if (qty > 0) {
+        itemsToReceive.push({
+          item_id: item.item_id,
+          quantity: qty
+        });
+      }
+    }
+
+    if (itemsToReceive.length === 0) {
+      toast.error('يرجى تحديد كمية أكبر من صفر لصنف واحد على الأقل.');
+      return;
+    }
+
+    setSubmittingReceive(true);
+    try {
+      const payload = {
+        warehouse_id: parseInt(receiveWarehouseId),
+        notes: receiveNotes,
+        items: itemsToReceive
+      };
+
+      const res = await api.post(`/purchase-orders/${receivingOrder.id}/receive`, payload);
+      toast.success(res.data?.message || 'تم استلام البضاعة بنجاح.');
+      setShowReceiveModal(false);
+
+      fetchOrders();
+      if (selectedOrder && selectedOrder.id === receivingOrder.id) {
+        handleOpenDetail(receivingOrder.id);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل في استلام البضاعة.');
+    } finally {
+      setSubmittingReceive(false);
+    }
+  };
+
   // Route A: Awarded Quotation Selection Change
   const handleQuoteSelect = (quoteId) => {
     const found = awardedQuotations.find(q => String(q.quotation_id) === String(quoteId));
@@ -432,6 +540,26 @@ const PurchaseOrders = () => {
             background: '#dcfce7', color: '#15803d', border: '1px solid #bbf7d0'
           }}>
             <Send size={13} /> مُرسل للمورد (Sent)
+          </span>
+        );
+      case 'partially_received':
+        return (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '5px',
+            padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 700,
+            background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a'
+          }}>
+            <Package size={13} /> مستلم جزئيًا (Partially Received)
+          </span>
+        );
+      case 'completed':
+        return (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '5px',
+            padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 700,
+            background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0'
+          }}>
+            <CheckCircle2 size={13} /> مكتمل الاستلام (Completed)
           </span>
         );
       case 'cancelled':
@@ -1441,10 +1569,11 @@ const PurchaseOrders = () => {
                       </td>
                       <td style={{ padding: '10px', textAlign: 'center' }}>
                         <span style={{
-                          background: '#f1f5f9', color: '#64748b', padding: '2px 6px',
-                          borderRadius: '4px', fontWeight: 700, fontSize: '11px'
+                          background: parseFloat(it.received_quantity || 0) >= parseFloat(it.quantity) ? '#ecfdf5' : parseFloat(it.received_quantity || 0) > 0 ? '#fef3c7' : '#f1f5f9',
+                          color: parseFloat(it.received_quantity || 0) >= parseFloat(it.quantity) ? '#047857' : parseFloat(it.received_quantity || 0) > 0 ? '#b45309' : '#64748b',
+                          padding: '3px 8px', borderRadius: '6px', fontWeight: 800, fontSize: '11px'
                         }}>
-                          {parseFloat(it.received_quantity || 0).toFixed(2)} (GRN Pending)
+                          {parseFloat(it.received_quantity || 0).toFixed(2)} / {parseFloat(it.quantity).toFixed(2)}
                         </span>
                       </td>
                       <td style={{ padding: '10px', textAlign: 'right' }}>
@@ -1525,6 +1654,27 @@ const PurchaseOrders = () => {
                 </button>
               )}
 
+              {(selectedOrder.status === 'sent_to_vendor' || selectedOrder.status === 'partially_received') && (
+                <button
+                  onClick={() => handleOpenReceiveModal(selectedOrder)}
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: 'white', padding: '10px 18px',
+                    borderRadius: '8px', border: 'none', fontWeight: 800, fontSize: '13px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+                  }}
+                >
+                  <Package size={16} /> Receive Items / استلام بضاعة
+                </button>
+              )}
+
+              {selectedOrder.status === 'completed' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#16a34a', fontWeight: 700, fontSize: '13px', padding: '8px 12px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                  <CheckCircle2 size={16} /> Fully Received (مكتمل الاستلام)
+                </div>
+              )}
+
               {(selectedOrder.status === 'draft' || selectedOrder.status === 'approved') && (
                 <button
                   onClick={() => handleOpenCancelModal(selectedOrder.id)}
@@ -1537,6 +1687,181 @@ const PurchaseOrders = () => {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* RECEIVE ITEMS MODAL (Phase 5B.4) */}
+      {showReceiveModal && receivingOrder && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center',
+          alignItems: 'center', zIndex: 1200, padding: '20px'
+        }}>
+          <div style={{
+            background: 'white', width: '100%', maxWidth: '780px',
+            borderRadius: '16px', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+          }}>
+            {/* Modal Header */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Package size={20} color="#10b981" /> Receive Items / استلام بضاعة
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+                  Purchase Order: <strong>{receivingOrder.po_number}</strong> • Vendor: {receivingOrder.vendor_name}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowReceiveModal(false)}
+                style={{ background: '#f1f5f9', border: 'none', padding: '6px', borderRadius: '8px', cursor: 'pointer' }}
+              >
+                <X size={18} color="#64748b" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSubmitReceive} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
+              <div style={{ padding: '24px', flex: 1 }}>
+                {/* Destination Warehouse */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Destination Warehouse / مخزن الاستلام *
+                  </label>
+                  <select
+                    value={receiveWarehouseId}
+                    onChange={(e) => setReceiveWarehouseId(e.target.value)}
+                    required
+                    style={{
+                      width: '100%', padding: '10px 14px', borderRadius: '8px',
+                      border: '1px solid #cbd5e1', fontSize: '14px', background: 'white'
+                    }}
+                  >
+                    <option value="">Select Destination Warehouse...</option>
+                    {warehouses.map(w => (
+                      <option key={w.id} value={w.id}>
+                        {w.name} {w.code ? `(${w.code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Items Receiving Table */}
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>
+                      Items to Receive / الأصناف المراد استلامها:
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleReceiveAllRemaining}
+                      style={{
+                        background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a',
+                        padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer'
+                      }}
+                    >
+                      استلام كامل المتبقي (Receive All Remaining)
+                    </button>
+                  </div>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>
+                        <th style={{ padding: '10px', textAlign: 'left' }}>Product / الصنف</th>
+                        <th style={{ padding: '10px', textAlign: 'center' }}>Ordered / مطلوب</th>
+                        <th style={{ padding: '10px', textAlign: 'center' }}>Received / تم استلامه</th>
+                        <th style={{ padding: '10px', textAlign: 'center' }}>Remaining / متبقي</th>
+                        <th style={{ padding: '10px', textAlign: 'center', width: '140px' }}>Receive Now / استلام الآن *</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {receiveItemsList.map(item => (
+                        <tr key={item.item_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '12px 10px', fontWeight: 600, color: '#1e293b' }}>
+                            <div>{item.product_name}</div>
+                            {item.product_sku && <div style={{ fontSize: '10px', color: '#94a3b8' }}>SKU: {item.product_sku}</div>}
+                          </td>
+                          <td style={{ padding: '12px 10px', textAlign: 'center', color: '#475569' }}>
+                            {item.ordered} {item.unit}
+                          </td>
+                          <td style={{ padding: '12px 10px', textAlign: 'center', color: '#64748b' }}>
+                            {item.received} {item.unit}
+                          </td>
+                          <td style={{ padding: '12px 10px', textAlign: 'center', fontWeight: 800, color: item.remaining > 0 ? '#b45309' : '#15803d' }}>
+                            {item.remaining} {item.unit}
+                          </td>
+                          <td style={{ padding: '12px 10px', textAlign: 'center' }}>
+                            {item.remaining > 0 ? (
+                              <input
+                                type="number"
+                                min="0"
+                                max={item.remaining}
+                                step="any"
+                                value={item.receive_now}
+                                onChange={(e) => handleReceiveQtyChange(item.item_id, e.target.value)}
+                                style={{
+                                  width: '100px', padding: '6px 8px', borderRadius: '6px',
+                                  border: '1px solid #cbd5e1', textAlign: 'center', fontWeight: 700, fontSize: '13px'
+                                }}
+                              />
+                            ) : (
+                              <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>
+                                مكتمل ✓
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Receiving Notes / ملاحظات الاستلام (اختياري)
+                  </label>
+                  <textarea
+                    value={receiveNotes}
+                    onChange={(e) => setReceiveNotes(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. تم الاستلام بحالة جيدة مع رقم بوليصة الشحن..."
+                    style={{
+                      width: '100%', padding: '10px 14px', borderRadius: '8px',
+                      border: '1px solid #cbd5e1', fontSize: '13px'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowReceiveModal(false)}
+                  style={{
+                    background: 'white', border: '1px solid #cbd5e1', padding: '9px 16px',
+                    borderRadius: '8px', fontSize: '13px', fontWeight: 700, color: '#475569', cursor: 'pointer'
+                  }}
+                >
+                  إلغاء (Cancel)
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReceive}
+                  style={{
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: 'white', border: 'none', padding: '9px 20px',
+                    borderRadius: '8px', fontSize: '13px', fontWeight: 800, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+                  }}
+                >
+                  <Package size={16} /> {submittingReceive ? 'جاري الاستلام...' : 'تأكيد استلام البضاعة (Confirm)'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
