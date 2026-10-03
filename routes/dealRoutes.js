@@ -36,4 +36,9 @@ router.patch('/:id/status', dealsController.updateDealStatus);
 // @access  Private
 router.delete('/:id', dealsController.deleteDeal);
 
+// @route   POST api/deals/:id/extend-reservation
+// @desc    Extend reservation for deal's linked unit
+// @access  Private
+router.post('/:id/extend-reservation', dealsController.extendDealReservation);
+
 module.exports = router;

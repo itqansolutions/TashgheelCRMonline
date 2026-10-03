@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map } from 'lucide-react';
+import { Building2, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -22,6 +22,17 @@ const UnitsRegistry = () => {
     const [viewMode, setViewMode] = useState('map'); // 'map' | 'cards' | 'list'
     const [assigningEmployee, setAssigningEmployee] = useState('');
 
+    const [showMatchBuyersModal, setShowMatchBuyersModal] = useState(false);
+    const [matchedBuyersUnit, setMatchedBuyersUnit] = useState(null);
+    const [matchedBuyersList, setMatchedBuyersList] = useState([]);
+    const [loadingMatchedBuyers, setLoadingMatchedBuyers] = useState(false);
+    const [expandedBuyerId, setExpandedBuyerId] = useState(null);
+
+    const [hierarchyTree, setHierarchyTree] = useState({ developers: [], projects: [] });
+    const [selectedProjectFilter, setSelectedProjectFilter] = useState('all');
+    const [selectedPhaseFilter, setSelectedPhaseFilter] = useState('all');
+    const [selectedBuildingFilter, setSelectedBuildingFilter] = useState('all');
+
     // Sync the employee dropdown to the unit's current assignee when modal opens
     useEffect(() => {
         if (selectedUnit) {
@@ -37,10 +48,22 @@ const UnitsRegistry = () => {
     const [formData, setFormData] = useState({
         project_name: '', unit_number: '', name: '', type: 'Apartment', floor: '', 
         area_sqm: '', price: '', vendor_id: '', assigned_to: '', responsible_person_id: '', 
-        transaction_type: 'sale', rooms: 1, location: ''
+        transaction_type: 'sale', rooms: 1, location: '',
+        developer_id: '', project_id: '', phase_id: '', building_id: ''
     });
 
     const vendors = safeArray(customers).filter(c => c.entity_type === 'vendor');
+
+    const fetchHierarchy = async () => {
+        try {
+            const res = await api.get('/re-hierarchy/tree');
+            if (res.data?.data) {
+                setHierarchyTree(res.data.data);
+            }
+        } catch (e) {
+            // Non-critical fallback
+        }
+    };
 
     const fetchUnits = async () => {
         try {
@@ -53,8 +76,41 @@ const UnitsRegistry = () => {
         }
     };
 
+    const handleExtendReservation = async (unitId, hours) => {
+        try {
+            const res = await api.post(`/re-units/${unitId}/extend-reservation`, { extensionHours: hours });
+            if (res.data?.success) {
+                toast.success(`Reservation extended by ${hours}h`);
+                if (res.data.data) {
+                    setSelectedUnit(prev => prev ? { ...prev, ...res.data.data } : null);
+                }
+                fetchUnits();
+            } else {
+                toast.error(res.data?.message || 'Failed to extend reservation');
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Error extending reservation');
+        }
+    };
+
+    const handleOpenMatchBuyers = async (unit) => {
+        setMatchedBuyersUnit(unit);
+        setShowMatchBuyersModal(true);
+        setLoadingMatchedBuyers(true);
+        setMatchedBuyersList([]);
+        try {
+            const res = await api.get(`/re-units/match-unit/${unit.id}`);
+            setMatchedBuyersList(res.data?.data?.matches || []);
+        } catch(err) {
+            toast.error(err.response?.data?.message || 'Failed to match buyer leads');
+        } finally {
+            setLoadingMatchedBuyers(false);
+        }
+    };
+
     useEffect(() => { 
         fetchUnits();
+        fetchHierarchy();
         if (users.length === 0) fetchUsers();
         if (customers.length === 0) fetchCustomers();
     }, []);
@@ -114,15 +170,31 @@ const UnitsRegistry = () => {
         }
     };
 
+    const activeProjectPhases = selectedProjectFilter !== 'all' 
+        ? (hierarchyTree.projects?.find(p => String(p.id) === String(selectedProjectFilter))?.phases || []) 
+        : [];
+    const activeProjectBuildings = selectedProjectFilter !== 'all'
+        ? (hierarchyTree.projects?.find(p => String(p.id) === String(selectedProjectFilter))?.buildings || [])
+        : [];
+
     const filteredUnits = safeArray(units).filter(u => {
         const matchesFilter = filter === 'All' || u.status?.toLowerCase() === filter.toLowerCase();
         const matchesSearch = (u.project_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
-                             (u.unit_number?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+                             (u.unit_number?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                             (u.building_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                             (u.phase_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                             (u.developer_name?.toLowerCase() || '').includes(searchTerm.toLowerCase());
         const matchesAssigned = assignedFilter === 'all' || u.assigned_to === assignedFilter;
         const matchesMin = !budgetMin || Number(u.price) >= Number(budgetMin);
         const matchesMax = !budgetMax || Number(u.price) <= Number(budgetMax);
 
-        return matchesFilter && matchesSearch && matchesAssigned && matchesMin && matchesMax;
+        const matchesProject = selectedProjectFilter === 'all' || 
+                               String(u.project_id) === String(selectedProjectFilter) || 
+                               String(u.project_name).toLowerCase() === String(selectedProjectFilter).toLowerCase();
+        const matchesPhase = selectedPhaseFilter === 'all' || String(u.phase_id) === String(selectedPhaseFilter);
+        const matchesBuilding = selectedBuildingFilter === 'all' || String(u.building_id) === String(selectedBuildingFilter);
+
+        return matchesFilter && matchesSearch && matchesAssigned && matchesMin && matchesMax && matchesProject && matchesPhase && matchesBuilding;
     });
 
     const groupedUnits = filteredUnits.reduce((acc, u) => {
@@ -169,16 +241,63 @@ const UnitsRegistry = () => {
 
             {/* Controls Bar */}
             <div className="ap-card" style={{ padding: '12px 16px', marginBottom: '32px', display: 'flex', gap: '16px', alignItems: 'center', background: 'var(--glass-bg)', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
+                <div style={{ flex: 1, minWidth: '180px', position: 'relative' }}>
                     <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}/>
                     <input 
                         className="ap-input" 
-                        placeholder="Search projects or codes..." 
+                        placeholder="Search projects, buildings, codes..." 
                         style={{ paddingLeft: '48px', border: 'none', background: 'transparent', height: '40px' }}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+                <div style={{ height: '32px', width: '1px', background: 'var(--border)' }}></div>
+
+                {/* Project Hierarchy Filters */}
+                <select 
+                    className="ap-input" 
+                    style={{ width: '170px', height: '40px' }} 
+                    value={selectedProjectFilter} 
+                    onChange={e => {
+                        setSelectedProjectFilter(e.target.value);
+                        setSelectedPhaseFilter('all');
+                        setSelectedBuildingFilter('all');
+                    }}
+                >
+                    <option value="all">All Projects</option>
+                    {(hierarchyTree.projects || []).map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                </select>
+
+                {activeProjectPhases.length > 0 && (
+                    <select 
+                        className="ap-input" 
+                        style={{ width: '140px', height: '40px' }} 
+                        value={selectedPhaseFilter} 
+                        onChange={e => setSelectedPhaseFilter(e.target.value)}
+                    >
+                        <option value="all">All Phases</option>
+                        {activeProjectPhases.map(ph => (
+                            <option key={ph.id} value={ph.id}>{ph.name}</option>
+                        ))}
+                    </select>
+                )}
+
+                {activeProjectBuildings.length > 0 && (
+                    <select 
+                        className="ap-input" 
+                        style={{ width: '140px', height: '40px' }} 
+                        value={selectedBuildingFilter} 
+                        onChange={e => setSelectedBuildingFilter(e.target.value)}
+                    >
+                        <option value="all">All Buildings</option>
+                        {activeProjectBuildings.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                        ))}
+                    </select>
+                )}
+
                 <div style={{ height: '32px', width: '1px', background: 'var(--border)' }}></div>
                 
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -187,7 +306,7 @@ const UnitsRegistry = () => {
                 </div>
                 <div style={{ height: '32px', width: '1px', background: 'var(--border)' }}></div>
                 
-                <select className="ap-input" style={{ width: '180px', height: '40px' }} value={assignedFilter} onChange={e => setAssignedFilter(e.target.value)}>
+                <select className="ap-input" style={{ width: '160px', height: '40px' }} value={assignedFilter} onChange={e => setAssignedFilter(e.target.value)}>
                     <option value="all">All Employees</option>
                     {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
@@ -376,14 +495,82 @@ const UnitsRegistry = () => {
 
                         <form onSubmit={handleAddUnit}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
-                                {/* Core Identity */}
+                                {/* Core Identity & Project Hierarchy */}
                                 <div style={{ gridColumn: 'span 2', paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '8px' }}>
-                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Identity & Project</h4>
+                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Project Hierarchy & Identity</h4>
                                 </div>
                                 <div className="ap-form-group">
-                                    <label className="ap-label">Project Name</label>
-                                    <input className="ap-input" required value={formData.project_name} onChange={e => setFormData({...formData, project_name: e.target.value})} placeholder="e.g. Palm Residences" />
+                                    <label className="ap-label">Developer (Optional)</label>
+                                    <select 
+                                        className="ap-input" 
+                                        value={formData.developer_id || ''} 
+                                        onChange={e => setFormData({ ...formData, developer_id: e.target.value })}
+                                    >
+                                        <option value="">-- Independent / None --</option>
+                                        {(hierarchyTree.developers || []).map(d => (
+                                            <option key={d.id} value={d.id}>{d.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
+                                <div className="ap-form-group">
+                                    <label className="ap-label">Project</label>
+                                    <select 
+                                        className="ap-input" 
+                                        value={formData.project_id || ''} 
+                                        onChange={e => {
+                                            const pid = e.target.value;
+                                            const selectedP = hierarchyTree.projects?.find(p => String(p.id) === String(pid));
+                                            setFormData({ 
+                                                ...formData, 
+                                                project_id: pid, 
+                                                project_name: selectedP ? selectedP.name : formData.project_name,
+                                                phase_id: '',
+                                                building_id: ''
+                                            });
+                                        }}
+                                    >
+                                        <option value="">-- Custom / Direct Name --</option>
+                                        {(hierarchyTree.projects || []).map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {!formData.project_id && (
+                                    <div className="ap-form-group">
+                                        <label className="ap-label">Project Name</label>
+                                        <input className="ap-input" required value={formData.project_name} onChange={e => setFormData({...formData, project_name: e.target.value})} placeholder="e.g. Palm Residences" />
+                                    </div>
+                                )}
+                                {formData.project_id && (
+                                    <>
+                                        <div className="ap-form-group">
+                                            <label className="ap-label">Phase (Optional)</label>
+                                            <select 
+                                                className="ap-input" 
+                                                value={formData.phase_id || ''} 
+                                                onChange={e => setFormData({ ...formData, phase_id: e.target.value })}
+                                            >
+                                                <option value="">-- Select Phase --</option>
+                                                {(hierarchyTree.projects?.find(p => String(p.id) === String(formData.project_id))?.phases || []).map(ph => (
+                                                    <option key={ph.id} value={ph.id}>{ph.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="ap-form-group">
+                                            <label className="ap-label">Building (Optional)</label>
+                                            <select 
+                                                className="ap-input" 
+                                                value={formData.building_id || ''} 
+                                                onChange={e => setFormData({ ...formData, building_id: e.target.value })}
+                                            >
+                                                <option value="">-- Select Building --</option>
+                                                {(hierarchyTree.projects?.find(p => String(p.id) === String(formData.project_id))?.buildings || []).map(b => (
+                                                    <option key={b.id} value={b.id}>{b.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </>
+                                )}
                                 <div className="ap-form-group">
                                     <label className="ap-label">Unit Number / Code</label>
                                     <input className="ap-input" required value={formData.unit_number} onChange={e => setFormData({...formData, unit_number: e.target.value})} placeholder="e.g. PH-402" />
@@ -464,7 +651,10 @@ const UnitsRegistry = () => {
                                     <div style={{ padding: '24px 32px', background: config.bg, borderBottom: `1px solid ${config.color}40`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div>
                                             <div style={{ fontSize: '12px', fontWeight: 900, color: config.color, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
+                                                {selectedUnit.developer_name ? `${selectedUnit.developer_name} • ` : ''}
                                                 {selectedUnit.project_name || 'Individual'}
+                                                {selectedUnit.phase_name ? ` • ${selectedUnit.phase_name}` : ''}
+                                                {selectedUnit.building_name ? ` • ${selectedUnit.building_name}` : ''}
                                             </div>
                                             <h2 style={{ fontSize: '28px', margin: 0, fontWeight: 900, color: 'var(--text-main)' }}>Unit {selectedUnit.unit_number}</h2>
                                         </div>
@@ -495,6 +685,39 @@ const UnitsRegistry = () => {
                                                 <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>Floor {selectedUnit.floor} • {selectedUnit.rooms} Rooms</div>
                                             </div>
                                         </div>
+
+                                        {/* Active Reservation & Extension */}
+                                        {selectedUnit.status === 'Reserved' && (
+                                            <div style={{ background: '#fffbeb', padding: '16px', borderRadius: '12px', border: '1px solid #fde68a', marginBottom: '16px' }}>
+                                                <div style={{ fontSize: '11px', color: '#b45309', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <Clock size={13}/> Active Reservation
+                                                </div>
+                                                <div style={{ fontSize: '13px', color: '#92400e', marginBottom: '10px' }}>
+                                                    <strong>Expires:</strong> {selectedUnit.reservation_expires_at ? new Date(selectedUnit.reservation_expires_at).toLocaleString() : 'Not Set'}
+                                                    {Number(selectedUnit.reservation_extension_count) > 0 && (
+                                                        <span style={{ marginLeft: '8px', padding: '2px 6px', background: '#fef3c7', borderRadius: '4px', fontSize: '11px', fontWeight: 700, color: '#b45309' }}>
+                                                            Extended {selectedUnit.reservation_extension_count}x
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleExtendReservation(selectedUnit.id, 24)}
+                                                        style={{ flex: 1, padding: '8px 12px', background: '#d97706', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                                                    >
+                                                        +24 Hours
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleExtendReservation(selectedUnit.id, 48)}
+                                                        style={{ flex: 1, padding: '8px 12px', background: '#b45309', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                                                    >
+                                                        +48 Hours
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
                                             <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -527,6 +750,14 @@ const UnitsRegistry = () => {
 
                                         <div style={{ display: 'flex', gap: '12px' }}>
                                             <button 
+                                                type="button"
+                                                onClick={() => handleOpenMatchBuyers(selectedUnit)}
+                                                className="btn-primary-premium"
+                                                style={{ flex: 1, justifyContent: 'center', background: '#3b82f6', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)' }}
+                                            >
+                                                <Sparkles size={16} /> 🎯 Match Buyers
+                                            </button>
+                                            <button 
                                                 onClick={() => {
                                                     handleDelete(selectedUnit.id);
                                                     setSelectedUnit(null);
@@ -534,13 +765,110 @@ const UnitsRegistry = () => {
                                                 className="btn-primary-premium"
                                                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger)', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}
                                             >
-                                                <Trash2 size={16} /> Disable & Delete Unit
+                                                <Trash2 size={16} /> Disable & Delete
                                             </button>
                                         </div>
                                     </div>
                                 </>
                             );
                         })()}
+                    </div>
+                </div>
+            )}
+
+            {/* 🎯 Matched Buyer Leads Modal */}
+            {showMatchBuyersModal && matchedBuyersUnit && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '20px' }}>
+                    <div className="ap-card" style={{ width: '100%', maxWidth: '750px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', background: 'white', borderRadius: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                            <div>
+                                <h3 style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Sparkles size={20} color="#eab308" /> 🎯 Matched Buyer Leads
+                                </h3>
+                                <div style={{ fontSize: '13px', color: '#64748b' }}>
+                                    Matching registered buyer clients for <strong>Unit {matchedBuyersUnit.unit_number}</strong> ({matchedBuyersUnit.project_name || 'Individual'}) • {Number(matchedBuyersUnit.price).toLocaleString()} EGP • {matchedBuyersUnit.area_sqm} m² • {matchedBuyersUnit.rooms} Rooms
+                                </div>
+                            </div>
+                            <button onClick={() => setShowMatchBuyersModal(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {loadingMatchedBuyers ? (
+                            <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
+                                Analyzing registered buyer client requirements...
+                            </div>
+                        ) : matchedBuyersList.length === 0 ? (
+                            <div style={{ padding: '30px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', color: '#64748b', fontSize: '14px' }}>
+                                No registered buyer clients currently match this unit.
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                {matchedBuyersList.map(({ customer, match_score, match_grade, breakdown }) => {
+                                    const isExpanded = expandedBuyerId === customer.id;
+                                    const gradeColor = match_score >= 85 ? '#16a34a' : match_score >= 65 ? '#2563eb' : match_score >= 45 ? '#d97706' : '#64748b';
+                                    const gradeBg = match_score >= 85 ? '#dcfce7' : match_score >= 65 ? '#dbeafe' : match_score >= 45 ? '#fef3c7' : '#f1f5f9';
+
+                                    return (
+                                        <div key={customer.id} style={{ border: `1px solid ${isExpanded ? gradeColor : '#e2e8f0'}`, borderRadius: '12px', background: 'white', overflow: 'hidden', transition: 'all 0.2s' }}>
+                                            <div 
+                                                onClick={() => setExpandedBuyerId(isExpanded ? null : customer.id)}
+                                                style={{ padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: isExpanded ? `${gradeBg}30` : 'white' }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                                    <div style={{ textAlign: 'center', minWidth: '55px', padding: '5px 8px', borderRadius: '8px', background: gradeBg, color: gradeColor, fontWeight: 900 }}>
+                                                        <div style={{ fontSize: '16px', lineHeight: '1' }}>{match_score}%</div>
+                                                        <div style={{ fontSize: '9px', textTransform: 'uppercase' }}>{match_grade}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-main)' }}>{customer.name}</div>
+                                                        <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
+                                                            {customer.phone && <span>📞 {customer.phone}</span>}
+                                                            {customer.preferred_location && <span>📍 {customer.preferred_location}</span>}
+                                                            {customer.budget_max && <span>💰 Max: {Number(customer.budget_max).toLocaleString()} EGP</span>}
+                                                            {customer.preferred_rooms && <span>🛏️ {customer.preferred_rooms} Rms</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <a 
+                                                        href={`/deals?new=1&client_id=${customer.id}&unit_id=${matchedBuyersUnit.id}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        style={{ padding: '7px 14px', borderRadius: '8px', background: 'var(--primary)', color: 'white', textDecoration: 'none', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                    >
+                                                        Create Deal <ArrowRight size={13} />
+                                                    </a>
+                                                    {isExpanded ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
+                                                </div>
+                                            </div>
+
+                                            {isExpanded && (
+                                                <div style={{ padding: '12px 18px', borderTop: '1px solid #f1f5f9', background: '#fafafa', fontSize: '12px' }}>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>💰 Budget ({breakdown.budget.score}/{breakdown.budget.max} pts)</div>
+                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.budget.reason}</div>
+                                                        </div>
+                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>📐 Area ({breakdown.area.score}/{breakdown.area.max} pts)</div>
+                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.area.reason}</div>
+                                                        </div>
+                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>📍 Location ({breakdown.location.score}/{breakdown.location.max} pts)</div>
+                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.location.reason}</div>
+                                                        </div>
+                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>🛏️ Rooms ({breakdown.rooms.score}/{breakdown.rooms.max} pts)</div>
+                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.rooms.reason}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

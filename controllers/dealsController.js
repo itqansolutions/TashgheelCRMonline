@@ -60,6 +60,10 @@ exports.getDeals = async (req, res) => {
         u.name as assigned_to_name,
         ru.project_name as unit_project,
         ru.unit_number as unit_number,
+        ru.status as unit_status,
+        ru.reservation_expires_at as unit_reservation_expires_at,
+        ru.reservation_extended_at as unit_reservation_extended_at,
+        ru.reservation_extension_count as unit_reservation_extension_count,
         rp.next_payment_date,
         rp.status as payment_status,
         rp.paid_amount,
@@ -98,9 +102,23 @@ exports.getDealById = async (req, res) => {
     await ensureDealColumns();
 
     const result = await db.query(`
-      SELECT d.*, p.name as product_name 
+      SELECT 
+        d.*, 
+        p.name as product_name,
+        ru.project_name as unit_project,
+        ru.unit_number as unit_number,
+        ru.status as unit_status,
+        ru.reservation_expires_at as unit_reservation_expires_at,
+        ru.reservation_extended_at as unit_reservation_extended_at,
+        ru.reservation_extension_count as unit_reservation_extension_count,
+        rp.next_payment_date,
+        rp.status as payment_status,
+        rp.paid_amount,
+        rp.total_amount as payment_total
       FROM deals d 
       LEFT JOIN products p ON d.product_id::text = p.id::text AND d.tenant_id::text = p.tenant_id::text 
+      LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND d.tenant_id::text = ru.tenant_id::text
+      LEFT JOIN re_payments_mvp rp ON d.id::text = rp.deal_id::text AND d.tenant_id::text = rp.tenant_id::text
       WHERE d.id = $1 AND d.tenant_id::text = $2::text AND ($3::text IS NULL OR d.branch_id::text = $3::text OR d.branch_id IS NULL)
     `, [req.params.id, tenant_id, branch_id]);
     
@@ -129,22 +147,15 @@ exports.createDeal = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Deal title is required.' });
     }
 
-    // 1. Real Estate Validation: If unit_id is provided, check availability
-    if (unit_id) {
-        const unitCheck = await db.query('SELECT status FROM re_units WHERE id = $1 AND tenant_id::text = $2::text', [unit_id, tenant_id]);
-        if (unitCheck.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Unit not found.' });
-        if (unitCheck.rows[0].status !== 'Available') {
-            return res.status(400).json({ status: 'error', message: `This unit is already ${unitCheck.rows[0].status}. Please select an Available unit.` });
-        }
-    }
-
     // DEFINITIVE SANITIZATION: Prevent 500 Server Error for Empty String / Type mismatches
     const cleanClientId = (client_id && client_id !== '') ? (!isNaN(client_id) ? parseInt(client_id) : client_id) : null;
     const cleanProductId = (product_id && product_id !== '' && !isNaN(product_id)) ? parseInt(product_id) : null;
     const cleanProjectId = (project_id && project_id !== '' && !isNaN(project_id)) ? parseInt(project_id) : null;
     const cleanUnitId = (unit_id && unit_id !== '') ? String(unit_id) : null;
-    const cleanAssignedTo = (assigned_to && assigned_to !== '') ? (!isNaN(assigned_to) ? parseInt(assigned_to) : assigned_to) : (!isNaN(req.user.id) ? parseInt(req.user.id) : req.user.id);
-    const cleanValue = (value !== undefined && value !== null && value !== '' && !isNaN(Number(value))) ? Number(value) : 0;
+    const cleanAssignedTo = (assigned_to && !isNaN(parseInt(assigned_to)) && /^\d+$/.test(String(assigned_to))) 
+      ? parseInt(assigned_to) 
+      : (req.user?.id && !isNaN(parseInt(req.user.id)) && /^\d+$/.test(String(req.user.id)) ? parseInt(req.user.id) : null);
+    let cleanValue = (value !== undefined && value !== null && value !== '' && !isNaN(Number(value))) ? Number(value) : 0;
     const cleanProbability = (probability !== undefined && probability !== null && probability !== '' && !isNaN(probability)) ? Math.min(100, Math.max(0, parseInt(probability))) : 0;
 
     let cleanExpectedDate = null;
@@ -181,50 +192,117 @@ exports.createDeal = async (req, res) => {
       }
     }
 
-    // 2. Insert Deal (With branch_id injection and new Phase 2 schema)
-    const result = await db.query(
-      'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, branch_id, custom_fields, unit_id, probability, expected_close_date, next_action, source_type, source_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *',
-      [String(title).trim(), cleanValue, pipeline_stage || 'discovery', cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, tenant_id, branch_id, cleanCustomFields, cleanUnitId, cleanProbability, cleanExpectedDate, next_action || '', cleanSourceType, cleanSourceId]
-    );
+    // ── ATOMIC TRANSACTION FOR RESERVATION & DEAL CREATION ──
+    const client = await db.connect();
+    let newDeal;
+    let reservationHours = 48;
 
-    const newDeal = result.rows[0];
+    try {
+      await client.query('BEGIN');
 
-    // 3. Fetch Reservation Duration Settings & Automation
-    if (unit_id) {
-        let reservationHours = 48;
+      // 1. Real Estate Concurrency Gate: Lock unit row with SELECT ... FOR UPDATE
+      if (cleanUnitId) {
+        const unitLockRes = await client.query(
+          `SELECT id, status, project_name, unit_number, price, branch_id 
+           FROM re_units 
+           WHERE id::text = $1::text AND tenant_id::text = $2::text 
+           FOR UPDATE`,
+          [cleanUnitId, String(tenant_id)]
+        );
+
+        if (unitLockRes.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ status: 'error', message: 'Unit not found.' });
+        }
+
+        const targetUnit = unitLockRes.rows[0];
+
+        // Branch check: If unit belongs to a specific branch, user must belong to that branch (unless admin)
+        if (targetUnit.branch_id && branch_id && String(targetUnit.branch_id) !== String(branch_id) && req.user?.role !== 'admin') {
+          await client.query('ROLLBACK');
+          return res.status(403).json({ status: 'error', message: 'Unauthorized: Unit belongs to a different branch.' });
+        }
+
+        if (targetUnit.status?.toLowerCase() !== 'available') {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ 
+            status: 'error', 
+            message: `This unit is already ${targetUnit.status}. Please select an Available unit.` 
+          });
+        }
+
+        // If deal value was not set explicitly, default to unit price
+        if (cleanValue === 0 && targetUnit.price) {
+          cleanValue = Number(targetUnit.price);
+        }
+
+        // Fetch custom reservation hours setting
         try {
-            const settingsRes = await db.query("SELECT value FROM settings WHERE key = 'reservation_duration_hours'");
-            if (settingsRes.rows.length > 0 && !isNaN(settingsRes.rows[0].value)) {
-                reservationHours = parseInt(settingsRes.rows[0].value);
-            }
-        } catch(e) { console.error('Settings fetch error:', e.message); }
+          const settingsRes = await client.query("SELECT value FROM settings WHERE key = 'reservation_duration_hours'");
+          if (settingsRes.rows.length > 0 && !isNaN(settingsRes.rows[0].value)) {
+            reservationHours = parseInt(settingsRes.rows[0].value);
+          }
+        } catch (e) {
+          console.error('Settings fetch error:', e.message);
+        }
 
-        await db.query(`UPDATE re_units SET status = 'Reserved', reservation_expires_at = CURRENT_TIMESTAMP + INTERVAL '${reservationHours} hours' WHERE id = $1`, [unit_id]);
-        logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: newDeal.id, status_change: 'Reserved', expires_in_hours: reservationHours } });
+        // Update unit to Reserved inside the transaction
+        await client.query(
+          `UPDATE re_units 
+           SET status = 'Reserved', 
+               reservation_expires_at = CURRENT_TIMESTAMP + INTERVAL '${reservationHours} hours',
+               reservation_extended_at = NULL,
+               reservation_extended_by = NULL,
+               reservation_extension_count = 0,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+          [cleanUnitId, String(tenant_id)]
+        );
+      }
+
+      // 2. Insert Deal inside transaction
+      const result = await client.query(
+        'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, branch_id, custom_fields, unit_id, probability, expected_close_date, next_action, source_type, source_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *',
+        [String(title).trim(), cleanValue, pipeline_stage || 'discovery', cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, tenant_id, branch_id, cleanCustomFields, cleanUnitId, cleanProbability, cleanExpectedDate, next_action || '', cleanSourceType, cleanSourceId]
+      );
+      newDeal = result.rows[0];
+
+      // Auto Transition Task if converted (inside transaction)
+      if (cleanSourceType === 'task' && cleanSourceId) {
+        try {
+          const statusRes = await client.query('SELECT id FROM task_statuses WHERE tenant_id::text = $1::text AND (name ILIKE $2 OR is_final = true) ORDER BY is_final DESC LIMIT 1', [tenant_id, '%converted%']);
+          if (statusRes.rows.length > 0) {
+            const convertedStatusId = statusRes.rows[0].id;
+            await client.query('UPDATE tasks SET status_id = $1 WHERE id = $2', [convertedStatusId, cleanSourceId]);
+          }
+        } catch (stErr) {
+          console.warn('[Task Status Transition Warning]:', stErr.message);
+        }
+      }
+
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw txErr;
+    } finally {
+      client.release();
     }
 
-    // Audit Logging
+    // 3. Post-commit side effects: Audit Logging & Notifications
+    if (cleanUnitId) {
+      logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: cleanUnitId, details: { deal_id: newDeal.id, status_change: 'Reserved', expires_in_hours: reservationHours } });
+    }
+
     logCreate(req, 'Deal', newDeal.id, newDeal);
 
-    // Activity Timeline Logging
     await logActivity(tenant_id, req.user, 'deal', newDeal.id, 'created', { 
         title: { to: title },
         value: { to: cleanValue },
         pipeline_stage: { to: pipeline_stage || 'discovery' }
     });
 
-    // Auto Transition Task if converted
     if (cleanSourceType === 'task' && cleanSourceId) {
-        try {
-          const statusRes = await db.query('SELECT id FROM task_statuses WHERE tenant_id::text = $1::text AND (name ILIKE $2 OR is_final = true) ORDER BY is_final DESC LIMIT 1', [tenant_id, '%converted%']);
-          if (statusRes.rows.length > 0) {
-              const convertedStatusId = statusRes.rows[0].id;
-              await db.query('UPDATE tasks SET status_id = $1 WHERE id = $2', [convertedStatusId, cleanSourceId]);
-              logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Task', entityId: cleanSourceId, details: { deal_id: newDeal.id, status_change: 'Converted' } });
-          }
-        } catch (stErr) {
-          console.warn('[Task Status Transition Warning]:', stErr.message);
-        }
+      logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Task', entityId: cleanSourceId, details: { deal_id: newDeal.id, status_change: 'Converted' } });
     }
 
     // Phase 7 Workflow Engine: Auto-Assign if no explicit assignee was given
@@ -252,6 +330,7 @@ exports.createDeal = async (req, res) => {
             _link: '/deals'
         }).catch(e => console.error('[RuleEngine] DEAL_CREATED error:', e.message));
     }
+
     // Assignment notification
     if (cleanAssignedTo && String(cleanAssignedTo) !== String(req.user.id)) {
       notificationService.notifyAssignment({
@@ -267,6 +346,7 @@ exports.createDeal = async (req, res) => {
     }
 
     res.status(201).json({ status: 'success', data: newDeal });
+
   } catch (err) {
     console.error('[Deal Create Error]', err);
     res.status(500).json({ status: 'error', message: err.message || 'Failed to create deal' });
@@ -433,7 +513,16 @@ exports.updateDealStatus = async (req, res) => {
                   `, [deal.tenant_id, deal.branch_id, req.params.id, deal.value]);
               }
           } else if (pipeline_stage === 'lost') {
-              await db.query('UPDATE re_units SET status = \'Available\' WHERE id = $1', [unit_id]);
+              await db.query(`
+                  UPDATE re_units 
+                  SET status = 'Available', 
+                      reservation_expires_at = NULL, 
+                      reservation_extended_at = NULL, 
+                      reservation_extended_by = NULL, 
+                      reservation_extension_count = 0, 
+                      updated_at = CURRENT_TIMESTAMP 
+                  WHERE id::text = $1::text AND tenant_id::text = $2::text
+              `, [unit_id, tenant_id]);
           }
       }
 
@@ -484,7 +573,16 @@ exports.deleteDeal = async (req, res) => {
     // Real Estate Automation: Revert unit status if linked
     const unit_id = result.rows[0].unit_id;
     if (unit_id) {
-        await db.query('UPDATE re_units SET status = \'Available\' WHERE id = $1', [unit_id]);
+        await db.query(`
+            UPDATE re_units 
+            SET status = 'Available', 
+                reservation_expires_at = NULL, 
+                reservation_extended_at = NULL, 
+                reservation_extended_by = NULL, 
+                reservation_extension_count = 0, 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE id::text = $1::text AND tenant_id::text = $2::text
+        `, [unit_id, tenant_id]);
     }
 
     // Clean up orphaned RE payment records
@@ -497,5 +595,30 @@ exports.deleteDeal = async (req, res) => {
   } catch (err) {
     console.error('[Deal Delete Error]', err);
     res.status(500).json({ status: 'error', message: err.message || 'Server error' });
+  }
+};
+
+// @desc    Extend reservation for a deal's linked unit
+// @route   POST /api/deals/:id/extend-reservation
+// @access  Private
+exports.extendDealReservation = async (req, res) => {
+  const { extension_hours = 24 } = req.body;
+  const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id || null;
+
+  try {
+    const { extendReservation } = require('../services/reservationService');
+    const result = await extendReservation({
+      dealId: req.params.id,
+      tenantId: tenant_id,
+      branchId: branch_id,
+      user: req.user,
+      extensionHours: extension_hours,
+      req
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[Extend Deal Reservation Error]:', err.message);
+    res.status(err.statusCode || 400).json({ status: 'error', message: err.message });
   }
 };

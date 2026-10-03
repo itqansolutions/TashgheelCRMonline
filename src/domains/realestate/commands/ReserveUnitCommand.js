@@ -27,21 +27,14 @@ class ReserveUnitHandler extends BaseHandler {
      * @param {ReserveUnitCommand} command 
      */
     async execute(command) {
-        // 1. Fetch unit using tenant isolation
-        const unit = await reUnitRepository.findById(command.tenantId, command.unitId);
-        
-        // 2. Validate Domain Policy
-        ReservationPolicy.canReserve(unit);
-
-        // 3. Calculate Expiration Timestamp
+        // 1. Calculate Expiration Timestamp
         const expirationDate = new Date();
         expirationDate.setDate(expirationDate.getDate() + (command.durationDays || 7));
 
-        // 4. Update Unit Status
-        const updatedUnit = await reUnitRepository.updateReservation(
+        // 2. Atomic Lock & Reservation within a single Transaction
+        const updatedUnit = await reUnitRepository.reserveWithLock(
             command.tenantId, 
             command.unitId, 
-            'Reserved', 
             expirationDate
         );
 

@@ -32,7 +32,170 @@ const reconcileDatabase = async () => {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        `);
+            CREATE TABLE IF NOT EXISTS re_developers (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(255) NOT NULL,
+                contact_person VARCHAR(255),
+                phone VARCHAR(50),
+                email VARCHAR(255),
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS re_projects (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                developer_id UUID REFERENCES re_developers(id) ON DELETE SET NULL,
+                name VARCHAR(255) NOT NULL,
+                location VARCHAR(255),
+                description TEXT,
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS re_phases (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                project_id UUID NOT NULL REFERENCES re_projects(id) ON DELETE CASCADE,
+                name VARCHAR(255) NOT NULL,
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS re_buildings (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                project_id UUID NOT NULL REFERENCES re_projects(id) ON DELETE CASCADE,
+                phase_id UUID REFERENCES re_phases(id) ON DELETE SET NULL,
+                name VARCHAR(255) NOT NULL,
+                floors_count INTEGER DEFAULT 1,
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            ALTER TABLE re_units ADD COLUMN IF NOT EXISTS developer_id UUID NULL REFERENCES re_developers(id) ON DELETE SET NULL;
+            ALTER TABLE re_units ADD COLUMN IF NOT EXISTS project_id UUID NULL REFERENCES re_projects(id) ON DELETE SET NULL;
+            ALTER TABLE re_units ADD COLUMN IF NOT EXISTS phase_id UUID NULL REFERENCES re_phases(id) ON DELETE SET NULL;
+            ALTER TABLE re_units ADD COLUMN IF NOT EXISTS building_id UUID NULL REFERENCES re_buildings(id) ON DELETE SET NULL;
+
+            CREATE TABLE IF NOT EXISTS re_contracts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                contract_number VARCHAR(100) NOT NULL,
+                deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+                customer_id INTEGER NULL REFERENCES customers(id) ON DELETE SET NULL,
+                unit_id VARCHAR(255) NULL,
+                contract_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                contract_value NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+                down_payment NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+                remaining_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+                status VARCHAR(50) NOT NULL DEFAULT 'Draft',
+                notes TEXT,
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255) NULL,
+                created_by VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uq_deal_contract UNIQUE(deal_id, tenant_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS re_installments (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                contract_id UUID NOT NULL REFERENCES re_contracts(id) ON DELETE CASCADE,
+                deal_id INTEGER NULL REFERENCES deals(id) ON DELETE CASCADE,
+                installment_number INTEGER NOT NULL,
+                installment_type VARCHAR(50) NOT NULL DEFAULT 'installment',
+                due_date DATE NOT NULL,
+                amount NUMERIC(15,2) NOT NULL DEFAULT 0.00 CHECK (amount >= 0),
+                paid_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00 CHECK (paid_amount >= 0),
+                status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+                paid_at TIMESTAMP NULL,
+                notes TEXT,
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uq_contract_installment UNIQUE(contract_id, installment_number)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_re_installments_contract ON re_installments(contract_id);
+            CREATE INDEX IF NOT EXISTS idx_re_installments_tenant ON re_installments(tenant_id);
+
+            CREATE TABLE IF NOT EXISTS re_commissions (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+                contract_id UUID NULL REFERENCES re_contracts(id) ON DELETE CASCADE,
+                beneficiary_type VARCHAR(50) NOT NULL DEFAULT 'internal_agent',
+                beneficiary_user_id INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+                beneficiary_name VARCHAR(255) NOT NULL,
+                commission_type VARCHAR(50) NOT NULL DEFAULT 'percentage',
+                rate NUMERIC(7,4) DEFAULT 0.0000,
+                base_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00 CHECK (base_amount >= 0),
+                calculated_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00 CHECK (calculated_amount >= 0),
+                paid_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00 CHECK (paid_amount >= 0),
+                status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+                approval_date DATE NULL,
+                payment_date DATE NULL,
+                notes TEXT,
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_re_commissions_deal ON re_commissions(deal_id);
+            CREATE INDEX IF NOT EXISTS idx_re_commissions_contract ON re_commissions(contract_id);
+            CREATE INDEX IF NOT EXISTS idx_re_commissions_tenant ON re_commissions(tenant_id);
+
+            CREATE TABLE IF NOT EXISTS re_cancellations (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+                contract_id UUID NULL REFERENCES re_contracts(id) ON DELETE CASCADE,
+                unit_id VARCHAR(255) NULL,
+                cancellation_reason TEXT NOT NULL,
+                total_paid_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+                deduction_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00 CHECK (deduction_amount >= 0),
+                refundable_amount NUMERIC(15,2) NOT NULL DEFAULT 0.00 CHECK (refundable_amount >= 0),
+                refund_status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+                unit_action VARCHAR(50) NOT NULL DEFAULT 'release',
+                refund_date DATE NULL,
+                processed_by VARCHAR(255) NULL,
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_re_cancellations_deal ON re_cancellations(deal_id);
+            CREATE INDEX IF NOT EXISTS idx_re_cancellations_tenant ON re_cancellations(tenant_id);
+
+            CREATE TABLE IF NOT EXISTS re_handovers (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                deal_id INTEGER NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+                contract_id UUID NULL REFERENCES re_contracts(id) ON DELETE CASCADE,
+                unit_id VARCHAR(255) NOT NULL,
+                customer_id INTEGER NULL REFERENCES customers(id) ON DELETE SET NULL,
+                scheduled_date DATE NULL,
+                actual_handover_date DATE NULL,
+                snagging_notes TEXT,
+                status VARCHAR(50) NOT NULL DEFAULT 'Scheduled',
+                keys_handed_over BOOLEAN DEFAULT false,
+                clearance_certificate BOOLEAN DEFAULT false,
+                handled_by VARCHAR(255) NULL,
+                tenant_id VARCHAR(255) NOT NULL,
+                branch_id VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT uq_deal_handover UNIQUE(deal_id, tenant_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_re_handovers_deal ON re_handovers(deal_id);
+            CREATE INDEX IF NOT EXISTS idx_re_handovers_unit ON re_handovers(unit_id);
+            CREATE INDEX IF NOT EXISTS idx_re_handovers_tenant ON re_handovers(tenant_id);
 
         await db.query(`
             CREATE TABLE IF NOT EXISTS re_payments_mvp (
@@ -199,6 +362,9 @@ const reconcileDatabase = async () => {
 
             // Core Stability (Phase 1)
             await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS reservation_expires_at TIMESTAMP NULL`);
+            await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS reservation_extended_at TIMESTAMP NULL`);
+            await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS reservation_extended_by VARCHAR(255) NULL`);
+            await db.query(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS reservation_extension_count INTEGER DEFAULT 0`);
 
             // UI Power (Phase 2 - Kanban Metrics & Polymorphic Source)
             await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS probability INTEGER DEFAULT 0`);

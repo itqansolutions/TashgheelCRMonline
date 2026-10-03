@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, User, Building, Mail, Phone, MapPin, Download } from 'lucide-react';
+import { Plus, User, Building, Mail, Phone, MapPin, Download, Sparkles, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 import FileUploader from '../components/Common/FileUploader';
@@ -27,6 +27,9 @@ const Customers = () => {
   const [isViewingDetails, setIsViewingDetails] = useState(false);
   const [relatedUnits, setRelatedUnits] = useState([]);
   const [loadingRel, setLoadingRel] = useState(false);
+  const [matchedUnits, setMatchedUnits] = useState([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [expandedMatchId, setExpandedMatchId] = useState(null);
   
   // UI Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -93,10 +96,22 @@ const Customers = () => {
               } catch(e) {} finally { setLoadingRel(false); }
           };
           fetchRels();
+
+          if (isRealEstate) {
+              setLoadingMatches(true);
+              api.get(`/re-units/match-customer/${editingCustomer.id}`)
+                  .then(res => setMatchedUnits(res.data?.data?.matches || []))
+                  .catch(err => {
+                      console.error('[Unit Match Fetch Error]', err);
+                      setMatchedUnits([]);
+                  })
+                  .finally(() => setLoadingMatches(false));
+          }
       } else {
           setRelatedUnits([]);
+          setMatchedUnits([]);
       }
-  }, [isViewingDetails, editingCustomer]);
+  }, [isViewingDetails, editingCustomer, isRealEstate]);
 
   const handleOpenModal = (customer = null) => {
     if (customer) {
@@ -669,6 +684,111 @@ const Customers = () => {
 
                     </div>
                 </div>
+
+                {/* 🎯 Real Estate Smart Unit Matching Module */}
+                {isRealEstate && (
+                    <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                            <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Sparkles size={16} color="#eab308" /> 🎯 Smart Unit Matching (Deterministic AI Engine)
+                            </h4>
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px' }}>
+                                {matchedUnits.length} Available Unit(s) Analyzed
+                            </span>
+                        </div>
+
+                        {loadingMatches ? (
+                            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                                Calculating deterministic compatibility scores...
+                            </div>
+                        ) : matchedUnits.length === 0 ? (
+                            <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '10px', color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center' }}>
+                                No units currently available in inventory to match.
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {matchedUnits.slice(0, 5).map(({ unit, match_score, match_grade, breakdown }) => {
+                                    const isExpanded = expandedMatchId === unit.id;
+                                    const gradeColor = match_score >= 85 ? '#16a34a' : match_score >= 65 ? '#2563eb' : match_score >= 45 ? '#d97706' : '#64748b';
+                                    const gradeBg = match_score >= 85 ? '#dcfce7' : match_score >= 65 ? '#dbeafe' : match_score >= 45 ? '#fef3c7' : '#f1f5f9';
+
+                                    return (
+                                        <div key={unit.id} style={{ border: `1px solid ${isExpanded ? gradeColor : '#e2e8f0'}`, borderRadius: '10px', background: 'white', overflow: 'hidden', transition: 'all 0.2s' }}>
+                                            <div 
+                                                onClick={() => setExpandedMatchId(isExpanded ? null : unit.id)}
+                                                style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: isExpanded ? `${gradeBg}40` : 'transparent' }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    <div style={{ textAlign: 'center', minWidth: '55px', padding: '4px 8px', borderRadius: '8px', background: gradeBg, color: gradeColor, fontWeight: 900 }}>
+                                                        <div style={{ fontSize: '16px', lineHeight: '1' }}>{match_score}%</div>
+                                                        <div style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{match_grade}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>
+                                                            Unit {unit.unit_number} • {unit.project_name || 'Individual'}
+                                                        </div>
+                                                        <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
+                                                            <span>{unit.type}</span>
+                                                            <span>•</span>
+                                                            <span>{unit.area_sqm} m²</span>
+                                                            <span>•</span>
+                                                            <span>{unit.rooms} Rooms</span>
+                                                            <span>•</span>
+                                                            <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{Number(unit.price).toLocaleString()} EGP</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <a 
+                                                        href={`/deals?new=1&client_id=${editingCustomer.id}&unit_id=${unit.id}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--primary)', color: 'white', textDecoration: 'none', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                    >
+                                                        Create Deal <ArrowRight size={12} />
+                                                    </a>
+                                                    {isExpanded ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
+                                                </div>
+                                            </div>
+
+                                            {/* Detailed Scoring Breakdown Accordion */}
+                                            {isExpanded && (
+                                                <div style={{ padding: '12px 16px', borderTop: '1px solid #f1f5f9', background: '#fafafa', fontSize: '12px' }}>
+                                                    <div style={{ fontWeight: 800, color: '#334155', marginBottom: '8px' }}>Scoring Breakdown Rationale:</div>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#0f172a' }}>
+                                                                <span>💰 Budget ({breakdown.budget.score}/{breakdown.budget.max} pts)</span>
+                                                            </div>
+                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.budget.reason}</div>
+                                                        </div>
+                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#0f172a' }}>
+                                                                <span>📐 Area ({breakdown.area.score}/{breakdown.area.max} pts)</span>
+                                                            </div>
+                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.area.reason}</div>
+                                                        </div>
+                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#0f172a' }}>
+                                                                <span>📍 Location ({breakdown.location.score}/{breakdown.location.max} pts)</span>
+                                                            </div>
+                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.location.reason}</div>
+                                                        </div>
+                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#0f172a' }}>
+                                                                <span>🛏️ Rooms ({breakdown.rooms.score}/{breakdown.rooms.max} pts)</span>
+                                                            </div>
+                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.rooms.reason}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Activity Timeline */}
                 <div style={{ marginTop: '32px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
