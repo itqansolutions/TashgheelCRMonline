@@ -527,6 +527,7 @@ const PurchaseRequests = () => {
               { id: 'submitted', label: 'Pending Approval' },
               { id: 'draft', label: 'Drafts' },
               { id: 'approved', label: 'Approved' },
+              { id: 'converted_to_rfq', label: 'In RFQ' },
               { id: 'rejected', label: 'Rejected' },
               { id: 'cancelled', label: 'Cancelled' },
             ].map(tab => (
@@ -1285,6 +1286,12 @@ const PurchaseRequests = () => {
                 {selectedRequest.status === 'approved' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#16a34a', fontSize: '13px', fontWeight: 700 }}>
                     <CheckCircle2 size={16} /> Ready for RFQ / Direct PO
+                  </div>
+                )}
+
+                {selectedRequest.status === 'converted_to_rfq' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#9333ea', fontSize: '13px', fontWeight: 700 }}>
+                    <ArrowUpRight size={16} /> Converted to RFQ — Locked for Procurement
                   </div>
                 )}
               </div>

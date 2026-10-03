@@ -302,6 +302,28 @@ exports.createRfq = async (req, res) => {
         });
       }
 
+      // Check branch isolation
+      if (branchId && pr.branch_id && String(pr.branch_id) !== String(branchId)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Branch mismatch: Purchase Request belongs to a different branch.' 
+        });
+      }
+
+      // Check if an RFQ has already been generated from this PR
+      const existingRfq = await client.query(
+        `SELECT id, rfq_number FROM rfqs WHERE purchase_request_id = $1 AND tenant_id = $2`,
+        [purchase_request_id, tenantId]
+      );
+      if (existingRfq.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ 
+          success: false, 
+          message: `An RFQ (${existingRfq.rows[0].rfq_number}) has already been generated from this Purchase Request. Duplicate RFQ creation is not allowed.` 
+        });
+      }
+
       prId = pr.id;
 
       // Copy PR items
@@ -659,6 +681,21 @@ exports.removeVendorFromRfq = async (req, res) => {
     const tenantId = req.user.tenant_id;
     const { id, vendorId } = req.params;
 
+    // Verify RFQ is not awarded, closed, or cancelled
+    const rfqCheck = await db.query(
+      `SELECT status FROM rfqs WHERE id = $1 AND tenant_id = $2`,
+      [id, tenantId]
+    );
+    if (rfqCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'RFQ not found' });
+    }
+    if (['awarded', 'closed', 'cancelled'].includes(rfqCheck.rows[0].status)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Cannot modify vendors on an RFQ that is already '${rfqCheck.rows[0].status}'` 
+      });
+    }
+
     // Check if quotation exists
     const qRes = await db.query(
       `SELECT id FROM vendor_quotations WHERE rfq_id = $1 AND vendor_id = $2 AND tenant_id = $3`,
@@ -742,7 +779,16 @@ exports.createVendorQuotation = async (req, res) => {
       });
     }
 
-    // 2. CRITICAL VALIDATION: Vendor MUST be invited to this RFQ
+    // 2. CRITICAL VALIDATION: Vendor MUST exist in tenant and MUST be invited to this RFQ
+    const vCheck = await client.query(
+      `SELECT id FROM vendors WHERE id = $1 AND tenant_id = $2`,
+      [vendor_id, tenantId]
+    );
+    if (vCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Vendor not found or does not belong to your company' });
+    }
+
     const invitedRes = await client.query(
       `SELECT id, invitation_status FROM rfq_vendors WHERE rfq_id = $1 AND vendor_id = $2`,
       [rfqId, vendor_id]
@@ -752,6 +798,20 @@ exports.createVendorQuotation = async (req, res) => {
       return res.status(400).json({ 
         success: false, 
         message: 'This vendor was never invited to this RFQ. You must invite the vendor first.' 
+      });
+    }
+
+    // Enforce exactly ONE quotation per vendor per RFQ in V1
+    const existingQuoteForRfq = await client.query(
+      `SELECT id, quotation_number FROM vendor_quotations 
+       WHERE rfq_id = $1 AND vendor_id = $2 AND tenant_id = $3`,
+      [rfqId, vendor_id, tenantId]
+    );
+    if (existingQuoteForRfq.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        success: false, 
+        message: `Vendor has already submitted a quotation (${existingQuoteForRfq.rows[0].quotation_number}) for this RFQ. Exactly one quotation per vendor is permitted.` 
       });
     }
 
@@ -1032,12 +1092,18 @@ exports.awardQuotation = async (req, res) => {
     }
     const rfq = rfqRes.rows[0];
 
-    // Must be in valid state to award
-    if (rfq.status !== 'sent' && rfq.status !== 'quotes_received') {
+    // Branch scoping validation
+    if (req.branchId && rfq.branch_id && String(rfq.branch_id) !== String(req.branchId)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ success: false, message: 'Branch mismatch: RFQ belongs to another branch.' });
+    }
+
+    // Must be in valid state to award: strictly 'quotes_received'
+    if (rfq.status !== 'quotes_received') {
       await client.query('ROLLBACK');
       return res.status(400).json({
         success: false,
-        message: `Cannot award RFQ with current status '${rfq.status}'. RFQ must be 'sent' or 'quotes_received'.`
+        message: `Cannot award RFQ with current status '${rfq.status}'. RFQ must be in 'quotes_received' status before awarding.`
       });
     }
 
@@ -1053,6 +1119,15 @@ exports.awardQuotation = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Selected quotation not found on this RFQ' });
     }
     const selectedQuotation = qRes.rows[0];
+
+    // Selected quotation must be 'under_review'
+    if (selectedQuotation.selection_status !== 'under_review') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: `Cannot award quotation with status '${selectedQuotation.selection_status}'. Only quotations with status 'under_review' can be awarded.`
+      });
+    }
 
     // 3. Mark chosen quotation as 'selected'
     await client.query(

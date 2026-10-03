@@ -96,6 +96,9 @@ CREATE TABLE IF NOT EXISTS vendor_quotations (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_vq_tenant_vendor_qnum
     ON vendor_quotations (tenant_id, vendor_id, quotation_number);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vq_rfq_vendor
+    ON vendor_quotations (rfq_id, vendor_id);
+
 CREATE INDEX IF NOT EXISTS idx_vq_rfq_id
     ON vendor_quotations (rfq_id);
 
