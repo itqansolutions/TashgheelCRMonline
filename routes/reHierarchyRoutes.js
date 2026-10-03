@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const reHierarchyController = require('../controllers/reHierarchyController');
-const { protect } = require('../middleware/authMiddleware');
+const authMiddleware = require('../middleware/auth');
+const branchScope = require('../middleware/branchScope');
 
-router.use(protect);
+router.use(authMiddleware);
+router.use(branchScope);
 
 // Developers
 router.get('/developers', reHierarchyController.getDevelopers);

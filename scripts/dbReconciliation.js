@@ -31,7 +31,7 @@ const reconcileDatabase = async () => {
                 location TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+            );
             CREATE TABLE IF NOT EXISTS re_developers (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 name VARCHAR(255) NOT NULL,
@@ -196,6 +196,7 @@ const reconcileDatabase = async () => {
             CREATE INDEX IF NOT EXISTS idx_re_handovers_deal ON re_handovers(deal_id);
             CREATE INDEX IF NOT EXISTS idx_re_handovers_unit ON re_handovers(unit_id);
             CREATE INDEX IF NOT EXISTS idx_re_handovers_tenant ON re_handovers(tenant_id);
+        `);
 
         await db.query(`
             CREATE TABLE IF NOT EXISTS re_payments_mvp (

@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const reContractsController = require('../controllers/reContractsController');
-const { protect } = require('../middleware/authMiddleware');
+const authMiddleware = require('../middleware/auth');
+const branchScope = require('../middleware/branchScope');
 
-router.use(protect);
+router.use(authMiddleware);
+router.use(branchScope);
 
 router.get('/', reContractsController.getContracts);
 router.post('/', reContractsController.createContract);
