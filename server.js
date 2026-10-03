@@ -177,6 +177,7 @@ app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/purchases', require('./routes/purchaseRoutes'));
+app.use('/api/purchase-requests', require('./routes/purchaseRequestRoutes'));
 app.use('/api/job-titles', jobTitleRoutes);
 
 // HR Extension Modules

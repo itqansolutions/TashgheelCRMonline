@@ -65,6 +65,7 @@ import BankReconciliation from './pages/ERP/BankReconciliation';
 import PeriodClosing from './pages/ERP/PeriodClosing';
 import Entries from './pages/ERP/Entries';
 import Purchases from './pages/Purchases/Purchases';
+import PurchaseRequests from './pages/Purchases/PurchaseRequests';
 
 // Warehouse & Inventory Pages
 import Warehouses from './pages/Inventory/Warehouses';
@@ -173,6 +174,7 @@ function App() {
                   <Route path="reports" element={<Navigate to="/erp/reports" replace />} />
 
                   {/* Warehouse & Inventory Sub-Routes */}
+                  <Route path="purchases/requests" element={<PurchaseRequests />} />
                   <Route path="purchases" element={<Purchases />} />
                   <Route path="inventory/warehouses" element={<Warehouses />} />
                   <Route path="inventory/keepers" element={<WarehouseKeepers />} />

@@ -7,7 +7,7 @@ import {
   Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase, Sliders, Clock, Cpu,
   Building, ShieldCheck, ArrowLeftRight, Scale,
   Target as TargetIcon, Layers, Share2, FileCheck, Send, MessageCircle, Bot,
-  ShoppingCart, ArrowDownLeft
+  ShoppingCart, ArrowDownLeft, ClipboardList
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
@@ -83,6 +83,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const warehouseItems = [
     { name: 'Products',              icon: <ShoppingBag size={18} />,    path: '/products' },
     { name: 'Warehouses',            icon: <Building size={18} />,       path: '/inventory/warehouses' },
+    { name: 'Purchase Requests',     icon: <ClipboardList size={18} />,  path: '/purchases/requests' },
     { name: 'Purchases',             icon: <ShoppingCart size={18} />,   path: '/purchases' },
     { name: 'Balances',              icon: <Scale size={18} />,          path: '/inventory/balances' },
     { name: 'Movements Ledger',      icon: <ArrowLeftRight size={18} />, path: '/inventory/movements' },
