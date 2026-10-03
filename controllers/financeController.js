@@ -873,8 +873,8 @@ exports.createVoucher = async (req, res) => {
             });
         }
 
-        // If it's a payment voucher, also record an expense entry for completeness
-        if (voucher_type === 'payment') {
+        // If it's an operating payment voucher (NOT vendor settlement), record an expense entry
+        if (voucher_type === 'payment' && party_type !== 'vendor') {
             try {
                 await db.query(`
                     INSERT INTO expenses (title, amount, category, expense_date, recorded_by, tenant_id, branch_id)
@@ -2281,46 +2281,56 @@ exports.getVendorAccounts = async (req, res) => {
                 v.address                                                   AS vendor_address,
 
                 -- Totals derived from purchase_invoices
-                COALESCE(SUM(pi.total_amount), 0)                           AS total_purchases,
+                COALESCE(pi_agg.total_purchases, 0)                         AS total_purchases,
 
-                -- Total paid: sum of paid_amount on purchase_invoices or vouchers
-                COALESCE(SUM(pi.paid_amount), 0)                            AS total_paid,
+                -- Total paid: derived directly from finance_vouchers (One single source of truth!)
+                COALESCE(v_agg.total_paid, 0)                               AS total_paid,
 
-                -- Outstanding = purchases - paid (only unpaid/partial)
-                COALESCE(SUM(CASE WHEN pi.status != 'paid' THEN pi.total_amount - COALESCE(pi.paid_amount, 0) ELSE 0 END), 0) AS outstanding,
+                -- Outstanding = purchases - paid
+                GREATEST(0, COALESCE(pi_agg.total_purchases, 0) - COALESCE(v_agg.total_paid, 0)) AS outstanding,
 
-                -- Overdue = outstanding where due_date < today
-                COALESCE(SUM(
-                    CASE
-                        WHEN pi.status != 'paid'
-                         AND pi.due_date IS NOT NULL
-                         AND pi.due_date < CURRENT_DATE
-                        THEN pi.total_amount - COALESCE(pi.paid_amount, 0)
-                        ELSE 0
-                    END
-                ), 0) AS overdue,
+                -- Overdue derived from overdue invoices
+                COALESCE(pi_agg.total_overdue, 0)                           AS overdue,
 
                 -- Last transaction = latest purchase invoice or voucher
                 GREATEST(
-                    MAX(pi.invoice_date),
-                    MAX(v_agg.last_voucher_date)
+                    pi_agg.last_invoice_date,
+                    v_agg.last_voucher_date
                 )                                                           AS last_transaction,
 
-                COUNT(pi.id)                                                AS invoice_count,
+                COALESCE(pi_agg.invoice_count, 0)                          AS invoice_count,
 
                 -- Account status: 'overdue' > 'outstanding' > 'clear'
                 CASE
-                    WHEN COALESCE(SUM(CASE WHEN pi.status != 'paid' AND pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE THEN pi.total_amount - COALESCE(pi.paid_amount, 0) ELSE 0 END), 0) > 0 THEN 'overdue'
-                    WHEN COALESCE(SUM(CASE WHEN pi.status != 'paid' THEN pi.total_amount - COALESCE(pi.paid_amount, 0) ELSE 0 END), 0) > 0 THEN 'outstanding'
+                    WHEN COALESCE(pi_agg.total_overdue, 0) > 0 THEN 'overdue'
+                    WHEN (COALESCE(pi_agg.total_purchases, 0) - COALESCE(v_agg.total_paid, 0)) > 0.01 THEN 'outstanding'
                     ELSE 'clear'
                 END                                                         AS account_status
 
             FROM vendors v
-            INNER JOIN purchase_invoices pi ON pi.vendor_id = v.id
+            INNER JOIN (
+                SELECT
+                    pi.vendor_id,
+                    COUNT(pi.id)::int                                       AS invoice_count,
+                    COALESCE(SUM(pi.total_amount), 0)                      AS total_purchases,
+                    COALESCE(SUM(
+                        CASE
+                            WHEN pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE
+                            THEN pi.total_amount - COALESCE(pi.paid_amount, 0)
+                            ELSE 0
+                        END
+                    ), 0)                                                   AS total_overdue,
+                    MAX(pi.invoice_date)                                    AS last_invoice_date
+                FROM purchase_invoices pi
+                WHERE pi.tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR pi.branch_id::text = $2::text OR pi.branch_id IS NULL)
+                GROUP BY pi.vendor_id
+            ) pi_agg ON pi_agg.vendor_id = v.id
             LEFT JOIN (
                 SELECT
                     fv.vendor_id,
-                    MAX(fv.voucher_date) AS last_voucher_date
+                    COALESCE(SUM(fv.amount), 0)                             AS total_paid,
+                    MAX(fv.voucher_date)                                    AS last_voucher_date
                 FROM finance_vouchers fv
                 WHERE fv.tenant_id::text = $1::text
                   AND fv.voucher_type = 'payment'
@@ -2330,11 +2340,6 @@ exports.getVendorAccounts = async (req, res) => {
             ) v_agg ON v_agg.vendor_id = v.id::text
 
             WHERE v.tenant_id::text = $1::text
-              AND pi.tenant_id::text = $1::text
-              AND ($2::text IS NULL OR pi.branch_id::text = $2::text OR pi.branch_id IS NULL)
-
-            GROUP BY v.id, v.name, v.phone, v.address
-            HAVING COALESCE(SUM(pi.total_amount), 0) > 0
 
             ORDER BY outstanding DESC, total_purchases DESC
         `, [tenant_id, branch_id ? String(branch_id) : null]);
