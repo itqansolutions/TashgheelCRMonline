@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const financeController = require('../controllers/financeController');
+const purchasesController = require('../controllers/purchasesController');
 const authMiddleware = require('../middleware/auth');
 const branchScope = require('../middleware/branchScope');
 
@@ -105,8 +106,25 @@ router.get('/treasury/accounts/:id/transactions', financeController.getTreasuryA
 // ==========================================
 
 // @route   GET api/finance/reports
-// @desc    Financial intelligence overview & 5 core reports
-router.get('/reports', financeController.getFinancialReports);
+// ==========================================
+// VENDOR ACCOUNTS & PAYABLES — Phase 5A
+// ==========================================
+
+// @route   GET api/finance/vendors
+// @desc    All vendors with financial activity, totals & payables summary
+router.get('/vendors', financeController.getVendorAccounts);
+
+// @route   GET api/finance/vendors/:id/statement
+// @desc    Full purchases/payments statement for a vendor
+router.get('/vendors/:id/statement', purchasesController.getVendorStatement);
+
+// @route   GET api/finance/vendors/:id/aging
+// @desc    Aging report (5 buckets from due_date) for a vendor
+router.get('/vendors/:id/aging', financeController.getVendorAging);
+
+// @route   POST api/finance/vendors/:id/payments
+// @desc    Record a vendor payment and link to Treasury
+router.post('/vendors/:id/payments', purchasesController.recordVendorPayment);
 
 module.exports = router;
 

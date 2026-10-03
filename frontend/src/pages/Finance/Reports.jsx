@@ -267,19 +267,26 @@ const Reports = ({ onSelectCustomer }) => {
           {activeReportTab === 'overview' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
-              {/* 5 High-Impact KPI Cards */}
+              {/* 6 Strategic Executive KPI Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px' }}>
                 {[
                   { label: 'Total Sales (Invoiced)', value: overview?.total_invoiced, color: '#6366f1', icon: <FileText size={18} />, sub: `${overview?.invoices_count || 0} Invoices Issued` },
                   { label: 'Total Collections', value: overview?.total_collected, color: '#10b981', icon: <ArrowDownLeft size={18} />, sub: `${overview?.collections_count || 0} Payments Received` },
-                  { label: 'Outstanding Balance', value: overview?.total_outstanding, color: '#f59e0b', icon: <Clock size={18} />, sub: `Overdue: ${fmt(overview?.total_overdue)} EGP` },
-                  { label: 'Total Expenses', value: overview?.total_expenses, color: '#ef4444', icon: <ArrowUpRight size={18} />, sub: `${overview?.expenses_count || 0} Recorded Expenses` },
+                  { label: 'Receivables (لينا عند العملاء)', value: overview?.total_receivables, color: '#f59e0b', icon: <Users size={18} />, sub: `Overdue: ${fmt(overview?.total_overdue_receivables)} EGP` },
+                  { label: 'Payables (علينا للموردين)', value: overview?.total_payables, color: '#ef4444', icon: <Building2 size={18} />, sub: `Overdue: ${fmt(overview?.total_overdue_payables)} EGP` },
                   {
-                    label: 'Net Cash Flow',
+                    label: 'Net Position (لينا − علينا)',
+                    value: overview?.net_position,
+                    color: (overview?.net_position || 0) >= 0 ? '#10b981' : '#dc2626',
+                    icon: <CheckCircle2 size={18} />,
+                    sub: (overview?.net_position || 0) >= 0 ? 'Positive Equity (+Receivables)' : 'Negative Position (−Payables)'
+                  },
+                  {
+                    label: 'Net Cash Flow (معانا سيولة)',
                     value: overview?.net_cashflow,
                     color: (overview?.net_cashflow || 0) >= 0 ? '#10b981' : '#dc2626',
                     icon: <DollarSign size={18} />,
-                    sub: (overview?.net_cashflow || 0) >= 0 ? 'Cash Surplus (In > Out)' : 'Cash Deficit (Out > In)'
+                    sub: `In: ${fmt(overview?.total_collected)} | Out: ${fmt(overview?.total_outflow)}`
                   },
                 ].map(card => (
                   <div key={card.label} style={{
@@ -320,16 +327,20 @@ const Reports = ({ onSelectCustomer }) => {
                   <div style={{ marginBottom: '14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>
                       <span style={{ color: '#10b981' }}>Collections (In): {fmt(overview?.total_collected)} EGP</span>
-                      <span style={{ color: '#ef4444' }}>Expenses (Out): {fmt(overview?.total_expenses)} EGP</span>
+                      <span style={{ color: '#ef4444' }}>Outflow (Out): {fmt(overview?.total_outflow)} EGP</span>
                     </div>
                     <div style={{ height: '12px', borderRadius: '6px', background: 'rgba(239,68,68,0.2)', display: 'flex', overflow: 'hidden' }}>
                       <div
                         style={{
                           height: '100%',
                           background: '#10b981',
-                          width: `${Math.min(100, Math.max(0, (overview?.total_collected / ((overview?.total_collected || 1) + (overview?.total_expenses || 0))) * 100))}%`
+                          width: `${Math.min(100, Math.max(0, (overview?.total_collected / ((overview?.total_collected || 1) + (overview?.total_outflow || 0))) * 100))}%`
                         }}
                       />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      <span>Customer Collections</span>
+                      <span>Expenses: {fmt(overview?.total_expenses)} + Vendors: {fmt(overview?.total_vendor_payments)}</span>
                     </div>
                   </div>
 

@@ -97,6 +97,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Receipts',    icon: <ArrowDownLeft size={18} />,   path: '/finance?tab=Receipts' },
     { name: 'Expenses',    icon: <DollarSign size={18} />,      path: '/finance?tab=Expenses' },
     { name: 'Customers',   icon: <Users size={18} />,           path: '/finance?tab=Customers' },
+    { name: 'Vendors',     icon: <Building2 size={18} />,       path: '/finance?tab=Vendors' },
     { name: 'Treasury',    icon: <Wallet size={18} />,          path: '/finance?tab=Treasury' },
     { name: 'Reports',     icon: <BarChart3 size={18} />,       path: '/finance?tab=Reports' },
   ];

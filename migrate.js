@@ -54,6 +54,18 @@ CREATE INDEX IF NOT EXISTS idx_expenses_treasury_account
     ON expenses (treasury_account_id)
     WHERE treasury_account_id IS NOT NULL;
 
+-- 4. Phase 5A: purchase_invoices.due_date + finance_vouchers.treasury_account_id
+ALTER TABLE purchase_invoices
+    ADD COLUMN IF NOT EXISTS due_date DATE;
+
+ALTER TABLE finance_vouchers
+    ADD COLUMN IF NOT EXISTS treasury_account_id INTEGER
+        REFERENCES treasury_accounts(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_fv_treasury_account
+    ON finance_vouchers(treasury_account_id)
+    WHERE treasury_account_id IS NOT NULL;
+
 COMMIT;
 `;
 

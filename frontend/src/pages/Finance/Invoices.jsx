@@ -8,11 +8,12 @@ import {
   TrendingUp, FileText, DollarSign, Activity, BarChart3, Users,
   CreditCard, Calendar, User, ArrowUpRight, ArrowDownRight,
   Settings, CheckCircle, Clock, AlertCircle, ShoppingBag,
-  Printer, ArrowDownLeft, Wallet, Receipt, Trash2
+  Printer, ArrowDownLeft, Wallet, Receipt, Trash2, Building2
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import VoucherPreviewModal from './VoucherPreviewModal';
 import CustomerAccounts from './CustomerAccounts';
+import VendorAccounts from './VendorAccounts';
 import Treasury from './Treasury';
 import Reports from './Reports';
 
@@ -22,7 +23,7 @@ const FinanceDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const ALL_TABS = ['Overview', 'Invoices', 'Receipts', 'Expenses', 'Customers', 'Treasury', 'Reports'];
+  const ALL_TABS = ['Overview', 'Invoices', 'Receipts', 'Expenses', 'Customers', 'Vendors', 'Treasury', 'Reports'];
 
   const queryParams = new URLSearchParams(location.search);
   const rawTab = queryParams.get('tab') || location.state?.tab || 'Overview';
@@ -605,6 +606,9 @@ const FinanceDashboard = () => {
           case 'Customers':
               return <CustomerAccounts />;
 
+          case 'Vendors':
+              return <VendorAccounts />;
+
           case 'Treasury':
               return <Treasury />;
 
@@ -738,6 +742,7 @@ const FinanceDashboard = () => {
                 { id: 'Receipts',   label: 'Receipts',   icon: <ArrowDownLeft size={16} /> },
                 { id: 'Expenses',   label: 'Expenses',   icon: <DollarSign size={16} /> },
                 { id: 'Customers',  label: 'Customers',  icon: <Users size={16} /> },
+                { id: 'Vendors',    label: 'Vendors',    icon: <Building2 size={16} /> },
                 { id: 'Treasury',   label: 'Treasury',   icon: <Wallet size={16} /> },
                 { id: 'Reports',    label: 'Reports',    icon: <BarChart3 size={16} /> },
             ].map(tab => (

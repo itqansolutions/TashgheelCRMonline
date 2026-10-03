@@ -167,17 +167,26 @@ exports.createPurchaseInvoice = async (req, res) => {
         // 2. Generate unique invoice number
         const invNumber = `PINV-${Date.now().toString().slice(-6)}`;
 
+        const invDate = invoice_date || new Date().toISOString().split('T')[0];
+        let calcDueDate = req.body.due_date;
+        if (!calcDueDate) {
+            const d = new Date(invDate);
+            d.setDate(d.getDate() + 30);
+            calcDueDate = d.toISOString().split('T')[0];
+        }
+
         // 3. Create purchase invoice
         const invRes = await client.query(`
             INSERT INTO purchase_invoices 
-                (invoice_number, vendor_id, warehouse_id, invoice_date, total_amount, paid_amount, status, notes, tenant_id, branch_id, created_by)
-            VALUES ($1, $2, $3, $4, $5, 0, 'unpaid', $6, $7, $8, $9)
+                (invoice_number, vendor_id, warehouse_id, invoice_date, due_date, total_amount, paid_amount, status, notes, tenant_id, branch_id, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6, 0, 'unpaid', $7, $8, $9, $10)
             RETURNING *
         `, [
             invNumber,
             vendor_id,
             warehouse_id,
-            invoice_date || new Date().toISOString().split('T')[0],
+            invDate,
+            calcDueDate,
             totalAmount,
             notes || null,
             tenant_id,
@@ -344,7 +353,7 @@ exports.recordVendorPayment = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     const branch_id = req.branchId || null;
     const vendorId = req.params.id;
-    const { amount, payment_method, purchase_invoice_id, notes, voucher_date } = req.body;
+    const { amount, payment_method, purchase_invoice_id, notes, voucher_date, treasury_account_id } = req.body;
 
     const paymentAmount = parseFloat(amount);
     if (!paymentAmount || paymentAmount <= 0) {
@@ -362,16 +371,33 @@ exports.recordVendorPayment = async (req, res) => {
         }
         const vendorName = vRes.rows[0].name;
 
+        // Resolve treasury_account_id: provided → fallback to default account for method → null
+        let resolvedTreasuryId = treasury_account_id || null;
+        if (!resolvedTreasuryId) {
+            try {
+                const accType = (payment_method === 'bank_transfer' || payment_method === 'card' || payment_method === 'check')
+                    ? 'bank' : 'cash';
+                const taRes = await client.query(`
+                    SELECT id FROM treasury_accounts
+                    WHERE tenant_id::text = $1::text
+                      AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+                      AND type = $3 AND is_default = true AND is_active = true
+                    LIMIT 1
+                `, [tenant_id, branch_id ? String(branch_id) : null, accType]);
+                if (taRes.rows.length > 0) resolvedTreasuryId = taRes.rows[0].id;
+            } catch (_) {}
+        }
+
         // Generate voucher number
         const voucherNumber = `PV-${Date.now().toString().slice(-6)}`;
 
-        // Insert into finance_vouchers (REUSING EXISTING WORKING SYSTEM)
+        // Insert into finance_vouchers with treasury_account_id
         const vchRes = await client.query(`
             INSERT INTO finance_vouchers (
                 voucher_number, voucher_type, party_type, party_name, vendor_id,
-                invoice_id, amount, payment_method, treasury_account, reference_no,
+                invoice_id, amount, payment_method, treasury_account, treasury_account_id, reference_no,
                 notes, voucher_date, created_by, tenant_id, branch_id
-            ) VALUES ($1, 'payment', 'vendor', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            ) VALUES ($1, 'payment', 'vendor', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING *
         `, [
             voucherNumber,
@@ -381,6 +407,7 @@ exports.recordVendorPayment = async (req, res) => {
             paymentAmount,
             payment_method || 'cash',
             'Main Cash / الخزينة الرئيسية',
+            resolvedTreasuryId,
             null,
             notes || `Payment to vendor ${vendorName}`,
             voucher_date || new Date().toISOString().split('T')[0],
@@ -388,6 +415,7 @@ exports.recordVendorPayment = async (req, res) => {
             tenant_id,
             branch_id
         ]);
+
 
         // If a specific purchase invoice was linked, update its paid_amount & status
         if (purchase_invoice_id) {

@@ -1524,13 +1524,21 @@ exports.getTreasuryAccounts = async (req, res) => {
                       AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
                 ), 0) AS total_incoming,
 
-                -- Outgoing: sum of expenses linked to this account
+                -- Outgoing: sum of expenses + vendor payments linked to this account
                 COALESCE((
                     SELECT SUM(e.amount)
                     FROM expenses e
                     WHERE e.treasury_account_id = ta.id
                       AND e.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
+                ), 0) +
+                COALESCE((
+                    SELECT SUM(fv.amount)
+                    FROM finance_vouchers fv
+                    WHERE fv.treasury_account_id = ta.id
+                      AND fv.voucher_type = 'payment'
+                      AND fv.tenant_id::text = ta.tenant_id::text
+                      AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
                 ), 0) AS total_outgoing,
 
                 -- This month incoming
@@ -1543,7 +1551,7 @@ exports.getTreasuryAccounts = async (req, res) => {
                       AND date_trunc('month', p.payment_date) = date_trunc('month', CURRENT_DATE)
                 ), 0) AS month_incoming,
 
-                -- This month outgoing
+                -- This month outgoing (expenses + vendor payments)
                 COALESCE((
                     SELECT SUM(e.amount)
                     FROM expenses e
@@ -1551,6 +1559,15 @@ exports.getTreasuryAccounts = async (req, res) => {
                       AND e.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
                       AND date_trunc('month', e.expense_date) = date_trunc('month', CURRENT_DATE)
+                ), 0) +
+                COALESCE((
+                    SELECT SUM(fv.amount)
+                    FROM finance_vouchers fv
+                    WHERE fv.treasury_account_id = ta.id
+                      AND fv.voucher_type = 'payment'
+                      AND fv.tenant_id::text = ta.tenant_id::text
+                      AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                      AND date_trunc('month', fv.voucher_date) = date_trunc('month', CURRENT_DATE)
                 ), 0) AS month_outgoing
 
             FROM treasury_accounts ta
@@ -1785,6 +1802,26 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
                 WHERE e.treasury_account_id = $1
                   AND e.tenant_id::text = $2::text
                   AND ($3::text IS NULL OR e.branch_id::text = $3::text OR e.branch_id IS NULL)
+
+                UNION ALL
+
+                -- OUTGOING: Vendor Payments
+                SELECT
+                    fv.id::text                                             AS source_id,
+                    'Vendor Payment'                                        AS txn_type,
+                    'out'                                                   AS direction,
+                    fv.voucher_date::date                                   AS txn_date,
+                    fv.voucher_number                                       AS reference,
+                    CONCAT('Payment to Vendor — ', fv.party_name)           AS description,
+                    fv.amount                                               AS amount,
+                    COALESCE(fv.payment_method, 'cash')                     AS payment_method,
+                    fv.notes
+                FROM finance_vouchers fv
+                WHERE fv.treasury_account_id = $1
+                  AND fv.voucher_type = 'payment'
+                  AND fv.party_type = 'vendor'
+                  AND fv.tenant_id::text = $2::text
+                  AND ($3::text IS NULL OR fv.branch_id::text = $3::text OR fv.branch_id IS NULL)
             ) txns
             WHERE 1=1 ${dateFilter}
             ORDER BY txn_date DESC, direction ASC
@@ -2037,14 +2074,78 @@ exports.getFinancialReports = async (req, res) => {
             .sort((a, b) => b.total_outstanding - a.total_outstanding)
             .slice(0, 15);
 
-        // 5. CASH FLOW (Inflow vs Outflow, Net, and by Treasury Account)
+        // 5. PURCHASES & PAYABLES (Vendors, Purchase Invoices, Vendor Payments)
+        let totalPurchases = 0;
+        let totalPayables = 0;
+        let totalOverduePayables = 0;
+        let purchasesCount = 0;
+        let totalVendorPayments = 0;
+
+        try {
+            let purchaseDateFilter = '';
+            let voucherDateFilter = '';
+            if (date_from) {
+                purchaseDateFilter += ` AND pi.invoice_date >= $3::date`;
+                voucherDateFilter  += ` AND fv.voucher_date >= $3::date`;
+            }
+            if (date_to) {
+                purchaseDateFilter += ` AND pi.invoice_date <= $4::date`;
+                voucherDateFilter  += ` AND fv.voucher_date <= $4::date`;
+            }
+
+            const pinvRes = await db.query(`
+                SELECT
+                    COUNT(pi.id)::int                                               AS count,
+                    COALESCE(SUM(pi.total_amount), 0)                              AS total_purchases,
+                    COALESCE(SUM(CASE WHEN pi.status != 'paid' THEN pi.total_amount - COALESCE(pi.paid_amount, 0) ELSE 0 END), 0) AS total_payables,
+                    COALESCE(SUM(
+                        CASE 
+                            WHEN pi.status != 'paid' AND pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE 
+                            THEN pi.total_amount - COALESCE(pi.paid_amount, 0) 
+                            ELSE 0 
+                        END
+                    ), 0)                                                           AS total_overdue_payables
+                FROM purchase_invoices pi
+                WHERE pi.tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR pi.branch_id::text = $2::text OR pi.branch_id IS NULL)
+                  ${purchaseDateFilter}
+            `, queryParams);
+
+            if (pinvRes.rows.length > 0) {
+                purchasesCount = parseInt(pinvRes.rows[0].count || 0);
+                totalPurchases = parseFloat(pinvRes.rows[0].total_purchases || 0);
+                totalPayables  = parseFloat(pinvRes.rows[0].total_payables || 0);
+                totalOverduePayables = parseFloat(pinvRes.rows[0].total_overdue_payables || 0);
+            }
+
+            const vpmtRes = await db.query(`
+                SELECT COALESCE(SUM(amount), 0) AS total_vendor_payments
+                FROM finance_vouchers fv
+                WHERE fv.tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                  AND fv.voucher_type = 'payment'
+                  AND fv.party_type = 'vendor'
+                  ${voucherDateFilter}
+            `, queryParams);
+
+            if (vpmtRes.rows.length > 0) {
+                totalVendorPayments = parseFloat(vpmtRes.rows[0].total_vendor_payments || 0);
+            }
+        } catch (_) {}
+
+        // 6. CASH FLOW (Inflow vs Outflow, Net, and by Treasury Account)
         const totalInflow = parseFloat(collSummary.total_collected || 0);
-        const totalOutflow = parseFloat(expSummary.total_expenses || 0);
+        const operatingExpenses = parseFloat(expSummary.total_expenses || 0);
+        const totalOutflow = operatingExpenses + totalVendorPayments;
         const netCashflow = totalInflow - totalOutflow;
 
         // Cashflow by Treasury Account (if table exists)
         let treasuryCashflow = [];
         try {
+            let voucherFilterForTreasury = '';
+            if (date_from) voucherFilterForTreasury += ` AND fv.voucher_date >= $3::date`;
+            if (date_to)   voucherFilterForTreasury += ` AND fv.voucher_date <= $4::date`;
+
             const taRes = await db.query(`
                 SELECT
                     ta.id, ta.name, ta.type, ta.bank_name,
@@ -2061,6 +2162,15 @@ exports.getFinancialReports = async (req, res) => {
                           AND e.tenant_id::text = ta.tenant_id::text
                           AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
                           ${expenseDateFilter}
+                    ), 0) +
+                    COALESCE((
+                        SELECT SUM(fv.amount) FROM finance_vouchers fv
+                        WHERE fv.treasury_account_id = ta.id
+                          AND fv.tenant_id::text = ta.tenant_id::text
+                          AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                          AND fv.voucher_type = 'payment'
+                          AND fv.party_type = 'vendor'
+                          ${voucherFilterForTreasury}
                     ), 0) AS total_outflow
                 FROM treasury_accounts ta
                 WHERE ta.tenant_id::text = $1::text
@@ -2081,6 +2191,9 @@ exports.getFinancialReports = async (req, res) => {
             treasuryCashflow = [];
         }
 
+        const totalReceivables = parseFloat(invSummary.total_outstanding || 0);
+        const netPosition = totalReceivables - totalPayables; // لينا ناقص علينا
+
         // Return Consolidated Intelligence Bundle
         res.json({
             status: 'success',
@@ -2092,13 +2205,23 @@ exports.getFinancialReports = async (req, res) => {
             overview: {
                 total_invoiced: parseFloat(invSummary.total_invoiced || 0),
                 total_collected: totalInflow,
-                total_outstanding: parseFloat(invSummary.total_outstanding || 0),
-                total_overdue: parseFloat(invSummary.total_overdue || 0),
-                total_expenses: totalOutflow,
+                total_receivables: totalReceivables,
+                total_overdue_receivables: parseFloat(invSummary.total_overdue || 0),
+                
+                total_purchases: totalPurchases,
+                total_payables: totalPayables,
+                total_overdue_payables: totalOverduePayables,
+                net_position: netPosition, // Financial Solvency Position
+
+                total_expenses: operatingExpenses,
+                total_vendor_payments: totalVendorPayments,
+                total_outflow: totalOutflow,
                 net_cashflow: netCashflow,
+
                 invoices_count: parseInt(invSummary.total_invoices_count || 0),
                 collections_count: parseInt(collSummary.total_collections_count || 0),
                 expenses_count: parseInt(expSummary.total_expenses_count || 0),
+                purchases_count: purchasesCount,
             },
             sales: {
                 summary: invSummary,
@@ -2111,7 +2234,7 @@ exports.getFinancialReports = async (req, res) => {
                 trend: collectionsTrendRes.rows.map(r => ({ ...r, total_amount: parseFloat(r.total_amount || 0) })),
             },
             expenses: {
-                total_expenses: totalOutflow,
+                total_expenses: operatingExpenses,
                 count: parseInt(expSummary.total_expenses_count || 0),
                 by_category: expensesByCategoryRes.rows.map(r => ({ ...r, total_amount: parseFloat(r.total_amount || 0) })),
                 trend: expensesTrendRes.rows.map(r => ({ ...r, total_amount: parseFloat(r.total_amount || 0) })),
@@ -2123,6 +2246,8 @@ exports.getFinancialReports = async (req, res) => {
             },
             cashflow: {
                 inflow: totalInflow,
+                operating_expenses: operatingExpenses,
+                vendor_payments: totalVendorPayments,
                 outflow: totalOutflow,
                 net: netCashflow,
                 by_treasury_account: treasuryCashflow,
@@ -2133,4 +2258,172 @@ exports.getFinancialReports = async (req, res) => {
         res.status(500).json({ status: 'error', message: err.message || 'Failed to generate financial reports' });
     }
 };
+
+// ==========================================
+// VENDOR ACCOUNTS & PAYABLES — Phase 5A
+// Pure Derived & Read-only views. Zero duplicate data.
+// Source: vendors + purchase_invoices + finance_vouchers
+// ==========================================
+
+// @desc    List all vendors with financial activity + totals + aging summary
+// @route   GET /api/finance/vendors
+exports.getVendorAccounts = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
+
+    try {
+        const result = await db.query(`
+            SELECT
+                v.id                                                        AS vendor_id,
+                v.name                                                      AS vendor_name,
+                v.phone                                                     AS vendor_phone,
+                v.address                                                   AS vendor_address,
+
+                -- Totals derived from purchase_invoices
+                COALESCE(SUM(pi.total_amount), 0)                           AS total_purchases,
+
+                -- Total paid: sum of paid_amount on purchase_invoices or vouchers
+                COALESCE(SUM(pi.paid_amount), 0)                            AS total_paid,
+
+                -- Outstanding = purchases - paid (only unpaid/partial)
+                COALESCE(SUM(CASE WHEN pi.status != 'paid' THEN pi.total_amount - COALESCE(pi.paid_amount, 0) ELSE 0 END), 0) AS outstanding,
+
+                -- Overdue = outstanding where due_date < today
+                COALESCE(SUM(
+                    CASE
+                        WHEN pi.status != 'paid'
+                         AND pi.due_date IS NOT NULL
+                         AND pi.due_date < CURRENT_DATE
+                        THEN pi.total_amount - COALESCE(pi.paid_amount, 0)
+                        ELSE 0
+                    END
+                ), 0) AS overdue,
+
+                -- Last transaction = latest purchase invoice or voucher
+                GREATEST(
+                    MAX(pi.invoice_date),
+                    MAX(v_agg.last_voucher_date)
+                )                                                           AS last_transaction,
+
+                COUNT(pi.id)                                                AS invoice_count,
+
+                -- Account status: 'overdue' > 'outstanding' > 'clear'
+                CASE
+                    WHEN COALESCE(SUM(CASE WHEN pi.status != 'paid' AND pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE THEN pi.total_amount - COALESCE(pi.paid_amount, 0) ELSE 0 END), 0) > 0 THEN 'overdue'
+                    WHEN COALESCE(SUM(CASE WHEN pi.status != 'paid' THEN pi.total_amount - COALESCE(pi.paid_amount, 0) ELSE 0 END), 0) > 0 THEN 'outstanding'
+                    ELSE 'clear'
+                END                                                         AS account_status
+
+            FROM vendors v
+            INNER JOIN purchase_invoices pi ON pi.vendor_id = v.id
+            LEFT JOIN (
+                SELECT
+                    fv.vendor_id,
+                    MAX(fv.voucher_date) AS last_voucher_date
+                FROM finance_vouchers fv
+                WHERE fv.tenant_id::text = $1::text
+                  AND fv.voucher_type = 'payment'
+                  AND fv.party_type = 'vendor'
+                  AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                GROUP BY fv.vendor_id
+            ) v_agg ON v_agg.vendor_id = v.id::text
+
+            WHERE v.tenant_id::text = $1::text
+              AND pi.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR pi.branch_id::text = $2::text OR pi.branch_id IS NULL)
+
+            GROUP BY v.id, v.name, v.phone, v.address
+            HAVING COALESCE(SUM(pi.total_amount), 0) > 0
+
+            ORDER BY outstanding DESC, total_purchases DESC
+        `, [tenant_id, branch_id ? String(branch_id) : null]);
+
+        // KPI totals across all vendors
+        const kpi = result.rows.reduce((acc, row) => {
+            acc.totalPayables           += parseFloat(row.outstanding     || 0);
+            acc.totalOverdue            += parseFloat(row.overdue         || 0);
+            acc.totalPurchases          += parseFloat(row.total_purchases || 0);
+            acc.totalPaid               += parseFloat(row.total_paid      || 0);
+            if (parseFloat(row.outstanding || 0) > 0) acc.vendorsWithOutstanding++;
+            return acc;
+        }, { totalPayables: 0, totalOverdue: 0, totalPurchases: 0, totalPaid: 0, vendorsWithOutstanding: 0 });
+
+        // Due this month = outstanding purchase invoices with due_date in current month
+        try {
+            const monthRes = await db.query(`
+                SELECT COALESCE(SUM(pi.total_amount - COALESCE(pi.paid_amount, 0)), 0) AS due_this_month
+                FROM purchase_invoices pi
+                WHERE pi.tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR pi.branch_id::text = $2::text OR pi.branch_id IS NULL)
+                  AND pi.status != 'paid'
+                  AND date_trunc('month', pi.due_date) = date_trunc('month', CURRENT_DATE)
+            `, [tenant_id, branch_id ? String(branch_id) : null]);
+            kpi.dueThisMonth = parseFloat(monthRes.rows[0]?.due_this_month || 0);
+        } catch (_) {
+            kpi.dueThisMonth = 0;
+        }
+
+        res.json({ status: 'success', data: result.rows, kpi });
+    } catch (err) {
+        console.error('getVendorAccounts Error:', err.message);
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve vendor accounts' });
+    }
+};
+
+// @desc    Vendor Aging — 5 buckets computed from due_date
+// @route   GET /api/finance/vendors/:id/aging
+exports.getVendorAging = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
+
+    const vendor_id = req.params.id;
+
+    try {
+        const result = await db.query(`
+            SELECT
+                pi.invoice_number,
+                pi.due_date,
+                pi.total_amount - COALESCE(pi.paid_amount, 0) AS remaining,
+                CASE
+                    WHEN pi.due_date IS NULL OR pi.due_date >= CURRENT_DATE             THEN 'current'
+                    WHEN CURRENT_DATE - pi.due_date BETWEEN 1  AND 30                  THEN '1_30'
+                    WHEN CURRENT_DATE - pi.due_date BETWEEN 31 AND 60                  THEN '31_60'
+                    WHEN CURRENT_DATE - pi.due_date BETWEEN 61 AND 90                  THEN '61_90'
+                    ELSE '90_plus'
+                END AS aging_bucket
+            FROM purchase_invoices pi
+            WHERE pi.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR pi.branch_id::text = $2::text OR pi.branch_id IS NULL)
+              AND pi.vendor_id = $3
+              AND pi.status != 'paid'
+              AND (pi.total_amount - COALESCE(pi.paid_amount, 0)) > 0
+        `, [tenant_id, branch_id ? String(branch_id) : null, vendor_id]);
+
+        const buckets = { current: 0, '1_30': 0, '31_60': 0, '61_90': 0, '90_plus': 0 };
+        for (const row of result.rows) {
+            buckets[row.aging_bucket] += parseFloat(row.remaining || 0);
+        }
+
+        const total = Object.values(buckets).reduce((a, b) => a + b, 0);
+
+        res.json({
+            status: 'success',
+            aging: {
+                current:  buckets['current'],
+                days_1_30:  buckets['1_30'],
+                days_31_60: buckets['31_60'],
+                days_61_90: buckets['61_90'],
+                days_90_plus: buckets['90_plus'],
+                total,
+            },
+            detail: result.rows,
+        });
+    } catch (err) {
+        console.error('getVendorAging Error:', err.message);
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve vendor aging' });
+    }
+};
+
 
