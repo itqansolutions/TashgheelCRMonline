@@ -7,7 +7,7 @@ import {
   ShieldCheck, User, Filter, ArrowUpRight, DollarSign,
   Package, Edit3, Send, Truck, Printer, Eye, Award, ExternalLink
 } from 'lucide-react';
-import WarehouseSubNav from '../../components/Warehouse/WarehouseSubNav';
+import PurchasesSubNav from '../../components/Purchases/PurchasesSubNav';
 import { useAuth } from '../../context/AuthContext';
 
 const PurchaseOrders = () => {
@@ -29,7 +29,7 @@ const PurchaseOrders = () => {
 
   // Modals & Drawers
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createRoute, setCreateRoute] = useState('quotation'); // 'quotation' or 'direct'
+  const [createRoute, setCreateRoute] = useState('direct'); // Default to Direct PO (Simple Procurement)
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const [submittingAction, setSubmittingAction] = useState(false);
@@ -459,7 +459,7 @@ const PurchaseOrders = () => {
 
   return (
     <div style={{ padding: '0 0 40px 0', background: '#f8fafc', minHeight: '100vh', direction: 'ltr' }}>
-      <WarehouseSubNav />
+      <PurchasesSubNav />
 
       <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '0 24px' }}>
         {/* Header */}

@@ -7,7 +7,7 @@ import {
   FileText, ShieldCheck, User, Filter, ArrowUpRight, DollarSign,
   Package, Edit3, Send
 } from 'lucide-react';
-import WarehouseSubNav from '../../components/Warehouse/WarehouseSubNav';
+import PurchasesSubNav from '../../components/Purchases/PurchasesSubNav';
 import { useAuth } from '../../context/AuthContext';
 
 const PurchaseRequests = () => {
@@ -390,7 +390,7 @@ const PurchaseRequests = () => {
 
   return (
     <div style={{ padding: '0 0 40px 0', minHeight: '100vh', background: '#f8fafc' }}>
-      <WarehouseSubNav />
+      <PurchasesSubNav />
 
       <div style={{ padding: '0 24px' }}>
         {/* Header */}

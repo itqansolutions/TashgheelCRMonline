@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { ShoppingCart, Plus, Search, Trash2, Calendar, Building, Truck, X, FileText } from 'lucide-react';
-import WarehouseSubNav from '../../components/Warehouse/WarehouseSubNav';
+import PurchasesSubNav from '../../components/Purchases/PurchasesSubNav';
 
 const Purchases = () => {
   const [purchases, setPurchases] = useState([]);
@@ -181,7 +181,7 @@ const Purchases = () => {
 
   return (
     <div>
-      <WarehouseSubNav />
+      <PurchasesSubNav />
       <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>

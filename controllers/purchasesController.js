@@ -196,28 +196,13 @@ exports.createPurchaseInvoice = async (req, res) => {
 
         const invoice = invRes.rows[0];
 
-        // 4. Create items & automatically record approved IN movements into destination warehouse
+        // 4. Create items (Financial record only — Stock movements occur exclusively during Receive Items in Phase 5B.4)
         for (const item of validItems) {
             await client.query(`
                 INSERT INTO purchase_invoice_items 
                     (purchase_invoice_id, product_id, quantity, unit_price, subtotal, tenant_id)
                 VALUES ($1, $2, $3, $4, $5, $6)
             `, [invoice.id, item.product_id, item.quantity, item.unit_price, item.subtotal, tenant_id]);
-
-            // Automatic APPROVED IN stock movement (Immediate physical stock arrival)
-            await client.query(`
-                INSERT INTO stock_movements
-                    (tenant_id, branch_id, product_id, from_warehouse_id, to_warehouse_id, type, quantity, reference_type, reference_id, created_by, approved_by, status)
-                VALUES ($1, $2, $3, NULL, $4, 'in', $5, 'purchase_invoice', $6, $7, $7, 'approved')
-            `, [
-                tenant_id,
-                branch_id,
-                item.product_id,
-                warehouse_id,
-                item.quantity,
-                String(invoice.id),
-                req.user.id
-            ]);
 
             // Keep product purchase price updated
             await client.query(`
@@ -231,7 +216,7 @@ exports.createPurchaseInvoice = async (req, res) => {
 
         res.status(201).json({
             status: 'success',
-            message: 'Purchase recorded and stock received into warehouse successfully',
+            message: 'Purchase invoice recorded successfully',
             data: invoice
         });
     } catch (err) {
