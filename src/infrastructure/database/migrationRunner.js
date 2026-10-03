@@ -45,6 +45,13 @@ async function ensureProcurementTables() {
                 ALTER TABLE purchase_order_items RENAME TO erp_legacy_purchase_order_items;
             END IF;
         END $$;
+
+        ALTER TABLE vendors ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255);
+        ALTER TABLE vendors ADD COLUMN IF NOT EXISTS contact_person VARCHAR(255);
+        ALTER TABLE vendors ADD COLUMN IF NOT EXISTS tax_number VARCHAR(100);
+        ALTER TABLE vendors ADD COLUMN IF NOT EXISTS tax_no VARCHAR(100);
+        UPDATE vendors SET contact_name = contact_person WHERE contact_name IS NULL AND contact_person IS NOT NULL;
+        UPDATE vendors SET contact_person = contact_name WHERE contact_person IS NULL AND contact_name IS NOT NULL;
     `);
 
     // B. Create CRM purchase_requests & items

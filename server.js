@@ -316,6 +316,10 @@ app.listen(PORT, '0.0.0.0', async () => {
     `, 'vendors table');
     await execSql(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;`, 'vendors.branch_id');
     await execSql(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;`, 'vendors.updated_at');
+    await execSql(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255);`, 'vendors.contact_name');
+    await execSql(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS contact_person VARCHAR(255);`, 'vendors.contact_person');
+    await execSql(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS tax_number VARCHAR(100);`, 'vendors.tax_number');
+    await execSql(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS tax_no VARCHAR(100);`, 'vendors.tax_no');
 
     // 2. Job Titles table & columns
     await execSql(`

@@ -60,7 +60,7 @@ exports.getPurchaseOrders = async (req, res) => {
         po.vendor_id,
         v.name AS vendor_name,
         v.phone AS vendor_phone,
-        v.contact_name AS vendor_contact,
+        COALESCE(v.contact_person, v.contact_name, '') AS vendor_contact,
         po.warehouse_id,
         w.name AS warehouse_name,
         po.order_date,
@@ -156,7 +156,7 @@ exports.getPurchaseOrders = async (req, res) => {
     query += `
       GROUP BY 
         po.id, r.rfq_number, vq.quotation_number, 
-        v.name, v.phone, v.contact_name, 
+        v.id, v.name, v.phone,
         w.name, u.name
       ORDER BY po.id DESC
     `;
@@ -186,7 +186,7 @@ exports.getPurchaseOrderById = async (req, res) => {
         v.email AS vendor_email,
         v.address AS vendor_address,
         v.tax_no AS vendor_tax_no,
-        v.contact_name AS vendor_contact,
+        COALESCE(v.contact_person, v.contact_name, '') AS vendor_contact,
         w.name AS warehouse_name,
         w.code AS warehouse_code,
         r.rfq_number,
