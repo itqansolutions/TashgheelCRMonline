@@ -67,6 +67,7 @@ import Entries from './pages/ERP/Entries';
 import Purchases from './pages/Purchases/Purchases';
 import PurchaseRequests from './pages/Purchases/PurchaseRequests';
 import RFQs from './pages/Purchases/RFQs';
+import PurchaseOrders from './pages/Purchases/PurchaseOrders';
 
 // Warehouse & Inventory Pages
 import Warehouses from './pages/Inventory/Warehouses';
@@ -177,6 +178,7 @@ function App() {
                   {/* Warehouse & Inventory Sub-Routes */}
                   <Route path="purchases/requests" element={<PurchaseRequests />} />
                   <Route path="purchases/rfqs" element={<RFQs />} />
+                  <Route path="purchases/orders" element={<PurchaseOrders />} />
                   <Route path="purchases" element={<Purchases />} />
                   <Route path="inventory/warehouses" element={<Warehouses />} />
                   <Route path="inventory/keepers" element={<WarehouseKeepers />} />

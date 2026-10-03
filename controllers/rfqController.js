@@ -1,4 +1,4 @@
-const db = require('../config/database');
+const db = require('../config/db');
 
 /**
  * Helper: Generate unique, tenant-scoped RFQ number (RFQ-YY-XXXX)

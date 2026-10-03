@@ -22,3 +22,6 @@ Thumbs.db
 
 # Uploads (Optional, depends on if you want to push user data)
 uploads/
+
+# Scratch & temporary test scripts
+scratch/
