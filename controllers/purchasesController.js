@@ -12,6 +12,7 @@ async function ensurePurchasesSchema() {
                 vendor_id INTEGER REFERENCES vendors(id) ON DELETE RESTRICT,
                 warehouse_id INTEGER REFERENCES warehouses(id) ON DELETE RESTRICT,
                 invoice_date DATE DEFAULT CURRENT_DATE,
+                due_date DATE,
                 total_amount DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
                 paid_amount DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
                 status VARCHAR(50) DEFAULT 'unpaid',
@@ -22,6 +23,8 @@ async function ensurePurchasesSchema() {
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
+            ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS due_date DATE;
+            ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(15, 2) NOT NULL DEFAULT 0.00;
             CREATE INDEX IF NOT EXISTS idx_pinv_tenant ON purchase_invoices(tenant_id);
             CREATE INDEX IF NOT EXISTS idx_pinv_vendor ON purchase_invoices(vendor_id);
 

@@ -2273,6 +2273,12 @@ exports.getVendorAccounts = async (req, res) => {
     if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
 
     try {
+        await ensureInvoicesTable();
+        await ensureVouchersTable();
+        const { ensurePurchasesSchema } = require('./purchasesController');
+        if (ensurePurchasesSchema) await ensurePurchasesSchema();
+        await db.query(`ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS due_date DATE;`).catch(() => {});
+
         const result = await db.query(`
             SELECT
                 v.id                                                        AS vendor_id,
@@ -2430,5 +2436,9 @@ exports.getVendorAging = async (req, res) => {
         res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve vendor aging' });
     }
 };
+
+exports.ensureInvoicesTable = ensureInvoicesTable;
+exports.ensureVouchersTable = ensureVouchersTable;
+
 
 

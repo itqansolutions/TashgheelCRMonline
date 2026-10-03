@@ -77,6 +77,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_treasury_one_default_per_type
 -- Section B: Add treasury_account_id to payments
 -- ============================================================
 
+CREATE TABLE IF NOT EXISTS payments (
+    id SERIAL PRIMARY KEY,
+    invoice_id INTEGER,
+    amount DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+    payment_method VARCHAR(50) DEFAULT 'cash',
+    payment_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT,
+    tenant_id UUID,
+    branch_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 ALTER TABLE payments
     ADD COLUMN IF NOT EXISTS treasury_account_id INTEGER
         REFERENCES treasury_accounts(id) ON DELETE SET NULL;
@@ -92,6 +104,18 @@ CREATE INDEX IF NOT EXISTS idx_payments_treasury_account
 --       This migration adds it to the table. The controller update
 --       will accept it from the request body.
 -- ============================================================
+
+CREATE TABLE IF NOT EXISTS expenses (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255),
+    amount DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
+    category VARCHAR(100) DEFAULT 'General',
+    expense_date DATE DEFAULT CURRENT_DATE,
+    recorded_by INTEGER,
+    tenant_id UUID,
+    branch_id VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
 ALTER TABLE expenses
     ADD COLUMN IF NOT EXISTS treasury_account_id INTEGER

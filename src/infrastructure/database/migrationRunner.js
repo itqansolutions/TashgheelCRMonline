@@ -2,16 +2,19 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../../../config/db');
 const { ensurePurchasesSchema } = require('../../../controllers/purchasesController');
+const { ensureInvoicesTable, ensureVouchersTable } = require('../../../controllers/financeController');
 
 async function runMigrations() {
     console.log('🔄 [Migration Runner] Starting database schema verification & migrations...');
 
-    // 1. Ensure core Purchases schema first
+    // 1. Ensure core Finance and Purchases schemas first
     try {
-        await ensurePurchasesSchema();
-        console.log('✅ [Migration Runner] Core purchases schema verified (purchase_invoices, finance_vouchers).');
+        if (ensureInvoicesTable) await ensureInvoicesTable();
+        if (ensureVouchersTable) await ensureVouchersTable();
+        if (ensurePurchasesSchema) await ensurePurchasesSchema();
+        console.log('✅ [Migration Runner] Core finance & purchases schemas verified.');
     } catch (err) {
-        console.error('❌ [Migration Runner] Error ensuring purchases schema:', err.message);
+        console.error('❌ [Migration Runner] Error ensuring core schemas:', err.message);
     }
 
     // 2. Ensure schema_migrations tracker table
