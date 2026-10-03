@@ -504,7 +504,7 @@ exports.createInvoiceFromDeal = async (req, res) => {
 };
 
 // Internal reusable helper for payments
-const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount, payment_method, notes, user_id, req }) => {
+const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount, payment_method, notes, user_id, req, treasury_account_id }) => {
     await ensureInvoicesTable();
     const invRes = await db.query(
         'SELECT total_amount, invoice_number, client_id, customer_id FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) FOR UPDATE',
@@ -523,10 +523,30 @@ const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount,
         throw new Error(`Payment amount exceeds remaining balance. Max allowed: ${(invoiceTotal - currentlyPaid).toFixed(2)}`);
     }
 
+    // Resolve treasury_account_id: use provided value, else fallback to default for this method
+    let resolvedTreasuryId = treasury_account_id || null;
+    if (!resolvedTreasuryId) {
+        try {
+            const accountType = (payment_method === 'bank_transfer' || payment_method === 'card' || payment_method === 'check')
+                ? 'bank' : 'cash';
+            const taRes = await db.query(`
+                SELECT id FROM treasury_accounts
+                WHERE tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+                  AND type = $3
+                  AND is_default = true
+                  AND is_active = true
+                LIMIT 1
+            `, [tenant_id, branch_id ? String(branch_id) : null, accountType]);
+            if (taRes.rows.length > 0) resolvedTreasuryId = taRes.rows[0].id;
+        } catch (_) { /* treasury_accounts table may not exist yet — degrade gracefully */ }
+    }
+
     const payRes = await db.query(`
-        INSERT INTO payments (invoice_id, amount, payment_method, notes, tenant_id, branch_id)
-        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
-    `, [invoice_id, amount, payment_method || 'cash', notes || null, tenant_id, branch_id ? String(branch_id) : null]);
+        INSERT INTO payments (invoice_id, amount, payment_method, notes, tenant_id, branch_id, treasury_account_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+    `, [invoice_id, amount, payment_method || 'cash', notes || null, tenant_id, branch_id ? String(branch_id) : null, resolvedTreasuryId]);
+
 
     let newStatus = 'unpaid';
     if (newTotalPaid >= (invoiceTotal - 0.01)) {
@@ -976,14 +996,42 @@ exports.getExpenses = async (req, res) => {
 exports.createExpense = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     let branch_id = req.branchId || req.user?.branch_id || null;
-    const { title, amount, category, expense_date } = req.body;
+    const { title, amount, category, expense_date, payment_method, treasury_account_id } = req.body;
 
     try {
         await ensureInvoicesTable();
+
+        // Resolve treasury_account_id: provided → default cash → null (graceful degrade)
+        let resolvedTreasuryId = treasury_account_id || null;
+        if (!resolvedTreasuryId) {
+            try {
+                const accType = (payment_method === 'bank_transfer' || payment_method === 'card' || payment_method === 'check')
+                    ? 'bank' : 'cash';
+                const taRes = await db.query(`
+                    SELECT id FROM treasury_accounts
+                    WHERE tenant_id::text = $1::text
+                      AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+                      AND type = $3 AND is_default = true AND is_active = true
+                    LIMIT 1
+                `, [tenant_id, branch_id ? String(branch_id) : null, accType]);
+                if (taRes.rows.length > 0) resolvedTreasuryId = taRes.rows[0].id;
+            } catch (_) { /* degrade gracefully if table doesn't exist yet */ }
+        }
+
         const result = await db.query(`
-            INSERT INTO expenses (title, amount, category, expense_date, recorded_by, tenant_id, branch_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
-        `, [title, amount, category || 'General', expense_date || new Date().toISOString().split('T')[0], req.user.id, tenant_id, branch_id ? String(branch_id) : null]);
+            INSERT INTO expenses
+              (title, amount, category, expense_date, payment_method, treasury_account_id, recorded_by, tenant_id, branch_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
+        `, [
+            title, amount,
+            category || 'General',
+            expense_date || new Date().toISOString().split('T')[0],
+            payment_method || 'cash',
+            resolvedTreasuryId,
+            req.user.id,
+            tenant_id,
+            branch_id ? String(branch_id) : null,
+        ]);
 
         logCreate(req, 'Expense', result.rows[0].id, result.rows[0]);
         res.status(201).json({ status: 'success', data: result.rows[0] });
@@ -1107,3 +1155,636 @@ exports.getSummary = async (req, res) => {
     }
 };
 
+// ==========================================
+// CUSTOMER ACCOUNTS — Phase 2
+// Derived financial views. No new tables.
+// Source: invoices + payments + customers
+// ==========================================
+
+// @desc    List all customers with financial activity + totals + aging summary
+// @route   GET /api/finance/customers
+exports.getCustomerAccounts = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
+
+    await ensureInvoicesTable();
+
+    try {
+        // One query: per-customer aggregation from invoices + payments
+        // Overdue = unpaid/partial invoices where due_date < today
+        const result = await db.query(`
+            SELECT
+                c.id                                                        AS customer_id,
+                c.name                                                      AS customer_name,
+                c.phone                                                     AS customer_phone,
+                c.email                                                     AS customer_email,
+
+                -- Totals derived from invoices
+                COALESCE(SUM(i.total_amount), 0)                            AS total_invoiced,
+
+                -- Total paid: sum of all payments linked to this customer's invoices
+                COALESCE(SUM(p_agg.paid), 0)                                AS total_paid,
+
+                -- Outstanding = invoiced - paid (only unpaid/partial)
+                COALESCE(SUM(CASE WHEN i.status != 'paid' THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END), 0) AS outstanding,
+
+                -- Overdue = outstanding where due_date < today
+                COALESCE(SUM(
+                    CASE
+                        WHEN i.status != 'paid'
+                         AND i.due_date IS NOT NULL
+                         AND i.due_date < CURRENT_DATE
+                        THEN i.total_amount - COALESCE(p_agg.paid, 0)
+                        ELSE 0
+                    END
+                ), 0) AS overdue,
+
+                -- Last transaction = latest of invoice created_at or last payment
+                GREATEST(
+                    MAX(i.created_at),
+                    MAX(p_agg.last_payment_date)
+                )                                                           AS last_transaction,
+
+                COUNT(i.id)                                                 AS invoice_count,
+
+                -- Account status: 'overdue' > 'outstanding' > 'clear'
+                CASE
+                    WHEN COALESCE(SUM(CASE WHEN i.status != 'paid' AND i.due_date IS NOT NULL AND i.due_date < CURRENT_DATE THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END), 0) > 0 THEN 'overdue'
+                    WHEN COALESCE(SUM(CASE WHEN i.status != 'paid' THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END), 0) > 0 THEN 'outstanding'
+                    ELSE 'clear'
+                END                                                         AS account_status
+
+            FROM customers c
+            INNER JOIN invoices i ON (
+                i.client_id::text = c.id::text OR i.customer_id::text = c.id::text
+            )
+            LEFT JOIN (
+                SELECT
+                    inv.client_id,
+                    inv.customer_id,
+                    inv.id AS invoice_id,
+                    COALESCE(SUM(py.amount), 0) AS paid,
+                    MAX(py.payment_date)         AS last_payment_date
+                FROM invoices inv
+                LEFT JOIN payments py ON py.invoice_id::text = inv.id::text
+                    AND py.tenant_id::text = $1::text
+                WHERE inv.tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR inv.branch_id::text = $2::text OR inv.branch_id IS NULL)
+                GROUP BY inv.id, inv.client_id, inv.customer_id
+            ) p_agg ON p_agg.invoice_id = i.id
+
+            WHERE c.tenant_id::text = $1::text
+              AND i.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
+
+            GROUP BY c.id, c.name, c.phone, c.email
+            HAVING COALESCE(SUM(i.total_amount), 0) > 0
+
+            ORDER BY outstanding DESC, total_invoiced DESC
+        `, [tenant_id, branch_id ? String(branch_id) : null]);
+
+        // KPI totals across all customers
+        const kpi = result.rows.reduce((acc, row) => {
+            acc.totalReceivables   += parseFloat(row.outstanding   || 0);
+            acc.totalOverdue       += parseFloat(row.overdue       || 0);
+            acc.totalInvoiced      += parseFloat(row.total_invoiced || 0);
+            acc.totalPaid          += parseFloat(row.total_paid     || 0);
+            if (parseFloat(row.outstanding || 0) > 0) acc.customersWithOutstanding++;
+            return acc;
+        }, { totalReceivables: 0, totalOverdue: 0, totalInvoiced: 0, totalPaid: 0, customersWithOutstanding: 0 });
+
+        // Due this month = outstanding invoices with due_date in current calendar month
+        try {
+            const monthRes = await db.query(`
+                SELECT COALESCE(SUM(i.total_amount - COALESCE(p_agg.paid, 0)), 0) AS due_this_month
+                FROM invoices i
+                LEFT JOIN (
+                    SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
+                    FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id
+                ) p_agg ON p_agg.invoice_id::text = i.id::text
+                WHERE i.tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
+                  AND i.status != 'paid'
+                  AND date_trunc('month', i.due_date) = date_trunc('month', CURRENT_DATE)
+            `, [tenant_id, branch_id ? String(branch_id) : null]);
+            kpi.dueThisMonth = parseFloat(monthRes.rows[0]?.due_this_month || 0);
+        } catch (e) {
+            kpi.dueThisMonth = 0;
+        }
+
+        res.json({ status: 'success', data: result.rows, kpi });
+    } catch (err) {
+        console.error('getCustomerAccounts Error:', err.message);
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve customer accounts' });
+    }
+};
+
+// @desc    Customer Statement: chronological debit/credit ledger + aging
+// @route   GET /api/finance/customers/:id/statement
+exports.getCustomerStatement = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
+
+    const customer_id = req.params.id;
+    const { date_from, date_to, type } = req.query; // optional filters
+
+    await ensureInvoicesTable();
+
+    try {
+        // 1. Customer info
+        const custRes = await db.query(
+            'SELECT id, name, phone, email, address FROM customers WHERE id::text = $1::text AND tenant_id::text = $2::text',
+            [customer_id, tenant_id]
+        );
+        if (custRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Customer not found' });
+        }
+        const customer = custRes.rows[0];
+
+        // 2. Invoices for this customer → DEBIT entries
+        let invWhere = `
+            WHERE i.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
+              AND (i.client_id::text = $3::text OR i.customer_id::text = $3::text)
+        `;
+        const invParams = [tenant_id, branch_id ? String(branch_id) : null, customer_id];
+
+        if (date_from) { invParams.push(date_from); invWhere += ` AND i.created_at::date >= $${invParams.length}`; }
+        if (date_to)   { invParams.push(date_to);   invWhere += ` AND i.created_at::date <= $${invParams.length}`; }
+
+        const invoicesRes = await db.query(`
+            SELECT
+                i.created_at::date                 AS txn_date,
+                'Invoice'                          AS txn_type,
+                i.invoice_number                   AS reference,
+                i.total_amount                     AS debit,
+                0                                  AS credit,
+                i.due_date,
+                i.status,
+                i.id                               AS source_id
+            FROM invoices i
+            ${invWhere}
+            ${type && type !== 'all' ? `AND 'Invoice' = $${invParams.length + 1}` : ''}
+            ORDER BY i.created_at ASC
+        `, invParams);
+
+        // 3. Payments for this customer's invoices → CREDIT entries
+        let payWhere = `
+            WHERE p.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+              AND (i.client_id::text = $3::text OR i.customer_id::text = $3::text)
+        `;
+        const payParams = [tenant_id, branch_id ? String(branch_id) : null, customer_id];
+
+        if (date_from) { payParams.push(date_from); payWhere += ` AND p.payment_date::date >= $${payParams.length}`; }
+        if (date_to)   { payParams.push(date_to);   payWhere += ` AND p.payment_date::date <= $${payParams.length}`; }
+
+        const paymentsRes = await db.query(`
+            SELECT
+                p.payment_date::date               AS txn_date,
+                'Receipt'                          AS txn_type,
+                COALESCE(
+                    (SELECT fv.voucher_number
+                     FROM finance_vouchers fv
+                     WHERE fv.invoice_id = i.id
+                       AND fv.voucher_type = 'receipt'
+                       AND fv.tenant_id::text = $1::text
+                       AND ABS(fv.amount - p.amount) < 0.01
+                       AND fv.voucher_date = p.payment_date::date
+                     ORDER BY fv.id DESC LIMIT 1),
+                    'PMT-' || p.id::text
+                )                                  AS reference,
+                0                                  AS debit,
+                p.amount                           AS credit,
+                i.invoice_number                   AS linked_invoice,
+                p.payment_method,
+                p.id                               AS source_id
+            FROM payments p
+            JOIN invoices i ON p.invoice_id::text = i.id::text
+            ${payWhere}
+            ORDER BY p.payment_date ASC
+        `, payParams);
+
+        // 4. Merge & sort chronologically, compute running balance
+        const allTxns = [
+            ...invoicesRes.rows.map(r => ({ ...r, debit: parseFloat(r.debit), credit: 0 })),
+            ...paymentsRes.rows.map(r => ({ ...r, debit: 0, credit: parseFloat(r.credit) })),
+        ].sort((a, b) => new Date(a.txn_date) - new Date(b.txn_date) || (a.txn_type === 'Invoice' ? -1 : 1));
+
+        let runningBalance = 0;
+        const statement = allTxns.map(txn => {
+            runningBalance += txn.debit - txn.credit;
+            return { ...txn, balance: runningBalance };
+        });
+
+        // 5. Summary totals (always full range, ignoring date filters)
+        const summaryRes = await db.query(`
+            SELECT
+                COALESCE(SUM(i.total_amount), 0)                            AS total_invoiced,
+                COALESCE(SUM(p_agg.paid), 0)                                AS total_paid,
+                COALESCE(SUM(CASE WHEN i.status != 'paid' THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END), 0) AS outstanding,
+                COALESCE(SUM(
+                    CASE WHEN i.status != 'paid' AND i.due_date IS NOT NULL AND i.due_date < CURRENT_DATE
+                    THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END
+                ), 0) AS overdue
+            FROM invoices i
+            LEFT JOIN (
+                SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
+                FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id
+            ) p_agg ON p_agg.invoice_id::text = i.id::text
+            WHERE i.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
+              AND (i.client_id::text = $3::text OR i.customer_id::text = $3::text)
+        `, [tenant_id, branch_id ? String(branch_id) : null, customer_id]);
+
+        const summary = summaryRes.rows[0];
+
+        res.json({
+            status: 'success',
+            customer,
+            summary: {
+                total_invoiced:  parseFloat(summary.total_invoiced  || 0),
+                total_paid:      parseFloat(summary.total_paid      || 0),
+                outstanding:     parseFloat(summary.outstanding     || 0),
+                overdue:         parseFloat(summary.overdue         || 0),
+            },
+            statement,
+        });
+    } catch (err) {
+        console.error('getCustomerStatement Error:', err.message);
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve customer statement' });
+    }
+};
+
+// @desc    Customer Aging — 5 buckets computed from due_date
+// @route   GET /api/finance/customers/:id/aging
+exports.getCustomerAging = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
+
+    const customer_id = req.params.id;
+
+    await ensureInvoicesTable();
+
+    try {
+        const result = await db.query(`
+            SELECT
+                -- Remaining balance per invoice
+                i.invoice_number,
+                i.due_date,
+                i.total_amount - COALESCE(p_agg.paid, 0) AS remaining,
+                CASE
+                    WHEN i.due_date IS NULL OR i.due_date >= CURRENT_DATE              THEN 'current'
+                    WHEN CURRENT_DATE - i.due_date BETWEEN 1  AND 30                  THEN '1_30'
+                    WHEN CURRENT_DATE - i.due_date BETWEEN 31 AND 60                  THEN '31_60'
+                    WHEN CURRENT_DATE - i.due_date BETWEEN 61 AND 90                  THEN '61_90'
+                    ELSE '90_plus'
+                END AS aging_bucket
+            FROM invoices i
+            LEFT JOIN (
+                SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
+                FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id
+            ) p_agg ON p_agg.invoice_id::text = i.id::text
+            WHERE i.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
+              AND (i.client_id::text = $3::text OR i.customer_id::text = $3::text)
+              AND i.status != 'paid'
+              AND (i.total_amount - COALESCE(p_agg.paid, 0)) > 0
+        `, [tenant_id, branch_id ? String(branch_id) : null, customer_id]);
+
+        const buckets = { current: 0, '1_30': 0, '31_60': 0, '61_90': 0, '90_plus': 0 };
+        for (const row of result.rows) {
+            buckets[row.aging_bucket] += parseFloat(row.remaining || 0);
+        }
+
+        const total = Object.values(buckets).reduce((a, b) => a + b, 0);
+
+        res.json({
+            status: 'success',
+            aging: {
+                current:  buckets['current'],
+                days_1_30:  buckets['1_30'],
+                days_31_60: buckets['31_60'],
+                days_61_90: buckets['61_90'],
+                days_90_plus: buckets['90_plus'],
+                total,
+            },
+            detail: result.rows,
+        });
+    } catch (err) {
+        console.error('getCustomerAging Error:', err.message);
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve aging' });
+    }
+};
+
+// ==========================================
+// TREASURY — Phase 3
+// CRM-level cash/bank account management.
+// No GL. No journal entries. No treasury_transactions.
+// Balance = opening_balance + SUM(payments) - SUM(expenses)
+// All queries: strictly tenant + branch scoped.
+// ==========================================
+
+// @desc    List treasury accounts + computed balance for each
+// @route   GET /api/finance/treasury/accounts
+exports.getTreasuryAccounts = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
+
+    try {
+        // Get all active treasury accounts for this tenant+branch
+        const accountsRes = await db.query(`
+            SELECT
+                ta.*,
+                -- Incoming: sum of payments linked to this account
+                COALESCE((
+                    SELECT SUM(p.amount)
+                    FROM payments p
+                    WHERE p.treasury_account_id = ta.id
+                      AND p.tenant_id::text = ta.tenant_id::text
+                      AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+                ), 0) AS total_incoming,
+
+                -- Outgoing: sum of expenses linked to this account
+                COALESCE((
+                    SELECT SUM(e.amount)
+                    FROM expenses e
+                    WHERE e.treasury_account_id = ta.id
+                      AND e.tenant_id::text = ta.tenant_id::text
+                      AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
+                ), 0) AS total_outgoing,
+
+                -- This month incoming
+                COALESCE((
+                    SELECT SUM(p.amount)
+                    FROM payments p
+                    WHERE p.treasury_account_id = ta.id
+                      AND p.tenant_id::text = ta.tenant_id::text
+                      AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+                      AND date_trunc('month', p.payment_date) = date_trunc('month', CURRENT_DATE)
+                ), 0) AS month_incoming,
+
+                -- This month outgoing
+                COALESCE((
+                    SELECT SUM(e.amount)
+                    FROM expenses e
+                    WHERE e.treasury_account_id = ta.id
+                      AND e.tenant_id::text = ta.tenant_id::text
+                      AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
+                      AND date_trunc('month', e.expense_date) = date_trunc('month', CURRENT_DATE)
+                ), 0) AS month_outgoing
+
+            FROM treasury_accounts ta
+            WHERE ta.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR ta.branch_id::text = $2::text OR ta.branch_id IS NULL)
+              AND ta.is_active = true
+            ORDER BY ta.is_default DESC, ta.type ASC, ta.name ASC
+        `, [tenant_id, branch_id ? String(branch_id) : null]);
+
+        // Compute current_balance = opening_balance + incoming - outgoing
+        const accounts = accountsRes.rows.map(acc => ({
+            ...acc,
+            total_incoming:  parseFloat(acc.total_incoming  || 0),
+            total_outgoing:  parseFloat(acc.total_outgoing  || 0),
+            month_incoming:  parseFloat(acc.month_incoming  || 0),
+            month_outgoing:  parseFloat(acc.month_outgoing  || 0),
+            opening_balance: parseFloat(acc.opening_balance || 0),
+            current_balance:
+                parseFloat(acc.opening_balance || 0) +
+                parseFloat(acc.total_incoming  || 0) -
+                parseFloat(acc.total_outgoing  || 0),
+        }));
+
+        // Totals across all accounts
+        const totals = accounts.reduce((acc, a) => {
+            acc.total_balance   += a.current_balance;
+            acc.total_cash      += a.type === 'cash' ? a.current_balance : 0;
+            acc.total_bank      += a.type === 'bank' ? a.current_balance : 0;
+            acc.month_incoming  += a.month_incoming;
+            acc.month_outgoing  += a.month_outgoing;
+            return acc;
+        }, { total_balance: 0, total_cash: 0, total_bank: 0, month_incoming: 0, month_outgoing: 0 });
+
+        res.json({ status: 'success', data: accounts, totals });
+    } catch (err) {
+        console.error('getTreasuryAccounts Error:', err.message);
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to load treasury accounts' });
+    }
+};
+
+// @desc    Create a treasury account (cashbox or bank account)
+// @route   POST /api/finance/treasury/accounts
+exports.createTreasuryAccount = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
+
+    const { name, type, bank_name, account_number, opening_balance, is_default } = req.body;
+
+    if (!name || !type) {
+        return res.status(400).json({ status: 'error', message: 'name and type (cash|bank) are required' });
+    }
+    if (!['cash', 'bank'].includes(type)) {
+        return res.status(400).json({ status: 'error', message: "type must be 'cash' or 'bank'" });
+    }
+
+    try {
+        // If setting as default, unset any existing default of the same type in this tenant+branch
+        if (is_default) {
+            await db.query(`
+                UPDATE treasury_accounts
+                SET is_default = false
+                WHERE tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+                  AND type = $3
+                  AND is_default = true
+            `, [tenant_id, branch_id ? String(branch_id) : null, type]);
+        }
+
+        const result = await db.query(`
+            INSERT INTO treasury_accounts
+              (name, type, bank_name, account_number, opening_balance, is_default, tenant_id, branch_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING *
+        `, [
+            name, type,
+            bank_name        || null,
+            account_number   || null,
+            parseFloat(opening_balance || 0),
+            is_default       || false,
+            tenant_id,
+            branch_id ? String(branch_id) : null,
+        ]);
+
+        logCreate(req, 'TreasuryAccount', result.rows[0].id, result.rows[0]);
+        res.status(201).json({ status: 'success', data: result.rows[0] });
+    } catch (err) {
+        console.error('createTreasuryAccount Error:', err.message);
+        if (err.message.includes('idx_treasury_one_default_per_type')) {
+            return res.status(409).json({ status: 'error', message: `A default ${type} account already exists for this branch` });
+        }
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to create treasury account' });
+    }
+};
+
+// @desc    Update a treasury account (name, bank info, is_default, is_active)
+// @route   PUT /api/finance/treasury/accounts/:id
+// @note    opening_balance is intentionally NOT updatable through this endpoint.
+exports.updateTreasuryAccount = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
+
+    const account_id = req.params.id;
+    const { name, bank_name, account_number, is_default, is_active } = req.body;
+
+    try {
+        // Ownership check
+        const existing = await db.query(`
+            SELECT * FROM treasury_accounts
+            WHERE id = $1 AND tenant_id::text = $2::text
+              AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)
+        `, [account_id, tenant_id, branch_id ? String(branch_id) : null]);
+
+        if (existing.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Treasury account not found' });
+        }
+
+        const acc = existing.rows[0];
+
+        // If promoting to default, demote any other default of the same type
+        if (is_default && !acc.is_default) {
+            await db.query(`
+                UPDATE treasury_accounts SET is_default = false
+                WHERE tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+                  AND type = $3 AND is_default = true
+            `, [tenant_id, branch_id ? String(branch_id) : null, acc.type]);
+        }
+
+        const result = await db.query(`
+            UPDATE treasury_accounts SET
+                name           = COALESCE($1, name),
+                bank_name      = COALESCE($2, bank_name),
+                account_number = COALESCE($3, account_number),
+                is_default     = COALESCE($4, is_default),
+                is_active      = COALESCE($5, is_active),
+                updated_at     = CURRENT_TIMESTAMP
+            WHERE id = $6 AND tenant_id::text = $7::text
+            RETURNING *
+        `, [name || null, bank_name || null, account_number || null, is_default ?? null, is_active ?? null, account_id, tenant_id]);
+
+        logAction({ req, action: ACTIONS.UPDATE, entityType: 'TreasuryAccount', entityId: account_id, details: req.body });
+        res.json({ status: 'success', data: result.rows[0] });
+    } catch (err) {
+        console.error('updateTreasuryAccount Error:', err.message);
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to update treasury account' });
+    }
+};
+
+// @desc    Transaction history for a specific treasury account
+//          UNION of payments (IN) + expenses (OUT) — no treasury_transactions table.
+// @route   GET /api/finance/treasury/accounts/:id/transactions
+exports.getTreasuryAccountTransactions = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
+
+    const account_id = req.params.id;
+    const { date_from, date_to } = req.query;
+
+    try {
+        // Ownership check
+        const accRes = await db.query(`
+            SELECT * FROM treasury_accounts
+            WHERE id = $1 AND tenant_id::text = $2::text
+              AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)
+              AND is_active = true
+        `, [account_id, tenant_id, branch_id ? String(branch_id) : null]);
+
+        if (accRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Treasury account not found' });
+        }
+
+        const acc = accRes.rows[0];
+
+        // Build date filter fragments
+        let dateFilter = '';
+        const dateParams = [account_id, tenant_id, branch_id ? String(branch_id) : null];
+        if (date_from) { dateParams.push(date_from); dateFilter += ` AND txn_date >= $${dateParams.length}::date`; }
+        if (date_to)   { dateParams.push(date_to);   dateFilter += ` AND txn_date <= $${dateParams.length}::date`; }
+
+        // UNION: payments = IN, expenses = OUT
+        const result = await db.query(`
+            SELECT * FROM (
+                -- INCOMING: Customer Payments
+                SELECT
+                    p.id::text                                              AS source_id,
+                    'Payment'                                               AS txn_type,
+                    'in'                                                    AS direction,
+                    p.payment_date::date                                    AS txn_date,
+                    COALESCE(fv.voucher_number, 'PMT-' || p.id::text)      AS reference,
+                    CONCAT('Receipt — ', COALESCE(c.name, i.invoice_number, 'N/A')) AS description,
+                    p.amount                                                AS amount,
+                    p.payment_method,
+                    p.notes
+                FROM payments p
+                LEFT JOIN invoices i   ON i.id::text  = p.invoice_id::text
+                LEFT JOIN customers c  ON c.id::text  = COALESCE(i.customer_id, i.client_id)::text
+                LEFT JOIN finance_vouchers fv
+                    ON fv.invoice_id = i.id
+                    AND fv.voucher_type = 'receipt'
+                    AND fv.tenant_id::text = $2::text
+                    AND ABS(fv.amount - p.amount) < 0.01
+                    AND fv.voucher_date = p.payment_date::date
+                WHERE p.treasury_account_id = $1
+                  AND p.tenant_id::text = $2::text
+                  AND ($3::text IS NULL OR p.branch_id::text = $3::text OR p.branch_id IS NULL)
+
+                UNION ALL
+
+                -- OUTGOING: Expenses
+                SELECT
+                    e.id::text                                              AS source_id,
+                    'Expense'                                               AS txn_type,
+                    'out'                                                   AS direction,
+                    e.expense_date::date                                    AS txn_date,
+                    'EXP-' || e.id::text                                   AS reference,
+                    CONCAT(COALESCE(e.title, 'Expense'), ' — ', COALESCE(e.category, '')) AS description,
+                    e.amount                                                AS amount,
+                    COALESCE(e.payment_method, 'cash')                     AS payment_method,
+                    NULL::text                                              AS notes
+                FROM expenses e
+                WHERE e.treasury_account_id = $1
+                  AND e.tenant_id::text = $2::text
+                  AND ($3::text IS NULL OR e.branch_id::text = $3::text OR e.branch_id IS NULL)
+            ) txns
+            WHERE 1=1 ${dateFilter}
+            ORDER BY txn_date DESC, direction ASC
+        `, dateParams);
+
+        // Compute current balance for this account
+        const currentBalance =
+            parseFloat(acc.opening_balance || 0) +
+            result.rows.filter(t => t.direction === 'in').reduce((s, t) => s + parseFloat(t.amount), 0) -
+            result.rows.filter(t => t.direction === 'out').reduce((s, t) => s + parseFloat(t.amount), 0);
+
+        res.json({
+            status: 'success',
+            account: {
+                ...acc,
+                opening_balance: parseFloat(acc.opening_balance || 0),
+                current_balance: currentBalance,
+            },
+            transactions: result.rows,
+            count: result.rows.length,
+        });
+    } catch (err) {
+        console.error('getTreasuryAccountTransactions Error:', err.message);
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to load transactions' });
+    }
+};

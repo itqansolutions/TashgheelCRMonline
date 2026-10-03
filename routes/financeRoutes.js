@@ -64,5 +64,41 @@ router.get('/income', financeController.getIncome);
 // @desc    Get financial KPI summary
 router.get('/summary', financeController.getSummary);
 
+// ==========================================
+// CUSTOMER ACCOUNTS — Phase 2
+// ==========================================
+
+// @route   GET api/finance/customers
+// @desc    All customers with financial activity, totals & aging summary
+router.get('/customers', financeController.getCustomerAccounts);
+
+// @route   GET api/finance/customers/:id/statement
+// @desc    Full debit/credit statement + summary for a customer
+router.get('/customers/:id/statement', financeController.getCustomerStatement);
+
+// @route   GET api/finance/customers/:id/aging
+// @desc    Aging report (5 buckets from due_date) for a customer
+router.get('/customers/:id/aging', financeController.getCustomerAging);
+
+// ==========================================
+// TREASURY — Phase 3
+// ==========================================
+
+// @route   GET api/finance/treasury/accounts
+// @desc    List all treasury accounts + computed balance per account
+router.get('/treasury/accounts', financeController.getTreasuryAccounts);
+
+// @route   POST api/finance/treasury/accounts
+// @desc    Create a cashbox or bank account
+router.post('/treasury/accounts', financeController.createTreasuryAccount);
+
+// @route   PUT api/finance/treasury/accounts/:id
+// @desc    Update treasury account details (name, bank info, default, active)
+router.put('/treasury/accounts/:id', financeController.updateTreasuryAccount);
+
+// @route   GET api/finance/treasury/accounts/:id/transactions
+// @desc    UNION of payments (IN) + expenses (OUT) for a treasury account
+router.get('/treasury/accounts/:id/transactions', financeController.getTreasuryAccountTransactions);
+
 module.exports = router;
 

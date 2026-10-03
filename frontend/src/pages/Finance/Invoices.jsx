@@ -5,13 +5,15 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { 
   Plus, Download, Filter, Search, MoreVertical, 
-  TrendingUp, FileText, DollarSign, Activity,
+  TrendingUp, FileText, DollarSign, Activity, BarChart3, Users,
   CreditCard, Calendar, User, ArrowUpRight, ArrowDownRight,
   Settings, CheckCircle, Clock, AlertCircle, ShoppingBag,
   Printer, ArrowDownLeft, Wallet, Receipt, Trash2
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import VoucherPreviewModal from './VoucherPreviewModal';
+import CustomerAccounts from './CustomerAccounts';
+import Treasury from './Treasury';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
@@ -19,12 +21,11 @@ const FinanceDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
+  const ALL_TABS = ['Overview', 'Invoices', 'Receipts', 'Expenses', 'Customers', 'Treasury', 'Reports'];
+
   const queryParams = new URLSearchParams(location.search);
-  const initialTab = location.state?.tab || 
-    (queryParams.get('tab')?.toLowerCase() === 'quotations' ? 'Quotations' : 
-     queryParams.get('tab')?.toLowerCase() === 'receipts' ? 'Receipts' :
-     queryParams.get('tab')?.toLowerCase() === 'payments' ? 'Payments' :
-     queryParams.get('tab')?.toLowerCase() === 'expenses' ? 'Expenses' : 'Invoices');
+  const rawTab = queryParams.get('tab') || location.state?.tab || 'Overview';
+  const initialTab = ALL_TABS.find(t => t.toLowerCase() === rawTab.toLowerCase()) || 'Overview';
 
   const [activeTab, setActiveTab] = useState(initialTab);
   const [invoices, setInvoices] = useState([]);
@@ -71,9 +72,7 @@ const FinanceDashboard = () => {
   useEffect(() => {
     const qTab = new URLSearchParams(location.search).get('tab');
     if (qTab) {
-      const match = ['Invoices', 'Receipts', 'Payments', 'Expenses', 'Quotations'].find(
-        t => t.toLowerCase() === qTab.toLowerCase()
-      );
+      const match = ALL_TABS.find(t => t.toLowerCase() === qTab.toLowerCase());
       if (match) setActiveTab(match);
     } else if (location.state?.tab) {
       setActiveTab(location.state.tab);
@@ -583,6 +582,45 @@ const FinanceDashboard = () => {
                 </table>
               );
 
+          case 'Overview':
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', padding: '8px 0' }}>
+                  {[
+                    { label: 'Total Sales', value: summaryStats?.totalSales || summaryStats?.totalInvoiced || 0, color: '#6366f1', sub: 'All issued invoices' },
+                    { label: 'Total Collected', value: summaryStats?.totalIncome || 0, color: '#10b981', sub: 'Payments received' },
+                    { label: 'Outstanding', value: summaryStats?.totalOutstanding || 0, color: '#f59e0b', sub: 'Unpaid / partially paid' },
+                    { label: 'Expenses', value: summaryStats?.totalExpenses || 0, color: '#ef4444', sub: 'All recorded expenses' },
+                    { label: 'Net Cash In/Out', value: summaryStats?.netCashflow || 0, color: (summaryStats?.netCashflow || 0) >= 0 ? '#3b82f6' : '#ef4444', sub: 'Collected minus expenses' },
+                  ].map(item => (
+                    <div key={item.label} style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>{item.label}</div>
+                      <div style={{ fontSize: '26px', fontWeight: 900, color: item.color }}>{parseFloat(item.value).toLocaleString()} <span style={{ fontSize: '13px' }}>EGP</span></div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{item.sub}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+
+          case 'Customers':
+              return <CustomerAccounts />;
+
+          case 'Treasury':
+              return <Treasury />;
+
+          case 'Reports':
+              return (
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px', padding: '48px', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
+                  <BarChart3 size={48} style={{ color: '#6366f1', opacity: 0.4, marginBottom: '16px' }} />
+                  <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>Finance Reports</h3>
+                  <p style={{ color: 'var(--text-muted)', maxWidth: '460px', margin: '0 auto 16px' }}>
+                    Sales · Collections · Outstanding · Overdue · Expenses · Cash Flow · Customer Statement
+                  </p>
+                  <div style={{ display: 'inline-flex', gap: '8px', padding: '8px 18px', background: 'rgba(99,102,241,0.08)', borderRadius: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)' }}>
+                    🚧 Phase 4 — Planned
+                  </div>
+                </div>
+              );
+
           default:
               return null;
       }
@@ -620,8 +658,8 @@ const FinanceDashboard = () => {
       {/* Header */}
       <div className="finance-header">
         <div>
-          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800' }}>Financial Hub</h2>
-          <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>Comprehensive management for invoices, vouchers, payments, and expenses.</p>
+          <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800' }}>Finance</h2>
+          <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>Overview · Invoices · Receipts · Expenses · Customers · Treasury · Reports</p>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
             {activeTab === 'Invoices' && (
@@ -631,32 +669,23 @@ const FinanceDashboard = () => {
             )}
             {activeTab === 'Receipts' && (
               <button className="btn-primary" style={{ background: '#10b981', borderColor: '#10b981' }} onClick={() => { setQuickActionType('Receipt Voucher'); setShowQuickAction(true); }}>
-                <Plus size={16} /> New Receipt Voucher (سند قبض)
-              </button>
-            )}
-            {activeTab === 'Payments' && (
-              <button className="btn-primary" style={{ background: '#ef4444', borderColor: '#ef4444' }} onClick={() => { setQuickActionType('Payment Voucher'); setShowQuickAction(true); }}>
-                <Plus size={16} /> New Payment Voucher (سند صرف)
+                <Plus size={16} /> New Receipt
               </button>
             )}
             {activeTab === 'Expenses' && (
               <button className="btn-primary" style={{ background: '#f59e0b', borderColor: '#f59e0b' }} onClick={() => { setQuickActionType('Expense'); setShowQuickAction(true); }}>
-                <Plus size={16} /> New Expense (مصروف جديد)
-              </button>
-            )}
-            {activeTab === 'Quotations' && (
-              <button className="btn-primary" style={{ background: '#6366f1', borderColor: '#6366f1' }} onClick={() => { setQuickActionType('Quotation'); setShowQuickAction(true); }}>
-                <Plus size={16} /> New Quotation (عرض سعر)
+                <Plus size={16} /> New Expense
               </button>
             )}
         </div>
       </div>
 
-      {/* KPI Cards Summary */}
+      {/* KPI Summary Strip — hidden on Overview tab (Overview tab renders its own full grid) */}
+      {activeTab !== 'Overview' && (
       <div className="kpi-grid">
         <div className="kpi-card">
             <div>
-                <span className="kpi-title">Total Collected Revenue</span>
+                <span className="kpi-title">Total Collected</span>
                 <div className="kpi-val" style={{ color: '#10b981' }}>
                     {parseFloat(summaryStats?.totalIncome || 0).toLocaleString()} <span style={{ fontSize: '12px' }}>EGP</span>
                 </div>
@@ -668,19 +697,19 @@ const FinanceDashboard = () => {
 
         <div className="kpi-card">
             <div>
-                <span className="kpi-title">Total Expenses Paid</span>
+                <span className="kpi-title">Total Expenses</span>
                 <div className="kpi-val" style={{ color: '#ef4444' }}>
                     {parseFloat(summaryStats?.totalExpenses || 0).toLocaleString()} <span style={{ fontSize: '12px' }}>EGP</span>
                 </div>
             </div>
             <div className="kpi-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
-                <ArrowUpRight size={22} />
+                <TrendingUp size={22} />
             </div>
         </div>
 
         <div className="kpi-card">
             <div>
-                <span className="kpi-title">Total Outstanding Receivables</span>
+                <span className="kpi-title">Outstanding</span>
                 <div className="kpi-val" style={{ color: '#f59e0b' }}>
                     {parseFloat(summaryStats?.totalOutstanding || 0).toLocaleString()} <span style={{ fontSize: '12px' }}>EGP</span>
                 </div>
@@ -702,16 +731,19 @@ const FinanceDashboard = () => {
             </div>
         </div>
       </div>
+      )}
 
       {/* Tabs & Search Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
         <div className="tabs-nav" style={{ marginBottom: 0 }}>
             {[
-                { id: 'Invoices', label: 'Invoices (الفواتير)', icon: <FileText size={16} /> },
-                { id: 'Receipts', label: 'Receipt Vouchers (سندات القبض)', icon: <ArrowDownLeft size={16} /> },
-                { id: 'Payments', label: 'Payment Vouchers (سندات الصرف)', icon: <ArrowUpRight size={16} /> },
-                { id: 'Expenses', label: 'Expenses (المصروفات)', icon: <DollarSign size={16} /> },
-                { id: 'Quotations', label: 'Quotations (عروض الأسعار)', icon: <Receipt size={16} /> }
+                { id: 'Overview',   label: 'Overview',   icon: <TrendingUp size={16} /> },
+                { id: 'Invoices',   label: 'Invoices',   icon: <FileText size={16} /> },
+                { id: 'Receipts',   label: 'Receipts',   icon: <ArrowDownLeft size={16} /> },
+                { id: 'Expenses',   label: 'Expenses',   icon: <DollarSign size={16} /> },
+                { id: 'Customers',  label: 'Customers',  icon: <Users size={16} /> },
+                { id: 'Treasury',   label: 'Treasury',   icon: <Wallet size={16} /> },
+                { id: 'Reports',    label: 'Reports',    icon: <BarChart3 size={16} /> },
             ].map(tab => (
                 <div 
                   key={tab.id} 
@@ -724,11 +756,12 @@ const FinanceDashboard = () => {
             ))}
         </div>
 
+        {['Invoices', 'Receipts', 'Expenses'].includes(activeTab) && (
         <div style={{ position: 'relative', minWidth: '260px' }}>
             <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input 
                 type="text"
-                placeholder="Search voucher #, customer, invoice..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 style={{
@@ -742,6 +775,7 @@ const FinanceDashboard = () => {
                 }}
             />
         </div>
+        )}
       </div>
 
       {renderTabContent()}

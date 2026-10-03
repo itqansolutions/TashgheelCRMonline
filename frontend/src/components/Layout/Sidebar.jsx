@@ -3,11 +3,11 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, ShoppingBag, Handshake, CheckSquare, Wallet, 
   Users2, FileText, BarChart3, ChevronLeft, ChevronRight, History, 
-  Settings as AdminSettingsIcon, ShieldAlert, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard,
+  Settings as AdminSettingsIcon, Package, Zap, Lock, ArrowRight, DollarSign, CreditCard,
   Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase, Sliders, Clock, Cpu,
-  Building, ShieldCheck, TrendingUp, ArrowLeftRight, Scale, FileSpreadsheet, BookOpen,
-  Target as TargetIcon, Layers, TrendingUp as SalesIcon, Share2, FileCheck, Send, MessageCircle, Bot,
-  ShoppingCart, ArrowDownLeft, ArrowUpRight
+  Building, ShieldCheck, ArrowLeftRight, Scale,
+  Target as TargetIcon, Layers, Share2, FileCheck, Send, MessageCircle, Bot,
+  ShoppingCart, ArrowDownLeft
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
@@ -90,18 +90,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Item Card',             icon: <CreditCard size={18} />,     path: '/inventory/item-card' },
   ];
 
-  // Finance sub-items (Tab direct links added)
+  // Finance sub-items — CRM Financial Operations (no ERP accounting complexity)
   const financeItems = [
-    { name: 'Invoices & Quotations', icon: <FileText size={18} />,      path: '/finance?tab=Invoices' },
-    { name: 'Receipt Vouchers',      icon: <ArrowDownLeft size={18} />, path: '/finance?tab=Receipts' },
-    { name: 'Payment Vouchers',      icon: <ArrowUpRight size={18} />,  path: '/finance?tab=Payments' },
-    { name: 'Expenses',              icon: <DollarSign size={18} />,    path: '/finance?tab=Expenses' },
-    { name: 'Chart of Accounts',             icon: <Wallet size={18} />,        path: '/erp/accounts' },
-    { name: 'General Ledger',                icon: <BookOpen size={18} />,      path: '/erp/journals' },
-    { name: 'Financial Reports',             icon: <BarChart3 size={18} />,     path: '/erp/reports' },
-    { name: 'Bank Reconciliation',           icon: <CreditCard size={18} />,    path: '/erp/banking' },
-    { name: 'Period Closing',                icon: <Lock size={18} />,          path: '/erp/closing' },
-    { name: 'Entries',                       icon: <FileSpreadsheet size={18} />,path: '/erp/entries' },
+    { name: 'Overview',    icon: <LayoutDashboard size={18} />, path: '/finance?tab=Overview' },
+    { name: 'Invoices',    icon: <FileText size={18} />,        path: '/finance?tab=Invoices' },
+    { name: 'Receipts',    icon: <ArrowDownLeft size={18} />,   path: '/finance?tab=Receipts' },
+    { name: 'Expenses',    icon: <DollarSign size={18} />,      path: '/finance?tab=Expenses' },
+    { name: 'Customers',   icon: <Users size={18} />,           path: '/finance?tab=Customers' },
+    { name: 'Treasury',    icon: <Wallet size={18} />,          path: '/finance?tab=Treasury' },
+    { name: 'Reports',     icon: <BarChart3 size={18} />,       path: '/finance?tab=Reports' },
   ];
 
   // Integrations sub-items
