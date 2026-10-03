@@ -24,14 +24,14 @@ const Layout = () => {
           flex: 1;
           display: flex;
           flex-direction: column;
-          margin-left: ${isSidebarOpen ? 'var(--sidebar-w, 280px)' : '90px'};
+          margin-left: ${isSidebarOpen ? 'var(--sidebar-w, 240px)' : '68px'};
           transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           min-width: 0;
-          width: calc(100% - ${isSidebarOpen ? 'var(--sidebar-w, 280px)' : '90px'});
+          width: calc(100% - ${isSidebarOpen ? 'var(--sidebar-w, 240px)' : '68px'});
         }
         .content-area {
           flex: 1;
-          padding: 24px 32px;
+          padding: 16px 20px;
           overflow-y: auto;
           overflow-x: hidden;
           animation: fadeIn 0.4s ease-out;
@@ -40,13 +40,18 @@ const Layout = () => {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @media (max-width: 1200px) {
+          .content-area {
+            padding: 14px 16px;
+          }
+        }
         @media (max-width: 768px) {
           .main-container {
             margin-left: 0 !important;
             width: 100% !important;
           }
           .content-area {
-            padding: 16px;
+            padding: 12px;
           }
         }
         @media print {

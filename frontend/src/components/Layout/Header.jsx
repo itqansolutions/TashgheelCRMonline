@@ -88,7 +88,7 @@ const Header = ({ toggleSidebar }) => {
     <header className="header">
       <style>{`
         .header {
-          height: var(--header-h);
+          height: var(--header-h, 56px);
           background: var(--glass-bg);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
@@ -96,39 +96,42 @@ const Header = ({ toggleSidebar }) => {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0 32px;
+          padding: 0 20px;
           position: sticky;
           top: 0;
           z-index: 1000;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
         }
-        .header-left { display: flex; align-items: center; gap: 16px; }
-        .search-bar { display: flex; align-items: center; background: rgba(0, 0, 0, 0.03); border: 1px solid transparent; border-radius: 12px; padding: 10px 16px; width: 320px; gap: 12px; transition: all 0.3s; }
-        .search-bar:focus-within { background: white; border-color: var(--primary); box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1); width: 400px; }
-        .search-bar input { border: none; background: transparent; font-size: 14px; font-weight: 500; color: var(--text-main); width: 100%; outline: none; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .search-bar { display: flex; align-items: center; background: rgba(0, 0, 0, 0.03); border: 1px solid transparent; border-radius: 8px; padding: 6px 12px; width: 220px; gap: 8px; transition: all 0.3s; }
+        .search-bar:focus-within { background: white; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); width: 260px; }
+        .search-bar input { border: none; background: transparent; font-size: 13px; font-weight: 500; color: var(--text-main); width: 100%; outline: none; }
         
-        .header-right { display: flex; align-items: center; gap: 20px; }
-        .icon-btn { position: relative; color: var(--text-muted); transition: color 0.2s; background: none; border: none; cursor: pointer; padding: 8px; border-radius: 8px; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .icon-btn { position: relative; color: var(--text-muted); transition: color 0.2s; background: none; border: none; cursor: pointer; padding: 6px; border-radius: 6px; }
         .icon-btn:hover { color: var(--primary); background: rgba(79, 70, 229, 0.05); }
-        .badge { position: absolute; top: 2px; right: 2px; background-color: var(--danger); color: white; font-size: 10px; width: 16px; height: 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg-card); font-weight: 700; }
+        .badge { position: absolute; top: 0px; right: 0px; background-color: var(--danger); color: white; font-size: 9px; width: 15px; height: 15px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg-card); font-weight: 700; }
         
-        .notification-dropdown { position: absolute; top: 100%; right: 120px; width: 320px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); margin-top: 12px; overflow: hidden; animation: slideIn 0.2s ease-out; }
+        .notification-dropdown { position: absolute; top: 100%; right: 100px; width: 300px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); margin-top: 8px; overflow: hidden; animation: slideIn 0.2s ease-out; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .notif-header { padding: 15px; border-bottom: 1px solid var(--border); background: #f8fafc; display: flex; justify-content: space-between; align-items: center; }
-        .notif-list { max-height: 360px; overflow-y: auto; }
-        .notif-item { padding: 12px 15px; border-bottom: 1px solid var(--border); transition: background 0.2s; cursor: pointer; display: flex; gap: 12px; }
+        .notif-header { padding: 12px 14px; border-bottom: 1px solid var(--border); background: #f8fafc; display: flex; justify-content: space-between; align-items: center; }
+        .notif-list { max-height: 320px; overflow-y: auto; }
+        .notif-item { padding: 10px 12px; border-bottom: 1px solid var(--border); transition: background 0.2s; cursor: pointer; display: flex; gap: 10px; }
         .notif-item:hover { background: #f1f5f9; }
-        .notif-content p { margin: 0; font-size: 13px; font-weight: 600; }
-        .notif-time { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 4px; }
-        .notif-item .icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: rgba(79, 70, 229, 0.1); color: var(--primary); flex-shrink: 0; }
+        .notif-content p { margin: 0; font-size: 12.5px; font-weight: 600; }
+        .notif-time { font-size: 10.5px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; margin-top: 2px; }
+        .notif-item .icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: rgba(79, 70, 229, 0.1); color: var(--primary); flex-shrink: 0; }
 
-        .user-profile { display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 4px 8px; border-radius: 8px; transition: background 0.2s; position: relative; }
+        .user-profile { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 6px; border-radius: 8px; transition: background 0.2s; position: relative; }
         .user-profile:hover { background-color: var(--bg-main); }
-        .user-avatar { width: 40px; height: 40px; background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); color: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2); }
-        .user-dropdown { position: absolute; top: 100%; right: 0; width: 180px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); margin-top: 8px; padding: 8px; }
-        .dropdown-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; font-size: 14px; color: var(--text-main); transition: 0.2s; }
+        .user-avatar { width: 34px; height: 34px; background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13.5px; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.2); }
+        .user-info { display: flex; flex-direction: column; line-height: 1.2; }
+        .user-name { font-size: 12.5px; font-weight: 600; color: var(--text-main); }
+        .user-role { font-size: 10.5px; color: var(--text-muted); }
+        .user-dropdown { position: absolute; top: 100%; right: 0; width: 170px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); margin-top: 6px; padding: 6px; }
+        .dropdown-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; font-size: 13px; color: var(--text-main); transition: 0.2s; }
         .dropdown-item:hover { background-color: var(--bg-main); color: var(--primary); }
-        .dropdown-item.logout { color: var(--danger); margin-top: 4px; border-top: 1px solid var(--border); padding-top: 12px; }
+        .dropdown-item.logout { color: var(--danger); margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px; }
         .dropdown-item.logout:hover { background: #fef2f2; }
       `}</style>
 

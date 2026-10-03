@@ -18,12 +18,12 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const KPICard = ({ title, value, icon, color, trend, trendValue, subtitle }) => (
   <div className="kpi-card">
-    <div className="kpi-header">
-      <div className={`kpi-icon icon-${color}`}>{icon}</div>
+    <div className="kpi-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className={`kpi-icon icon-${color}`}>{React.isValidElement(icon) ? React.cloneElement(icon, { size: 18 }) : icon}</div>
       {trend && (
         <div className={`kpi-trend ${trend === 'up' ? 'trend-up' : 'trend-down'}`}>
           <div className="trend-badge">
-            {trend === 'up' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+            {trend === 'up' ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
             {trendValue}
           </div>
         </div>
@@ -87,29 +87,29 @@ const Dashboard = () => {
         .dashboard {
           display: flex;
           flex-direction: column;
-          gap: 24px;
+          gap: 16px;
         }
         .bi-header {
            display: flex;
            justify-content: space-between;
            align-items: flex-end;
-           margin-bottom: 8px;
+           margin-bottom: 4px;
         }
         .view-mode-toggle {
            display: flex;
            background: rgba(255,255,255,0.05);
            border: 1px solid rgba(255,255,255,0.1);
-           border-radius: 12px;
-           padding: 4px;
+           border-radius: 8px;
+           padding: 3px;
         }
         .mode-btn {
-           padding: 8px 16px;
-           border-radius: 8px;
+           padding: 6px 12px;
+           border-radius: 6px;
            border: none;
            background: transparent;
            color: rgba(255,255,255,0.6);
            font-weight: 600;
-           font-size: 13px;
+           font-size: 12px;
            cursor: pointer;
            display: flex;
            align-items: center;
@@ -123,40 +123,53 @@ const Dashboard = () => {
         }
         .kpi-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-          gap: 20px;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 12px;
+        }
+        @media (max-width: 1200px) {
+          .kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        @media (max-width: 600px) {
+          .kpi-grid {
+            grid-template-columns: 1fr;
+          }
         }
         .kpi-card {
           background: var(--bg-card);
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
-          padding: 24px;
+          padding: 14px 16px;
           border-radius: var(--radius);
           border: 1px solid var(--glass-border);
-          box-shadow: var(--shadow-md);
+          box-shadow: var(--shadow-sm);
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 10px;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .kpi-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-xl); border-color: var(--primary); }
-        .kpi-icon { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+        .kpi-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--primary); }
+        .kpi-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
         .icon-blue { background: linear-gradient(135deg, #4f46e5, #6366f1); }
         .icon-green { background: linear-gradient(135deg, #10b981, #34d399); }
         .icon-yellow { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
         .icon-red { background: linear-gradient(135deg, #ef4444, #f87171); }
         .icon-purple { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
-        .trend-badge { display: flex; align-items: center; padding: 4px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; gap: 4px; background: rgba(0, 0, 0, 0.05); }
+        .trend-badge { display: flex; align-items: center; padding: 3px 6px; border-radius: 14px; font-size: 10.5px; font-weight: 700; gap: 3px; background: rgba(0, 0, 0, 0.05); }
         .trend-up .trend-badge { color: #059669; background: rgba(16, 185, 129, 0.1); }
         .trend-down .trend-badge { color: #dc2626; background: rgba(239, 68, 68, 0.1); }
-        .kpi-title { font-size: 14px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.02em; }
-        .kpi-value { font-size: 24px; font-weight: 800; color: var(--text-main); margin-top: 4px; letter-spacing: -0.02em; }
-        .kpi-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 6px; font-weight: 500; }
-        .loading { display: flex; justify-content: center; align-items: center; height: 400px; color: var(--primary); font-weight: 600; }
-        .charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-top: 24px;}
-        .chart-card { background: var(--bg-card); padding: 32px; border-radius: var(--radius); border: 1px solid var(--glass-border); min-height: 200px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-weight: 600;}
+        .kpi-title { font-size: 12px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.01em; }
+        .kpi-value { font-size: 20px; font-weight: 800; color: var(--text-main); margin-top: 2px; letter-spacing: -0.02em; }
+        .kpi-subtitle { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+        .loading { display: flex; justify-content: center; align-items: center; height: 300px; color: var(--primary); font-weight: 600; }
+        .charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-top: 16px;}
+        @media (max-width: 1024px) {
+          .charts-row { grid-template-columns: 1fr; }
+        }
+        .chart-card { background: var(--bg-card); padding: 20px; border-radius: var(--radius); border: 1px solid var(--glass-border); min-height: 180px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-weight: 600;}
         
-        .insight-box { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; font-weight: 600; font-size: 13px; animation: fadeIn 0.5s ease-out; }
+        .insight-box { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-radius: 8px; margin-bottom: 10px; font-weight: 600; font-size: 12.5px; animation: fadeIn 0.5s ease-out; }
         .insight-success { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); color: #10b981; }
         .insight-warning { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.2); color: #f59e0b; }
         .insight-critical { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; }
@@ -164,8 +177,8 @@ const Dashboard = () => {
       
       <div className="bi-header">
         <div className="section-header">
-          <h2 style={{ fontSize: '28px', fontWeight: '800', letterSpacing: '-0.02em' }}>Intelligence Engine</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '15px' }}>Strategic insights for {viewMode === 'ALL' ? 'Organization-wide Performance' : `${currentBranch?.name || 'Current Branch'} Performance`}.</p>
+          <h2 style={{ fontSize: '20px', fontWeight: '800', letterSpacing: '-0.02em', margin: 0 }}>Intelligence Engine</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '12.5px', margin: '2px 0 0 0' }}>Strategic insights for {viewMode === 'ALL' ? 'Organization-wide Performance' : `${currentBranch?.name || 'Current Branch'} Performance`}.</p>
         </div>
 
         {/* Global Filters */}

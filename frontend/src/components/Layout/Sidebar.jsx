@@ -174,81 +174,81 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         .sidebar {
           height: 100vh; background: var(--glass-bg, rgba(255, 255, 255, 0.85)); backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px); color: var(--text-main, #0f172a);
-          width: var(--sidebar-w, 280px); position: fixed; left: 0; top: 0;
+          width: var(--sidebar-w, 240px); position: fixed; left: 0; top: 0;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1001;
           display: flex; flex-direction: column;
           border-right: 1px solid var(--glass-border, #e2e8f0);
           box-shadow: 10px 0 30px rgba(0,0,0,0.03);
           font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         }
-        .sidebar.closed { width: 90px; }
+        .sidebar.closed { width: 68px; }
         @media (max-width: 768px) {
-          .sidebar.closed { transform: translateX(-100%); width: var(--sidebar-w, 280px); }
-          .sidebar.open { transform: translateX(0); width: var(--sidebar-w, 280px); }
+          .sidebar.closed { transform: translateX(-100%); width: var(--sidebar-w, 240px); }
+          .sidebar.open { transform: translateX(0); width: var(--sidebar-w, 240px); }
         }
         .sidebar-header {
-          height: var(--header-h, 72px); display: flex; align-items: center;
-          padding: 0 24px; border-bottom: 1px solid var(--glass-border, #e2e8f0);
+          height: var(--header-h, 56px); display: flex; align-items: center;
+          padding: 0 16px; border-bottom: 1px solid var(--glass-border, #e2e8f0);
           justify-content: space-between;
         }
         .sidebar-header h2 {
-          font-size: 20px; font-weight: 800; letter-spacing: -0.02em;
+          font-size: 17px; font-weight: 800; letter-spacing: -0.02em;
           white-space: nowrap; overflow: hidden; transition: opacity 0.2s; color: var(--primary);
         }
         .sidebar.closed .sidebar-header h2 { opacity: 0; pointer-events: none; }
         .toggle-btn {
-          background: rgba(79,70,229,0.05); color: var(--primary); border-radius: 8px;
-          display: flex; align-items: center; justify-content: center; padding: 6px; transition: all 0.2s;
+          background: rgba(79,70,229,0.05); color: var(--primary); border-radius: 6px;
+          display: flex; align-items: center; justify-content: center; padding: 5px; transition: all 0.2s;
         }
         .toggle-btn:hover { background: rgba(79,70,229,0.1); transform: scale(1.05); }
-        .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; overflow-x: hidden; }
+        .sidebar-nav { flex: 1; padding: 10px 8px; overflow-y: auto; overflow-x: hidden; }
 
         .sidebar-nav a {
-          display: flex; align-items: center; padding: 12px 16px; color: var(--text-muted);
-          transition: all 0.3s cubic-bezier(0.4,0,0.2,1); gap: 16px; border-radius: 12px;
-          margin-bottom: 4px; position: relative; text-decoration: none;
+          display: flex; align-items: center; padding: 7px 10px; color: var(--text-muted);
+          transition: all 0.3s cubic-bezier(0.4,0,0.2,1); gap: 10px; border-radius: 8px;
+          margin-bottom: 2px; position: relative; text-decoration: none;
         }
-        .sidebar-nav a:hover { background: rgba(79,70,229,0.05); color: var(--primary); transform: translateX(4px); }
+        .sidebar-nav a:hover { background: rgba(79,70,229,0.05); color: var(--primary); transform: translateX(2px); }
         .sidebar-nav a.active {
           background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-          color: white; box-shadow: 0 10px 15px -3px rgba(79,70,229,0.3);
+          color: white; box-shadow: 0 6px 12px -2px rgba(79,70,229,0.25);
         }
-        .sidebar-nav a svg { min-width: 20px; width: 20px; height: 20px; transition: transform 0.3s; }
-        .sidebar-nav a.active svg { transform: scale(1.1); }
-        .sidebar-nav a span { white-space: nowrap; font-weight: 600; font-size: 15px; transition: opacity 0.2s; }
+        .sidebar-nav a svg { min-width: 17px; width: 17px; height: 17px; transition: transform 0.3s; }
+        .sidebar-nav a.active svg { transform: scale(1.08); }
+        .sidebar-nav a span { white-space: nowrap; font-weight: 600; font-size: 13px; transition: opacity 0.2s; }
         .sidebar.closed .sidebar-nav a span { opacity: 0; pointer-events: none; }
 
         .nav-locked {
-          display: flex; align-items: center; padding: 12px 16px; gap: 16px;
-          border-radius: 12px; margin-bottom: 4px; cursor: pointer;
+          display: flex; align-items: center; padding: 7px 10px; gap: 10px;
+          border-radius: 8px; margin-bottom: 2px; cursor: pointer;
           color: var(--text-muted); position: relative; transition: all 0.25s; opacity: 0.55;
         }
         .nav-locked:hover { background: rgba(239,68,68,0.06); opacity: 0.85; transform: translateX(2px); }
-        .nav-locked svg { min-width: 20px; width: 20px; height: 20px; }
-        .nav-locked .nav-label { flex: 1; white-space: nowrap; font-weight: 600; font-size: 15px; transition: opacity 0.2s; }
+        .nav-locked svg { min-width: 17px; width: 17px; height: 17px; }
+        .nav-locked .nav-label { flex: 1; white-space: nowrap; font-weight: 600; font-size: 13px; transition: opacity 0.2s; }
         .sidebar.closed .nav-locked .nav-label { opacity: 0; }
         .lock-badge {
-          background: rgba(239,68,68,0.12); color: #ef4444; border-radius: 6px;
-          padding: 2px 6px; font-size: 10px; font-weight: 800; display: flex; align-items: center; gap: 3px;
+          background: rgba(239,68,68,0.12); color: #ef4444; border-radius: 4px;
+          padding: 1px 5px; font-size: 9px; font-weight: 800; display: flex; align-items: center; gap: 2px;
           transition: opacity 0.2s;
         }
         .sidebar.closed .lock-badge { opacity: 0; }
         .nav-locked .lock-tooltip {
-          position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%);
-          background: #1e1b4b; color: white; padding: 8px 14px; border-radius: 10px;
-          font-size: 12px; font-weight: 700; white-space: nowrap; opacity: 0; pointer-events: none;
+          position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%);
+          background: #1e1b4b; color: white; padding: 6px 12px; border-radius: 8px;
+          font-size: 11px; font-weight: 700; white-space: nowrap; opacity: 0; pointer-events: none;
           transition: opacity 0.2s; z-index: 100; box-shadow: 0 8px 20px rgba(0,0,0,0.2);
         }
         .nav-locked:hover .lock-tooltip { opacity: 1; }
 
-        .nav-section { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-muted);
-          text-transform: uppercase; padding: 12px 16px 4px; transition: opacity 0.2s; }
+        .nav-section { font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-muted);
+          text-transform: uppercase; padding: 8px 10px 2px; transition: opacity 0.2s; }
         .sidebar.closed .nav-section { opacity: 0; }
 
         /* Group Headers */
         .group-header {
-          display: flex; align-items: center; padding: 10px 16px; gap: 14px;
-          border-radius: 12px; margin-bottom: 2px; cursor: pointer;
+          display: flex; align-items: center; padding: 7px 10px; gap: 10px;
+          border-radius: 8px; margin-bottom: 2px; cursor: pointer;
           color: var(--text-muted); transition: all 0.25s;
           border: 1px solid transparent;
         }
@@ -256,37 +256,37 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           background: rgba(79,70,229,0.04); color: var(--primary);
           border-color: rgba(79,70,229,0.1);
         }
-        .group-header svg.main-icon { min-width: 20px; width: 20px; height: 20px; }
-        .group-label { flex: 1; font-weight: 700; font-size: 14px; white-space: nowrap; transition: opacity 0.2s; letter-spacing: 0.01em; }
+        .group-header svg.main-icon { min-width: 17px; width: 17px; height: 17px; }
+        .group-label { flex: 1; font-weight: 600; font-size: 13px; white-space: nowrap; transition: opacity 0.2s; letter-spacing: 0.01em; }
         .sidebar.closed .group-label { opacity: 0; }
         .group-chevron { transition: all 0.25s; flex-shrink: 0; }
         .sidebar.closed .group-chevron { opacity: 0; }
         .group-sub-items {
           overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease;
-          padding-left: 12px;
+          padding-left: 8px;
         }
         .group-sub-items.collapsed { max-height: 0; opacity: 0; }
         .group-sub-items.expanded { max-height: 500px; opacity: 1; }
         .group-sub-items a {
-          padding: 9px 14px;
-          font-size: 13px !important;
+          padding: 6px 10px;
+          font-size: 12.5px !important;
         }
         .sidebar.closed .group-sub-items { padding-left: 0; }
 
         .trial-banner {
-          margin: 0 12px 12px; border-radius: 12px; padding: 12px 14px;
+          margin: 0 8px 8px; border-radius: 8px; padding: 8px 10px;
           cursor: pointer; transition: all 0.2s;
         }
         .trial-banner:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
-        .trial-banner .tb-row { display: flex; align-items: center; gap: 8px; }
-        .trial-banner .tb-title { font-size: 12px; font-weight: 800; flex: 1; transition: opacity 0.2s; }
-        .trial-banner .tb-sub { font-size: 11px; margin-top: 4px; transition: opacity 0.2s; }
+        .trial-banner .tb-row { display: flex; align-items: center; gap: 6px; }
+        .trial-banner .tb-title { font-size: 11px; font-weight: 800; flex: 1; transition: opacity 0.2s; }
+        .trial-banner .tb-sub { font-size: 10px; margin-top: 2px; transition: opacity 0.2s; }
         .sidebar.closed .trial-banner .tb-title,
         .sidebar.closed .trial-banner .tb-sub { opacity: 0; }
-        .trial-banner .tb-icon { font-size: 16px; flex-shrink: 0; }
+        .trial-banner .tb-icon { font-size: 14px; flex-shrink: 0; }
 
         .sidebar-footer {
-          padding: 16px 24px; font-size: 11px; font-weight: 600; color: var(--text-muted);
+          padding: 10px 14px; font-size: 10px; font-weight: 600; color: var(--text-muted);
           text-align: center; border-top: 1px solid var(--glass-border);
           letter-spacing: 0.05em; text-transform: uppercase;
         }
