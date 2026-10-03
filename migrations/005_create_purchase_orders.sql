@@ -1,6 +1,8 @@
 -- Migration 005: Phase 5B.3 — Purchase Orders & Purchase Order Items
 -- Pure Tashgheel CRM procurement commitment layer
 
+BEGIN;
+
 -- Ensure any legacy unpopulated ERP prototype tables are archived safely
 DO $$
 BEGIN

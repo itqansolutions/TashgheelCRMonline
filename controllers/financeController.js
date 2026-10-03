@@ -2308,7 +2308,7 @@ exports.getVendorAccounts = async (req, res) => {
                 END                                                         AS account_status
 
             FROM vendors v
-            INNER JOIN (
+            LEFT JOIN (
                 SELECT
                     pi.vendor_id,
                     COUNT(pi.id)::int                                       AS invoice_count,

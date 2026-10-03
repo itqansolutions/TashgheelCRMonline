@@ -576,6 +576,10 @@ app.listen(PORT, '0.0.0.0', async () => {
     if (metaController && metaController.ensureMetaFormsTable) {
       await metaController.ensureMetaFormsTable();
     }
+
+    // 📦 Auto-run Database Migrations on Startup (Idempotent)
+    const runMigrations = require('./src/infrastructure/database/migrationRunner');
+    await runMigrations();
     
     // 🚀 Initialize Enterprise Event Bus, Event Store & Outbox Engine
     eventBus.setEventStore(eventStoreRepository);

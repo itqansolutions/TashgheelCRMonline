@@ -435,3 +435,6 @@ exports.recordVendorPayment = async (req, res) => {
         client.release();
     }
 };
+
+exports.ensurePurchasesSchema = ensurePurchasesSchema;
+

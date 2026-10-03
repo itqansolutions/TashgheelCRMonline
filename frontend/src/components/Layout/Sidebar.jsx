@@ -25,7 +25,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const [hrOpen, setHrOpen] = useState(true);
   const [warehouseOpen, setWarehouseOpen] = useState(true);
   const [purchasesOpen, setPurchasesOpen] = useState(true);
-  const [advancedProcurementOpen, setAdvancedProcurementOpen] = useState(false);
   const [financeOpen, setFinanceOpen] = useState(true);
   const [integrationsOpen, setIntegrationsOpen] = useState(true);
 
@@ -81,17 +80,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'ZkTeco Devices',     icon: <Cpu size={18} />,       path: '/hr/devices' },
   ];
 
-  // Purchases sub-items — Simple Core Procurement
+  // Purchases sub-items — Clean Procurement Flow
   const purchasesItems = [
     { name: 'Requests',        icon: <ClipboardList size={18} />,  path: '/purchases/requests' },
+    { name: 'RFQs & Bids',     icon: <FileCheck size={18} />,      path: '/purchases/rfqs' },
     { name: 'Purchase Orders', icon: <FileText size={18} />,       path: '/purchases/orders' },
     { name: 'Invoices',        icon: <ShoppingCart size={18} />,   path: '/purchases' },
-    { name: 'Vendors',         icon: <Building2 size={18} />,      path: '/finance?tab=Vendors' },
-  ];
-
-  // Advanced Procurement — Secondary / Collapsed by default
-  const advancedProcurementItems = [
-    { name: 'RFQs & Bids',     icon: <FileCheck size={18} />,      path: '/purchases/rfqs' },
   ];
 
   // Warehouse sub-items (Inventory Only)
@@ -153,7 +147,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const visibleHrItems = filterByAllowed(hrItems);
   const visibleWarehouseItems = filterByAllowed(warehouseItems);
   const visiblePurchasesItems = filterByAllowed(purchasesItems);
-  const visibleAdvancedItems = filterByAllowed(advancedProcurementItems);
   const visibleFinanceItems = filterByAllowed(financeItems);
   const visibleIntegrationsItems = filterByAllowed(integrationsItems);
 
@@ -444,8 +437,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </>
         ) : null}
 
-        {/* Purchases Group — Core Simple Procurement */}
-        {!isInventoryLocked && (visiblePurchasesItems.length > 0 || visibleAdvancedItems.length > 0) && (
+        {/* Purchases Group */}
+        {!isInventoryLocked && visiblePurchasesItems.length > 0 && (
           <>
             <div
               className="group-header"
@@ -467,33 +460,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                   <span>{item.name}</span>
                 </NavLink>
               ))}
-
-              {/* Advanced Procurement nested toggle */}
-              {visibleAdvancedItems.length > 0 && (
-                <div style={{ marginTop: '4px', paddingTop: '4px', borderTop: '1px dashed rgba(226, 232, 240, 0.6)' }}>
-                  <div
-                    onClick={(e) => { e.stopPropagation(); setAdvancedProcurementOpen(prev => !prev); }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 14px',
-                      fontSize: '11px', fontWeight: 800, color: '#64748b', cursor: 'pointer',
-                      borderRadius: '8px', transition: 'all 0.2s', textTransform: 'uppercase', letterSpacing: '0.04em'
-                    }}
-                  >
-                    <span>Advanced</span>
-                    {advancedProcurementOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  </div>
-                  {advancedProcurementOpen && (
-                    <div style={{ paddingLeft: '8px' }}>
-                      {visibleAdvancedItems.map(item => (
-                        <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
-                          {item.icon}
-                          <span>{item.name}</span>
-                        </NavLink>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </>
         )}
