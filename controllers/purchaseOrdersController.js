@@ -165,7 +165,12 @@ exports.getPurchaseOrders = async (req, res) => {
     return res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error('[getPurchaseOrders] Error:', err);
-    return res.status(500).json({ success: false, message: err.message || 'Failed to retrieve purchase orders' });
+    return res.status(500).json({ 
+      success: false, 
+      message: err.message || 'Failed to retrieve purchase orders',
+      code: err.code,
+      detail: err.detail 
+    });
   }
 };
 

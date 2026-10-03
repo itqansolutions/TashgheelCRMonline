@@ -41,7 +41,7 @@ app.use('/uploads', express.static(uploadsDir));
 
 // Health check for Railway monitoring
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', version: 'v-5b4-hotfix-3', timestamp: new Date().toISOString() });
 });
 
 // Routes
