@@ -100,5 +100,13 @@ router.put('/treasury/accounts/:id', financeController.updateTreasuryAccount);
 // @desc    UNION of payments (IN) + expenses (OUT) for a treasury account
 router.get('/treasury/accounts/:id/transactions', financeController.getTreasuryAccountTransactions);
 
+// ==========================================
+// FINANCIAL INTELLIGENCE & REPORTS — Phase 4
+// ==========================================
+
+// @route   GET api/finance/reports
+// @desc    Financial intelligence overview & 5 core reports
+router.get('/reports', financeController.getFinancialReports);
+
 module.exports = router;
 

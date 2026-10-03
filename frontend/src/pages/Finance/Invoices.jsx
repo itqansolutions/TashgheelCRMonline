@@ -14,6 +14,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import VoucherPreviewModal from './VoucherPreviewModal';
 import CustomerAccounts from './CustomerAccounts';
 import Treasury from './Treasury';
+import Reports from './Reports';
 
 const FinanceDashboard = () => {
   const { user } = useAuth();
@@ -609,16 +610,11 @@ const FinanceDashboard = () => {
 
           case 'Reports':
               return (
-                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px', padding: '48px', textAlign: 'center', boxShadow: 'var(--shadow-sm)' }}>
-                  <BarChart3 size={48} style={{ color: '#6366f1', opacity: 0.4, marginBottom: '16px' }} />
-                  <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>Finance Reports</h3>
-                  <p style={{ color: 'var(--text-muted)', maxWidth: '460px', margin: '0 auto 16px' }}>
-                    Sales · Collections · Outstanding · Overdue · Expenses · Cash Flow · Customer Statement
-                  </p>
-                  <div style={{ display: 'inline-flex', gap: '8px', padding: '8px 18px', background: 'rgba(99,102,241,0.08)', borderRadius: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)' }}>
-                    🚧 Phase 4 — Planned
-                  </div>
-                </div>
+                <Reports
+                  onSelectCustomer={(custId) => {
+                    navigate(`/finance?tab=Customers&customer_id=${custId}`);
+                  }}
+                />
               );
 
           default:

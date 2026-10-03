@@ -1811,3 +1811,326 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
         res.status(500).json({ status: 'error', message: err.message || 'Failed to load transactions' });
     }
 };
+
+// ==========================================
+// FINANCIAL INTELLIGENCE & REPORTS — Phase 4
+// Pure Derived & Read-only views. Zero duplicate data.
+// 5 Reports: Sales & Invoices, Collections, Expenses, Aging, Cash Flow
+// ==========================================
+
+// @desc    Get Financial Intelligence Reports & Analytics
+// @route   GET /api/finance/reports
+exports.getFinancialReports = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.query.branch_id || req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || branch_id === 'all' || !String(branch_id || '').trim()) {
+        branch_id = null;
+    }
+
+    const { date_from, date_to } = req.query;
+
+    await ensureInvoicesTable();
+
+    try {
+        const queryParams = [tenant_id, branch_id ? String(branch_id) : null];
+        let invoiceDateFilter = '';
+        let paymentDateFilter = '';
+        let expenseDateFilter = '';
+
+        if (date_from) {
+            queryParams.push(date_from);
+            const idx = queryParams.length;
+            invoiceDateFilter += ` AND i.created_at::date >= $${idx}::date`;
+            paymentDateFilter += ` AND p.payment_date::date >= $${idx}::date`;
+            expenseDateFilter += ` AND e.expense_date::date >= $${idx}::date`;
+        }
+        if (date_to) {
+            queryParams.push(date_to);
+            const idx = queryParams.length;
+            invoiceDateFilter += ` AND i.created_at::date <= $${idx}::date`;
+            paymentDateFilter += ` AND p.payment_date::date <= $${idx}::date`;
+            expenseDateFilter += ` AND e.expense_date::date <= $${idx}::date`;
+        }
+
+        // 1. OVERVIEW & INVOICES (Sales, Invoiced, Paid, Outstanding, Overdue)
+        const invoicesAggRes = await db.query(`
+            SELECT
+                COUNT(i.id)::int                                                  AS total_invoices_count,
+                COALESCE(SUM(i.total_amount), 0)                                  AS total_invoiced,
+                COALESCE(SUM(COALESCE(p_agg.paid, 0)), 0)                         AS total_paid,
+                COALESCE(SUM(CASE WHEN i.status != 'paid' THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END), 0) AS total_outstanding,
+                COALESCE(SUM(
+                    CASE 
+                        WHEN i.status != 'paid' AND i.due_date IS NOT NULL AND i.due_date < CURRENT_DATE 
+                        THEN i.total_amount - COALESCE(p_agg.paid, 0) 
+                        ELSE 0 
+                    END
+                ), 0)                                                             AS total_overdue
+            FROM invoices i
+            LEFT JOIN (
+                SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
+                FROM payments
+                WHERE tenant_id::text = $1::text
+                GROUP BY invoice_id
+            ) p_agg ON p_agg.invoice_id::text = i.id::text
+            WHERE i.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
+              ${invoiceDateFilter}
+        `, queryParams);
+
+        const invSummary = invoicesAggRes.rows[0] || {};
+
+        // Invoices by Status Breakdown
+        const invoicesStatusRes = await db.query(`
+            SELECT 
+                COALESCE(i.status, 'unpaid') AS status,
+                COUNT(*)::int AS count,
+                COALESCE(SUM(i.total_amount), 0) AS total_amount
+            FROM invoices i
+            WHERE i.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
+              ${invoiceDateFilter}
+            GROUP BY i.status
+        `, queryParams);
+
+        // 2. COLLECTIONS (Payments by Method, Trend, & List)
+        const collectionsAggRes = await db.query(`
+            SELECT
+                COUNT(p.id)::int                   AS total_collections_count,
+                COALESCE(SUM(p.amount), 0)         AS total_collected
+            FROM payments p
+            WHERE p.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+              ${paymentDateFilter}
+        `, queryParams);
+
+        const collSummary = collectionsAggRes.rows[0] || {};
+
+        // Collections by Payment Method
+        const collectionsByMethodRes = await db.query(`
+            SELECT
+                COALESCE(p.payment_method, 'cash') AS method,
+                COUNT(*)::int                      AS count,
+                COALESCE(SUM(p.amount), 0)         AS total_amount
+            FROM payments p
+            WHERE p.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+              ${paymentDateFilter}
+            GROUP BY p.payment_method
+            ORDER BY total_amount DESC
+        `, queryParams);
+
+        // Monthly / Daily Collections Trend (Last 6 Months or Filter Period)
+        const collectionsTrendRes = await db.query(`
+            SELECT
+                TO_CHAR(p.payment_date, 'YYYY-MM') AS period,
+                COUNT(*)::int                      AS count,
+                COALESCE(SUM(p.amount), 0)         AS total_amount
+            FROM payments p
+            WHERE p.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+              ${paymentDateFilter}
+            GROUP BY TO_CHAR(p.payment_date, 'YYYY-MM')
+            ORDER BY period ASC
+            LIMIT 12
+        `, queryParams);
+
+        // 3. EXPENSES (Total, by Category, Trend)
+        const expensesAggRes = await db.query(`
+            SELECT
+                COUNT(e.id)::int           AS total_expenses_count,
+                COALESCE(SUM(e.amount), 0) AS total_expenses
+            FROM expenses e
+            WHERE e.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
+              ${expenseDateFilter}
+        `, queryParams);
+
+        const expSummary = expensesAggRes.rows[0] || {};
+
+        const expensesByCategoryRes = await db.query(`
+            SELECT
+                COALESCE(e.category, 'General') AS category,
+                COUNT(*)::int                   AS count,
+                COALESCE(SUM(e.amount), 0)      AS total_amount
+            FROM expenses e
+            WHERE e.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
+              ${expenseDateFilter}
+            GROUP BY e.category
+            ORDER BY total_amount DESC
+        `, queryParams);
+
+        const expensesTrendRes = await db.query(`
+            SELECT
+                TO_CHAR(e.expense_date, 'YYYY-MM') AS period,
+                COUNT(*)::int                      AS count,
+                COALESCE(SUM(e.amount), 0)         AS total_amount
+            FROM expenses e
+            WHERE e.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
+              ${expenseDateFilter}
+            GROUP BY TO_CHAR(e.expense_date, 'YYYY-MM')
+            ORDER BY period ASC
+            LIMIT 12
+        `, queryParams);
+
+        // 4. RECEIVABLES & AGING (Across all customers with outstanding balances)
+        const agingRes = await db.query(`
+            SELECT
+                c.id                                                        AS customer_id,
+                c.name                                                      AS customer_name,
+                c.phone                                                     AS customer_phone,
+                i.invoice_number,
+                i.due_date,
+                (i.total_amount - COALESCE(p_agg.paid, 0))                  AS remaining,
+                CASE
+                    WHEN i.due_date IS NULL OR i.due_date >= CURRENT_DATE             THEN 'current'
+                    WHEN CURRENT_DATE - i.due_date BETWEEN 1  AND 30                 THEN '1_30'
+                    WHEN CURRENT_DATE - i.due_date BETWEEN 31 AND 60                 THEN '31_60'
+                    WHEN CURRENT_DATE - i.due_date BETWEEN 61 AND 90                 THEN '61_90'
+                    ELSE '90_plus'
+                END AS aging_bucket
+            FROM invoices i
+            JOIN customers c ON (i.client_id::text = c.id::text OR i.customer_id::text = c.id::text)
+            LEFT JOIN (
+                SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
+                FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id
+            ) p_agg ON p_agg.invoice_id::text = i.id::text
+            WHERE i.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
+              AND i.status != 'paid'
+              AND (i.total_amount - COALESCE(p_agg.paid, 0)) > 0
+            ORDER BY remaining DESC
+        `, [tenant_id, branch_id ? String(branch_id) : null]);
+
+        const agingBuckets = { current: 0, days_1_30: 0, days_31_60: 0, days_61_90: 0, days_90_plus: 0, total: 0 };
+        const topDebtorsMap = {};
+
+        for (const row of agingRes.rows) {
+            const rem = parseFloat(row.remaining || 0);
+            agingBuckets.total += rem;
+            if (row.aging_bucket === 'current') agingBuckets.current += rem;
+            else if (row.aging_bucket === '1_30') agingBuckets.days_1_30 += rem;
+            else if (row.aging_bucket === '31_60') agingBuckets.days_31_60 += rem;
+            else if (row.aging_bucket === '61_90') agingBuckets.days_61_90 += rem;
+            else agingBuckets.days_90_plus += rem;
+
+            if (!topDebtorsMap[row.customer_id]) {
+                topDebtorsMap[row.customer_id] = {
+                    customer_id: row.customer_id,
+                    customer_name: row.customer_name,
+                    customer_phone: row.customer_phone,
+                    total_outstanding: 0,
+                    overdue_amount: 0,
+                    invoice_count: 0,
+                };
+            }
+            topDebtorsMap[row.customer_id].total_outstanding += rem;
+            topDebtorsMap[row.customer_id].invoice_count += 1;
+            if (row.aging_bucket !== 'current') {
+                topDebtorsMap[row.customer_id].overdue_amount += rem;
+            }
+        }
+
+        const topDebtors = Object.values(topDebtorsMap)
+            .sort((a, b) => b.total_outstanding - a.total_outstanding)
+            .slice(0, 15);
+
+        // 5. CASH FLOW (Inflow vs Outflow, Net, and by Treasury Account)
+        const totalInflow = parseFloat(collSummary.total_collected || 0);
+        const totalOutflow = parseFloat(expSummary.total_expenses || 0);
+        const netCashflow = totalInflow - totalOutflow;
+
+        // Cashflow by Treasury Account (if table exists)
+        let treasuryCashflow = [];
+        try {
+            const taRes = await db.query(`
+                SELECT
+                    ta.id, ta.name, ta.type, ta.bank_name,
+                    COALESCE((
+                        SELECT SUM(p.amount) FROM payments p
+                        WHERE p.treasury_account_id = ta.id
+                          AND p.tenant_id::text = ta.tenant_id::text
+                          AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+                          ${paymentDateFilter}
+                    ), 0) AS total_inflow,
+                    COALESCE((
+                        SELECT SUM(e.amount) FROM expenses e
+                        WHERE e.treasury_account_id = ta.id
+                          AND e.tenant_id::text = ta.tenant_id::text
+                          AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
+                          ${expenseDateFilter}
+                    ), 0) AS total_outflow
+                FROM treasury_accounts ta
+                WHERE ta.tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR ta.branch_id::text = $2::text OR ta.branch_id IS NULL)
+                  AND ta.is_active = true
+            `, queryParams);
+
+            treasuryCashflow = taRes.rows.map(r => ({
+                id: r.id,
+                name: r.name,
+                type: r.type,
+                bank_name: r.bank_name,
+                inflow: parseFloat(r.total_inflow || 0),
+                outflow: parseFloat(r.total_outflow || 0),
+                net: parseFloat(r.total_inflow || 0) - parseFloat(r.total_outflow || 0),
+            }));
+        } catch (_) {
+            treasuryCashflow = [];
+        }
+
+        // Return Consolidated Intelligence Bundle
+        res.json({
+            status: 'success',
+            filters: {
+                date_from: date_from || null,
+                date_to: date_to || null,
+                branch_id: branch_id || null,
+            },
+            overview: {
+                total_invoiced: parseFloat(invSummary.total_invoiced || 0),
+                total_collected: totalInflow,
+                total_outstanding: parseFloat(invSummary.total_outstanding || 0),
+                total_overdue: parseFloat(invSummary.total_overdue || 0),
+                total_expenses: totalOutflow,
+                net_cashflow: netCashflow,
+                invoices_count: parseInt(invSummary.total_invoices_count || 0),
+                collections_count: parseInt(collSummary.total_collections_count || 0),
+                expenses_count: parseInt(expSummary.total_expenses_count || 0),
+            },
+            sales: {
+                summary: invSummary,
+                by_status: invoicesStatusRes.rows.map(r => ({ ...r, total_amount: parseFloat(r.total_amount || 0) })),
+            },
+            collections: {
+                total_collected: totalInflow,
+                count: parseInt(collSummary.total_collections_count || 0),
+                by_method: collectionsByMethodRes.rows.map(r => ({ ...r, total_amount: parseFloat(r.total_amount || 0) })),
+                trend: collectionsTrendRes.rows.map(r => ({ ...r, total_amount: parseFloat(r.total_amount || 0) })),
+            },
+            expenses: {
+                total_expenses: totalOutflow,
+                count: parseInt(expSummary.total_expenses_count || 0),
+                by_category: expensesByCategoryRes.rows.map(r => ({ ...r, total_amount: parseFloat(r.total_amount || 0) })),
+                trend: expensesTrendRes.rows.map(r => ({ ...r, total_amount: parseFloat(r.total_amount || 0) })),
+            },
+            receivables_aging: {
+                buckets: agingBuckets,
+                top_debtors: topDebtors,
+                total_debtors_count: Object.keys(topDebtorsMap).length,
+            },
+            cashflow: {
+                inflow: totalInflow,
+                outflow: totalOutflow,
+                net: netCashflow,
+                by_treasury_account: treasuryCashflow,
+            },
+        });
+    } catch (err) {
+        console.error('getFinancialReports Error:', err.message);
+        res.status(500).json({ status: 'error', message: err.message || 'Failed to generate financial reports' });
+    }
+};
+

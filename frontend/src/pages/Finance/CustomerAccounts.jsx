@@ -277,7 +277,10 @@ const CustomerAccounts = () => {
   const [loading, setLoading]               = useState(true);
   const [search, setSearch]                 = useState('');
   const [statusFilter, setStatusFilter]     = useState('all'); // 'all' | 'overdue' | 'outstanding' | 'clear'
-  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  
+  // Read customer_id from URL if navigated from Reports
+  const initialCustomerId = new URLSearchParams(window.location.search).get('customer_id') || null;
+  const [selectedCustomerId, setSelectedCustomerId] = useState(initialCustomerId);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
