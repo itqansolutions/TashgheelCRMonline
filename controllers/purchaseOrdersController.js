@@ -95,14 +95,14 @@ exports.getPurchaseOrders = async (req, res) => {
       LEFT JOIN vendor_quotations vq ON vq.id = po.vendor_quotation_id
       LEFT JOIN users u ON u.id = po.approved_by
       LEFT JOIN purchase_order_items poi ON poi.po_id = po.id
-      WHERE po.tenant_id = $1
+      WHERE po.tenant_id::text = $1::text
     `;
-    const params = [tenantId];
+    const params = [tenantId ? String(tenantId) : null];
     let paramIndex = 2;
 
     if (req.branchId) {
-      query += ` AND (po.branch_id = $${paramIndex} OR po.branch_id IS NULL)`;
-      params.push(req.branchId);
+      query += ` AND (po.branch_id::text = $${paramIndex}::text OR po.branch_id IS NULL)`;
+      params.push(String(req.branchId));
       paramIndex++;
     }
 
@@ -165,7 +165,7 @@ exports.getPurchaseOrders = async (req, res) => {
     return res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error('[getPurchaseOrders] Error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to retrieve purchase orders' });
+    return res.status(500).json({ success: false, message: err.message || 'Failed to retrieve purchase orders' });
   }
 };
 
