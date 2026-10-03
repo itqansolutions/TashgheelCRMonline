@@ -7,14 +7,16 @@ BEGIN;
 DO $$
 BEGIN
     IF EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'purchase_orders' AND column_name = 'supplier_id'
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'purchase_orders'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_orders' AND column_name = 'po_number'
     ) THEN
         ALTER TABLE purchase_orders RENAME TO erp_legacy_purchase_orders;
     END IF;
     IF EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'purchase_order_items' AND column_name = 'purchase_order_id'
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'purchase_order_items'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_order_items' AND column_name = 'po_id'
     ) THEN
         ALTER TABLE purchase_order_items RENAME TO erp_legacy_purchase_order_items;
     END IF;

@@ -11,6 +11,25 @@
 
 BEGIN;
 
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'purchase_requests'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_requests' AND column_name = 'request_number'
+    ) THEN
+        ALTER TABLE purchase_requests RENAME TO erp_legacy_purchase_requests;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'purchase_request_items'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns WHERE table_name = 'purchase_request_items' AND column_name = 'request_id'
+    ) THEN
+        ALTER TABLE purchase_request_items RENAME TO erp_legacy_purchase_request_items;
+    END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS purchase_requests (
     id                  SERIAL PRIMARY KEY,
     request_number      VARCHAR(50) NOT NULL,
