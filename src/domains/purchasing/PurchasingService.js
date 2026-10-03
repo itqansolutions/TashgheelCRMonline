@@ -64,7 +64,7 @@ async function createPurchaseOrder(tenantId, branchId, data, userId) {
     const localValue = totalAmount * exRate;
 
     const poRes = await client.query(`
-      INSERT INTO purchase_orders
+      INSERT INTO erp_legacy_purchase_orders
         (tenant_id, branch_id, number, supplier_id, purchase_request_id, order_date, expected_date, status, total_amount, currency, exchange_rate, local_value, notes, created_by)
       VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, $9, $10, $11, $12, $13)
       RETURNING *
@@ -81,7 +81,7 @@ async function createPurchaseOrder(tenantId, branchId, data, userId) {
       const subtotal = qty * cost;
 
       await client.query(`
-        INSERT INTO purchase_order_items
+        INSERT INTO erp_legacy_purchase_order_items
           (purchase_order_id, product_id, description, quantity, unit_cost, subtotal, tenant_id)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
       `, [po.id, item.product_id, item.description || null, qty, cost, subtotal, String(tenantId)]);
@@ -93,7 +93,7 @@ async function createPurchaseOrder(tenantId, branchId, data, userId) {
 
 async function getPurchaseOrders(tenantId, branchId) {
   const res = await db.query(`
-    SELECT po.*, s.name as supplier_name,
+    SELECT po.*, po.number AS po_number, po.order_date AS po_date, s.name as supplier_name,
       COALESCE(json_agg(json_build_object(
         'id', poi.id,
         'product_id', poi.product_id,
@@ -103,9 +103,9 @@ async function getPurchaseOrders(tenantId, branchId) {
         'subtotal', poi.subtotal,
         'quantity_received', poi.quantity_received
       )) FILTER (WHERE poi.id IS NOT NULL), '[]'::json) as items
-    FROM purchase_orders po
+    FROM erp_legacy_purchase_orders po
     LEFT JOIN suppliers s ON po.supplier_id = s.id
-    LEFT JOIN purchase_order_items poi ON poi.purchase_order_id = po.id
+    LEFT JOIN erp_legacy_purchase_order_items poi ON poi.purchase_order_id = po.id
     LEFT JOIN products p ON poi.product_id = p.id
     WHERE po.tenant_id::text = $1::text AND (po.branch_id::text = $2::text OR $2 IS NULL)
     GROUP BY po.id, s.name
@@ -123,7 +123,7 @@ async function createGoodsReceipt(tenantId, branchId, data, userId) {
 
     if (!purchase_order_id) throw new Error('purchase_order_id is required.');
 
-    const poRes = await client.query('SELECT supplier_id FROM purchase_orders WHERE id = $1 AND tenant_id::text = $2::text', [purchase_order_id, String(tenantId)]);
+    const poRes = await client.query('SELECT supplier_id FROM erp_legacy_purchase_orders WHERE id = $1 AND tenant_id::text = $2::text', [purchase_order_id, String(tenantId)]);
     if (poRes.rows.length === 0) throw new Error('Purchase Order not found.');
 
     const supplierId = poRes.rows[0].supplier_id;
@@ -191,7 +191,7 @@ async function approveGoodsReceipt(tenantId, branchId, goodsReceiptId, userId) {
       // Update PO item received quantity
       if (item.purchase_order_item_id) {
         await client.query(`
-          UPDATE purchase_order_items SET quantity_received = COALESCE(quantity_received, 0) + $1 WHERE id = $2
+          UPDATE erp_legacy_purchase_order_items SET quantity_received = COALESCE(quantity_received, 0) + $1 WHERE id = $2
         `, [item.quantity_received, item.purchase_order_item_id]);
       }
     }
@@ -244,7 +244,7 @@ async function createSupplierInvoice(tenantId, branchId, data, userId) {
     // 3-Way Match Check if PO and GRN are linked
     if (purchase_order_id && goods_receipt_id && items && items.length > 0) {
       for (const item of items) {
-        const poItemRes  = await client.query('SELECT unit_cost FROM purchase_order_items WHERE id = $1', [item.purchase_order_item_id]);
+        const poItemRes  = await client.query('SELECT unit_cost FROM erp_legacy_purchase_order_items WHERE id = $1', [item.purchase_order_item_id]);
         const grnItemRes = await client.query('SELECT quantity_received FROM goods_receipt_items WHERE goods_receipt_id = $1 AND product_id = $2', [goods_receipt_id, item.product_id]);
 
         if (poItemRes.rows.length > 0 && grnItemRes.rows.length > 0) {

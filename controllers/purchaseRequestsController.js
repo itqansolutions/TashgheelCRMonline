@@ -325,12 +325,9 @@ exports.submitPurchaseRequest = async (req, res) => {
         await client.query('BEGIN');
 
         const existingRes = await client.query(`
-            SELECT pr.*, COUNT(pri.id)::int AS items_count
-            FROM purchase_requests pr
-            LEFT JOIN purchase_request_items pri ON pri.request_id = pr.id
-            WHERE pr.id = $1 AND pr.tenant_id::text = $2::text
-            GROUP BY pr.id
-            FOR UPDATE OF pr
+            SELECT * FROM purchase_requests
+            WHERE id = $1 AND tenant_id::text = $2::text
+            FOR UPDATE
         `, [id, tenant_id]);
 
         if (existingRes.rows.length === 0) {
@@ -344,7 +341,12 @@ exports.submitPurchaseRequest = async (req, res) => {
             return res.status(400).json({ status: 'error', message: `Only draft requests can be submitted. Current status: '${pr.status}'` });
         }
 
-        if (pr.items_count === 0) {
+        const countRes = await client.query(`
+            SELECT COUNT(*)::int AS count FROM purchase_request_items WHERE request_id = $1
+        `, [id]);
+        const itemsCount = countRes.rows[0].count;
+
+        if (itemsCount === 0) {
             await client.query('ROLLBACK');
             return res.status(400).json({ status: 'error', message: 'Cannot submit a purchase request with no items' });
         }
