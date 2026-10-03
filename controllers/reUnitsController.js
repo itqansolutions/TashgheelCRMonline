@@ -8,7 +8,7 @@ const db = require('../config/db');
 // @desc    Get all units for tenant
 // @route   GET /api/re-units
 exports.getUnits = async (req, res) => {
-    const tenant_id = String(req.user.tenant_id);
+    const tenant_id = req.user?.tenant_id ? String(req.user.tenant_id) : null;
     const branch_id = req.branchId || req.user?.branch_id || null;
     const { developer_id, project_id, phase_id, building_id } = req.query;
 
