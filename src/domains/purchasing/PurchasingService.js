@@ -11,8 +11,6 @@
 const db = require('../../../config/db');
 const { nextSequence } = require('../../infrastructure/sequencing/DocumentSequencer');
 const TransactionEngine = require('../shared/TransactionEngine');
-const JournalEngine = require('../accounting/JournalEngine');
-const AccountService = require('../accounting/AccountService');
 const InventoryValuationService = require('../inventory/InventoryValuationService');
 const ThreeWayMatchService = require('./ThreeWayMatchService');
 
@@ -171,9 +169,6 @@ async function approveGoodsReceipt(tenantId, branchId, goodsReceiptId, userId) {
     const items = grn.items_json || [];
     let totalGRNValue = 0;
 
-    const invAccount  = await AccountService.getAccountBySubType(tenantId, 'inventory');
-    const grniAccount = await AccountService.getAccountBySubType(tenantId, 'grni');
-
     for (const item of items) {
       const lineVal = Number(item.quantity_received) * Number(item.unit_cost);
       totalGRNValue += lineVal;
@@ -196,27 +191,12 @@ async function approveGoodsReceipt(tenantId, branchId, goodsReceiptId, userId) {
       }
     }
 
-    // Auto-post GRNI Journal Entry: DR Inventory Asset / CR Goods Received Not Invoiced
-    const journal = await JournalEngine.postJournal(client, {
-      tenantId,
-      branchId,
-      date: grn.receipt_date,
-      sourceType: 'goods_receipt',
-      sourceId: grn.id,
-      entryPurpose: 'inventory_grni',
-      description: `GRN Receipt ${grn.number}`,
-      postedBy: userId,
-      entries: [
-        { account_id: invAccount.id,  debit: totalGRNValue, credit: 0, description: `Inventory Increase (${grn.number})` },
-        { account_id: grniAccount.id, debit: 0, credit: totalGRNValue, description: `GRNI Liability Accrual (${grn.number})` }
-      ]
-    });
-
+    // Physical inventory increase only — no GRNI accounting journal
     const updatedGRN = await client.query(`
       UPDATE goods_receipts
-      SET status = 'received', accounting_status = 'posted', journal_entry_id = $1
-      WHERE id = $2 RETURNING *
-    `, [journal.id, grn.id]);
+      SET status = 'received', accounting_status = 'not_applicable', journal_entry_id = NULL
+      WHERE id = $1 RETURNING *
+    `, [grn.id]);
 
     return updatedGRN.rows[0];
   });
@@ -234,10 +214,6 @@ async function createSupplierInvoice(tenantId, branchId, data, userId) {
     const number = await nextSequence(client, { tenantId, branchId, docType: 'INV', fiscalYear: year });
 
     const grossAmount = Number(total_amount);
-
-    const grniAccount = await AccountService.getAccountBySubType(tenantId, 'grni');
-    const apAccount   = await AccountService.getAccountBySubType(tenantId, 'payable');
-    const ppvAccount  = await AccountService.getAccountBySubType(tenantId, 'ppv');
 
     let ppvTotal = 0;
 
@@ -261,41 +237,15 @@ async function createSupplierInvoice(tenantId, branchId, data, userId) {
       }
     }
 
-    // Auto-post AP Journal Entry: DR GRNI [+ DR PPV] / CR Accounts Payable
-    const entries = [
-      { account_id: grniAccount.id, debit: grossAmount - ppvTotal, credit: 0, description: `GRNI Settlement (${number})` }
-    ];
-
-    if (ppvTotal !== 0 && ppvAccount) {
-      if (ppvTotal > 0) {
-        entries.push({ account_id: ppvAccount.id, debit: ppvTotal, credit: 0, description: `PPV Expense (${number})` });
-      } else {
-        entries.push({ account_id: ppvAccount.id, debit: 0, credit: Math.abs(ppvTotal), description: `PPV Gain (${number})` });
-      }
-    }
-
-    entries.push({ account_id: apAccount.id, debit: 0, credit: grossAmount, description: `Accounts Payable Accrual (${number})` });
-
-    const journal = await JournalEngine.postJournal(client, {
-      tenantId,
-      branchId,
-      date: invoice_date || new Date(),
-      sourceType: 'supplier_invoice',
-      sourceId: number,
-      entryPurpose: 'grni_ap_settlement',
-      description: `Supplier Invoice ${number}`,
-      postedBy: userId,
-      entries
-    });
-
+    // Operational Supplier Invoice (Payable tracking only — no GL journal posting)
     const siRes = await client.query(`
       INSERT INTO supplier_invoices
         (tenant_id, branch_id, number, supplier_id, purchase_order_id, goods_receipt_id, invoice_date, due_date, total_amount, tax_amount, status, accounting_status, ppv_amount, journal_entry_id, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'unpaid', 'posted', $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'unpaid', 'not_applicable', $11, NULL, $12)
       RETURNING *
     `, [
       String(tenantId), branchId || null, number, supplier_id, purchase_order_id || null, goods_receipt_id || null,
-      invoice_date || new Date(), due_date || null, grossAmount, tax_amount || 0, ppvTotal, journal.id, userId
+      invoice_date || new Date(), due_date || null, grossAmount, tax_amount || 0, ppvTotal, userId
     ]);
 
     return siRes.rows[0];

@@ -13,8 +13,6 @@
 const db = require('../../../config/db');
 const { nextSequence } = require('../../infrastructure/sequencing/DocumentSequencer');
 const TransactionEngine = require('../shared/TransactionEngine');
-const JournalEngine = require('../accounting/JournalEngine');
-const AccountService = require('../accounting/AccountService');
 const InventoryValuationService = require('../inventory/InventoryValuationService');
 
 /**
@@ -80,8 +78,7 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
     let totalCOGSValue = 0;
     const cogsLines = [];
 
-    const cogsAccount = await AccountService.getAccountBySubType(tenantId, 'cogs');
-    const invAccount  = await AccountService.getAccountBySubType(tenantId, 'inventory');
+
 
     for (const item of items) {
       // Validate Negative Stock
@@ -115,31 +112,12 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
       }
     }
 
-    // Auto-post COGS Journal Entry: DR Cost of Goods Sold / CR Inventory Asset
-    let journal = null;
-    if (totalCOGSValue > 0) {
-      journal = await JournalEngine.postJournal(client, {
-        tenantId,
-        branchId,
-        date: dn.delivery_date,
-        sourceType: 'delivery_note',
-        sourceId: dn.id,
-        entryPurpose: 'cogs_inventory',
-        description: `COGS for Delivery Note ${dn.number}`,
-        postedBy: userId,
-        entries: [
-          { account_id: cogsAccount.id, debit: totalCOGSValue, credit: 0, description: `COGS Expense (${dn.number})` },
-          { account_id: invAccount.id,  debit: 0, credit: totalCOGSValue, description: `Inventory Reduction (${dn.number})` }
-        ]
-      });
-    }
-
-    // Update Delivery Note status
+    // Update Delivery Note status (physical inventory reduction only — no COGS journal)
     const updatedDN = await client.query(`
       UPDATE delivery_notes
-      SET status = 'delivered', accounting_status = $1, journal_entry_id = $2
-      WHERE id = $3 RETURNING *
-    `, [journal ? 'posted' : 'unposted', journal ? journal.id : null, dn.id]);
+      SET status = 'delivered', accounting_status = 'not_applicable', journal_entry_id = NULL
+      WHERE id = $1 RETURNING *
+    `, [dn.id]);
 
     // Stage Outbox Event
     await TransactionEngine.stageOutboxEvent(client, {

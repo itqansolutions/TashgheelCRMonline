@@ -20,18 +20,6 @@ exports.authorize = (roles = []) => {
       return next();
     }
 
-    // PBAC Check: If user has explicit screen permissions in user_access, grant access
-    try {
-      const accessRes = await db.query(
-        'SELECT page_path FROM user_access WHERE user_id = $1 AND can_access = true',
-        [req.user.id]
-      );
-      if (accessRes.rows.length > 0) {
-        return next();
-      }
-    } catch (err) {
-      console.error('[roleMiddleware authorize check]:', err.message);
-    }
 
     return res.status(403).json({
       status: 'error',

@@ -40,6 +40,7 @@ const Deals = () => {
     commission_type: 'percentage',
     rate: 2.5,
     calculated_amount: 0,
+    trigger_event: 'contract_signing',
     notes: ''
   });
   const [cancellationRecord, setCancellationRecord] = useState(null);
@@ -273,6 +274,7 @@ const Deals = () => {
         calculated_amount: commissionForm.commission_type === 'fixed' 
           ? Number(commissionForm.calculated_amount)
           : undefined,
+        trigger_event: commissionForm.trigger_event || 'contract_signing',
         notes: commissionForm.notes
       });
       toast.success(res.data.message || 'Commission created');
@@ -1292,7 +1294,7 @@ const Deals = () => {
               {/* Commission Creation Form */}
               {showCommissionForm && (
                 <div style={{ background: '#fff', border: '1px dashed #ea580c', borderRadius: '8px', padding: '12px', marginBottom: '12px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '10px' }}>
                     <div>
                       <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Beneficiary Type</label>
                       <select 
@@ -1344,6 +1346,18 @@ const Deals = () => {
                         style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                       />
                     </div>
+                    <div>
+                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Trigger Event</label>
+                      <select 
+                        value={commissionForm.trigger_event} 
+                        onChange={(e) => setCommissionForm({ ...commissionForm, trigger_event: e.target.value })}
+                        style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      >
+                        <option value="contract_signing">Contract Signing</option>
+                        <option value="down_payment">Down Payment</option>
+                        <option value="installment_collection">Installment Collection</option>
+                      </select>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -1386,8 +1400,8 @@ const Deals = () => {
                                 borderRadius: '4px',
                                 fontSize: '10px',
                                 fontWeight: 800,
-                                background: comm.status === 'Paid' ? '#dcfce7' : comm.status === 'Approved' ? '#dbeafe' : '#fef3c7',
-                                color: comm.status === 'Paid' ? '#15803d' : comm.status === 'Approved' ? '#1d4ed8' : '#b45309'
+                                background: comm.status === 'Paid' ? '#dcfce7' : (comm.status === 'Approved' || comm.status === 'Earned') ? '#dbeafe' : comm.status === 'Clawback' ? '#fee2e2' : comm.status === 'Cancelled' ? '#f1f5f9' : '#fef3c7',
+                                color: comm.status === 'Paid' ? '#15803d' : (comm.status === 'Approved' || comm.status === 'Earned') ? '#1d4ed8' : comm.status === 'Clawback' ? '#b91c1c' : comm.status === 'Cancelled' ? '#64748b' : '#b45309'
                               }}>
                                 {comm.status}
                               </span>
@@ -1403,7 +1417,7 @@ const Deals = () => {
                                     Approve
                                   </button>
                                 )}
-                                {(comm.status === 'Approved' || comm.status === 'Partially Paid') && unpaid > 0 && (
+                                {(comm.status === 'Approved' || comm.status === 'Earned' || comm.status === 'Partially Paid') && unpaid > 0 && (
                                   <button
                                     type="button"
                                     onClick={() => handlePayCommission(comm.id, unpaid)}

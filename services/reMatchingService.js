@@ -216,7 +216,7 @@ async function matchUnitsForCustomer({ tenantId, branchId, customerId, includeAl
         LEFT JOIN re_phases phase ON ru.phase_id::text = phase.id::text AND phase.tenant_id::text = ru.tenant_id::text
         LEFT JOIN re_buildings bld ON ru.building_id::text = bld.id::text AND bld.tenant_id::text = ru.tenant_id::text
         WHERE ru.tenant_id::text = $1::text
-          AND ($2::text IS NULL OR ru.branch_id::text = $2::text OR ru.branch_id IS NULL)
+          AND ($2::text IS NULL OR ru.status = 'Available' OR ru.branch_id::text = $2::text OR ru.branch_id IS NULL)
     `;
     const params = [tenantId, branchId ? String(branchId) : null];
 

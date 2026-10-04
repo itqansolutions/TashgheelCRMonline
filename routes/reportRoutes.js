@@ -22,4 +22,9 @@ router.get('/financial-trends', authorize(['admin']), reportsController.getFinan
 // @access  Private (Admin, Manager)
 router.get('/customer-rankings', authorize(['admin', 'manager']), reportsController.getCustomerRankings);
 
+// @route   GET api/reports/funnel
+// @desc    Funnel Analytics (Real Estate vs General)
+// @access  Private (Admin, Manager)
+router.get('/funnel', authorize(['admin', 'manager']), reportsController.getFunnelReport);
+
 module.exports = router;

@@ -91,6 +91,7 @@ exports.createCommission = async (req, res) => {
         rate = 0,
         base_amount,
         calculated_amount,
+        trigger_event = 'contract_signing', // 'contract_signing', 'down_payment', 'installment_collection'
         notes
     } = req.body;
 
@@ -98,7 +99,12 @@ exports.createCommission = async (req, res) => {
         return res.status(400).json({ status: 'error', message: 'deal_id is required.' });
     }
 
+    const validTriggers = ['contract_signing', 'down_payment', 'installment_collection'];
+    const finalTrigger = validTriggers.includes(trigger_event) ? trigger_event : 'contract_signing';
+
     try {
+        await db.query(`ALTER TABLE re_commissions ADD COLUMN IF NOT EXISTS trigger_event VARCHAR(100) DEFAULT 'contract_signing';`);
+
         // 1. Verify Deal
         const dealRes = await db.query(`
             SELECT id, title, value, assigned_to
@@ -160,8 +166,8 @@ exports.createCommission = async (req, res) => {
             INSERT INTO re_commissions (
                 deal_id, contract_id, beneficiary_type, beneficiary_user_id,
                 beneficiary_name, commission_type, rate, base_amount,
-                calculated_amount, paid_amount, status, notes, tenant_id, branch_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 'Pending', $10, $11, $12)
+                calculated_amount, paid_amount, status, trigger_event, notes, tenant_id, branch_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 'Pending', $10, $11, $12, $13)
             RETURNING *
         `, [
             deal.id,
@@ -173,6 +179,7 @@ exports.createCommission = async (req, res) => {
             rateNum,
             base,
             computed,
+            finalTrigger,
             notes,
             tenant_id,
             branch_id
@@ -189,21 +196,21 @@ exports.createCommission = async (req, res) => {
     }
 };
 
-// @desc    Update commission status (Approve, Cancel)
+// @desc    Update commission status (Approve, Earned, Cancel, Clawback)
 // @route   PATCH /api/re-commissions/:id/status
 exports.updateCommissionStatus = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const { id } = req.params;
     const { status } = req.body;
 
-    const allowed = ['Pending', 'Approved', 'Cancelled'];
+    const allowed = ['Pending', 'Earned', 'Approved', 'Cancelled', 'Clawback'];
     if (!status || !allowed.includes(status)) {
         return res.status(400).json({ status: 'error', message: `Invalid status. Allowed: ${allowed.join(', ')}` });
     }
 
     try {
         const commRes = await db.query(`
-            SELECT id, status, paid_amount FROM re_commissions
+            SELECT id, status, paid_amount, trigger_event, contract_id, deal_id FROM re_commissions
             WHERE id::text = $1::text AND tenant_id::text = $2::text
         `, [id, tenant_id]);
 
@@ -216,11 +223,50 @@ exports.updateCommissionStatus = async (req, res) => {
         if (comm.status === 'Paid') {
             return res.status(400).json({ status: 'error', message: 'Cannot modify a fully paid commission.' });
         }
-        if (comm.status === 'Cancelled') {
+        if (comm.status === 'Cancelled' && status !== 'Clawback') {
             return res.status(400).json({ status: 'error', message: 'Cannot modify a cancelled commission.' });
         }
 
-        const approvalDate = status === 'Approved' ? new Date().toISOString().split('T')[0] : null;
+        // Verify trigger conditions before marking as Approved or Earned
+        if ((status === 'Approved' || status === 'Earned') && comm.contract_id) {
+            if (comm.trigger_event === 'down_payment') {
+                const contractRes = await db.query(`
+                    SELECT down_payment, status FROM re_contracts 
+                    WHERE id = $1 AND tenant_id::text = $2::text
+                `, [comm.contract_id, tenant_id]);
+                if (contractRes.rows.length > 0) {
+                    const requiredDp = parseFloat(contractRes.rows[0].down_payment) || 0;
+                    const paidRes = await db.query(`
+                        SELECT COALESCE(SUM(paid_amount), 0) as total_paid
+                        FROM re_installments
+                        WHERE contract_id = $1 AND tenant_id::text = $2::text
+                    `, [comm.contract_id, tenant_id]);
+                    const totalPaid = parseFloat(paidRes.rows[0].total_paid) || 0;
+                    if (totalPaid < requiredDp) {
+                        return res.status(400).json({
+                            status: 'error',
+                            message: `Down payment trigger condition not met. Required: ${requiredDp} EGP, Collected: ${totalPaid} EGP.`
+                        });
+                    }
+                }
+            } else if (comm.trigger_event === 'contract_signing') {
+                const contractRes = await db.query(`
+                    SELECT status FROM re_contracts 
+                    WHERE id = $1 AND tenant_id::text = $2::text
+                `, [comm.contract_id, tenant_id]);
+                if (contractRes.rows.length > 0) {
+                    const cStatus = contractRes.rows[0].status;
+                    if (cStatus !== 'Signed' && cStatus !== 'Active' && cStatus !== 'Completed') {
+                        return res.status(400).json({
+                            status: 'error',
+                            message: `Contract signing trigger condition not met. Contract status is '${cStatus}', must be Signed or Active.`
+                        });
+                    }
+                }
+            }
+        }
+
+        const approvalDate = (status === 'Approved' || status === 'Earned') ? new Date().toISOString().split('T')[0] : null;
 
         const updateRes = await db.query(`
             UPDATE re_commissions SET
@@ -271,11 +317,11 @@ exports.payCommission = async (req, res) => {
 
         const comm = commRes.rows[0];
 
-        if (comm.status !== 'Approved' && comm.status !== 'Partially Paid') {
+        if (comm.status !== 'Approved' && comm.status !== 'Earned' && comm.status !== 'Partially Paid') {
             await client.query('ROLLBACK');
             return res.status(400).json({
                 status: 'error',
-                message: `Commission must be in 'Approved' status to record payment (current: ${comm.status}).`
+                message: `Commission must be in 'Approved' or 'Earned' status to record payment (current: ${comm.status}).`
             });
         }
 

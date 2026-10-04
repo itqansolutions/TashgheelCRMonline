@@ -477,9 +477,9 @@ exports.createInvoiceFromDeal = async (req, res) => {
 
         await db.query(`UPDATE deals SET pipeline_stage = 'won' WHERE id = $1`, [deal.id]);
 
+        // Finance records the invoice and financial transaction. Unit status is governed by Real Estate contracts/handovers.
         if (deal.unit_id && String(deal.unit_id).length > 10) {
             try {
-                await db.query(`UPDATE re_units SET status = 'Sold' WHERE id = $1::uuid AND tenant_id::text = $2::text`, [deal.unit_id, tenant_id]);
                 const payCheck = await db.query('SELECT id FROM re_payments_mvp WHERE deal_id::text = $1::text AND tenant_id::text = $2::text', [deal.id, tenant_id]);
                 if (payCheck.rows.length === 0) {
                     await db.query(`
@@ -488,7 +488,7 @@ exports.createInvoiceFromDeal = async (req, res) => {
                     `, [tenant_id, branch_id, deal.id, deal.value]);
                 }
             } catch (reErr) {
-                console.error('[Finance Automation Warning]: Real Estate unit update failed:', reErr.message);
+                console.error('[Finance Automation Warning]: Real Estate payment tracking failed:', reErr.message);
             }
         }
 

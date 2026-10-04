@@ -1626,6 +1626,33 @@ exports.handleWebhookEvent = async (req, res) => {
             console.warn('[WhatsApp customer lookup warning]', cErr.message);
           }
 
+          // Auto-create CRM lead if unknown phone number
+          if (!customerId) {
+            try {
+              const leadName = contactProfileName || `WhatsApp Lead ${fromPhone}`;
+              const newLead = await db.query(`
+                INSERT INTO customers (
+                  name, phone, source, status, tenant_id, branch_id,
+                  entity_type, is_active, notes
+                ) VALUES ($1, $2, 'WhatsApp', 'lead', $3, $4, 'customer', true, $5)
+                RETURNING id, name
+              `, [
+                leadName,
+                fromPhone,
+                tenant_id,
+                branch_id || null,
+                'Auto-created lead from inbound WhatsApp message.'
+              ]);
+              if (newLead.rows.length > 0) {
+                customerId = newLead.rows[0].id;
+                customerName = newLead.rows[0].name;
+                console.log(`[WhatsApp Inbound] Auto-created new CRM lead #${customerId} for phone ${fromPhone}`);
+              }
+            } catch (leadErr) {
+              console.warn('[WhatsApp Lead Auto-Creation Error]', leadErr.message);
+            }
+          }
+
           // Inbound Message Body & Media extraction
           const msgType = msg.type || 'text';
           let bodyText = '';

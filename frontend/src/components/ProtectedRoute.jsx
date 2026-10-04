@@ -18,12 +18,33 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  // Admin always has access to everything
-  if (user?.role === 'admin') return children;
-
-  // PBAC (Screen-Based Access Control)
   const currentPath = location.pathname;
   const checkPath = currentPath === '/' ? '/dashboard' : currentPath;
+
+  // Template Boundary Enforcement (Direct URL Access Isolation)
+  const template = user?.template_name;
+  if (template === 'real_estate') {
+    const isGeneralOnly = [
+      '/inventory', '/purchases', '/sales/orders', '/sales/documents',
+      '/sales/price-tiers', '/sales/salesmen', '/sales/target',
+      '/erp/sales', '/erp/purchasing'
+    ].some(prefix => checkPath.startsWith(prefix));
+
+    if (isGeneralOnly) {
+      return <Navigate to="/dashboard" replace />;
+    }
+  } else if (template === 'general') {
+    const isReOnly = [
+      '/units-registry'
+    ].some(prefix => checkPath.startsWith(prefix));
+
+    if (isReOnly) {
+      return <Navigate to="/dashboard" replace />;
+    }
+  }
+
+  // Admin always has access to everything within their template
+  if (user?.role === 'admin') return children;
   const allowed = safeArray(user?.allowedPages);
 
   // If user has explicit screen permission in allowedPages, allow access immediately

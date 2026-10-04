@@ -182,6 +182,15 @@ exports.processCancellation = async (req, res) => {
             `, [contract.id, tenant_id]);
         }
 
+        // 7.5. Clawback or cancel commissions associated with this cancelled deal
+        await client.query(`
+            UPDATE re_commissions SET
+                status = CASE WHEN paid_amount > 0 THEN 'Clawback' ELSE 'Cancelled' END,
+                notes = COALESCE(notes, '') || ' [Cancelled due to deal cancellation]',
+                updated_at = NOW()
+            WHERE deal_id = $1 AND tenant_id::text = $2::text AND status NOT IN ('Cancelled', 'Clawback')
+        `, [deal.id, tenant_id]);
+
         // 8. Release unit if requested
         if (deal.unit_id && unit_action === 'release') {
             await client.query(`

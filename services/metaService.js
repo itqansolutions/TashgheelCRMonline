@@ -125,6 +125,9 @@ async function ensureCustomerMetaColumns() {
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_lead_id VARCHAR(255);
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_name VARCHAR(255);
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_id VARCHAR(255);
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_campaign_name VARCHAR(255);
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_adset_name VARCHAR(255);
+      ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_ad_name VARCHAR(255);
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS whatsapp_welcome_sent BOOLEAN DEFAULT FALSE;
       ALTER TABLE customers ADD COLUMN IF NOT EXISTS whatsapp_welcome_sent_at TIMESTAMPTZ;
     `);
@@ -198,8 +201,8 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
 
   if (metaLeadId) {
     const existing = await db.query(
-      'SELECT id, name, phone, email, notes, meta_lead_id, whatsapp_welcome_sent FROM customers WHERE meta_lead_id = $1 LIMIT 1',
-      [metaLeadId]
+      'SELECT id, name, phone, email, notes, meta_lead_id, whatsapp_welcome_sent FROM customers WHERE meta_lead_id = $1 AND tenant_id::text = $2::text LIMIT 1',
+      [metaLeadId, tenantId]
     );
     if (existing.rows.length > 0) {
       existingCustomer = existing.rows[0];
@@ -226,7 +229,7 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
   let targetCustomer = null;
   let shouldSendWhatsApp = false;
 
-  // 4. UPSERT: If customer already exists, UPDATE missing data and align branch/tenant
+  // 4. UPSERT: If customer already exists, UPDATE missing data within the tenant
   if (existingCustomer) {
     status = 'updated';
     const updateQuery = `
@@ -241,10 +244,12 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
         meta_lead_id = COALESCE(meta_lead_id, $6),
         meta_form_name = $7,
         meta_form_id = $8,
-        branch_id = COALESCE(NULLIF($9, ''), branch_id),
-        tenant_id = COALESCE(NULLIF($10, ''), tenant_id),
+        meta_campaign_name = COALESCE($9, meta_campaign_name),
+        meta_adset_name = COALESCE($10, meta_adset_name),
+        meta_ad_name = COALESCE($11, meta_ad_name),
+        branch_id = COALESCE(NULLIF($12, ''), branch_id),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $11
+      WHERE id = $13 AND tenant_id::text = $14::text
       RETURNING *
     `;
 
@@ -259,9 +264,12 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
       metaLeadId || null,
       formRecord.form_name || null,
       String(formRecord.form_id || '').trim(),
+      lead.campaign_name || null,
+      lead.adset_name || null,
+      lead.ad_name || null,
       safeBranchId,
-      tenantId || null,
-      existingCustomer.id
+      existingCustomer.id,
+      tenantId
     ]);
 
     targetCustomer = updated.rows[0];
@@ -282,8 +290,9 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
       INSERT INTO customers (
         name, company_name, email, phone, address, notes,
         source_id, source, assigned_to, status, tenant_id, branch_id,
-        entity_type, is_active, meta_lead_id, meta_form_name, meta_form_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        entity_type, is_active, meta_lead_id, meta_form_name, meta_form_id,
+        meta_campaign_name, meta_adset_name, meta_ad_name
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING *
     `;
 
@@ -306,7 +315,10 @@ async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null
       true,
       metaLeadId || null,
       formRecord.form_name || null,
-      String(formRecord.form_id || '').trim()
+      String(formRecord.form_id || '').trim(),
+      lead.campaign_name || null,
+      lead.adset_name || null,
+      lead.ad_name || null
     ];
 
     const result = await db.query(insertQuery, values);

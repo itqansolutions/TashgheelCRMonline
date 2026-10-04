@@ -11,14 +11,19 @@ const CACHE_TTL = 5 * 60 * 1000;
  * Resolution Tier: Header -> User Permission -> Main Branch Fallback
  */
 const branchScope = async (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ status: 'error', message: 'User context missing.' });
+  }
+
   const headerBranchId = req.headers['x-branch-id'];
   const tenantId = req.user.tenant_id;
   const userId = req.user.id;
+  const userRole = req.user.role;
 
   try {
     let resolvedBranchId = headerBranchId;
 
-    // --- Tier 1 & 2: Resolve Branch Context ---
+    // --- Tier 1 & 2: Resolve Branch Context (Fallback when no header provided) ---
     if (!resolvedBranchId) {
       // 1. Check for User's default/first assigned branch
       const userBranchRes = await db.query(
@@ -37,7 +42,7 @@ const branchScope = async (req, res, next) => {
         if (mainBranchRes.rows.length > 0) {
           resolvedBranchId = mainBranchRes.rows[0].id;
         } else {
-          // 🔥 SELF-HEALING: Auto-Provision Main Branch if missing
+          // SELF-HEALING: Auto-Provision Main Branch if missing
           console.warn(`[ACL] Self-Healing: Missing main branch for tenant ${tenantId}. Creating one...`);
           const newBranchRes = await db.query(`
             INSERT INTO branches (name, tenant_id, is_main, address)
@@ -60,14 +65,12 @@ const branchScope = async (req, res, next) => {
       });
     }
 
-    // --- Tier 3: Security & Cache Validation ---
+    // --- Tier 3: Tenant Security & Cache Validation ---
+    let branchTenantId;
     const cachedEntry = branchCache.get(resolvedBranchId);
     
     if (cachedEntry && cachedEntry.expiresAt > Date.now()) {
-      // Direct Cache Hit
-      if (cachedEntry.tenantId !== tenantId) {
-        return res.status(403).json({ status: 'error', message: 'Unauthorized branch access attempt recorded.' });
-      }
+      branchTenantId = cachedEntry.tenantId;
     } else {
       // Cache Miss or Expired: Validate from DB
       const branchRes = await db.query(
@@ -79,26 +82,38 @@ const branchScope = async (req, res, next) => {
         return res.status(404).json({ status: 'error', message: 'Selected branch no longer exists.' });
       }
 
-      const branchTenantId = branchRes.rows[0].tenant_id;
-
-      // --- DIAGNOSTIC LOGGING ---
-      console.log(`[ACL] Branch Validation: BranchID=${resolvedBranchId} | UserTenant=${tenantId} | BranchTenant=${branchTenantId}`);
-
-      if (branchTenantId && String(branchTenantId).toLowerCase().trim() !== String(tenantId).toLowerCase().trim()) {
-        // SECURITY ALERT: Possible cross-tenant ID guessing
-        console.warn(`[SECURITY] Cross-tenant branch access attempt: User ${userId} tried accessing branch ${resolvedBranchId} (belongs to ${branchTenantId})`);
-        return res.status(403).json({ 
-            status: 'error', 
-            message: 'Access denied: Branch does not belong to your organization.',
-            debug: { userTenant: tenantId, branchTenant: branchTenantId } // Temporary for debugging
-        });
-      }
+      branchTenantId = branchRes.rows[0].tenant_id;
 
       // Update Cache
       branchCache.set(resolvedBranchId, {
         tenantId: branchTenantId,
         expiresAt: Date.now() + CACHE_TTL
       });
+    }
+
+    // Tenant Isolation Check: Branch must belong to the user's tenant
+    if (!branchTenantId || String(branchTenantId).toLowerCase().trim() !== String(tenantId).toLowerCase().trim()) {
+      console.warn(`[SECURITY] Cross-tenant branch access attempt: User ${userId} (tenant ${tenantId}) tried accessing branch ${resolvedBranchId} (tenant ${branchTenantId})`);
+      return res.status(403).json({ 
+        status: 'error', 
+        message: 'Access denied: Branch does not belong to your organization.'
+      });
+    }
+
+    // --- Tier 4: User Branch Membership Check ---
+    // If the branch was explicitly requested via x-branch-id header, non-admin users MUST be assigned to it
+    if (headerBranchId && userRole !== 'admin') {
+      const userBranchCheck = await db.query(
+        'SELECT 1 FROM user_branches WHERE user_id::text = $1::text AND branch_id::text = $2::text LIMIT 1',
+        [userId, resolvedBranchId]
+      );
+      if (userBranchCheck.rows.length === 0) {
+        return res.status(403).json({
+          status: 'error',
+          message: 'Unauthorized branch access: User is not assigned to this branch.',
+          code: 'UNAUTHORIZED_BRANCH_ACCESS'
+        });
+      }
     }
 
     // --- Final Injection ---

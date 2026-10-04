@@ -34,13 +34,27 @@ module.exports = async (req, res, next) => {
        }
     }
 
-    
-    // 🔥 NEW: Branch Context Extraction
-    const branchId = req.header('x-branch-id');
-    if (branchId) {
-        req.branchId = branchId;
+    // Hydrate template_name if not already present on user
+    if (req.user && !req.user.template_name && req.tenant_id) {
+      try {
+        const cachedTemplate = templateCache.get(req.tenant_id);
+        if (cachedTemplate && cachedTemplate.expiresAt > Date.now()) {
+          req.user.template_name = cachedTemplate.template_name;
+        } else {
+          const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id::text = $1::text', [req.tenant_id]);
+          const templateName = tenantRes.rows[0]?.template_name || 'general';
+          templateCache.set(req.tenant_id, {
+            template_name: templateName,
+            expiresAt: Date.now() + TEMPLATE_CACHE_TTL
+          });
+          req.user.template_name = templateName;
+        }
+      } catch (tmplErr) {
+        req.user.template_name = 'general';
+      }
     }
-    
+
+    // Branch context is validated and assigned strictly by branchScope middleware
     next();
   } catch (err) {
     res.status(401).json({ status: 'error', message: 'Token is not valid' });

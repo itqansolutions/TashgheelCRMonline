@@ -283,18 +283,76 @@ exports.recordPayment = async (req, res) => {
         const newStatus = isFull ? 'Paid' : 'Partially Paid';
         const paidAt = isFull ? (payment_date || new Date().toISOString()) : inst.paid_at;
 
+        // Ensure finance_vouchers has RE linkage columns
+        await client.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255)`);
+        await client.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS contract_id VARCHAR(255)`);
+        await client.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS installment_id VARCHAR(255)`);
+        await client.query(`ALTER TABLE re_installments ADD COLUMN IF NOT EXISTS last_voucher_id INTEGER`);
+
+        // Fetch customer name for party_name
+        let customerName = 'Real Estate Customer';
+        let customerId = null;
+        if (inst.deal_id) {
+            try {
+                const dealRes = await client.query(`
+                    SELECT d.title, d.client_id, c.name as customer_name
+                    FROM deals d
+                    LEFT JOIN customers c ON d.client_id::text = c.id::text
+                    WHERE d.id = $1
+                `, [inst.deal_id]);
+                if (dealRes.rows.length > 0) {
+                    customerName = dealRes.rows[0].customer_name || dealRes.rows[0].title || 'Real Estate Customer';
+                    customerId = dealRes.rows[0].client_id;
+                }
+            } catch (dErr) {
+                console.warn('[Finance Link] Deal info lookup note:', dErr.message);
+            }
+        }
+
+        const voucherNumber = `RCV-RE-${Date.now()}`;
+        const pDate = payment_date ? new Date(payment_date) : new Date();
+
+        // 2. Authoritative Finance Receipt Voucher creation (money movement single source of truth)
+        const voucherRes = await client.query(`
+            INSERT INTO finance_vouchers (
+                voucher_number, voucher_type, party_type, party_name,
+                customer_id, deal_id, contract_id, installment_id,
+                amount, payment_method, notes, voucher_date,
+                created_by, tenant_id, branch_id
+            ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            RETURNING id, voucher_number
+        `, [
+            voucherNumber,
+            customerName,
+            customerId ? String(customerId) : null,
+            inst.deal_id ? String(inst.deal_id) : null,
+            inst.contract_id ? String(inst.contract_id) : null,
+            String(inst.id),
+            payAmount,
+            req.body.payment_method || 'cash',
+            notes || `Payment for Installment #${inst.installment_number}`,
+            pDate,
+            req.user?.id || null,
+            tenant_id,
+            req.branchId || null
+        ]);
+
+        const voucher = voucherRes.rows[0];
+
+        // 3. Update installment with paid_amount derived from actual receipt
         const updatedRes = await client.query(`
             UPDATE re_installments SET
                 paid_amount = $1,
                 status = $2,
                 paid_at = $3,
-                notes = COALESCE($4, notes),
+                last_voucher_id = $4,
+                notes = COALESCE($5, notes),
                 updated_at = NOW()
-            WHERE id = $5 AND tenant_id::text = $6::text
+            WHERE id = $6 AND tenant_id::text = $7::text
             RETURNING *
-        `, [newPaidTotal, newStatus, paidAt, notes, inst.id, tenant_id]);
+        `, [newPaidTotal, newStatus, paidAt, voucher.id, notes, inst.id, tenant_id]);
 
-        // 2. Sync with re_payments_mvp if exists
+        // 4. Sync with re_payments_mvp for backward compatibility
         if (inst.deal_id) {
             await client.query(`
                 UPDATE re_payments_mvp SET

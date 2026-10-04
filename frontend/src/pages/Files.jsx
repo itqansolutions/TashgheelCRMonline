@@ -25,8 +25,12 @@ const Files = () => {
   }, []);
 
   const handleDownload = (filePath, originalName) => {
-    // Construct the absolute URL to the static file
-    const url = `${api.defaults.baseURL.replace('/api', '')}/${filePath}`;
+    // Construct the absolute URL to the static file with authentication token
+    const token = localStorage.getItem('token');
+    const cleanPath = (filePath || '').replace(/\\/g, '/');
+    const baseUrl = api.defaults.baseURL.replace('/api', '');
+    const separator = cleanPath.includes('?') ? '&' : '?';
+    const url = `${baseUrl}/${cleanPath}${token ? `${separator}token=${encodeURIComponent(token)}` : ''}`;
     
     // Create a temporary link and click it to trigger download
     const link = document.createElement('a');

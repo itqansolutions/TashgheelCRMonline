@@ -62,6 +62,15 @@ const WhatsAppChat = () => {
   const messagesEndRef = useRef(null);
   const pollingRef = useRef(null);
 
+  const getSecureMediaUrl = (url) => {
+    if (!url) return '';
+    if (!url.startsWith('/uploads')) return url;
+    const token = localStorage.getItem('token');
+    if (!token) return url;
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}token=${encodeURIComponent(token)}`;
+  };
+
   // -------------------------------------------------------------------------
   // Fetch initial accounts, users, templates & customers
   // -------------------------------------------------------------------------
@@ -965,13 +974,13 @@ const WhatsAppChat = () => {
                             <div style={{ marginBottom: '6px' }}>
                               {msg.message_type === 'image' ? (
                                 <img
-                                  src={msg.media_url}
+                                  src={getSecureMediaUrl(msg.media_url)}
                                   alt="WhatsApp media"
                                   style={{ maxWidth: '100%', maxHeight: '240px', borderRadius: '6px', objectFit: 'cover' }}
                                 />
                               ) : (
                                 <a
-                                  href={msg.media_url}
+                                  href={getSecureMediaUrl(msg.media_url)}
                                   target="_blank"
                                   rel="noreferrer"
                                   style={{

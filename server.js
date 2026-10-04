@@ -37,7 +37,8 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
   console.log('✅ Created placeholder uploads directory');
 }
-app.use('/uploads', express.static(uploadsDir));
+const secureUploads = require('./middleware/secureUploads');
+app.use('/uploads', secureUploads(uploadsDir));
 
 // Health check for Railway monitoring
 app.get('/health', (req, res) => {
@@ -136,11 +137,13 @@ app.use(express.static(frontendPath));
 // Global Subscription & Branch Guard (applies only to /api routes below)
 app.use('/api', authMiddleware, branchScope, subscriptionGuard);
 
+const templateGuard = require('./middleware/templateGuard');
+
 app.use('/api/customers', customerRoutes);
 app.use('/api/meta', metaRoutes);
 app.use('/api/whatsapp', require('./routes/whatsappRoutes'));
 app.use('/api/billing', billingRoutes);
-app.use('/api/products', productRoutes);
+app.use('/api/products', templateGuard('general'), productRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/quotations', quotationRoutes);
@@ -148,15 +151,14 @@ app.use('/api/finance', financeRoutes);
 
 // Module-Guarded Routes (require specific plan modules)
 app.use('/api/hr',        moduleGuard('hr'),        hrRoutes);
-app.use('/api/inventory', moduleGuard('inventory'), inventoryRoutes);
+app.use('/api/inventory', templateGuard('general'), moduleGuard('inventory'), inventoryRoutes);
 app.use('/api/workflows', moduleGuard('automation'), workflowRoutes);
 app.use('/api/rules',     moduleGuard('automation'), rulesRoutes);
 
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/invoices', invoiceRoutes);
 app.use('/api/expenses', expenseRoutes);
-app.use('/api/accounting/journals', require('./routes/journalRoutes'));
-app.use('/api/accounting', accountingRoutes);
+
 app.use('/api/users', userRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/files', fileRoutes);
@@ -171,21 +173,30 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/lead-statuses', require('./routes/leadStatusRoutes'));
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
-app.use('/api/re-units', reUnitRoutes);
-app.use('/api/re-payments', rePaymentRoutes);
-app.use('/api/re-hierarchy', require('./routes/reHierarchyRoutes'));
-app.use('/api/re-contracts', require('./routes/reContractRoutes'));
-app.use('/api/re-installments', require('./routes/reInstallmentRoutes'));
-app.use('/api/re-commissions', require('./routes/reCommissionRoutes'));
-app.use('/api/re-cancellations', require('./routes/reCancellationRoutes'));
-app.use('/api/re-handovers', require('./routes/reHandoverRoutes'));
+
+// Real Estate Module Routes (Protected by templateGuard)
+app.use('/api/re-units',         templateGuard('real_estate'), reUnitRoutes);
+app.use('/api/re-payments',      templateGuard('real_estate'), rePaymentRoutes);
+app.use('/api/re-hierarchy',     templateGuard('real_estate'), require('./routes/reHierarchyRoutes'));
+app.use('/api/re-contracts',     templateGuard('real_estate'), require('./routes/reContractRoutes'));
+app.use('/api/re-installments',  templateGuard('real_estate'), require('./routes/reInstallmentRoutes'));
+app.use('/api/re-commissions',   templateGuard('real_estate'), require('./routes/reCommissionRoutes'));
+app.use('/api/re-cancellations', templateGuard('real_estate'), require('./routes/reCancellationRoutes'));
+app.use('/api/re-handovers',     templateGuard('real_estate'), require('./routes/reHandoverRoutes'));
+
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/vendors', vendorRoutes);
-app.use('/api/purchases', require('./routes/purchaseRoutes'));
-app.use('/api/purchase-requests', require('./routes/purchaseRequestRoutes'));
-app.use('/api/rfqs', require('./routes/rfqRoutes'));
-app.use('/api/purchase-orders', require('./routes/purchaseOrderRoutes'));
+
+// General Purchasing & Procurement Routes (Protected by templateGuard)
+app.use('/api/purchases',         templateGuard('general'), require('./routes/purchaseRoutes'));
+app.use('/api/purchase-requests', templateGuard('general'), require('./routes/purchaseRequestRoutes'));
+app.use('/api/rfqs',              templateGuard('general'), require('./routes/rfqRoutes'));
+app.use('/api/purchase-orders',   templateGuard('general'), require('./routes/purchaseOrderRoutes'));
+app.use('/api/purchasing',        templateGuard('general'), require('./routes/purchasingRoutes'));
+app.use('/api/erp/purchasing',    templateGuard('general'), require('./routes/purchasingRoutes'));
+app.use('/api/sales', templateGuard('general'), require('./routes/salesRoutes'));
+app.use('/api/erp/sales', templateGuard('general'), require('./routes/salesRoutes'));
 app.use('/api/job-titles', jobTitleRoutes);
 
 // HR Extension Modules
@@ -193,19 +204,44 @@ app.use('/api/hr/activity-types', hrActivityRoutes);
 app.use('/api/hr/activity-balances', hrActivityBalanceRoutes);
 app.use('/api/hr/shifts', hrShiftsRoutes);
 app.use('/api/hr/devices', hrDevicesRoutes);
-app.use('/api/erp/fiscal-years', require('./routes/erpFiscalYearRoutes'));
-app.use('/api/erp/accounts', require('./routes/accountRoutes'));
-app.use('/api/erp/cost-centers', require('./routes/costCenterRoutes'));
-app.use('/api/erp/opening-balances', require('./routes/openingBalanceRoutes'));
-app.use('/api/erp/taxes', require('./routes/taxRoutes'));
-app.use('/api/erp/journals', require('./routes/journalRoutes'));
-app.use('/api/erp/reconciliation', require('./routes/reconciliationRoutes'));
-app.use('/api/erp/sales', require('./routes/salesRoutes'));
-app.use('/api/sales', require('./routes/salesRoutes'));
-app.use('/api/erp/purchasing', require('./routes/purchasingRoutes'));
-app.use('/api/erp/reports', require('./routes/glReportRoutes'));
-app.use('/api/erp/banking', require('./routes/bankingRoutes'));
-app.use('/api/erp/closing', require('./routes/closingRoutes'));
+
+// ── ISOLATED ERP ACCOUNTING MODULE ──────────────────────────────
+// Parked — isolated from Tashgheel CRM UX and API surface.
+// Prevents normal CRM users from reaching double-entry GL/closing/COA endpoints.
+const erpAccountingDisabled = (req, res) => {
+  return res.status(404).json({
+    status: 'error',
+    message: 'ERP Accounting is not enabled in Tashgheel CRM.',
+    code: 'ERP_ACCOUNTING_DISABLED'
+  });
+};
+
+if (process.env.ENABLE_ERP_ACCOUNTING === 'true') {
+  app.use('/api/accounting/journals', require('./routes/journalRoutes'));
+  app.use('/api/accounting', accountingRoutes);
+  app.use('/api/erp/fiscal-years', require('./routes/erpFiscalYearRoutes'));
+  app.use('/api/erp/accounts', require('./routes/accountRoutes'));
+  app.use('/api/erp/cost-centers', require('./routes/costCenterRoutes'));
+  app.use('/api/erp/opening-balances', require('./routes/openingBalanceRoutes'));
+  app.use('/api/erp/taxes', require('./routes/taxRoutes'));
+  app.use('/api/erp/journals', require('./routes/journalRoutes'));
+  app.use('/api/erp/reconciliation', require('./routes/reconciliationRoutes'));
+  app.use('/api/erp/reports', require('./routes/glReportRoutes'));
+  app.use('/api/erp/banking', require('./routes/bankingRoutes'));
+  app.use('/api/erp/closing', require('./routes/closingRoutes'));
+} else {
+  app.use('/api/accounting', erpAccountingDisabled);
+  app.use('/api/erp/fiscal-years', erpAccountingDisabled);
+  app.use('/api/erp/accounts', erpAccountingDisabled);
+  app.use('/api/erp/cost-centers', erpAccountingDisabled);
+  app.use('/api/erp/opening-balances', erpAccountingDisabled);
+  app.use('/api/erp/taxes', erpAccountingDisabled);
+  app.use('/api/erp/journals', erpAccountingDisabled);
+  app.use('/api/erp/reconciliation', erpAccountingDisabled);
+  app.use('/api/erp/reports', erpAccountingDisabled);
+  app.use('/api/erp/banking', erpAccountingDisabled);
+  app.use('/api/erp/closing', erpAccountingDisabled);
+}
 
 // Load Domain Modules (Plugin Architecture)
 require('./src/domains/realestate');
