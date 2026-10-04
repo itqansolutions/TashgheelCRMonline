@@ -45,10 +45,19 @@ const UnitsRegistry = () => {
     const [hierarchyTab, setHierarchyTab] = useState('projects'); // 'projects' | 'developers'
     const [showQuickDevModal, setShowQuickDevModal] = useState(false);
     const [showQuickProjModal, setShowQuickProjModal] = useState(false);
+    const [showQuickPhaseModal, setShowQuickPhaseModal] = useState(false);
+    const [showQuickBuildingModal, setShowQuickBuildingModal] = useState(false);
+    const [expandedProjectId, setExpandedProjectId] = useState(null);
+
     const [newDevForm, setNewDevForm] = useState({ name: '', contact_person: '', phone: '', email: '' });
     const [newProjForm, setNewProjForm] = useState({ name: '', developer_id: '', location: '', description: '' });
+    const [newPhaseForm, setNewPhaseForm] = useState({ project_id: '', name: '' });
+    const [newBuildingForm, setNewBuildingForm] = useState({ project_id: '', phase_id: '', name: '', floors_count: 1 });
+
     const [creatingDev, setCreatingDev] = useState(false);
     const [creatingProj, setCreatingProj] = useState(false);
+    const [creatingPhase, setCreatingPhase] = useState(false);
+    const [creatingBuilding, setCreatingBuilding] = useState(false);
 
     // Form and N2 price state
     const [priceDisplay, setPriceDisplay] = useState('');
@@ -237,6 +246,115 @@ const UnitsRegistry = () => {
             fetchHierarchy();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to delete project');
+        }
+    };
+
+    const openAddPhaseModal = (projectId, projectName) => {
+        setNewPhaseForm({ project_id: projectId || formData.project_id || '', name: '' });
+        setShowQuickPhaseModal(true);
+    };
+
+    const openAddBuildingModal = (projectId, projectName, phaseId) => {
+        setNewBuildingForm({ 
+            project_id: projectId || formData.project_id || '', 
+            phase_id: phaseId || formData.phase_id || '', 
+            name: '', 
+            floors_count: 1 
+        });
+        setShowQuickBuildingModal(true);
+    };
+
+    const handleCreatePhase = async (e) => {
+        e.preventDefault();
+        if (!newPhaseForm.project_id) {
+            toast.error('Please select a project for this phase');
+            return;
+        }
+        if (!newPhaseForm.name.trim()) {
+            toast.error('Phase name is required');
+            return;
+        }
+        setCreatingPhase(true);
+        try {
+            const res = await api.post('/re-hierarchy/phases', {
+                project_id: newPhaseForm.project_id,
+                name: newPhaseForm.name.trim()
+            });
+            toast.success(`Phase "${newPhaseForm.name}" created!`);
+            const createdPhase = res.data?.data;
+            await fetchHierarchy();
+            if (createdPhase && createdPhase.id) {
+                setFormData(prev => ({ 
+                    ...prev, 
+                    project_id: newPhaseForm.project_id,
+                    phase_id: createdPhase.id 
+                }));
+            }
+            setNewPhaseForm({ project_id: '', name: '' });
+            setShowQuickPhaseModal(false);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to create phase');
+        } finally {
+            setCreatingPhase(false);
+        }
+    };
+
+    const handleCreateBuilding = async (e) => {
+        e.preventDefault();
+        if (!newBuildingForm.project_id) {
+            toast.error('Please select a project for this building');
+            return;
+        }
+        if (!newBuildingForm.name.trim()) {
+            toast.error('Building name is required');
+            return;
+        }
+        setCreatingBuilding(true);
+        try {
+            const res = await api.post('/re-hierarchy/buildings', {
+                project_id: newBuildingForm.project_id,
+                phase_id: newBuildingForm.phase_id || null,
+                name: newBuildingForm.name.trim(),
+                floors_count: parseInt(newBuildingForm.floors_count) || 1
+            });
+            toast.success(`Building "${newBuildingForm.name}" created!`);
+            const createdBuilding = res.data?.data;
+            await fetchHierarchy();
+            if (createdBuilding && createdBuilding.id) {
+                setFormData(prev => ({ 
+                    ...prev, 
+                    project_id: newBuildingForm.project_id,
+                    building_id: createdBuilding.id 
+                }));
+            }
+            setNewBuildingForm({ project_id: '', phase_id: '', name: '', floors_count: 1 });
+            setShowQuickBuildingModal(false);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to create building');
+        } finally {
+            setCreatingBuilding(false);
+        }
+    };
+
+    const handleDeletePhase = async (id, name) => {
+        if (!window.confirm(`Delete phase "${name}"?`)) return;
+        try {
+            await api.delete(`/re-hierarchy/phases/${id}`);
+            toast.success(`Phase "${name}" deleted`);
+            fetchHierarchy();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to delete phase');
+        }
+    };
+
+    const handleDeleteBuilding = async (id, name) => {
+        if (!window.confirm(`Delete building "${name}"?`)) return;
+        try {
+            await api.delete(`/re-hierarchy/buildings/${id}`);
+            toast.success(`Building "${name}" deleted`);
+            fetchHierarchy();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to delete building');
         }
     };
 
@@ -717,7 +835,16 @@ const UnitsRegistry = () => {
                                 {formData.project_id && (
                                     <>
                                         <div className="ap-form-group">
-                                            <label className="ap-label">Phase (Optional)</label>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                <label className="ap-label" style={{ margin: 0 }}>Phase (Optional)</label>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => openAddPhaseModal(formData.project_id)}
+                                                    style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontWeight: 800, fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                >
+                                                    <Plus size={12} strokeWidth={3} /> Add Phase
+                                                </button>
+                                            </div>
                                             <select 
                                                 className="ap-input" 
                                                 value={formData.phase_id || ''} 
@@ -730,7 +857,16 @@ const UnitsRegistry = () => {
                                             </select>
                                         </div>
                                         <div className="ap-form-group">
-                                            <label className="ap-label">Building (Optional)</label>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                <label className="ap-label" style={{ margin: 0 }}>Building (Optional)</label>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => openAddBuildingModal(formData.project_id, '', formData.phase_id)}
+                                                    style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontWeight: 800, fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                >
+                                                    <Plus size={12} strokeWidth={3} /> Add Building
+                                                </button>
+                                            </div>
                                             <select 
                                                 className="ap-input" 
                                                 value={formData.building_id || ''} 
@@ -738,7 +874,7 @@ const UnitsRegistry = () => {
                                             >
                                                 <option value="">-- Select Building --</option>
                                                 {(hierarchyTree.projects?.find(p => String(p.id) === String(formData.project_id))?.buildings || []).map(b => (
-                                                    <option key={b.id} value={b.id}>{b.name}</option>
+                                                    <option key={b.id} value={b.id}>{b.name}{b.floors_count ? ` (${b.floors_count} Floors)` : ''}</option>
                                                 ))}
                                             </select>
                                         </div>
@@ -1213,6 +1349,146 @@ const UnitsRegistry = () => {
                 </div>
             )}
 
+            {/* Quick Add Phase Modal */}
+            {showQuickPhaseModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}>
+                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                        <button 
+                            type="button"
+                            onClick={() => setShowQuickPhaseModal(false)}
+                            style={{ position: 'absolute', top: '20px', right: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                        >
+                            <X size={16}/>
+                        </button>
+                        <div style={{ marginBottom: '24px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                                    <Layers size={20} />
+                                </div>
+                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Add Project Phase</h3>
+                            </div>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Create a new phase or development stage for a project.</p>
+                        </div>
+                        <form onSubmit={handleCreatePhase}>
+                            <div className="ap-form-group" style={{ marginBottom: '14px' }}>
+                                <label className="ap-label">Project / Compound *</label>
+                                <select 
+                                    className="ap-input" 
+                                    required
+                                    value={newPhaseForm.project_id}
+                                    onChange={e => setNewPhaseForm({ ...newPhaseForm, project_id: e.target.value })}
+                                >
+                                    <option value="">-- Select Project --</option>
+                                    {(hierarchyTree.projects || []).map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="ap-form-group" style={{ marginBottom: '24px' }}>
+                                <label className="ap-label">Phase Name *</label>
+                                <input 
+                                    className="ap-input" 
+                                    required 
+                                    placeholder="e.g. Phase 1, Phase 2, Marina Stage, North Wing..." 
+                                    value={newPhaseForm.name} 
+                                    onChange={e => setNewPhaseForm({ ...newPhaseForm, name: e.target.value })} 
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button type="submit" disabled={creatingPhase} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
+                                    {creatingPhase ? 'Saving...' : 'Confirm Phase'}
+                                </button>
+                                <button type="button" onClick={() => setShowQuickPhaseModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Quick Add Building Modal */}
+            {showQuickBuildingModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}>
+                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                        <button 
+                            type="button"
+                            onClick={() => setShowQuickBuildingModal(false)}
+                            style={{ position: 'absolute', top: '20px', right: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                        >
+                            <X size={16}/>
+                        </button>
+                        <div style={{ marginBottom: '24px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                                    <Building size={20} />
+                                </div>
+                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Add Building / Tower</h3>
+                            </div>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Register a specific building, tower, or block.</p>
+                        </div>
+                        <form onSubmit={handleCreateBuilding}>
+                            <div className="ap-form-group" style={{ marginBottom: '14px' }}>
+                                <label className="ap-label">Project / Compound *</label>
+                                <select 
+                                    className="ap-input" 
+                                    required
+                                    value={newBuildingForm.project_id}
+                                    onChange={e => setNewBuildingForm({ ...newBuildingForm, project_id: e.target.value, phase_id: '' })}
+                                >
+                                    <option value="">-- Select Project --</option>
+                                    {(hierarchyTree.projects || []).map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="ap-form-group" style={{ marginBottom: '14px' }}>
+                                <label className="ap-label">Phase (Optional)</label>
+                                <select 
+                                    className="ap-input" 
+                                    value={newBuildingForm.phase_id}
+                                    onChange={e => setNewBuildingForm({ ...newBuildingForm, phase_id: e.target.value })}
+                                >
+                                    <option value="">-- Direct Project Level (No Phase) --</option>
+                                    {(hierarchyTree.projects?.find(p => String(p.id) === String(newBuildingForm.project_id))?.phases || []).map(ph => (
+                                        <option key={ph.id} value={ph.id}>{ph.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="ap-form-group" style={{ marginBottom: '14px' }}>
+                                <label className="ap-label">Building / Tower Name *</label>
+                                <input 
+                                    className="ap-input" 
+                                    required 
+                                    placeholder="e.g. Building A, Tower 2, Block 14..." 
+                                    value={newBuildingForm.name} 
+                                    onChange={e => setNewBuildingForm({ ...newBuildingForm, name: e.target.value })} 
+                                />
+                            </div>
+                            <div className="ap-form-group" style={{ marginBottom: '24px' }}>
+                                <label className="ap-label">Floors Count</label>
+                                <input 
+                                    type="number"
+                                    min="1"
+                                    className="ap-input" 
+                                    placeholder="1" 
+                                    value={newBuildingForm.floors_count} 
+                                    onChange={e => setNewBuildingForm({ ...newBuildingForm, floors_count: e.target.value })} 
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button type="submit" disabled={creatingBuilding} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
+                                    {creatingBuilding ? 'Saving...' : 'Confirm Building'}
+                                </button>
+                                <button type="button" onClick={() => setShowQuickBuildingModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* Full Developers & Projects Management Modal */}
             {showManageHierarchyModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1150, padding: '20px' }}>
@@ -1272,41 +1548,147 @@ const UnitsRegistry = () => {
                                     </div>
                                 ) : (
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-                                        {(hierarchyTree.projects || []).map(p => (
-                                            <div key={p.id} style={{ padding: '18px', borderRadius: '12px', border: '1px solid var(--border)', background: '#f8fafc', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px' }}>
-                                                <div>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                        <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: 900, color: 'var(--text-main)' }}>{p.name}</h4>
-                                                        <button 
-                                                            onClick={() => handleDeleteProject(p.id, p.name)}
-                                                            style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
-                                                            title="Delete Project"
-                                                        >
-                                                            <Trash2 size={15}/>
-                                                        </button>
+                                        {(hierarchyTree.projects || []).map(p => {
+                                            const isExpanded = expandedProjectId === p.id;
+                                            const phasesList = p.phases || [];
+                                            const buildingsList = p.buildings || [];
+                                            return (
+                                                <div key={p.id} style={{ padding: '18px', borderRadius: '14px', border: '1px solid var(--border)', background: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                                    <div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                            <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: 900, color: 'var(--text-main)' }}>{p.name}</h4>
+                                                            <button 
+                                                                onClick={() => handleDeleteProject(p.id, p.name)}
+                                                                style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                                                                title="Delete Project"
+                                                            >
+                                                                <Trash2 size={15}/>
+                                                            </button>
+                                                        </div>
+                                                        {p.developer_name && (
+                                                            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', marginBottom: '4px' }}>
+                                                                🏢 {p.developer_name}
+                                                            </div>
+                                                        )}
+                                                        {p.location && (
+                                                            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                                📍 {p.location}
+                                                            </div>
+                                                        )}
+                                                        {p.description && (
+                                                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', fontStyle: 'italic' }}>
+                                                                {p.description}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    {p.developer_name && (
-                                                        <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', marginBottom: '4px' }}>
-                                                            🏢 {p.developer_name}
+
+                                                    {/* Quick Actions & Summary */}
+                                                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => setExpandedProjectId(isExpanded ? null : p.id)}
+                                                                style={{ border: 'none', background: 'transparent', padding: 0, fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                                            >
+                                                                <span>{phasesList.length} Phases • {buildingsList.length} Buildings</span>
+                                                                {isExpanded ? <ChevronUp size={14} color="var(--primary)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
+                                                            </button>
+                                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => openAddPhaseModal(p.id, p.name)}
+                                                                    className="btn-secondary-modern"
+                                                                    style={{ height: '28px', padding: '0 8px', fontSize: '11px', fontWeight: 800, borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                                                    title="Add Phase to this project"
+                                                                >
+                                                                    <Plus size={11} strokeWidth={3} /> Phase
+                                                                </button>
+                                                                <button 
+                                                                    type="button"
+                                                                    onClick={() => openAddBuildingModal(p.id, p.name)}
+                                                                    className="btn-secondary-modern"
+                                                                    style={{ height: '28px', padding: '0 8px', fontSize: '11px', fontWeight: 800, borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                                                                    title="Add Building to this project"
+                                                                >
+                                                                    <Plus size={11} strokeWidth={3} /> Building
+                                                                </button>
+                                                            </div>
                                                         </div>
-                                                    )}
-                                                    {p.location && (
-                                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                                            📍 {p.location}
-                                                        </div>
-                                                    )}
-                                                    {p.description && (
-                                                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', fontStyle: 'italic' }}>
-                                                            {p.description}
-                                                        </div>
-                                                    )}
+
+                                                        {/* Expanded Structure Details */}
+                                                        {isExpanded && (
+                                                            <div style={{ marginTop: '4px', padding: '12px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                                {/* Phases list */}
+                                                                <div>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                                        <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>Phases ({phasesList.length})</span>
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={() => openAddPhaseModal(p.id, p.name)}
+                                                                            style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                                                                        >
+                                                                            + Add
+                                                                        </button>
+                                                                    </div>
+                                                                    {phasesList.length === 0 ? (
+                                                                        <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>No phases defined yet</span>
+                                                                    ) : (
+                                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                                                            {phasesList.map(ph => (
+                                                                                <span key={ph.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(99, 102, 241, 0.08)', color: 'var(--primary)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
+                                                                                    {ph.name}
+                                                                                    <button 
+                                                                                        type="button"
+                                                                                        onClick={() => handleDeletePhase(ph.id, ph.name)}
+                                                                                        style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                                                                                        title={`Delete phase ${ph.name}`}
+                                                                                    >
+                                                                                        <X size={12}/>
+                                                                                    </button>
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Buildings list */}
+                                                                <div>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                                        <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>Buildings ({buildingsList.length})</span>
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={() => openAddBuildingModal(p.id, p.name)}
+                                                                            style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                                                                        >
+                                                                            + Add
+                                                                        </button>
+                                                                    </div>
+                                                                    {buildingsList.length === 0 ? (
+                                                                        <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>No buildings defined yet</span>
+                                                                    ) : (
+                                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                                                            {buildingsList.map(b => (
+                                                                                <span key={b.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', color: 'var(--text-main)', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, border: '1px solid #e2e8f0' }}>
+                                                                                    🏢 {b.name} {b.floors_count ? `(${b.floors_count}F)` : ''}
+                                                                                    <button 
+                                                                                        type="button"
+                                                                                        onClick={() => handleDeleteBuilding(b.id, b.name)}
+                                                                                        style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                                                                                        title={`Delete building ${b.name}`}
+                                                                                    >
+                                                                                        <X size={12}/>
+                                                                                    </button>
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div style={{ display: 'flex', gap: '8px', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
-                                                    <span>{(p.phases || []).length} Phases</span> • 
-                                                    <span>{(p.buildings || []).length} Buildings</span>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 )
                             ) : (

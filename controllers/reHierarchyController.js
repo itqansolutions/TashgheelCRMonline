@@ -316,7 +316,8 @@ exports.createBuilding = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Target project not found or unauthorized.' });
         }
 
-        const cleanPhaseId = phase_id && phase_id !== '' ? phase_id : null;
+        const isUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+        const cleanPhaseId = (phase_id && isUuid(phase_id)) ? phase_id : null;
         const floors = floors_count ? Math.max(1, parseInt(floors_count)) : 1;
 
         const result = await db.query(`
