@@ -128,7 +128,8 @@ exports.createProject = async (req, res) => {
     }
 
     try {
-        const cleanDevId = developer_id && developer_id !== '' ? developer_id : null;
+        const isUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+        const cleanDevId = (developer_id && isUuid(developer_id)) ? developer_id : null;
         const result = await db.query(`
             INSERT INTO re_projects (name, developer_id, location, description, tenant_id, branch_id)
             VALUES ($1, $2, $3, $4, $5, $6)

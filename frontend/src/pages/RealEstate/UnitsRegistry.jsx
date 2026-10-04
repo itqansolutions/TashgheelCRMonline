@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, MapPin } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { safeArray } from '../../utils/dataUtils';
+
+export const formatN2 = (val) => {
+    if (val === '' || val === null || val === undefined) return '';
+    const num = Number(String(val).replace(/,/g, ''));
+    if (isNaN(num)) return '';
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 const UnitsRegistry = () => {
     const { user } = useAuth();
@@ -32,6 +39,19 @@ const UnitsRegistry = () => {
     const [selectedProjectFilter, setSelectedProjectFilter] = useState('all');
     const [selectedPhaseFilter, setSelectedPhaseFilter] = useState('all');
     const [selectedBuildingFilter, setSelectedBuildingFilter] = useState('all');
+
+    // Hierarchy & Quick Modals State
+    const [showManageHierarchyModal, setShowManageHierarchyModal] = useState(false);
+    const [hierarchyTab, setHierarchyTab] = useState('projects'); // 'projects' | 'developers'
+    const [showQuickDevModal, setShowQuickDevModal] = useState(false);
+    const [showQuickProjModal, setShowQuickProjModal] = useState(false);
+    const [newDevForm, setNewDevForm] = useState({ name: '', contact_person: '', phone: '', email: '' });
+    const [newProjForm, setNewProjForm] = useState({ name: '', developer_id: '', location: '', description: '' });
+    const [creatingDev, setCreatingDev] = useState(false);
+    const [creatingProj, setCreatingProj] = useState(false);
+
+    // Form and N2 price state
+    const [priceDisplay, setPriceDisplay] = useState('');
 
     // Sync the employee dropdown to the unit's current assignee when modal opens
     useEffect(() => {
@@ -115,17 +135,128 @@ const UnitsRegistry = () => {
         if (customers.length === 0) fetchCustomers();
     }, []);
 
+    const handlePriceChange = (e) => {
+        const raw = e.target.value.replace(/,/g, '');
+        if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
+            setPriceDisplay(e.target.value);
+            setFormData(prev => ({ ...prev, price: raw }));
+        }
+    };
+
+    const handlePriceBlur = () => {
+        if (formData.price) {
+            const num = parseFloat(String(formData.price).replace(/,/g, ''));
+            if (!isNaN(num)) {
+                const formatted = num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                setPriceDisplay(formatted);
+                setFormData(prev => ({ ...prev, price: num.toFixed(2) }));
+            }
+        }
+    };
+
+    const openAddModal = () => {
+        setPriceDisplay(formData.price ? formatN2(formData.price) : '');
+        setShowAddModal(true);
+    };
+
+    const handleCreateDeveloper = async (e) => {
+        e.preventDefault();
+        if (!newDevForm.name.trim()) {
+            toast.error('Developer name is required');
+            return;
+        }
+        setCreatingDev(true);
+        try {
+            const res = await api.post('/re-hierarchy/developers', newDevForm);
+            toast.success(`Developer "${newDevForm.name}" created!`);
+            const createdDev = res.data?.data;
+            await fetchHierarchy();
+            if (createdDev && createdDev.id) {
+                setFormData(prev => ({ ...prev, developer_id: createdDev.id }));
+            }
+            setNewDevForm({ name: '', contact_person: '', phone: '', email: '' });
+            setShowQuickDevModal(false);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to create developer');
+        } finally {
+            setCreatingDev(false);
+        }
+    };
+
+    const handleCreateProject = async (e) => {
+        e.preventDefault();
+        if (!newProjForm.name.trim()) {
+            toast.error('Project name is required');
+            return;
+        }
+        setCreatingProj(true);
+        try {
+            const payload = {
+                name: newProjForm.name,
+                developer_id: newProjForm.developer_id || formData.developer_id || null,
+                location: newProjForm.location || '',
+                description: newProjForm.description || ''
+            };
+            const res = await api.post('/re-hierarchy/projects', payload);
+            toast.success(`Project "${newProjForm.name}" created!`);
+            const createdProj = res.data?.data;
+            await fetchHierarchy();
+            if (createdProj && createdProj.id) {
+                setFormData(prev => ({ 
+                    ...prev, 
+                    project_id: createdProj.id,
+                    project_name: createdProj.name,
+                    developer_id: createdProj.developer_id || prev.developer_id
+                }));
+            }
+            setNewProjForm({ name: '', developer_id: '', location: '', description: '' });
+            setShowQuickProjModal(false);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to create project');
+        } finally {
+            setCreatingProj(false);
+        }
+    };
+
+    const handleDeleteDeveloper = async (id, name) => {
+        if (!window.confirm(`Delete developer "${name}"? Existing projects will be unlinked.`)) return;
+        try {
+            await api.delete(`/re-hierarchy/developers/${id}`);
+            toast.success('Developer deleted');
+            fetchHierarchy();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to delete developer');
+        }
+    };
+
+    const handleDeleteProject = async (id, name) => {
+        if (!window.confirm(`Delete project "${name}"? Units linked to this project will be preserved.`)) return;
+        try {
+            await api.delete(`/re-hierarchy/projects/${id}`);
+            toast.success('Project deleted');
+            fetchHierarchy();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to delete project');
+        }
+    };
+
     const handleAddUnit = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/re-units', formData);
+            const payload = {
+                ...formData,
+                price: formData.price ? parseFloat(String(formData.price).replace(/,/g, '')) : 0
+            };
+            await api.post('/re-units', payload);
             toast.success('Unit added successfully to your premium registry!');
             setShowAddModal(false);
             setFormData({ 
                 project_name: '', unit_number: '', name: '', type: 'Apartment', floor: '', 
                 area_sqm: '', price: '', vendor_id: '', assigned_to: '', responsible_person_id: '', 
-                transaction_type: 'sale', rooms: 1, location: '' 
+                transaction_type: 'sale', rooms: 1, location: '',
+                developer_id: '', project_id: '', phase_id: '', building_id: ''
             });
+            setPriceDisplay('');
             fetchUnits();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to add unit');
@@ -232,7 +363,28 @@ const UnitsRegistry = () => {
                             </button>
                         ))}
                     </div>
-                    <button onClick={() => setShowAddModal(true)} className="btn-primary-premium">
+                    <button 
+                        onClick={() => setShowManageHierarchyModal(true)} 
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 18px',
+                            borderRadius: '12px',
+                            border: '1.5px solid var(--border)',
+                            background: 'white',
+                            color: 'var(--text-main)',
+                            fontWeight: 800,
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        <Building size={16} color="var(--primary)" />
+                        Developers & Projects
+                    </button>
+                    <button onClick={openAddModal} className="btn-primary-premium">
                         <Plus size={20} strokeWidth={3} />
                         Register New Unit
                     </button>
@@ -424,10 +576,10 @@ const UnitsRegistry = () => {
                                             <div style={{ fontSize: '13px', fontWeight: 800 }}>{u.area_sqm} m²</div>
                                         </div>
                                     </div>
-                                    <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)', marginBottom: '8px' }}>{Number(u.price).toLocaleString()} EGP</div>
+                                    <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)', marginBottom: '8px' }}>{Number(u.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP</div>
                                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
                                         Floor {u.floor} • {u.rooms} Rooms
-                                        {u.assigned_to && <span style={{ marginLeft: '8px', color: '#16a34a' }}>• {users.find(em => em.id === u.assigned_to)?.name}</span>}
+                                        {u.assigned_to && <span style={{ marginLeft: '8px', color: '#16a34a' }}>• {u.assigned_to_name || users.find(em => String(em.id) === String(u.assigned_to))?.name}</span>}
                                     </div>
                                 </div>
                             </div>
@@ -456,12 +608,12 @@ const UnitsRegistry = () => {
                                         <td style={{ padding: '14px 16px', fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>{u.project_name || '—'}</td>
                                         <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700 }}>{u.type}</td>
                                         <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700 }}>{u.area_sqm} m²</td>
-                                        <td style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--primary)' }}>{Number(u.price).toLocaleString()}</td>
+                                        <td style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--primary)' }}>{Number(u.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <span style={{ background: config.bg, color: config.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 900 }}>{u.status}</span>
                                         </td>
                                         <td style={{ padding: '14px 16px', fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>
-                                            {users.find(em => em.id === u.assigned_to)?.name || <span style={{ fontStyle: 'italic' }}>Unassigned</span>}
+                                            {u.assigned_to_name || users.find(em => String(em.id) === String(u.assigned_to))?.name || <span style={{ fontStyle: 'italic' }}>Unassigned</span>}
                                         </td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <button onClick={() => setSelectedUnit(u)} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'white', color: 'var(--primary)', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}>
@@ -500,7 +652,16 @@ const UnitsRegistry = () => {
                                     <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Project Hierarchy & Identity</h4>
                                 </div>
                                 <div className="ap-form-group">
-                                    <label className="ap-label">Developer (Optional)</label>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                        <label className="ap-label" style={{ margin: 0 }}>Developer (Optional)</label>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setShowQuickDevModal(true)}
+                                            style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontWeight: 800, fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                        >
+                                            <Plus size={12} strokeWidth={3} /> Add Developer
+                                        </button>
+                                    </div>
                                     <select 
                                         className="ap-input" 
                                         value={formData.developer_id || ''} 
@@ -513,7 +674,19 @@ const UnitsRegistry = () => {
                                     </select>
                                 </div>
                                 <div className="ap-form-group">
-                                    <label className="ap-label">Project</label>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                        <label className="ap-label" style={{ margin: 0 }}>Project</label>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => {
+                                                setNewProjForm(p => ({ ...p, developer_id: formData.developer_id || '' }));
+                                                setShowQuickProjModal(true);
+                                            }}
+                                            style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontWeight: 800, fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                        >
+                                            <Plus size={12} strokeWidth={3} /> Add Project
+                                        </button>
+                                    </div>
                                     <select 
                                         className="ap-input" 
                                         value={formData.project_id || ''} 
@@ -531,7 +704,7 @@ const UnitsRegistry = () => {
                                     >
                                         <option value="">-- Custom / Direct Name --</option>
                                         {(hierarchyTree.projects || []).map(p => (
-                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                            <option key={p.id} value={p.id}>{p.name}{p.developer_name ? ` (${p.developer_name})` : ''}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -626,8 +799,27 @@ const UnitsRegistry = () => {
                                     <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Pricing</h4>
                                 </div>
                                 <div className="ap-form-group" style={{ gridColumn: 'span 2' }}>
-                                    <label className="ap-label">Target Price (EGP)</label>
-                                    <input className="ap-input" type="number" required value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="0.00" />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                        <label className="ap-label" style={{ margin: 0 }}>Target Price (EGP)</label>
+                                        {formData.price && (
+                                            <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--primary)', background: 'rgba(99, 102, 241, 0.08)', padding: '2px 8px', borderRadius: '6px' }}>
+                                                N2 Format: {formatN2(formData.price)} EGP
+                                            </span>
+                                        )}
+                                    </div>
+                                    <input 
+                                        className="ap-input" 
+                                        type="text" 
+                                        required 
+                                        value={priceDisplay} 
+                                        onChange={handlePriceChange}
+                                        onBlur={handlePriceBlur}
+                                        placeholder="0.00" 
+                                        style={{ fontSize: '16px', fontWeight: 700 }}
+                                    />
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                        Format: N2 (e.g. 1,500,000.00). Thousands separators are auto-applied on blur.
+                                    </div>
                                 </div>
                             </div>
 
@@ -674,7 +866,7 @@ const UnitsRegistry = () => {
                                             </div>
                                             <div>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Market Value</div>
-                                                <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)' }}>{Number(selectedUnit.price).toLocaleString()} EGP</div>
+                                                <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)' }}>{Number(selectedUnit.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP</div>
                                             </div>
                                             <div>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Area Size</div>
@@ -743,7 +935,7 @@ const UnitsRegistry = () => {
                                             </div>
                                             {selectedUnit.assigned_to && (
                                                 <div style={{ marginTop: '8px', fontSize: '12px', color: '#16a34a', fontWeight: 600 }}>
-                                                    ✓ Currently: {users.find(u => u.id === selectedUnit.assigned_to)?.name || 'Assigned'}
+                                                    ✓ Currently: {selectedUnit.assigned_to_name || users.find(u => String(u.id) === String(selectedUnit.assigned_to))?.name || 'Assigned'}
                                                 </div>
                                             )}
                                         </div>
@@ -869,6 +1061,300 @@ const UnitsRegistry = () => {
                                 })}
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Quick Add Developer Modal */}
+            {showQuickDevModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}>
+                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                        <button 
+                            type="button"
+                            onClick={() => setShowQuickDevModal(false)}
+                            style={{ position: 'absolute', top: '20px', right: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                        >
+                            <X size={16}/>
+                        </button>
+                        <div style={{ marginBottom: '24px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                                    <Building size={20} />
+                                </div>
+                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Add Developer</h3>
+                            </div>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Register a real estate developer company into your system.</p>
+                        </div>
+                        <form onSubmit={handleCreateDeveloper}>
+                            <div className="ap-form-group" style={{ marginBottom: '14px' }}>
+                                <label className="ap-label">Developer Company Name *</label>
+                                <input 
+                                    className="ap-input" 
+                                    required 
+                                    placeholder="e.g. Emaar Misr, Talaat Moustafa..." 
+                                    value={newDevForm.name} 
+                                    onChange={e => setNewDevForm({ ...newDevForm, name: e.target.value })} 
+                                />
+                            </div>
+                            <div className="ap-form-group" style={{ marginBottom: '14px' }}>
+                                <label className="ap-label">Contact Person</label>
+                                <input 
+                                    className="ap-input" 
+                                    placeholder="e.g. Ahmed Zaki" 
+                                    value={newDevForm.contact_person} 
+                                    onChange={e => setNewDevForm({ ...newDevForm, contact_person: e.target.value })} 
+                                />
+                            </div>
+                            <div className="ap-form-group" style={{ marginBottom: '14px' }}>
+                                <label className="ap-label">Phone Number</label>
+                                <input 
+                                    className="ap-input" 
+                                    placeholder="e.g. +20 100 123 4567" 
+                                    value={newDevForm.phone} 
+                                    onChange={e => setNewDevForm({ ...newDevForm, phone: e.target.value })} 
+                                />
+                            </div>
+                            <div className="ap-form-group" style={{ marginBottom: '24px' }}>
+                                <label className="ap-label">Email</label>
+                                <input 
+                                    className="ap-input" 
+                                    type="email" 
+                                    placeholder="e.g. info@developer.com" 
+                                    value={newDevForm.email} 
+                                    onChange={e => setNewDevForm({ ...newDevForm, email: e.target.value })} 
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button type="submit" disabled={creatingDev} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
+                                    {creatingDev ? 'Saving...' : 'Confirm Developer'}
+                                </button>
+                                <button type="button" onClick={() => setShowQuickDevModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Quick Add Project Modal */}
+            {showQuickProjModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}>
+                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '500px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                        <button 
+                            type="button"
+                            onClick={() => setShowQuickProjModal(false)}
+                            style={{ position: 'absolute', top: '20px', right: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                        >
+                            <X size={16}/>
+                        </button>
+                        <div style={{ marginBottom: '24px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                                    <Building2 size={20} />
+                                </div>
+                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Add Project / Compound</h3>
+                            </div>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Create a compound or real estate project under a developer.</p>
+                        </div>
+                        <form onSubmit={handleCreateProject}>
+                            <div className="ap-form-group" style={{ marginBottom: '14px' }}>
+                                <label className="ap-label">Project / Compound Name *</label>
+                                <input 
+                                    className="ap-input" 
+                                    required 
+                                    placeholder="e.g. Palm Hills, Marassi, Uptown Cairo..." 
+                                    value={newProjForm.name} 
+                                    onChange={e => setNewProjForm({ ...newProjForm, name: e.target.value })} 
+                                />
+                            </div>
+                            <div className="ap-form-group" style={{ marginBottom: '14px' }}>
+                                <label className="ap-label">Developer (Optional)</label>
+                                <select 
+                                    className="ap-input"
+                                    value={newProjForm.developer_id}
+                                    onChange={e => setNewProjForm({ ...newProjForm, developer_id: e.target.value })}
+                                >
+                                    <option value="">-- No Developer / Direct --</option>
+                                    {(hierarchyTree.developers || []).map(d => (
+                                        <option key={d.id} value={d.id}>{d.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="ap-form-group" style={{ marginBottom: '14px' }}>
+                                <label className="ap-label">Location / City</label>
+                                <input 
+                                    className="ap-input" 
+                                    placeholder="e.g. New Cairo, North Coast, 6th of October" 
+                                    value={newProjForm.location} 
+                                    onChange={e => setNewProjForm({ ...newProjForm, location: e.target.value })} 
+                                />
+                            </div>
+                            <div className="ap-form-group" style={{ marginBottom: '24px' }}>
+                                <label className="ap-label">Description (Optional)</label>
+                                <textarea 
+                                    className="ap-input" 
+                                    rows={2}
+                                    placeholder="Brief overview of the project..." 
+                                    value={newProjForm.description} 
+                                    onChange={e => setNewProjForm({ ...newProjForm, description: e.target.value })} 
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button type="submit" disabled={creatingProj} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
+                                    {creatingProj ? 'Saving...' : 'Confirm Project'}
+                                </button>
+                                <button type="button" onClick={() => setShowQuickProjModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Full Developers & Projects Management Modal */}
+            {showManageHierarchyModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1150, padding: '20px' }}>
+                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '850px', padding: '0', background: 'white', position: 'relative', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
+                        {/* Header */}
+                        <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <h2 style={{ fontSize: '22px', fontWeight: 900, margin: '0 0 4px 0', color: 'var(--text-main)' }}>Developers & Projects Catalog</h2>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Manage the real estate hierarchy structure for your inventory.</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowManageHierarchyModal(false)}
+                                style={{ padding: '8px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                            >
+                                <X size={18}/>
+                            </button>
+                        </div>
+
+                        {/* Tabs */}
+                        <div style={{ padding: '16px 32px 0 32px', display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+                            <button 
+                                onClick={() => setHierarchyTab('projects')}
+                                style={{ padding: '10px 18px', border: 'none', background: 'transparent', fontWeight: 800, fontSize: '14px', cursor: 'pointer', borderBottom: hierarchyTab === 'projects' ? '3px solid var(--primary)' : '3px solid transparent', color: hierarchyTab === 'projects' ? 'var(--primary)' : 'var(--text-muted)' }}
+                            >
+                                Projects ({(hierarchyTree.projects || []).length})
+                            </button>
+                            <button 
+                                onClick={() => setHierarchyTab('developers')}
+                                style={{ padding: '10px 18px', border: 'none', background: 'transparent', fontWeight: 800, fontSize: '14px', cursor: 'pointer', borderBottom: hierarchyTab === 'developers' ? '3px solid var(--primary)' : '3px solid transparent', color: hierarchyTab === 'developers' ? 'var(--primary)' : 'var(--text-muted)' }}
+                            >
+                                Developers ({(hierarchyTree.developers || []).length})
+                            </button>
+                            <div style={{ flex: 1 }} />
+                            <button 
+                                onClick={() => {
+                                    if (hierarchyTab === 'developers') setShowQuickDevModal(true);
+                                    else setShowQuickProjModal(true);
+                                }}
+                                className="btn-primary-premium"
+                                style={{ height: '36px', fontSize: '12px', padding: '0 14px' }}
+                            >
+                                <Plus size={14} strokeWidth={3} />
+                                {hierarchyTab === 'developers' ? 'New Developer' : 'New Project'}
+                            </button>
+                        </div>
+
+                        {/* Tab Content */}
+                        <div style={{ padding: '24px 32px', overflowY: 'auto', flex: 1 }}>
+                            {hierarchyTab === 'projects' ? (
+                                (hierarchyTree.projects || []).length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                                        <Building2 size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
+                                        <p style={{ fontWeight: 700, margin: '0 0 12px 0' }}>No projects registered yet.</p>
+                                        <button onClick={() => setShowQuickProjModal(true)} className="btn-primary-premium" style={{ height: '38px', fontSize: '13px' }}>
+                                            <Plus size={14} /> Create First Project
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                                        {(hierarchyTree.projects || []).map(p => (
+                                            <div key={p.id} style={{ padding: '18px', borderRadius: '12px', border: '1px solid var(--border)', background: '#f8fafc', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px' }}>
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                        <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: 900, color: 'var(--text-main)' }}>{p.name}</h4>
+                                                        <button 
+                                                            onClick={() => handleDeleteProject(p.id, p.name)}
+                                                            style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                                                            title="Delete Project"
+                                                        >
+                                                            <Trash2 size={15}/>
+                                                        </button>
+                                                    </div>
+                                                    {p.developer_name && (
+                                                        <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', marginBottom: '4px' }}>
+                                                            🏢 {p.developer_name}
+                                                        </div>
+                                                    )}
+                                                    {p.location && (
+                                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                            📍 {p.location}
+                                                        </div>
+                                                    )}
+                                                    {p.description && (
+                                                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', fontStyle: 'italic' }}>
+                                                            {p.description}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '8px', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', borderTop: '1px solid #e2e8f0', paddingTop: '10px' }}>
+                                                    <span>{(p.phases || []).length} Phases</span> • 
+                                                    <span>{(p.buildings || []).length} Buildings</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )
+                            ) : (
+                                (hierarchyTree.developers || []).length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                                        <Building size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
+                                        <p style={{ fontWeight: 700, margin: '0 0 12px 0' }}>No developers registered yet.</p>
+                                        <button onClick={() => setShowQuickDevModal(true)} className="btn-primary-premium" style={{ height: '38px', fontSize: '13px' }}>
+                                            <Plus size={14} /> Create First Developer
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                                        {(hierarchyTree.developers || []).map(d => (
+                                            <div key={d.id} style={{ padding: '18px', borderRadius: '12px', border: '1px solid var(--border)', background: '#f8fafc', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px' }}>
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                        <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: 900, color: 'var(--text-main)' }}>{d.name}</h4>
+                                                        <button 
+                                                            onClick={() => handleDeleteDeveloper(d.id, d.name)}
+                                                            style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                                                            title="Delete Developer"
+                                                        >
+                                                            <Trash2 size={15}/>
+                                                        </button>
+                                                    </div>
+                                                    {d.contact_person && (
+                                                        <div style={{ fontSize: '12px', color: 'var(--text-main)', fontWeight: 600, marginBottom: '2px' }}>
+                                                            👤 {d.contact_person}
+                                                        </div>
+                                                    )}
+                                                    {d.phone && (
+                                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                            📞 {d.phone}
+                                                        </div>
+                                                    )}
+                                                    {d.email && (
+                                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                            ✉️ {d.email}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

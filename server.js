@@ -449,9 +449,13 @@ app.listen(PORT, '0.0.0.0', async () => {
     `, 'hr_attendance_devices table');
     await execSql(`ALTER TABLE hr_attendance_devices ADD COLUMN IF NOT EXISTS total_pushes INTEGER DEFAULT 0;`, 'hr_attendance_devices.total_pushes');
 
-    // 9. Real estate units assigned_to & vendor_id
-    await execSql(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS assigned_to UUID;`, 're_units.assigned_to');
-    await execSql(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS vendor_id UUID;`, 're_units.vendor_id');
+    // 9. Real estate units assigned_to, vendor_id & responsible_person_id (VARCHAR to support integer/UUID user/vendor IDs)
+    await execSql(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS assigned_to VARCHAR(255);`, 're_units.assigned_to');
+    await execSql(`ALTER TABLE re_units ALTER COLUMN assigned_to TYPE VARCHAR(255) USING assigned_to::text;`, 're_units.assigned_to alter varchar');
+    await execSql(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS vendor_id VARCHAR(255);`, 're_units.vendor_id');
+    await execSql(`ALTER TABLE re_units ALTER COLUMN vendor_id TYPE VARCHAR(255) USING vendor_id::text;`, 're_units.vendor_id alter varchar');
+    await execSql(`ALTER TABLE re_units ADD COLUMN IF NOT EXISTS responsible_person_id VARCHAR(255);`, 're_units.responsible_person_id');
+    await execSql(`ALTER TABLE re_units ALTER COLUMN responsible_person_id TYPE VARCHAR(255) USING responsible_person_id::text;`, 're_units.responsible_person_id alter varchar');
 
     // 10. Sales Orders & Items
     await execSql(`

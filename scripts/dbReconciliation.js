@@ -257,7 +257,7 @@ const reconcileDatabase = async () => {
 
         // Migration logic for existing property DBs to explicitly support mixed Integer/UUID string types
         try {
-            await db.query(`ALTER TABLE re_units ALTER COLUMN vendor_id TYPE VARCHAR(255), ALTER COLUMN responsible_person_id TYPE VARCHAR(255)`);
+            await db.query(`ALTER TABLE re_units ALTER COLUMN assigned_to TYPE VARCHAR(255) USING assigned_to::text, ALTER COLUMN vendor_id TYPE VARCHAR(255) USING vendor_id::text, ALTER COLUMN responsible_person_id TYPE VARCHAR(255) USING responsible_person_id::text`);
             await db.query(`ALTER TABLE re_payments_mvp ALTER COLUMN unit_id TYPE VARCHAR(255), ALTER COLUMN customer_id TYPE VARCHAR(255), ALTER COLUMN deal_id TYPE VARCHAR(255)`);
             
             // Hard Schema Resilience (Unconditional)

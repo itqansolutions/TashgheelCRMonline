@@ -22,6 +22,7 @@ exports.getUnits = async (req, res) => {
                 ru.*,
                 c.name as vendor_name,
                 u.name as responsible_person_name,
+                u_assigned.name as assigned_to_name,
                 dev.name as developer_name,
                 COALESCE(proj.name, ru.project_name) as project_name,
                 phase.name as phase_name,
@@ -29,6 +30,7 @@ exports.getUnits = async (req, res) => {
             FROM re_units ru
             LEFT JOIN customers c ON ru.vendor_id::text = c.id::text
             LEFT JOIN users u ON ru.responsible_person_id::text = u.id::text
+            LEFT JOIN users u_assigned ON ru.assigned_to::text = u_assigned.id::text
             LEFT JOIN re_developers dev ON ru.developer_id::text = dev.id::text AND dev.tenant_id::text = ru.tenant_id::text
             LEFT JOIN re_projects proj ON ru.project_id::text = proj.id::text AND proj.tenant_id::text = ru.tenant_id::text
             LEFT JOIN re_phases phase ON ru.phase_id::text = phase.id::text AND phase.tenant_id::text = ru.tenant_id::text
@@ -78,6 +80,9 @@ exports.getUnits = async (req, res) => {
     }
 };
 
+// UUID validator helper
+const isUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+
 // @desc    Create a new unit
 // @route   POST /api/re-units
 exports.createUnit = async (req, res) => {
@@ -90,14 +95,16 @@ exports.createUnit = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const branch_id = req.branchId || req.user?.branch_id || null;
 
-    // Sanitize optional UUID/FK fields to null to avoid PostgreSQL cast errors
-    const cleanVendorId = (vendor_id && vendor_id !== '') ? vendor_id : null;
-    const cleanAssignedTo = (assigned_to && assigned_to !== '') ? assigned_to : null;
-    const cleanResponsibleId = (responsible_person_id && responsible_person_id !== '') ? responsible_person_id : null;
-    const cleanDevId = (developer_id && developer_id !== '') ? developer_id : null;
-    const cleanProjId = (project_id && project_id !== '') ? project_id : null;
-    const cleanPhaseId = (phase_id && phase_id !== '') ? phase_id : null;
-    const cleanBldId = (building_id && building_id !== '') ? building_id : null;
+    // Sanitize string/numeric IDs to handle both integer (e.g. 26) and UUID types
+    const cleanVendorId = (vendor_id !== undefined && vendor_id !== null && String(vendor_id).trim() !== '' && String(vendor_id) !== 'null') ? String(vendor_id).trim() : null;
+    const cleanAssignedTo = (assigned_to !== undefined && assigned_to !== null && String(assigned_to).trim() !== '' && String(assigned_to) !== 'null') ? String(assigned_to).trim() : null;
+    const cleanResponsibleId = (responsible_person_id !== undefined && responsible_person_id !== null && String(responsible_person_id).trim() !== '' && String(responsible_person_id) !== 'null') ? String(responsible_person_id).trim() : null;
+    
+    // Developer & Project hierarchy IDs (validate UUID format so invalid values never crash Postgres)
+    const cleanDevId = (developer_id && isUuid(developer_id)) ? developer_id : null;
+    const cleanProjId = (project_id && isUuid(project_id)) ? project_id : null;
+    const cleanPhaseId = (phase_id && isUuid(phase_id)) ? phase_id : null;
+    const cleanBldId = (building_id && isUuid(building_id)) ? building_id : null;
 
     let finalProjectName = project_name;
     if (cleanProjId && (!finalProjectName || !finalProjectName.trim())) {
@@ -107,20 +114,41 @@ exports.createUnit = async (req, res) => {
         } catch (e) {}
     }
 
+    const insertParams = [
+        tenant_id, branch_id, name, finalProjectName || null, unit_number, type, floor, area_sqm, price,
+        cleanVendorId, cleanAssignedTo, cleanResponsibleId, transaction_type || 'sale', rooms || 0, location,
+        cleanDevId, cleanProjId, cleanPhaseId, cleanBldId
+    ];
+
+    const insertSql = `
+        INSERT INTO re_units (
+            tenant_id, branch_id, name, project_name, unit_number, type, floor, area_sqm, price, 
+            vendor_id, assigned_to, responsible_person_id, transaction_type, rooms, location, status,
+            developer_id, project_id, phase_id, building_id
+        )
+        VALUES ($1::text, $2::text, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'Available', $16, $17, $18, $19)
+        RETURNING *
+    `;
+
     try {
-        const result = await db.query(`
-            INSERT INTO re_units (
-                tenant_id, branch_id, name, project_name, unit_number, type, floor, area_sqm, price, 
-                vendor_id, assigned_to, responsible_person_id, transaction_type, rooms, location, status,
-                developer_id, project_id, phase_id, building_id
-            )
-            VALUES ($1::text, $2::text, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'Available', $16, $17, $18, $19)
-            RETURNING *
-        `, [
-            tenant_id, branch_id, name, finalProjectName || null, unit_number, type, floor, area_sqm, price,
-            cleanVendorId, cleanAssignedTo, cleanResponsibleId, transaction_type || 'sale', rooms || 0, location,
-            cleanDevId, cleanProjId, cleanPhaseId, cleanBldId
-        ]);
+        let result;
+        try {
+            result = await db.query(insertSql, insertParams);
+        } catch (dbErr) {
+            // Auto-Healing: If assigned_to or vendor_id in PostgreSQL is still typed as UUID, alter them to VARCHAR and retry
+            if (dbErr.message && dbErr.message.includes('invalid input syntax for type uuid')) {
+                console.warn('[Auto-Healing] Detected UUID type collision on re_units. Converting columns to VARCHAR(255)...');
+                await db.query(`
+                    ALTER TABLE re_units 
+                    ALTER COLUMN assigned_to TYPE VARCHAR(255) USING assigned_to::text,
+                    ALTER COLUMN vendor_id TYPE VARCHAR(255) USING vendor_id::text,
+                    ALTER COLUMN responsible_person_id TYPE VARCHAR(255) USING responsible_person_id::text
+                `);
+                result = await db.query(insertSql, insertParams);
+            } else {
+                throw dbErr;
+            }
+        }
         
         const newUnit = result.rows[0];
 
@@ -164,11 +192,11 @@ exports.updateUnit = async (req, res) => {
     const allowedFields = [
         'name', 'project_name', 'unit_number', 'type', 'floor', 
         'area_sqm', 'price', 'status', 'vendor_id', 'assigned_to', 
-        'responsible_person_id', 'transaction_type', 'rooms', 'location'
+        'responsible_person_id', 'transaction_type', 'rooms', 'location',
+        'developer_id', 'project_id', 'phase_id', 'building_id'
     ];
 
-    // UUID-typed columns that must be null (not '') for PostgreSQL
-    const uuidFields = ['vendor_id', 'assigned_to', 'responsible_person_id'];
+    const fkFields = ['vendor_id', 'assigned_to', 'responsible_person_id', 'developer_id', 'project_id', 'phase_id', 'building_id'];
 
     const setClauses = [];
     const values = [];
@@ -177,8 +205,10 @@ exports.updateUnit = async (req, res) => {
     for (const field of allowedFields) {
         if (req.body.hasOwnProperty(field)) {
             let val = req.body[field];
-            // Convert empty string to null for UUID fields
-            if (uuidFields.includes(field) && (val === '' || val === 'null' || val === undefined)) {
+            // Convert empty string to null for foreign keys/references
+            if (fkFields.includes(field) && (val === '' || val === 'null' || val === undefined)) {
+                val = null;
+            } else if (['developer_id', 'project_id', 'phase_id', 'building_id'].includes(field) && val && !isUuid(val)) {
                 val = null;
             }
             setClauses.push(`${field} = $${paramIdx}`);
@@ -200,15 +230,33 @@ exports.updateUnit = async (req, res) => {
     const whereP2 = paramIdx + 1;
     const whereP3 = paramIdx + 2;
 
+    const updateSql = `
+        UPDATE re_units 
+        SET ${setClauses.join(', ')}
+        WHERE id = $${whereP1}::uuid 
+          AND tenant_id::text = $${whereP2}::text 
+          AND ($${whereP3}::text IS NULL OR branch_id::text = $${whereP3}::text OR branch_id IS NULL)
+        RETURNING *
+    `;
+
     try {
-        const result = await db.query(`
-            UPDATE re_units 
-            SET ${setClauses.join(', ')}
-            WHERE id = $${whereP1}::uuid 
-              AND tenant_id::text = $${whereP2}::text 
-              AND branch_id::text = $${whereP3}::text
-            RETURNING *
-        `, values);
+        let result;
+        try {
+            result = await db.query(updateSql, values);
+        } catch (dbErr) {
+            if (dbErr.message && dbErr.message.includes('invalid input syntax for type uuid')) {
+                console.warn('[Auto-Healing] Altering re_units columns on updateUnit...');
+                await db.query(`
+                    ALTER TABLE re_units 
+                    ALTER COLUMN assigned_to TYPE VARCHAR(255) USING assigned_to::text,
+                    ALTER COLUMN vendor_id TYPE VARCHAR(255) USING vendor_id::text,
+                    ALTER COLUMN responsible_person_id TYPE VARCHAR(255) USING responsible_person_id::text
+                `);
+                result = await db.query(updateSql, values);
+            } else {
+                throw dbErr;
+            }
+        }
 
         if (result.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
