@@ -242,9 +242,9 @@ exports.generateSchedule = async (req, res) => {
 exports.recordPayment = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const { id } = req.params;
-    const { amount, payment_date, notes } = req.body;
+    const { amount, payment_amount, payment_date, notes } = req.body;
 
-    const payAmount = parseFloat(amount);
+    const payAmount = parseFloat(amount !== undefined ? amount : payment_amount);
     if (isNaN(payAmount) || payAmount <= 0) {
         return res.status(400).json({ status: 'error', message: 'Payment amount must be greater than 0.' });
     }
@@ -354,14 +354,33 @@ exports.recordPayment = async (req, res) => {
             RETURNING *
         `, [newPaidTotal, newStatus, paidAt, voucher.id, notes, inst.id, tenant_id]);
 
-        // 4. Sync with re_payments_mvp for backward compatibility
+        // 4. Best-effort cache synchronization with re_payments_mvp for legacy UI compatibility
         if (inst.deal_id) {
-            await client.query(`
-                UPDATE re_payments_mvp SET
-                    paid_amount = COALESCE(paid_amount, 0) + $1,
-                    updated_at = NOW()
-                WHERE deal_id::text = $2::text AND tenant_id::text = $3::text
-            `, [payAmount, String(inst.deal_id), tenant_id]);
+            const mvpCheck = await client.query(
+                `SELECT id, total_amount, paid_amount FROM re_payments_mvp WHERE deal_id::text = $1::text AND tenant_id::text = $2::text`,
+                [String(inst.deal_id), tenant_id]
+            );
+            if (mvpCheck.rows.length > 0) {
+                await client.query(`
+                    UPDATE re_payments_mvp SET
+                        paid_amount = COALESCE(paid_amount, 0) + $1,
+                        updated_at = NOW()
+                    WHERE deal_id::text = $2::text AND tenant_id::text = $3::text
+                `, [payAmount, String(inst.deal_id), tenant_id]);
+            } else {
+                // If deal was Closed (never won), create cache row so legacy readers don't show null/empty
+                await client.query(`
+                    INSERT INTO re_payments_mvp (
+                        tenant_id, branch_id, deal_id, total_amount, paid_amount, status, created_at, updated_at
+                    ) VALUES ($1, $2, $3, $4, $5, 'pending', NOW(), NOW())
+                `, [
+                    tenant_id,
+                    req.branchId || null,
+                    String(inst.deal_id),
+                    inst.contract_value || inst.amount || payAmount,
+                    payAmount
+                ]);
+            }
         }
 
         await client.query('COMMIT');

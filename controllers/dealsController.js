@@ -66,7 +66,7 @@ exports.getDeals = async (req, res) => {
         ru.reservation_extension_count as unit_reservation_extension_count,
         rp.next_payment_date,
         rp.status as payment_status,
-        rp.paid_amount,
+        COALESCE(fv.actual_paid, rp.paid_amount, 0) as paid_amount,
         rp.total_amount as payment_total
       FROM deals d
       LEFT JOIN customers c ON d.client_id::text = c.id::text AND d.tenant_id::text = c.tenant_id::text
@@ -74,6 +74,15 @@ exports.getDeals = async (req, res) => {
       LEFT JOIN users u ON d.assigned_to::text = u.id::text AND d.tenant_id::text = u.tenant_id::text
       LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND d.tenant_id::text = ru.tenant_id::text
       LEFT JOIN re_payments_mvp rp ON d.id::text = rp.deal_id::text AND d.tenant_id::text = rp.tenant_id::text
+      LEFT JOIN (
+        SELECT deal_id, SUM(amount) as actual_paid
+        FROM finance_vouchers
+        WHERE tenant_id::text = $1::text
+        AND voucher_type = 'receipt'
+        AND (COALESCE(status, 'active') != 'cancelled')
+        AND deal_id IS NOT NULL
+        GROUP BY deal_id
+      ) fv ON d.id::text = fv.deal_id::text
       WHERE ${whereClause}
       ORDER BY d.created_at DESC
     `, params);
@@ -113,12 +122,21 @@ exports.getDealById = async (req, res) => {
         ru.reservation_extension_count as unit_reservation_extension_count,
         rp.next_payment_date,
         rp.status as payment_status,
-        rp.paid_amount,
+        COALESCE(fv.actual_paid, rp.paid_amount, 0) as paid_amount,
         rp.total_amount as payment_total
       FROM deals d 
       LEFT JOIN products p ON d.product_id::text = p.id::text AND d.tenant_id::text = p.tenant_id::text 
       LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND d.tenant_id::text = ru.tenant_id::text
       LEFT JOIN re_payments_mvp rp ON d.id::text = rp.deal_id::text AND d.tenant_id::text = rp.tenant_id::text
+      LEFT JOIN (
+        SELECT deal_id, SUM(amount) as actual_paid
+        FROM finance_vouchers
+        WHERE tenant_id::text = $2::text
+        AND voucher_type = 'receipt'
+        AND (COALESCE(status, 'active') != 'cancelled')
+        AND deal_id IS NOT NULL
+        GROUP BY deal_id
+      ) fv ON d.id::text = fv.deal_id::text
       WHERE d.id = $1 AND d.tenant_id::text = $2::text AND ($3::text IS NULL OR d.branch_id::text = $3::text OR d.branch_id IS NULL)
     `, [req.params.id, tenant_id, branch_id]);
     
