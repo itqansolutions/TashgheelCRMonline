@@ -26,7 +26,8 @@ export const AuthProvider = ({ children }) => {
       setUser({
         ...userData,
         allowedPages: safeArray(userData.allowedPages),
-        branches: safeArray(userData.branches)
+        branches: safeArray(userData.branches),
+        financialPermissions: safeArray(userData.financialPermissions)
       });
 
       // Load subscription (cached or fresh)
@@ -62,7 +63,8 @@ export const AuthProvider = ({ children }) => {
       ...userData,
       isDemo: userData.isDemo || false,
       allowedPages: safeArray(userData.allowedPages),
-      branches: safeArray(userData.branches)
+      branches: safeArray(userData.branches),
+      financialPermissions: safeArray(userData.financialPermissions)
     });
 
     // Fetch subscription on login
@@ -83,8 +85,20 @@ export const AuthProvider = ({ children }) => {
     setSubscription(null);
   };
 
+  /**
+   * Helper to verify if current user has a specific financial permission.
+   * Admins are always allowed as superusers.
+   * Otherwise checks user.financialPermissions array.
+   */
+  const hasFinancialPermission = (perm) => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    const perms = safeArray(user.financialPermissions);
+    return perms.includes(perm);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, subscription, loading, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, subscription, loading, login, logout, isAuthenticated: !!user, hasFinancialPermission }}>
       {children}
     </AuthContext.Provider>
   );

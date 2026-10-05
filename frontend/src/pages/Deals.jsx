@@ -12,7 +12,7 @@ import SalesSubNav from '../components/Sales/SalesSubNav';
 import { useAuth } from '../context/AuthContext';
 
 const Deals = () => {
-  const { user } = useAuth();
+  const { user, hasFinancialPermission } = useAuth();
   const { deals, fetchDeals, customers, fetchCustomers, products, fetchProducts, users, fetchUsers, templateConfig, loading } = useData();
   const isRealEstate = user?.template_name === 'real_estate';
   const navigate = useNavigate();
@@ -1236,7 +1236,7 @@ const Deals = () => {
                                     </span>
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                                    {inst.status !== 'Paid' && (
+                                    {inst.status !== 'Paid' && hasFinancialPermission?.('payment.create') && (
                                       <button
                                         type="button"
                                         onClick={() => handlePayInstallment(inst.id, remaining)}
@@ -1423,7 +1423,7 @@ const Deals = () => {
                                     Approve
                                   </button>
                                 )}
-                                {(comm.status === 'Approved' || comm.status === 'Earned' || comm.status === 'Partially Paid') && unpaid > 0 && (
+                                {(comm.status === 'Approved' || comm.status === 'Earned' || comm.status === 'Partially Paid') && unpaid > 0 && hasFinancialPermission?.('payment.create') && (
                                   <button
                                     type="button"
                                     onClick={() => handlePayCommission(comm.id, unpaid)}

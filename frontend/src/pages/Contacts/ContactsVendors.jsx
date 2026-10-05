@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Plus, Truck, Search, X, Printer, CreditCard, FileText } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 // ─── Vendor Statement Modal (Simple & Printable) ─────────────────
 const VendorStatementModal = ({ vendor, onClose }) => {
@@ -240,6 +241,7 @@ const RecordPaymentModal = ({ vendor, onClose, onSuccess }) => {
 
 // ─── Main Vendors Component ───────────────────────────────────────
 const ContactsVendors = () => {
+  const { hasFinancialPermission } = useAuth();
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -366,13 +368,15 @@ const ContactsVendors = () => {
                       </button>
 
                       {/* Pay Button */}
-                      <button
-                        onClick={() => setPaymentVendor(v)}
-                        title="Record Payment"
-                        style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        <CreditCard size={13} /> Pay
-                      </button>
+                      {hasFinancialPermission?.('payment.create') && (
+                        <button
+                          onClick={() => setPaymentVendor(v)}
+                          title="Record Payment"
+                          style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <CreditCard size={13} /> Pay
+                        </button>
+                      )}
 
                       {/* Edit */}
                       <button onClick={() => openEdit(v)} style={{ background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>
