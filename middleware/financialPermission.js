@@ -42,6 +42,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'pr.create', 'pr.approve',
     'po.create', 'po.approve',
     'grn.create', 'grn.approve',
+    'payment.create',
     'stock.adjust', 'stock.approve',
     'payroll.view_own',
   ]),
@@ -62,6 +63,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
 /**
  * Check if a user has a specific financial permission.
  * First checks explicit DB record, then falls back to role defaults.
+ * Fail-closed: returns false on invalid role, missing user, or DB error.
  *
  * @param {string|number} userId
  * @param {string} tenantId
@@ -70,6 +72,10 @@ const ROLE_DEFAULT_PERMISSIONS = {
  * @returns {Promise<boolean>}
  */
 async function checkFinancialPermission(userId, tenantId, permission, userRole) {
+  if (!userId || !tenantId || !permission || !userRole) {
+    return false;
+  }
+
   try {
     // Check for explicit override in financial_permissions table
     const explicit = await db.query(`
@@ -90,6 +96,44 @@ async function checkFinancialPermission(userId, tenantId, permission, userRole) 
     console.error(`[FinancialPermission] Error checking permission "${permission}":`, err.message);
     return false; // Fail secure
   }
+}
+
+/**
+ * Returns list of effective financial permissions for a user.
+ * Combines role-based defaults with any tenant-level overrides.
+ *
+ * @param {string|number} userId
+ * @param {string} tenantId
+ * @param {string} userRole
+ * @returns {Promise<string[]>}
+ */
+async function getEffectiveFinancialPermissions(userId, tenantId, userRole) {
+  if (!userRole) return [];
+
+  const basePerms = new Set(ROLE_DEFAULT_PERMISSIONS[userRole] || ROLE_DEFAULT_PERMISSIONS['employee']);
+
+  if (!userId || !tenantId) {
+    return Array.from(basePerms);
+  }
+
+  try {
+    const overrides = await db.query(`
+      SELECT permission, granted FROM financial_permissions
+      WHERE tenant_id = $1 AND user_id = $2
+    `, [tenantId, userId]);
+
+    for (const row of overrides.rows) {
+      if (row.granted === true) {
+        basePerms.add(row.permission);
+      } else if (row.granted === false) {
+        basePerms.delete(row.permission);
+      }
+    }
+  } catch (err) {
+    console.error('[FinancialPermission] Error fetching effective permissions:', err.message);
+  }
+
+  return Array.from(basePerms);
 }
 
 /**
@@ -136,4 +180,10 @@ async function seedDefaultPermissions(client, tenantId) {
   console.log(`[FinancialPermission] Default permissions active for tenant ${tenantId} (role-based).`);
 }
 
-module.exports = { requirePermission, checkFinancialPermission, seedDefaultPermissions, ROLE_DEFAULT_PERMISSIONS };
+module.exports = {
+  requirePermission,
+  checkFinancialPermission,
+  getEffectiveFinancialPermissions,
+  seedDefaultPermissions,
+  ROLE_DEFAULT_PERMISSIONS
+};

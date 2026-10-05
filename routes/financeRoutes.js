@@ -4,6 +4,7 @@ const financeController = require('../controllers/financeController');
 const purchasesController = require('../controllers/purchasesController');
 const authMiddleware = require('../middleware/auth');
 const branchScope = require('../middleware/branchScope');
+const { requirePermission } = require('../middleware/financialPermission');
 
 // Apply auth and strict branch isolation to ALL finance routes
 router.use(authMiddleware);
@@ -27,11 +28,11 @@ router.get('/invoices/:id', financeController.getInvoiceDetails);
 
 // @route   POST api/finance/payments
 // @desc    Register a payment and run Smart Status calculation
-router.post('/payments', financeController.createPayment);
+router.post('/payments', requirePermission('payment.create'), financeController.createPayment);
 
 // @route   POST api/finance/invoices/:id/payments
 // @desc    Register a payment directly to an invoice (nested route compatibility)
-router.post('/invoices/:id/payments', financeController.createInvoicePaymentDirect);
+router.post('/invoices/:id/payments', requirePermission('payment.create'), financeController.createInvoicePaymentDirect);
 
 // @route   GET api/finance/vouchers
 // @desc    Get all vouchers (Receipt & Payment) with optional type filter
@@ -39,13 +40,11 @@ router.get('/vouchers', financeController.getVouchers);
 
 // @route   POST api/finance/vouchers
 // @desc    Create a new voucher (Receipt or Payment)
-router.post('/vouchers', financeController.createVoucher);
+router.post('/vouchers', requirePermission('payment.create'), financeController.createVoucher);
 
 // @route   GET api/finance/vouchers/:id
 // @desc    Get detailed voucher for preview & printing
 router.get('/vouchers/:id', financeController.getVoucherDetails);
-
-const { requirePermission } = require('../middleware/financialPermission');
 
 // @route   POST api/finance/vouchers/:id/cancel
 // @desc    Cancel a voucher with mandatory reason in body (Requires voucher.cancel permission: admin only)
@@ -61,7 +60,7 @@ router.get('/expenses', financeController.getExpenses);
 
 // @route   POST api/finance/expenses
 // @desc    Create an expense under finance
-router.post('/expenses', financeController.createExpense);
+router.post('/expenses', requirePermission('payment.create'), financeController.createExpense);
 
 // @route   GET api/finance/income
 // @desc    Get income records under finance
@@ -133,7 +132,7 @@ router.get('/vendors/:id/aging', financeController.getVendorAging);
 
 // @route   POST api/finance/vendors/:id/payments
 // @desc    Record a vendor payment and link to Treasury
-router.post('/vendors/:id/payments', purchasesController.recordVendorPayment);
+router.post('/vendors/:id/payments', requirePermission('payment.create'), purchasesController.recordVendorPayment);
 
 module.exports = router;
 

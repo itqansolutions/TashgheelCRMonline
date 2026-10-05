@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const db = require('../config/db');
 const { logAction, logSecurity, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 const emailService = require('../services/emailService');
+const { getEffectiveFinancialPermissions } = require('../middleware/financialPermission');
 
 // ── PUBLIC: Submit Registration Request ─────────────────────────
 // Creates a pending registration_requests row only.
@@ -266,6 +267,9 @@ exports.login = async (req, res) => {
     // Resolve allowed pages for PBAC
     const allowedPages = await getUserAllowedPages(user.id, user.role);
 
+    // Resolve effective financial permissions
+    const financialPermissions = await getEffectiveFinancialPermissions(user.id, user.tenant_id, user.role);
+
     // Generate JWT with Tenant Context
     const payload = { user: { id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id } };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '72h' });
@@ -284,7 +288,8 @@ exports.login = async (req, res) => {
         tenant_id: user.tenant_id,
         template_name: user.template_name,
         branch_id: primaryBranchId,
-        allowedPages
+        allowedPages,
+        financialPermissions
       } 
     });
   } catch (err) {
@@ -323,6 +328,7 @@ exports.demoLogin = async (req, res) => {
     const demoBranchId = dbBranchRes.rows[0]?.branch_id || user.branch_id;
 
     const allowedPages = await getUserAllowedPages(user.id, user.role);
+    const financialPermissions = await getEffectiveFinancialPermissions(user.id, user.tenant_id, user.role);
 
     // Generate JWT
     const payload = { user: { id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id } };
@@ -340,7 +346,8 @@ exports.demoLogin = async (req, res) => {
         template_name: user.template_name,
         branch_id: demoBranchId,
         isDemo: true,
-        allowedPages
+        allowedPages,
+        financialPermissions
       } 
     });
   } catch (err) {
@@ -448,10 +455,11 @@ exports.getMe = async (req, res) => {
     );
 
     const allowedPages = await getUserAllowedPages(user.id, user.role);
+    const financialPermissions = await getEffectiveFinancialPermissions(user.id, user.tenant_id, user.role);
     
     res.json({ 
       status: 'success', 
-      user: { ...user, branches: branchesResult.rows, allowedPages } 
+      user: { ...user, branches: branchesResult.rows, allowedPages, financialPermissions } 
     });
   } catch (err) {
     console.error(err.message);
