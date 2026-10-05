@@ -108,7 +108,7 @@ serverProc.stdout.on('data', (chunk) => {
     const text = chunk.toString();
     process.stdout.write(`[SERVER] ${text}`);
 
-    if (text.includes(`Server running on port ${serverPort}`) || text.includes('Server running on port')) {
+    if (text.includes(`Server is running on port`) || text.includes(`Server running on port`)) {
         onServerListening();
     }
 });
@@ -130,8 +130,8 @@ async function onServerListening() {
     bootResolved = true;
     console.log('\n📡 [Boot Check] Server is listening! Running health probe against /api/plans or / ...');
 
-    // Wait 2 seconds for boot initializers (migrationRunner, schema reconciliations) to settle
-    await new Promise(r => setTimeout(r, 2000));
+    // Wait 5 seconds for boot initializers (migrationRunner, schema reconciliations) to settle
+    await new Promise(r => setTimeout(r, 5000));
 
     const checkUrl = `http://127.0.0.1:${serverPort}/api/plans`;
     
@@ -163,10 +163,10 @@ function cleanup(exitCode, message) {
     }, 1500);
 }
 
-// Timeout after 35 seconds
+// Timeout after 90 seconds (fresh remote DB initial schema migration)
 setTimeout(() => {
     if (!bootResolved) {
         console.error('⏰ [Boot Check] Timed out waiting for server to boot.');
         cleanup(1, 'Boot check timed out.');
     }
-}, 35000);
+}, 90000);

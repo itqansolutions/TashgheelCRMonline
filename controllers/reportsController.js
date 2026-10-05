@@ -46,9 +46,11 @@ exports.getFinancialTrends = async (req, res) => {
         let revenueResult;
         if (templateName === 'real_estate') {
             revenueResult = await db.query(`
-                SELECT TO_CHAR(created_at, 'YYYY-MM') as month, SUM(paid_amount) as revenue
-                FROM re_payments_mvp
+                SELECT TO_CHAR(voucher_date, 'YYYY-MM') as month, SUM(amount) as revenue
+                FROM finance_vouchers
                 WHERE tenant_id::text = $1::text
+                AND voucher_type = 'receipt'
+                AND (COALESCE(status, 'active') != 'cancelled')
                 GROUP BY month
                 ORDER BY month ASC
             `, [tenant_id]);

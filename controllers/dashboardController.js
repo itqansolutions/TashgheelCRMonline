@@ -71,10 +71,12 @@ exports.getBranchSummary = async (req, res) => {
         let revenue = 0;
         if (templateName === 'real_estate') {
             const revRes = await db.query(`
-                SELECT COALESCE(SUM(paid_amount), 0) as total 
-                FROM re_payments_mvp 
+                SELECT COALESCE(SUM(amount), 0) as total 
+                FROM finance_vouchers 
                 WHERE tenant_id::text = $1::text ${branchFilter}
-                AND ${timeFilterLogic('created_at')}
+                AND voucher_type = 'receipt'
+                AND (COALESCE(status, 'active') != 'cancelled')
+                AND ${timeFilterLogic('voucher_date')}
             `, queryParams);
             revenue = parseFloat(revRes.rows[0].total);
         } else {
@@ -138,10 +140,12 @@ exports.getBranchSummary = async (req, res) => {
         let prevRevenue = 0;
         if (templateName === 'real_estate') {
             const prevRevRes = await db.query(`
-                SELECT COALESCE(SUM(paid_amount), 0) as total 
-                FROM re_payments_mvp 
+                SELECT COALESCE(SUM(amount), 0) as total 
+                FROM finance_vouchers 
                 WHERE tenant_id::text = $1::text ${branchFilter}
-                AND ${prevTimeFilterLogic('created_at')}
+                AND voucher_type = 'receipt'
+                AND (COALESCE(status, 'active') != 'cancelled')
+                AND ${prevTimeFilterLogic('voucher_date')}
             `, queryParams);
             prevRevenue = parseFloat(prevRevRes.rows[0].total);
         } else {
@@ -210,13 +214,14 @@ exports.getBranchSummary = async (req, res) => {
                 WHERE tenant_id::text = $1::text ${branchFilter}
             `, queryParams);
             
-            // 2. Collection Forecast (Next 30 days)
+            // 2. Collection Forecast (Next 30 days) from authoritative re_installments schedule
             const collectionsRes = await db.query(`
-                SELECT COALESCE(SUM(total_amount - paid_amount), 0) as expected
-                FROM re_payments_mvp
-                WHERE tenant_id::text = $1::text 
-                AND next_payment_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
-            `, [tenant_id]);
+                SELECT COALESCE(SUM(amount - paid_amount), 0) as expected
+                FROM re_installments
+                WHERE tenant_id::text = $1::text ${branchFilter}
+                AND (COALESCE(status, 'Pending') != 'Paid')
+                AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
+            `, queryParams);
 
             industrySpecific = {
                 template: 'real_estate',
