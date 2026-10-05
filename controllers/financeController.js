@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { logCreate, logUpdate, logDelete, logAction, ACTIONS } = require('../services/loggerService');
+const { logCreate, logUpdate, logDelete, logAction, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 
 // Ensure finance_vouchers table exists with multi-tenant safety
 let vouchersTableReady = false;
@@ -45,6 +45,24 @@ const ensureVouchersTable = async () => {
         await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS created_by INTEGER;`);
         await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS tenant_id UUID;`);
         await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active';`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP WITH TIME ZONE;`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS cancelled_by VARCHAR(255);`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS installment_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS contract_id VARCHAR(255);`);
+
+        // Create indexes safely after ensuring columns exist
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_finance_vouchers_status ON finance_vouchers(status);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_finance_vouchers_installment ON finance_vouchers(installment_id);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_finance_vouchers_deal ON finance_vouchers(deal_id);`);
+        try {
+            await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_finance_vouchers_tenant_number ON finance_vouchers(tenant_id, voucher_number);`);
+        } catch (idxErr) {
+            console.error('❌ [CRITICAL] Failed to create unique index on finance_vouchers(tenant_id, voucher_number). Pre-existing duplicates detected:', idxErr.message);
+        }
+
         vouchersTableReady = true;
     } catch (err) {
         console.error('[Finance] Error ensuring finance_vouchers table:', err.message);
@@ -125,6 +143,12 @@ const ensureInvoicesTable = async () => {
         await safeAlter(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
         await safeAlter(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'cash';`);
         await safeAlter(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS notes TEXT;`);
+        await safeAlter(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active';`);
+        await safeAlter(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS voucher_id INTEGER;`);
+        await safeAlter(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP WITH TIME ZONE;`);
+        await safeAlter(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS cancelled_by VARCHAR(255);`);
+        await safeAlter(`CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);`);
+        await safeAlter(`CREATE INDEX IF NOT EXISTS idx_payments_voucher ON payments(voucher_id);`);
 
         // 4. Expenses Table
         await db.query(`
@@ -263,19 +287,25 @@ const generateInvoiceNumber = async (tenant_id, branch_id) => {
     return invoiceNumber;
 };
 
-// Helper to generate Voucher Number
-const generateVoucherNumber = async (tenant_id, branch_id, voucher_type) => {
+// Helper to generate Voucher Number (delegates to concurrency-safe services/voucherNumbering.js)
+const { generateVoucherNumber: sharedGenerateVoucherNumber } = require('../services/voucherNumbering');
+const generateVoucherNumber = async (tenant_id, branch_id, voucher_type, queryExecutor = null) => {
     await ensureVouchersTable();
-    const prefix = voucher_type === 'receipt' ? 'RV-' : 'PV-';
-    let query = `SELECT COUNT(*) + 1 as next_id FROM finance_vouchers WHERE tenant_id::text = $1::text AND voucher_type = $2`;
-    const params = [tenant_id, voucher_type];
-    if (branch_id) {
-        params.push(String(branch_id));
-        query += ` AND (branch_id::text = $3::text OR branch_id IS NULL)`;
+    if (queryExecutor) {
+        return sharedGenerateVoucherNumber(tenant_id, branch_id, voucher_type, queryExecutor);
     }
-    const seqRes = await db.query(query, params);
-    const nextSeq = String(seqRes.rows[0]?.next_id || 1).padStart(4, '0');
-    return `${prefix}${nextSeq}`;
+    const client = db.connect ? await db.connect() : await db.pool.connect();
+    try {
+        await client.query('BEGIN');
+        const num = await sharedGenerateVoucherNumber(tenant_id, branch_id, voucher_type, client);
+        await client.query('COMMIT');
+        return num;
+    } catch (err) {
+        try { await client.query('ROLLBACK'); } catch (_) {}
+        throw err;
+    } finally {
+        client.release();
+    }
 };
 
 // @desc    Get all invoices for Branch/Tenant
@@ -293,8 +323,8 @@ exports.getInvoices = async (req, res) => {
         let query = `
             SELECT 
                 i.*,
-                COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text AND (p.tenant_id IS NULL OR p.tenant_id::text = $1::text)), 0) as total_paid,
-                (i.total_amount - COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text AND (p.tenant_id IS NULL OR p.tenant_id::text = $1::text)), 0)) as remaining_balance,
+                COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text AND (p.tenant_id IS NULL OR p.tenant_id::text = $1::text) AND (COALESCE(p.status, 'active') != 'cancelled')), 0) as total_paid,
+                (i.total_amount - COALESCE((SELECT SUM(amount) FROM payments p WHERE p.invoice_id::text = i.id::text AND (p.tenant_id IS NULL OR p.tenant_id::text = $1::text) AND (COALESCE(p.status, 'active') != 'cancelled')), 0)) as remaining_balance,
                 c.name as customer_name,
                 u.unit_number, u.project_name,
                 d.title as deal_title
@@ -504,7 +534,7 @@ exports.createInvoiceFromDeal = async (req, res) => {
 };
 
 // Internal reusable helper for payments
-const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount, payment_method, notes, user_id, req, treasury_account_id }) => {
+const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount, payment_method, notes, user_id, req, treasury_account_id, existing_voucher_id }) => {
     await ensureInvoicesTable();
     const invRes = await db.query(
         'SELECT total_amount, invoice_number, client_id, customer_id FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) FOR UPDATE',
@@ -515,7 +545,7 @@ const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount,
     const invoice = invRes.rows[0];
     const invoiceTotal = parseFloat(invoice.total_amount);
 
-    const paidRes = await db.query('SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE invoice_id = $1 AND tenant_id::text = $2::text', [invoice_id, tenant_id]);
+    const paidRes = await db.query("SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE invoice_id = $1 AND tenant_id::text = $2::text AND (COALESCE(status, 'active') != 'cancelled')", [invoice_id, tenant_id]);
     const currentlyPaid = parseFloat(paidRes.rows[0].total_paid);
     const newTotalPaid = currentlyPaid + parseFloat(amount);
 
@@ -557,33 +587,40 @@ const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount,
 
     await db.query(`UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [newStatus, invoice_id]);
 
-    // Also auto-generate a receipt voucher if one wasn't explicitly provided
+    // Link to voucher: if existing_voucher_id was passed, link directly; otherwise auto-generate receipt voucher
     let voucherData = null;
-    try {
-        await ensureVouchersTable();
-        const voucherNumber = await generateVoucherNumber(tenant_id, branch_id, 'receipt');
-        
-        let clientName = 'عميل';
-        const targetCustId = invoice.customer_id || invoice.client_id;
-        if (targetCustId) {
-            const cRes = await db.query('SELECT name FROM customers WHERE id::text = $1::text', [String(targetCustId)]);
-            if (cRes.rows.length > 0) clientName = cRes.rows[0].name;
-        }
+    if (existing_voucher_id && payRes.rows.length > 0) {
+        await db.query(`UPDATE payments SET voucher_id = $1 WHERE id = $2`, [existing_voucher_id, payRes.rows[0].id]);
+    } else {
+        try {
+            await ensureVouchersTable();
+            const voucherNumber = await generateVoucherNumber(tenant_id, branch_id, 'receipt');
+            
+            let clientName = 'عميل';
+            const targetCustId = invoice.customer_id || invoice.client_id;
+            if (targetCustId) {
+                const cRes = await db.query('SELECT name FROM customers WHERE id::text = $1::text', [String(targetCustId)]);
+                if (cRes.rows.length > 0) clientName = cRes.rows[0].name;
+            }
 
-        const vRes = await db.query(`
-            INSERT INTO finance_vouchers (
-                voucher_number, voucher_type, party_type, party_name, customer_id, invoice_id,
-                amount, payment_method, notes, voucher_date, created_by, tenant_id, branch_id
-            ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, CURRENT_DATE, $8, $9, $10)
-            RETURNING *
-        `, [
-            voucherNumber, clientName, targetCustId ? String(targetCustId) : null, invoice_id, amount,
-            payment_method || 'cash', notes ? `${notes} (سداد فاتورة ${invoice.invoice_number})` : `سداد فاتورة رقم ${invoice.invoice_number}`,
-            user_id || null, tenant_id, branch_id ? String(branch_id) : null
-        ]);
-        voucherData = vRes.rows[0];
-    } catch (vErr) {
-        console.warn('[Auto Voucher Warning]: Could not auto-create receipt voucher:', vErr.message);
+            const vRes = await db.query(`
+                INSERT INTO finance_vouchers (
+                    voucher_number, voucher_type, party_type, party_name, customer_id, invoice_id,
+                    amount, payment_method, notes, voucher_date, created_by, tenant_id, branch_id
+                ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, CURRENT_DATE, $8, $9, $10)
+                RETURNING *
+            `, [
+                voucherNumber, clientName, targetCustId ? String(targetCustId) : null, invoice_id, amount,
+                payment_method || 'cash', notes ? `${notes} (سداد فاتورة ${invoice.invoice_number})` : `سداد فاتورة رقم ${invoice.invoice_number}`,
+                user_id || null, tenant_id, branch_id ? String(branch_id) : null
+            ]);
+            voucherData = vRes.rows[0];
+            if (voucherData && payRes.rows.length > 0) {
+                await db.query(`UPDATE payments SET voucher_id = $1 WHERE id = $2`, [voucherData.id, payRes.rows[0].id]);
+            }
+        } catch (vErr) {
+            console.warn('[Auto Voucher Warning]: Could not auto-create receipt voucher:', vErr.message);
+        }
     }
 
     if (newStatus === 'paid') {
@@ -689,7 +726,7 @@ exports.getInvoiceDetails = async (req, res) => {
                    COALESCE(p.total_paid, 0) as total_paid, 
                    (i.total_amount - COALESCE(p.total_paid, 0)) as remaining_balance 
             FROM invoices i
-            LEFT JOIN (SELECT invoice_id, SUM(amount) as total_paid FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id) p ON i.id::text = p.invoice_id::text
+            LEFT JOIN (SELECT invoice_id, SUM(amount) as total_paid FROM payments WHERE tenant_id::text = $1::text AND (COALESCE(status, 'active') != 'cancelled') GROUP BY invoice_id) p ON i.id::text = p.invoice_id::text
             LEFT JOIN re_units u ON (NULLIF(i.unit_id::text, '') IS NOT NULL AND i.unit_id::text = u.id::text)
             LEFT JOIN customers c ON (
                 (NULLIF(i.client_id::text, '') IS NOT NULL AND i.client_id::text = c.id::text) OR 
@@ -718,7 +755,7 @@ exports.getInvoiceDetails = async (req, res) => {
             WHERE ii.invoice_id::text = $1::text 
             ORDER BY ii.id ASC
         `, [invoice_id]);
-        const paymentsRes = await db.query('SELECT * FROM payments WHERE invoice_id::text = $1::text ORDER BY payment_date DESC', [invoice_id]);
+        const paymentsRes = await db.query("SELECT * FROM payments WHERE invoice_id::text = $1::text AND tenant_id::text = $2::text AND (COALESCE(status, 'active') != 'cancelled') ORDER BY payment_date DESC", [invoice_id, tenant_id]);
 
         res.json({
             status: 'success',
@@ -757,6 +794,7 @@ exports.getVouchers = async (req, res) => {
             LEFT JOIN invoices i ON v.invoice_id = i.id
             WHERE v.tenant_id::text = $1::text 
               AND ($2::text IS NULL OR v.branch_id::text = $2::text OR v.branch_id IS NULL)
+              AND (COALESCE(v.status, 'active') != 'cancelled')
         `;
         const params = [tenant_id, branch_id ? String(branch_id) : null];
 
@@ -869,7 +907,8 @@ exports.createVoucher = async (req, res) => {
                 payment_method,
                 notes: notes ? `${notes} (سند قبض ${voucherNumber})` : `سند قبض رقم ${voucherNumber}`,
                 user_id: req.user.id,
-                req
+                req,
+                existing_voucher_id: voucher.id
             });
         }
 
@@ -940,28 +979,240 @@ exports.getVoucherDetails = async (req, res) => {
     }
 };
 
-// @desc    Delete Voucher
+// @desc    Delete / Cancel Voucher (With RE Installment & Invoice Payment Reversals)
 // @route   DELETE /api/finance/vouchers/:id
 exports.deleteVoucher = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     let branch_id = req.branchId || req.user?.branch_id || null;
     const voucher_id = req.params.id;
+    const { reason } = req.body || {};
+
+    // 1. Require a non-empty cancellation reason for financial audit trail
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
+        return res.status(400).json({
+            status: 'error',
+            message: 'A non-empty cancellation reason is required to cancel a financial voucher.'
+        });
+    }
+
+    const client = db.connect ? await db.connect() : await db.pool.connect();
 
     try {
         await ensureVouchersTable();
-        const vRes = await db.query(
-            `DELETE FROM finance_vouchers WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) RETURNING *`,
+        await client.query('BEGIN');
+
+        // 2. Fetch voucher FOR UPDATE scoped to tenant
+        const vRes = await client.query(
+            `SELECT * FROM finance_vouchers 
+             WHERE id::text = $1::text 
+               AND tenant_id::text = $2::text 
+               AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)
+             FOR UPDATE`,
             [voucher_id, tenant_id, branch_id ? String(branch_id) : null]
         );
+
         if (vRes.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Voucher not found' });
         }
 
-        logDelete(req, 'Finance Voucher', voucher_id, { voucher_number: vRes.rows[0].voucher_number });
-        res.json({ status: 'success', message: 'Voucher deleted successfully' });
+        const voucher = vRes.rows[0];
+
+        // 3. Prevent double cancellation
+        if (voucher.status === 'cancelled') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ status: 'error', message: 'Voucher is already cancelled' });
+        }
+
+        const voucherAmount = parseFloat(voucher.amount) || 0;
+
+        // 4. Mark voucher as cancelled
+        await client.query(
+            `UPDATE finance_vouchers 
+             SET status = 'cancelled', 
+                 cancelled_at = NOW(), 
+                 cancelled_by = $1, 
+                 cancellation_reason = $2 
+             WHERE id = $3 AND tenant_id::text = $4::text`,
+            [req.user.id, reason.trim(), voucher.id, tenant_id]
+        );
+
+        // 5. Reverse Real Estate linkages if receipt voucher
+        if (voucher.voucher_type === 'receipt') {
+            // A. If linked to an installment, reverse paid_amount with FOR UPDATE guard
+            if (voucher.installment_id) {
+                const instRes = await client.query(
+                    `SELECT id, amount, paid_amount, due_date, status FROM re_installments 
+                     WHERE id::text = $1::text AND tenant_id::text = $2::text 
+                     FOR UPDATE`,
+                    [String(voucher.installment_id), tenant_id]
+                );
+
+                if (instRes.rows.length > 0) {
+                    const inst = instRes.rows[0];
+                    const currentPaid = parseFloat(inst.paid_amount) || 0;
+                    const instAmount = parseFloat(inst.amount) || 0;
+                    const newPaid = Number(Math.max(0, currentPaid - voucherAmount).toFixed(2));
+
+                    // Recompute status matching canonical Tashgheel installment workflow:
+                    // 'Paid' | 'Partially Paid' | 'Overdue' (if due_date < today) | 'Pending'
+                    let newStatus = 'Pending';
+                    const isDuePast = inst.due_date && new Date(inst.due_date) < new Date(new Date().setHours(0,0,0,0));
+
+                    if (newPaid >= instAmount - 0.01) {
+                        newStatus = 'Paid';
+                    } else if (newPaid > 0) {
+                        newStatus = 'Partially Paid';
+                    } else if (isDuePast) {
+                        newStatus = 'Overdue';
+                    } else {
+                        newStatus = 'Pending';
+                    }
+
+                    await client.query(
+                        `UPDATE re_installments 
+                         SET paid_amount = $1,
+                             status = $2,
+                             paid_at = CASE WHEN $1 <= 0 THEN NULL ELSE paid_at END,
+                             updated_at = NOW()
+                         WHERE id = $3 AND tenant_id::text = $4::text`,
+                        [newPaid, newStatus, inst.id, tenant_id]
+                    );
+                }
+            }
+
+            // B. If linked to deal, reverse re_payments_mvp.paid_amount
+            if (voucher.deal_id) {
+                await client.query(
+                    `UPDATE re_payments_mvp 
+                     SET paid_amount = GREATEST(0, COALESCE(paid_amount, 0) - $1),
+                         updated_at = NOW()
+                     WHERE deal_id::text = $2::text AND tenant_id::text = $3::text`,
+                    [voucherAmount, String(voucher.deal_id), tenant_id]
+                );
+            }
+
+            // C. General Template: If linked to an invoice, reverse invoice payment without hard-deletion
+            if (voucher.invoice_id) {
+                // Strictly look for payment explicitly linked by voucher_id (No legacy fuzzy guessing)
+                const directPayRes = await client.query(
+                    `SELECT id FROM payments 
+                     WHERE voucher_id = $1 AND tenant_id::text = $2::text AND (COALESCE(status, 'active') != 'cancelled')
+                     LIMIT 1`,
+                    [voucher.id, tenant_id]
+                );
+
+                if (directPayRes.rows.length === 0) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        status: 'error',
+                        message: 'Cannot cancel this invoice receipt voucher: no active payment record explicitly linked via voucher_id was found.'
+                    });
+                }
+
+                const targetPaymentId = directPayRes.rows[0].id;
+
+                // Mark payment as cancelled (Audit-safe, zero hard delete)
+                await client.query(
+                    `UPDATE payments 
+                     SET status = 'cancelled', 
+                         cancelled_at = NOW(), 
+                         cancelled_by = $1 
+                     WHERE id = $2 AND tenant_id::text = $3::text`,
+                    [req.user.id, targetPaymentId, tenant_id]
+                );
+
+                // Recompute invoice paid_amount and status
+                const invRes = await client.query(
+                    `SELECT id, total_amount FROM invoices 
+                     WHERE id = $1 AND tenant_id::text = $2::text 
+                     FOR UPDATE`,
+                    [voucher.invoice_id, tenant_id]
+                );
+
+                if (invRes.rows.length > 0) {
+                    const inv = invRes.rows[0];
+                    const invTotal = parseFloat(inv.total_amount) || 0;
+
+                    const newPaidSumRes = await client.query(
+                        `SELECT COALESCE(SUM(amount), 0) as total_paid 
+                         FROM payments 
+                         WHERE invoice_id = $1 
+                           AND tenant_id::text = $2::text 
+                           AND (COALESCE(status, 'active') != 'cancelled')`,
+                        [voucher.invoice_id, tenant_id]
+                    );
+                    const remainingPaid = parseFloat(newPaidSumRes.rows[0]?.total_paid || 0);
+
+                    let newInvStatus = 'unpaid';
+                    if (remainingPaid >= invTotal - 0.01) {
+                        newInvStatus = 'paid';
+                    } else if (remainingPaid > 0) {
+                        newInvStatus = 'partial';
+                    }
+
+                    await client.query(
+                        `UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text`,
+                        [newInvStatus, voucher.invoice_id, tenant_id]
+                    );
+                }
+            }
+        } else if (voucher.voucher_type === 'payment') {
+            // D. Vendor Settlement Reversal: If linked to a purchase_invoice, reverse paid_amount & status
+            if (voucher.invoice_id) {
+                const pinvRes = await client.query(
+                    `SELECT id, total_amount, paid_amount FROM purchase_invoices 
+                     WHERE id = $1 AND tenant_id::text = $2::text 
+                     FOR UPDATE`,
+                    [voucher.invoice_id, tenant_id]
+                );
+
+                if (pinvRes.rows.length > 0) {
+                    const pinv = pinvRes.rows[0];
+                    const pinvTotal = parseFloat(pinv.total_amount) || 0;
+                    const currentPaid = parseFloat(pinv.paid_amount) || 0;
+                    const newPaid = Number(Math.max(0, currentPaid - voucherAmount).toFixed(2));
+                    const newPinvStatus = newPaid >= (pinvTotal - 0.01) ? 'paid' : (newPaid > 0 ? 'partial' : 'pending');
+
+                    await client.query(
+                        `UPDATE purchase_invoices 
+                         SET paid_amount = $1, status = $2, updated_at = CURRENT_TIMESTAMP 
+                         WHERE id = $3 AND tenant_id::text = $4::text`,
+                        [newPaid, newPinvStatus, voucher.invoice_id, tenant_id]
+                    );
+                }
+            }
+        }
+
+        await client.query('COMMIT');
+
+        // Post-commit logging: isolated so logging error does not trigger rollback of committed cancel
+        try {
+            logAction({
+                req,
+                action: ACTIONS.UPDATE,
+                entityType: 'Finance Voucher',
+                entityId: voucher.id,
+                details: { action: 'cancelled', voucher_number: voucher.voucher_number, amount: voucherAmount },
+                level: LOG_LEVELS.WARN
+            });
+        } catch (logErr) {
+            console.warn('[Finance] Cancel voucher audit log notice (non-fatal):', logErr.message);
+        }
+
+        res.json({
+            status: 'success',
+            message: 'Voucher cancelled successfully and balances reversed.',
+            data: { id: voucher.id, status: 'cancelled' }
+        });
     } catch (err) {
+        try {
+            await client.query('ROLLBACK');
+        } catch (rbErr) {}
         console.error('deleteVoucher Error:', err.message);
-        res.status(500).json({ status: 'error', message: 'Failed to delete voucher.' });
+        res.status(500).json({ status: 'error', message: 'Failed to cancel voucher: ' + err.message });
+    } finally {
+        client.release();
     }
 };
 
@@ -1066,6 +1317,7 @@ exports.getIncome = async (req, res) => {
             )
             WHERE p.tenant_id::text = $1::text 
               AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+              AND (COALESCE(p.status, 'active') != 'cancelled')
             ORDER BY p.payment_date DESC
         `, [tenant_id, branch_id ? String(branch_id) : null]);
 
@@ -1089,7 +1341,8 @@ exports.getSummary = async (req, res) => {
             `SELECT COALESCE(SUM(amount), 0) as total_income 
              FROM payments 
              WHERE tenant_id::text = $1::text 
-               AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)`,
+               AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+               AND (COALESCE(status, 'active') != 'cancelled')`,
             [tenant_id, branch_id ? String(branch_id) : null]
         );
 
@@ -1107,7 +1360,7 @@ exports.getSummary = async (req, res) => {
                 COALESCE(SUM(CASE WHEN status != 'paid' THEN (total_amount - COALESCE(p.paid, 0)) ELSE 0 END), 0) as total_outstanding,
                 COUNT(*) as count_invoices
             FROM invoices i
-            LEFT JOIN (SELECT invoice_id, SUM(amount) as paid FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id) p ON i.id::text = p.invoice_id::text
+            LEFT JOIN (SELECT invoice_id, SUM(amount) as paid FROM payments WHERE tenant_id::text = $1::text AND (COALESCE(status, 'active') != 'cancelled') GROUP BY invoice_id) p ON i.id::text = p.invoice_id::text
             WHERE i.tenant_id::text = $1::text 
               AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
         `, [tenant_id, branch_id ? String(branch_id) : null]);
@@ -1123,6 +1376,7 @@ exports.getSummary = async (req, res) => {
                 FROM finance_vouchers
                 WHERE tenant_id::text = $1::text 
                   AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+                  AND (COALESCE(status, 'active') != 'cancelled')
             `, [tenant_id, branch_id ? String(branch_id) : null]);
             receiptsCount = parseInt(vouchersCountRes.rows[0]?.receipts_count || 0);
             paymentsCount = parseInt(vouchersCountRes.rows[0]?.payments_count || 0);
@@ -1229,6 +1483,7 @@ exports.getCustomerAccounts = async (req, res) => {
                 FROM invoices inv
                 LEFT JOIN payments py ON py.invoice_id::text = inv.id::text
                     AND py.tenant_id::text = $1::text
+                    AND (COALESCE(py.status, 'active') != 'cancelled')
                 WHERE inv.tenant_id::text = $1::text
                   AND ($2::text IS NULL OR inv.branch_id::text = $2::text OR inv.branch_id IS NULL)
                 GROUP BY inv.id, inv.client_id, inv.customer_id
@@ -1261,7 +1516,7 @@ exports.getCustomerAccounts = async (req, res) => {
                 FROM invoices i
                 LEFT JOIN (
                     SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
-                    FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id
+                    FROM payments WHERE tenant_id::text = $1::text AND (COALESCE(status, 'active') != 'cancelled') GROUP BY invoice_id
                 ) p_agg ON p_agg.invoice_id::text = i.id::text
                 WHERE i.tenant_id::text = $1::text
                   AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
@@ -1335,6 +1590,7 @@ exports.getCustomerStatement = async (req, res) => {
             WHERE p.tenant_id::text = $1::text
               AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
               AND (i.client_id::text = $3::text OR i.customer_id::text = $3::text)
+              AND (COALESCE(p.status, 'active') != 'cancelled')
         `;
         const payParams = [tenant_id, branch_id ? String(branch_id) : null, customer_id];
 
@@ -1392,7 +1648,7 @@ exports.getCustomerStatement = async (req, res) => {
             FROM invoices i
             LEFT JOIN (
                 SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
-                FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id
+                FROM payments WHERE tenant_id::text = $1::text AND (COALESCE(status, 'active') != 'cancelled') GROUP BY invoice_id
             ) p_agg ON p_agg.invoice_id::text = i.id::text
             WHERE i.tenant_id::text = $1::text
               AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
@@ -1446,7 +1702,7 @@ exports.getCustomerAging = async (req, res) => {
             FROM invoices i
             LEFT JOIN (
                 SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
-                FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id
+                FROM payments WHERE tenant_id::text = $1::text AND (COALESCE(status, 'active') != 'cancelled') GROUP BY invoice_id
             ) p_agg ON p_agg.invoice_id::text = i.id::text
             WHERE i.tenant_id::text = $1::text
               AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
@@ -1522,6 +1778,7 @@ exports.getTreasuryAccounts = async (req, res) => {
                     WHERE p.treasury_account_id = ta.id
                       AND p.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+                      AND (COALESCE(p.status, 'active') != 'cancelled')
                 ), 0) AS total_incoming,
 
                 -- Outgoing: sum of expenses + vendor payments linked to this account
@@ -1539,6 +1796,7 @@ exports.getTreasuryAccounts = async (req, res) => {
                       AND fv.voucher_type = 'payment'
                       AND fv.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                      AND (COALESCE(fv.status, 'active') != 'cancelled')
                 ), 0) AS total_outgoing,
 
                 -- This month incoming
@@ -1548,6 +1806,7 @@ exports.getTreasuryAccounts = async (req, res) => {
                     WHERE p.treasury_account_id = ta.id
                       AND p.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+                      AND (COALESCE(p.status, 'active') != 'cancelled')
                       AND date_trunc('month', p.payment_date) = date_trunc('month', CURRENT_DATE)
                 ), 0) AS month_incoming,
 
@@ -1567,6 +1826,7 @@ exports.getTreasuryAccounts = async (req, res) => {
                       AND fv.voucher_type = 'payment'
                       AND fv.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                      AND (COALESCE(fv.status, 'active') != 'cancelled')
                       AND date_trunc('month', fv.voucher_date) = date_trunc('month', CURRENT_DATE)
                 ), 0) AS month_outgoing
 
@@ -1784,6 +2044,7 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
                 WHERE p.treasury_account_id = $1
                   AND p.tenant_id::text = $2::text
                   AND ($3::text IS NULL OR p.branch_id::text = $3::text OR p.branch_id IS NULL)
+                  AND (COALESCE(p.status, 'active') != 'cancelled')
 
                 UNION ALL
 
@@ -1822,6 +2083,7 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
                   AND fv.party_type = 'vendor'
                   AND fv.tenant_id::text = $2::text
                   AND ($3::text IS NULL OR fv.branch_id::text = $3::text OR fv.branch_id IS NULL)
+                  AND (COALESCE(fv.status, 'active') != 'cancelled')
             ) txns
             WHERE 1=1 ${dateFilter}
             ORDER BY txn_date DESC, direction ASC
@@ -1908,6 +2170,7 @@ exports.getFinancialReports = async (req, res) => {
                 SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
                 FROM payments
                 WHERE tenant_id::text = $1::text
+                  AND (COALESCE(status, 'active') != 'cancelled')
                 GROUP BY invoice_id
             ) p_agg ON p_agg.invoice_id::text = i.id::text
             WHERE i.tenant_id::text = $1::text
@@ -1938,6 +2201,7 @@ exports.getFinancialReports = async (req, res) => {
             FROM payments p
             WHERE p.tenant_id::text = $1::text
               AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+              AND (COALESCE(p.status, 'active') != 'cancelled')
               ${paymentDateFilter}
         `, queryParams);
 
@@ -1952,6 +2216,7 @@ exports.getFinancialReports = async (req, res) => {
             FROM payments p
             WHERE p.tenant_id::text = $1::text
               AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+              AND (COALESCE(p.status, 'active') != 'cancelled')
               ${paymentDateFilter}
             GROUP BY p.payment_method
             ORDER BY total_amount DESC
@@ -1966,6 +2231,7 @@ exports.getFinancialReports = async (req, res) => {
             FROM payments p
             WHERE p.tenant_id::text = $1::text
               AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+              AND (COALESCE(p.status, 'active') != 'cancelled')
               ${paymentDateFilter}
             GROUP BY TO_CHAR(p.payment_date, 'YYYY-MM')
             ORDER BY period ASC
@@ -2032,7 +2298,7 @@ exports.getFinancialReports = async (req, res) => {
             JOIN customers c ON (i.client_id::text = c.id::text OR i.customer_id::text = c.id::text)
             LEFT JOIN (
                 SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
-                FROM payments WHERE tenant_id::text = $1::text GROUP BY invoice_id
+                FROM payments WHERE tenant_id::text = $1::text AND (COALESCE(status, 'active') != 'cancelled') GROUP BY invoice_id
             ) p_agg ON p_agg.invoice_id::text = i.id::text
             WHERE i.tenant_id::text = $1::text
               AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
@@ -2154,6 +2420,7 @@ exports.getFinancialReports = async (req, res) => {
                         WHERE p.treasury_account_id = ta.id
                           AND p.tenant_id::text = ta.tenant_id::text
                           AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+                          AND (COALESCE(p.status, 'active') != 'cancelled')
                           ${paymentDateFilter}
                     ), 0) AS total_inflow,
                     COALESCE((
@@ -2170,6 +2437,7 @@ exports.getFinancialReports = async (req, res) => {
                           AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
                           AND fv.voucher_type = 'payment'
                           AND fv.party_type = 'vendor'
+                          AND (COALESCE(fv.status, 'active') != 'cancelled')
                           ${voucherFilterForTreasury}
                     ), 0) AS total_outflow
                 FROM treasury_accounts ta
@@ -2342,6 +2610,7 @@ exports.getVendorAccounts = async (req, res) => {
                   AND fv.voucher_type = 'payment'
                   AND fv.party_type = 'vendor'
                   AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                  AND (COALESCE(fv.status, 'active') != 'cancelled')
                 GROUP BY fv.vendor_id
             ) v_agg ON v_agg.vendor_id = v.id::text
 
@@ -2439,6 +2708,7 @@ exports.getVendorAging = async (req, res) => {
 
 exports.ensureInvoicesTable = ensureInvoicesTable;
 exports.ensureVouchersTable = ensureVouchersTable;
+exports.generateVoucherNumber = generateVoucherNumber;
 
 
 

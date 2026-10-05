@@ -54,6 +54,11 @@ const FinanceDashboard = () => {
   // Voucher Print / Preview Modal State
   const [selectedVoucherForPreview, setSelectedVoucherForPreview] = useState(null);
 
+  // Voucher Cancellation Modal State
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [voucherToCancel, setVoucherToCancel] = useState(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+
   const [formData, setFormData] = useState({
     customer_id: '',
     unit_id: '',
@@ -262,16 +267,35 @@ const FinanceDashboard = () => {
       }
   };
 
-  const handleDeleteVoucher = async (voucherId) => {
-      if (!window.confirm('Are you sure you want to cancel this financial voucher?')) return;
+  const openCancelVoucherModal = (voucher) => {
+      setVoucherToCancel(voucher);
+      setCancellationReason('');
+      setShowCancelModal(true);
+  };
+
+  const handleConfirmCancelVoucher = async (e) => {
+      if (e) e.preventDefault();
+      if (!cancellationReason.trim()) {
+          toast.error('Cancellation reason is required to maintain audit integrity.');
+          return;
+      }
+      setIsSubmitting(true);
       try {
-          await api.delete(`/finance/vouchers/${voucherId}`);
-          toast.success('Voucher cancelled successfully');
+          await api.post(`/finance/vouchers/${voucherToCancel.id}/cancel`, {
+              reason: cancellationReason.trim()
+          });
+          toast.success('Voucher cancelled successfully and balances reversed.');
+          setShowCancelModal(false);
+          setVoucherToCancel(null);
+          setCancellationReason('');
           fetchData();
           fetchSummary();
       } catch (err) {
-          console.error('Delete voucher failed', err);
-          toast.error(err.response?.data?.message || 'Failed to cancel voucher');
+          console.error('Cancel voucher failed', err);
+          const msg = err.response?.data?.message || (err.response?.status === 403 ? 'Permission denied: Only administrators can cancel vouchers.' : 'Failed to cancel voucher');
+          toast.error(msg);
+      } finally {
+          setIsSubmitting(false);
       }
   };
 
@@ -469,14 +493,16 @@ const FinanceDashboard = () => {
                                     >
                                         <Printer size={14} /> Print Voucher
                                     </button>
-                                    <button 
-                                        className="action-btn"
-                                        style={{ color: '#ef4444', borderColor: '#fca5a5' }}
-                                        onClick={() => handleDeleteVoucher(v.id)}
-                                        title="Cancel Voucher"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
+                                    {user?.role === 'admin' && (
+                                        <button 
+                                            className="action-btn"
+                                            style={{ color: '#ef4444', borderColor: '#fca5a5' }}
+                                            onClick={() => openCancelVoucherModal(v)}
+                                            title="Cancel Voucher"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
                                 </div>
                             </td>
                         </tr>
@@ -538,14 +564,16 @@ const FinanceDashboard = () => {
                                     >
                                         <Printer size={14} /> Print Voucher
                                     </button>
-                                    <button 
-                                        className="action-btn"
-                                        style={{ color: '#ef4444', borderColor: '#fca5a5' }}
-                                        onClick={() => handleDeleteVoucher(v.id)}
-                                        title="Cancel Voucher"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
+                                    {user?.role === 'admin' && (
+                                        <button 
+                                            className="action-btn"
+                                            style={{ color: '#ef4444', borderColor: '#fca5a5' }}
+                                            onClick={() => openCancelVoucherModal(v)}
+                                            title="Cancel Voucher"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
                                 </div>
                             </td>
                         </tr>
@@ -1142,6 +1170,78 @@ const FinanceDashboard = () => {
               voucher={selectedVoucherForPreview} 
               onClose={() => setSelectedVoucherForPreview(null)} 
           />
+      )}
+
+      {/* Voucher Cancellation Modal */}
+      {showCancelModal && voucherToCancel && (
+          <div className="modal-overlay" style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+          }}>
+              <div className="modal-content" style={{
+                  background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)',
+                  borderRadius: '16px', padding: '28px', maxWidth: '480px', width: '90%',
+                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+              }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                      <div style={{ padding: '10px', background: '#fee2e2', borderRadius: '10px', color: '#dc2626' }}>
+                          <AlertCircle size={24} />
+                      </div>
+                      <div>
+                          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#dc2626' }}>Cancel Financial Voucher</h3>
+                          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>Voucher #{voucherToCancel.voucher_number} ({parseFloat(voucherToCancel.amount).toLocaleString()} EGP)</p>
+                      </div>
+                  </div>
+
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5', marginBottom: '20px' }}>
+                      Cancelling this voucher will mark it as cancelled, reverse all associated installment or invoice balances, and record an audit log entry.
+                  </p>
+
+                  <form onSubmit={handleConfirmCancelVoucher}>
+                      <div style={{ marginBottom: '20px' }}>
+                          <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>
+                              Cancellation Reason <span style={{ color: '#ef4444' }}>*</span>
+                          </label>
+                          <textarea
+                              rows={3}
+                              required
+                              value={cancellationReason}
+                              onChange={(e) => setCancellationReason(e.target.value)}
+                              placeholder="e.g. Payment returned to customer due to contract cancellation..."
+                              style={{
+                                  width: '100%', padding: '10px 14px', border: '1px solid var(--border-color, #cbd5e1)',
+                                  borderRadius: '8px', background: 'transparent', color: 'var(--text-main)',
+                                  fontSize: '13px', resize: 'vertical'
+                              }}
+                          />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                          <button
+                              type="button"
+                              onClick={() => { setShowCancelModal(false); setVoucherToCancel(null); }}
+                              className="action-btn"
+                              style={{ padding: '8px 16px' }}
+                              disabled={isSubmitting}
+                          >
+                              Close
+                          </button>
+                          <button
+                              type="submit"
+                              className="action-btn"
+                              style={{
+                                  background: '#dc2626', color: '#ffffff', border: 'none',
+                                  padding: '8px 20px', fontWeight: 600
+                              }}
+                              disabled={isSubmitting || !cancellationReason.trim()}
+                          >
+                              {isSubmitting ? 'Cancelling...' : 'Confirm Cancellation'}
+                          </button>
+                      </div>
+                  </form>
+              </div>
+          </div>
       )}
     </div>
   );

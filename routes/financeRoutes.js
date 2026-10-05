@@ -45,9 +45,15 @@ router.post('/vouchers', financeController.createVoucher);
 // @desc    Get detailed voucher for preview & printing
 router.get('/vouchers/:id', financeController.getVoucherDetails);
 
+const { requirePermission } = require('../middleware/financialPermission');
+
+// @route   POST api/finance/vouchers/:id/cancel
+// @desc    Cancel a voucher with mandatory reason in body (Requires voucher.cancel permission: admin only)
+router.post('/vouchers/:id/cancel', requirePermission('voucher.cancel'), financeController.deleteVoucher);
+
 // @route   DELETE api/finance/vouchers/:id
-// @desc    Delete/Cancel a voucher
-router.delete('/vouchers/:id', financeController.deleteVoucher);
+// @desc    Backward-compatible alias for cancel voucher
+router.delete('/vouchers/:id', requirePermission('voucher.cancel'), financeController.deleteVoucher);
 
 // @route   GET api/finance/expenses
 // @desc    Get expenses under finance

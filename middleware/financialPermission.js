@@ -25,6 +25,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'stock.adjust', 'stock.approve', 'stock.negative_override',
     'payroll.run', 'payroll.view_own',
     'fiscal.manage', 'opening.post',
+    'voucher.cancel',
   ]),
   finance_manager: new Set([
     'gl.view', 'journal.create', 'journal.post', 'journal.reverse',
