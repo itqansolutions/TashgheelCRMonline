@@ -25,3 +25,6 @@ uploads/
 
 # Scratch & temporary test scripts
 scratch/
+.env.test
+audit_report.md
+tashgheel_as_built_report.md
