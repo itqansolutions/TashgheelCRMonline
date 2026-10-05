@@ -247,11 +247,14 @@ exports.createMetaForm = async (req, res) => {
   let cleanProductId;
 
   try {
-    // If branch is explicitly specified or resolved, ensure tenant matches branch's tenant
+    // If branch is explicitly specified or resolved, ensure it belongs to the authenticated tenant
     if (branch_id && branch_id !== 'default-branch') {
-      const bRes = await db.query('SELECT tenant_id FROM branches WHERE id::text = $1::text LIMIT 1', [branch_id]);
-      if (bRes.rows.length > 0 && bRes.rows[0].tenant_id) {
-        tenant_id = bRes.rows[0].tenant_id;
+      const bRes = await db.query(
+        'SELECT id FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text LIMIT 1',
+        [branch_id, tenant_id]
+      );
+      if (bRes.rows.length === 0) {
+        return res.status(403).json({ status: 'error', message: 'Unauthorized branch selection.' });
       }
     }
 

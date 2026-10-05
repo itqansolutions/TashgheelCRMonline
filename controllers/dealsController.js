@@ -459,96 +459,155 @@ exports.updateDeal = async (req, res) => {
 // @access  Private
 exports.updateDealStatus = async (req, res) => {
   const { pipeline_stage } = req.body;
+  if (!pipeline_stage || typeof pipeline_stage !== 'string' || !pipeline_stage.trim() || pipeline_stage.trim().length > 100) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Invalid pipeline_stage. Must be a non-empty string up to 100 characters.'
+    });
+  }
+  const cleanStage = pipeline_stage.trim();
+
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id || null;
 
+  const client = db.connect ? await db.connect() : await db.pool.connect();
+
   try {
     await ensureDealColumns();
+    await client.query('BEGIN');
 
-    // 1. Get old status & security check
-    const oldResult = await db.query(
-      'SELECT title, pipeline_stage, assigned_to FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)', 
+    // 1. Get old status & security check FOR UPDATE
+    const oldResult = await client.query(
+      'SELECT title, pipeline_stage, assigned_to FROM deals WHERE id::text = $1::text AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) FOR UPDATE', 
       [req.params.id, tenant_id, branch_id]
     );
     if (oldResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
     const { title, pipeline_stage: oldStage, assigned_to } = oldResult.rows[0];
 
     // 2. Update status
-    const result = await db.query(
+    const result = await client.query(
       'UPDATE deals SET pipeline_stage = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) RETURNING *',
-      [pipeline_stage, req.params.id, tenant_id, branch_id]
+      [cleanStage, req.params.id, tenant_id, branch_id]
     );
 
-    // Audit Logging
-    if (oldStage !== pipeline_stage) {
-      logAction({ 
-        req, 
-        action: ACTIONS.STAGE_CHANGE, 
-        entityType: 'Deal', 
-        entityId: req.params.id, 
-        details: { before: { pipeline_stage: oldStage }, after: { pipeline_stage } },
-        level: LOG_LEVELS.INFO
-      });
-
+    // Audit Logging & Automations
+    if (oldStage !== cleanStage) {
+      const lowerStage = cleanStage.toLowerCase();
       // 3. Real Estate Automation: Unit Status Transitions
-      const unitIdRes = await db.query('SELECT unit_id FROM deals WHERE id = $1', [req.params.id]);
+      const unitIdRes = await client.query(
+        'SELECT unit_id FROM deals WHERE id = $1 AND tenant_id::text = $2::text',
+        [req.params.id, tenant_id]
+      );
       const unit_id = unitIdRes.rows[0]?.unit_id;
 
       if (unit_id) {
-          if (pipeline_stage === 'won') {
-              await db.query('UPDATE re_units SET status = \'Sold\' WHERE id = $1', [unit_id]);
-              logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: req.params.id, status_change: 'Sold (Deal Won)' } });
+          if (lowerStage === 'won') {
+              await client.query(
+                'UPDATE re_units SET status = \'Sold\' WHERE id::text = $1::text AND tenant_id::text = $2::text',
+                [unit_id, tenant_id]
+              );
 
               // Create Payment Registry
-              const dealRes = await db.query('SELECT value, tenant_id, branch_id FROM deals WHERE id = $1', [req.params.id]);
+              const dealRes = await client.query(
+                'SELECT value, tenant_id, branch_id FROM deals WHERE id = $1 AND tenant_id::text = $2::text',
+                [req.params.id, tenant_id]
+              );
               const deal = dealRes.rows[0];
               
-              const payCheck = await db.query('SELECT id FROM re_payments_mvp WHERE deal_id = $1', [req.params.id]);
-              if (payCheck.rows.length === 0) {
-                  await db.query(`
-                      INSERT INTO re_payments_mvp (tenant_id, branch_id, deal_id, total_amount, status)
-                      VALUES ($1, $2, $3, $4, 'Pending')
-                  `, [deal.tenant_id, deal.branch_id, req.params.id, deal.value]);
+              if (deal) {
+                const payCheck = await client.query(
+                  'SELECT id FROM re_payments_mvp WHERE deal_id = $1 AND tenant_id::text = $2::text',
+                  [req.params.id, tenant_id]
+                );
+                if (payCheck.rows.length === 0) {
+                    await client.query(`
+                        INSERT INTO re_payments_mvp (tenant_id, branch_id, deal_id, total_amount, status)
+                        VALUES ($1, $2, $3, $4, 'Pending')
+                    `, [tenant_id, deal.branch_id || branch_id, req.params.id, deal.value]);
+                }
               }
-          } else if (pipeline_stage === 'lost') {
-              await db.query(`
-                  UPDATE re_units 
-                  SET status = 'Available', 
-                      reservation_expires_at = NULL, 
-                      reservation_extended_at = NULL, 
-                      reservation_extended_by = NULL, 
-                      reservation_extension_count = 0, 
-                      updated_at = CURRENT_TIMESTAMP 
-                  WHERE id::text = $1::text AND tenant_id::text = $2::text
-              `, [unit_id, tenant_id]);
+          } else if (lowerStage === 'lost') {
+              // P2 Guard: Check if another active (non-lost, non-won) deal references the same unit for this tenant
+              const otherActiveDeals = await client.query(
+                `SELECT id FROM deals 
+                 WHERE unit_id::text = $1::text 
+                   AND id::text != $2::text 
+                   AND tenant_id::text = $3::text 
+                   AND LOWER(COALESCE(pipeline_stage, '')) NOT IN ('lost', 'won') 
+                 LIMIT 1`,
+                [unit_id, req.params.id, tenant_id]
+              );
+
+              if (otherActiveDeals.rows.length === 0) {
+                  await client.query(`
+                      UPDATE re_units 
+                      SET status = 'Available', 
+                          reservation_expires_at = NULL, 
+                          reservation_extended_at = NULL, 
+                          reservation_extended_by = NULL, 
+                          reservation_extension_count = 0, 
+                          updated_at = CURRENT_TIMESTAMP 
+                      WHERE id::text = $1::text AND tenant_id::text = $2::text
+                  `, [unit_id, tenant_id]);
+              }
           }
       }
 
-      // Trigger Template Automation
-      await templateAutomationService.runTemplateAutomation({
-          tenantId: tenant_id,
-          event: 'stage_change',
-          payload: {
-              stage: pipeline_stage,
-              deal_id: req.params.id,
-              title: title,
-              assigned_to: assigned_to,
-              branch_id: branch_id
-          }
-      });
-      
-      // Activity Timeline Logging
-      await logActivity(tenant_id, req.user, 'deal', req.params.id, 'stage_changed', { 
-          pipeline_stage: { from: oldStage, to: pipeline_stage }
-      });
+      await client.query('COMMIT');
+
+      // Post-commit side effects: isolated so any logging/automation failure does not fail the HTTP response or try to rollback an already committed transaction
+      try {
+        logAction({ 
+          req, 
+          action: ACTIONS.STAGE_CHANGE, 
+          entityType: 'Deal', 
+          entityId: req.params.id, 
+          details: { before: { pipeline_stage: oldStage }, after: { pipeline_stage: cleanStage } },
+          level: LOG_LEVELS.INFO
+        });
+
+        if (unit_id && lowerStage === 'won') {
+          logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: req.params.id, status_change: 'Sold (Deal Won)' } });
+        }
+
+        // Trigger Template Automation (asynchronous/post-commit)
+        await templateAutomationService.runTemplateAutomation({
+            tenantId: tenant_id,
+            event: 'stage_change',
+            payload: {
+                stage: cleanStage,
+                deal_id: req.params.id,
+                title: title,
+                assigned_to: assigned_to,
+                branch_id: branch_id
+            }
+        });
+        
+        // Activity Timeline Logging
+        await logActivity(tenant_id, req.user, 'deal', req.params.id, 'stage_changed', { 
+            pipeline_stage: { from: oldStage, to: cleanStage }
+        });
+      } catch (postCommitErr) {
+        console.warn('[Deal Status Update] Post-commit hook notice (non-fatal):', postCommitErr.message);
+      }
+    } else {
+      await client.query('COMMIT');
     }
 
     res.json({ status: 'success', data: result.rows[0] });
   } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rbErr) {
+      // Ignore rollback errors if already committed/rolled back
+    }
     console.error('[Deal Status Update Error]', err);
     res.status(500).json({ status: 'error', message: err.message || 'Server error' });
+  } finally {
+    client.release();
   }
 };
 
