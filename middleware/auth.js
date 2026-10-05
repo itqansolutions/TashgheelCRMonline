@@ -46,7 +46,22 @@ module.exports = async (req, res, next) => {
           req.user.template_name = cachedTemplate.template_name;
         } else {
           const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id::text = $1::text', [req.tenant_id]);
-          const templateName = tenantRes.rows[0]?.template_name || 'general';
+          if (tenantRes.rows.length === 0) {
+            console.error(`[AUTH] Tenant not found for template resolution: ${req.tenant_id}`);
+            return res.status(403).json({
+              status: 'error',
+              message: 'Tenant not found or inactive.',
+              code: 'TENANT_NOT_FOUND'
+            });
+          }
+
+          let templateName = tenantRes.rows[0].template_name;
+          if (!templateName) {
+            console.warn(`[AUTH] Tenant ${req.tenant_id} has NULL template_name. Falling back to 'general' explicitly.`);
+            templateName = 'general';
+          }
+
+          // Cache only successful lookups
           templateCache.set(req.tenant_id, {
             template_name: templateName,
             expiresAt: Date.now() + TEMPLATE_CACHE_TTL
@@ -54,7 +69,12 @@ module.exports = async (req, res, next) => {
           req.user.template_name = templateName;
         }
       } catch (tmplErr) {
-        req.user.template_name = 'general';
+        console.error(`[AUTH] Database error resolving template for tenant ${req.tenant_id}:`, tmplErr.message);
+        return res.status(503).json({
+          status: 'error',
+          message: 'Failed to resolve organization template due to a database error.',
+          code: 'TEMPLATE_RESOLUTION_FAILED'
+        });
       }
     }
 
