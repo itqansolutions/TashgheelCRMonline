@@ -160,9 +160,14 @@ const Tasks = () => {
     if (deals.length === 0) fetchDeals(false);
     if (users.length === 0) fetchUsers(false);
     if (taskStatuses.length === 0) fetchTaskStatuses(false);
-    // Fetch units for the unit selector
-    api.get('/re-units').then(r => setUnits(r.data?.data || [])).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    // Fetch units for the unit selector (Real Estate only)
+    if (user?.template_name === 'real_estate') {
+      api.get('/re-units').then(r => setUnits(r.data?.data || [])).catch(() => {});
+    }
+  }, [user?.template_name]);
 
   const handleOpenModal = (task = null) => {
     if (task) {

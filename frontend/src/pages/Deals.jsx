@@ -88,6 +88,7 @@ const Deals = () => {
   });
 
   const fetchReUnits = async () => {
+      if (!isRealEstate) return;
       try {
           const res = await api.get('/re-units');
           setReUnits(res.data.data || []);
@@ -96,7 +97,6 @@ const Deals = () => {
 
   useEffect(() => {
     fetchDeals();
-    if (isRealEstate) fetchReUnits();
     if (customers.length === 0) fetchCustomers();
     if (products.length === 0) fetchProducts();
     if (users.length === 0) fetchUsers();
@@ -119,6 +119,12 @@ const Deals = () => {
         } catch (e) {
             console.error('Failed to parse conversion task', e);
         }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isRealEstate) {
+      fetchReUnits();
     }
   }, [isRealEstate]);
 
@@ -344,7 +350,7 @@ const Deals = () => {
       toast.success(res.data.message || 'Deal cancelled and unit released');
       setShowCancelForm(false);
       fetchDeals(false);
-      fetchReUnits();
+      if (isRealEstate) fetchReUnits();
       fetchCancellation(editingDeal.id);
       fetchDealContract(editingDeal.id);
     } catch (err) {
@@ -405,7 +411,7 @@ const Deals = () => {
       });
       toast.success(res.data.message || `Handover status: ${newStatus}`);
       fetchHandover(editingDeal.id);
-      fetchReUnits();
+      if (isRealEstate) fetchReUnits();
       fetchDeals(false);
       if (editingDeal?.id) fetchDealContract(editingDeal.id);
     } catch (err) {
@@ -507,7 +513,7 @@ const Deals = () => {
         toast.success('Deal created');
       }
       fetchDeals(false);
-      fetchReUnits(); // Refresh availability
+      if (isRealEstate) fetchReUnits(); // Refresh availability
       setIsModalOpen(false);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save deal');
@@ -538,7 +544,7 @@ const Deals = () => {
         await api.delete(`/deals/${id}`);
         toast.success('Deal deleted');
         fetchDeals(false);
-        fetchReUnits();
+        if (isRealEstate) fetchReUnits();
       } catch (err) {
         toast.error('Failed to delete');
       }

@@ -35,7 +35,11 @@ export const DataProvider = ({ children }) => {
           const res = await api.get('/re-units');
           setUnits(safeArray(res.data.data));
       } catch (err) {
-          console.error('Failed to load units');
+          if (err.response?.status === 403) {
+              setUnits([]);
+          } else {
+              console.warn('Failed to load units:', err.message);
+          }
       } finally {
           setLoading(false);
       }

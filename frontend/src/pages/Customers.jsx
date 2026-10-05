@@ -82,22 +82,22 @@ const Customers = () => {
 
   useEffect(() => {
       if (isViewingDetails && editingCustomer) {
-          const fetchRels = async () => {
-              setLoadingRel(true);
-              try {
-                  const uRes = await api.get('/re-units');
-                  if (editingCustomer.entity_type === 'vendor') {
-                      setRelatedUnits(uRes.data.data.filter(u => u.vendor_id === editingCustomer.id));
-                  } else {
-                      const dRes = await api.get('/deals');
-                      const wonUnitsIds = dRes.data.data.filter(d => d.client_id === editingCustomer.id && d.unit_id).map(d => d.unit_id);
-                      setRelatedUnits(uRes.data.data.filter(u => wonUnitsIds.includes(u.id)));
-                  }
-              } catch(e) {} finally { setLoadingRel(false); }
-          };
-          fetchRels();
-
           if (isRealEstate) {
+              const fetchRels = async () => {
+                  setLoadingRel(true);
+                  try {
+                      const uRes = await api.get('/re-units');
+                      if (editingCustomer.entity_type === 'vendor') {
+                          setRelatedUnits(uRes.data.data.filter(u => u.vendor_id === editingCustomer.id));
+                      } else {
+                          const dRes = await api.get('/deals');
+                          const wonUnitsIds = dRes.data.data.filter(d => d.client_id === editingCustomer.id && d.unit_id).map(d => d.unit_id);
+                          setRelatedUnits(uRes.data.data.filter(u => wonUnitsIds.includes(u.id)));
+                      }
+                  } catch(e) {} finally { setLoadingRel(false); }
+              };
+              fetchRels();
+
               setLoadingMatches(true);
               api.get(`/re-units/match-customer/${editingCustomer.id}`)
                   .then(res => setMatchedUnits(res.data?.data?.matches || []))
