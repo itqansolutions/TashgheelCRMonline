@@ -140,7 +140,7 @@ exports.getFunnelReport = async (req, res) => {
                 db.query(`SELECT COUNT(*)::int as count FROM activities WHERE tenant_id::text = $1::text AND (type = 'site_visit' OR type = 'meeting' OR notes ILIKE '%visit%')`, [tenant_id]),
                 db.query(`SELECT COUNT(*)::int as count FROM deals WHERE tenant_id::text = $1::text AND (pipeline_stage ILIKE '%reserv%' OR unit_id IS NOT NULL)`, [tenant_id]),
                 db.query(`SELECT COUNT(*)::int as count FROM re_contracts WHERE tenant_id::text = $1::text AND status != 'Cancelled'`, [tenant_id]),
-                db.query(`SELECT COUNT(DISTINCT COALESCE(deal_id, contract_id))::int as count FROM finance_vouchers WHERE tenant_id::text = $1::text AND voucher_type = 'receipt' AND (deal_id IS NOT NULL OR contract_id IS NOT NULL)`, [tenant_id]),
+                db.query(`SELECT COUNT(DISTINCT COALESCE(deal_id, contract_id))::int as count FROM finance_vouchers WHERE tenant_id::text = $1::text AND voucher_type = 'receipt' AND (deal_id IS NOT NULL OR contract_id IS NOT NULL) AND (COALESCE(status, 'active') != 'cancelled')`, [tenant_id]),
                 db.query(`SELECT COUNT(*)::int as count FROM re_commissions WHERE tenant_id::text = $1::text AND status IN ('Approved', 'Paid')`, [tenant_id]),
                 db.query(`SELECT COUNT(*)::int as count FROM re_handovers WHERE tenant_id::text = $1::text`, [tenant_id])
             ]);
@@ -180,7 +180,7 @@ exports.getFunnelReport = async (req, res) => {
                 db.query(`SELECT COUNT(*)::int as count FROM sales_orders WHERE tenant_id::text = $1::text`, [tenant_id]),
                 db.query(`SELECT COUNT(*)::int as count FROM delivery_notes WHERE tenant_id::text = $1::text`, [tenant_id]),
                 db.query(`SELECT COUNT(*)::int as count FROM invoices WHERE tenant_id::text = $1::text`, [tenant_id]),
-                db.query(`SELECT COUNT(DISTINCT customer_id)::int as count FROM finance_vouchers WHERE tenant_id::text = $1::text AND voucher_type = 'receipt'`, [tenant_id])
+                db.query(`SELECT COUNT(DISTINCT customer_id)::int as count FROM finance_vouchers WHERE tenant_id::text = $1::text AND voucher_type = 'receipt' AND (COALESCE(status, 'active') != 'cancelled')`, [tenant_id])
             ]);
 
             const funnelStages = [

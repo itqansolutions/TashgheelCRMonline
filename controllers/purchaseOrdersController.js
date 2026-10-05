@@ -1313,12 +1313,12 @@ exports.receivePurchaseOrderItems = async (req, res) => {
       );
       createdMovements.push(smRes.rows[0]);
 
-      // Update PO item received quantity
+      // Update PO item received quantity (constrained by po_id for defense in depth)
       await client.query(
         `UPDATE purchase_order_items 
          SET received_quantity = received_quantity + $1
-         WHERE id = $2`,
-        [v.receivedNow, v.poi.id]
+         WHERE id = $2 AND po_id = $3`,
+        [v.receivedNow, v.poi.id, id]
       );
     }
 

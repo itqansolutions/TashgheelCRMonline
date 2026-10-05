@@ -309,7 +309,9 @@ exports.recordPayment = async (req, res) => {
             }
         }
 
-        const voucherNumber = `RCV-RE-${Date.now()}`;
+        // Generate authoritative receipt voucher number via shared concurrency-safe numbering service
+        const { generateVoucherNumber } = require('../services/voucherNumbering');
+        const voucherNumber = await generateVoucherNumber(tenant_id, req.branchId || null, 'receipt', client);
         const pDate = payment_date ? new Date(payment_date) : new Date();
 
         // 2. Authoritative Finance Receipt Voucher creation (money movement single source of truth)

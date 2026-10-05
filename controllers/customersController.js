@@ -432,7 +432,7 @@ exports.getCustomerStatement = async (req, res) => {
        JOIN invoices inv ON p.invoice_id = inv.id
        LEFT JOIN quotations q ON inv.quotation_id = q.id
        LEFT JOIN deals d ON q.deal_id = d.id
-       WHERE d.client_id = $1 AND p.tenant_id::text = $2::text
+       WHERE d.client_id = $1 AND p.tenant_id::text = $2::text AND (COALESCE(p.status, 'active') != 'cancelled')
        ORDER BY p.payment_date DESC`,
       [customer_id, tenant_id]
     );

@@ -265,7 +265,10 @@ exports.getVendorStatement = async (req, res) => {
         const payRes = await db.query(`
             SELECT id, voucher_number, voucher_date, amount, payment_method, notes
             FROM finance_vouchers 
-            WHERE vendor_id::text = $1::text AND voucher_type = 'payment' AND tenant_id::text = $2::text
+            WHERE vendor_id::text = $1::text 
+              AND voucher_type = 'payment' 
+              AND tenant_id::text = $2::text
+              AND (COALESCE(status, 'active') != 'cancelled')
             ORDER BY voucher_date ASC, created_at ASC
         `, [vendorId, tenant_id]);
 
@@ -376,8 +379,9 @@ exports.recordVendorPayment = async (req, res) => {
             } catch (_) {}
         }
 
-        // Generate voucher number
-        const voucherNumber = `PV-${Date.now().toString().slice(-6)}`;
+        // Generate voucher number via shared concurrency-safe numbering service
+        const { generateVoucherNumber } = require('../services/voucherNumbering');
+        const voucherNumber = await generateVoucherNumber(tenant_id, branch_id, 'payment', client);
 
         // Insert into finance_vouchers with treasury_account_id
         const vchRes = await client.query(`

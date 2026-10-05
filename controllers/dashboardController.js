@@ -149,6 +149,7 @@ exports.getBranchSummary = async (req, res) => {
                 SELECT COALESCE(SUM(amount), 0) as total 
                 FROM payments 
                 WHERE tenant_id::text = $1::text ${branchFilter} 
+                AND (COALESCE(status, 'active') != 'cancelled')
                 AND ${prevTimeFilterLogic('payment_date')}
             `, queryParams);
             prevRevenue = parseFloat(prevRevRes.rows[0].total);
@@ -322,7 +323,7 @@ exports.getComparison = async (req, res) => {
                 SELECT 
                     b.id as branch_id,
                     b.name as branch_name,
-                    COALESCE((SELECT SUM(amount) FROM payments p WHERE p.branch_id::text = b.id::text AND p.tenant_id::text = b.tenant_id::text AND ${timeFilterLogic('p.payment_date')}), 0) as revenue,
+                    COALESCE((SELECT SUM(amount) FROM payments p WHERE p.branch_id::text = b.id::text AND p.tenant_id::text = b.tenant_id::text AND (COALESCE(p.status, 'active') != 'cancelled') AND ${timeFilterLogic('p.payment_date')}), 0) as revenue,
                     COALESCE((SELECT SUM(amount) FROM expenses e WHERE e.branch_id::text = b.id::text AND e.tenant_id::text = b.tenant_id::text AND ${timeFilterLogic('e.expense_date')}), 0) as expenses,
                     
                     COALESCE((SELECT COUNT(*) FROM deals d WHERE d.branch_id::text = b.id::text AND d.tenant_id::text = b.tenant_id::text AND d.pipeline_stage = 'won' AND ${timeFilterLogic('d.created_at')}), 0) as won_deals,
