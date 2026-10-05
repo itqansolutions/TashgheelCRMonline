@@ -42,15 +42,32 @@ exports.getMySubscription = async (req, res) => {
             WHERE s.tenant_id::text = $1::text
         `, [tenant_id]);
 
+        // Load per-tenant override (if any)
+        const overrideRes = await db.query(
+            `SELECT modules, limits FROM tenant_overrides WHERE tenant_id::text = $1::text`, [tenant_id]
+        );
+        const override = overrideRes.rows[0] || null;
+        const overrideModules = override?.modules
+            ? (typeof override.modules === 'string' ? JSON.parse(override.modules) : override.modules)
+            : {};
+        const overrideLimits = override?.limits
+            ? (typeof override.limits === 'string' ? JSON.parse(override.limits) : override.limits)
+            : {};
+
         if (result.rows.length === 0) {
             // Fallback for tenants without subscription (legacy)
+            const defaultModules = { crm: true, finance: true, hr: false, inventory: false, automation: false };
+            const effectiveModules = { ...defaultModules, ...overrideModules };
+
             return res.json({
                 status: 'success',
                 data: {
                     plan_name: 'basic',
                     display_name: 'Basic',
                     status: 'active',
-                    modules: { crm: true, finance: true, hr: false, inventory: false, automation: false },
+                    modules: effectiveModules,
+                    max_users: overrideLimits.max_users ?? 10,
+                    max_branches: overrideLimits.max_branches ?? 1,
                     trial_days_left: null,
                     is_expired: false
                 }
@@ -64,6 +81,15 @@ exports.getMySubscription = async (req, res) => {
             await db.query(`UPDATE subscriptions SET status = 'expired' WHERE tenant_id::text = $1::text`, [tenant_id]);
             sub.status = 'expired';
         }
+
+        // Merge plan modules with tenant overrides (overrides take precedence)
+        const planModules = typeof sub.modules === 'string'
+            ? JSON.parse(sub.modules)
+            : (sub.modules || {});
+
+        sub.modules = { ...planModules, ...overrideModules };
+        if (overrideLimits.max_users !== undefined) sub.max_users = overrideLimits.max_users;
+        if (overrideLimits.max_branches !== undefined) sub.max_branches = overrideLimits.max_branches;
 
         res.json({ status: 'success', data: sub });
     } catch (err) {

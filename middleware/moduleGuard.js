@@ -7,19 +7,20 @@
  * 
  * Returns 403 with upgrade prompt if module is not in tenant's plan.
  */
-module.exports = (moduleName) => (req, res, next) => {
+module.exports = (...moduleNames) => (req, res, next) => {
     const modules = req.modules; // Attached by subscriptionGuard
 
     // If no module map (e.g. legacy tenant without subscription), allow access
     if (!modules) return next();
 
-    const hasAccess = modules[moduleName] === true;
+    const hasAccess = moduleNames.some(m => modules[m] === true);
 
     if (!hasAccess) {
+        const primaryModule = moduleNames[0] || 'module';
         return res.status(403).json({
             status: 'module_locked',
-            module: moduleName,
-            message: `The "${moduleName}" module is not included in your current plan. Upgrade to unlock.`,
+            module: primaryModule,
+            message: `The "${primaryModule}" module is not included in your current plan. Upgrade to unlock.`,
             upgrade_url: '/pricing'
         });
     }

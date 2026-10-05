@@ -31,15 +31,18 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const [marketingOpen, setMarketingOpen] = useState(true);
 
   // -------------------------------------------------------------
-  // REAL ESTATE TEMPLATE NAVIGATION ITEMS
+  // SHARED CRM NAVIGATION ITEMS (Both Templates)
   // -------------------------------------------------------------
-  const reCrmItems = [
+  const sharedCrmItems = [
     { name: 'Leads',       icon: <Users size={18} />,     path: '/customers?type=lead' },
     { name: 'Customers',   icon: <Users size={18} />,     path: '/customers' },
     { name: 'Deals',       icon: <Handshake size={18} />, path: '/deals' },
     { name: 'Activities',  icon: <Activity size={18} />,  path: '/activities' },
   ];
 
+  // -------------------------------------------------------------
+  // REAL ESTATE TEMPLATE CORE ITEMS
+  // -------------------------------------------------------------
   const rePropertiesItems = [
     { name: 'Developers',  icon: <Building2 size={18} />, path: '/units-registry?tab=developers' },
     { name: 'Projects',    icon: <Building size={18} />,  path: '/units-registry?tab=projects' },
@@ -53,44 +56,24 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Reservations', icon: <CheckSquare size={18} />, path: '/deals?tab=reservations' },
     { name: 'Contracts',    icon: <FileText size={18} />,   path: '/deals?tab=contracts' },
     { name: 'Installments', icon: <CreditCard size={18} />, path: '/deals?tab=installments' },
-    { name: 'Collections',  icon: <DollarSign size={18} />, path: '/finance?tab=Collections' },
     { name: 'Commissions',  icon: <Award size={18} />,      path: '/deals?tab=commissions' },
     { name: 'Handover',     icon: <Key size={18} />,        path: '/deals?tab=handover' },
   ];
 
-  const reFinanceItems = [
-    { name: 'Receivables', icon: <FileText size={18} />,     path: '/finance?tab=Receivables' },
-    { name: 'Receipts',    icon: <ArrowDownLeft size={18} />, path: '/finance?tab=Receipts' },
-    { name: 'Collections', icon: <DollarSign size={18} />,    path: '/finance?tab=Collections' },
-    { name: 'Treasury',    icon: <Wallet size={18} />,        path: '/finance?tab=Treasury' },
-  ];
-
-  const reMarketingItems = [
-    { name: 'Meta Lead Ads', icon: <Share2 size={18} />,        path: '/integrations/meta-forms' },
-    { name: 'Campaigns',     icon: <Send size={18} />,          path: '/marketing/whatsapp-campaigns' },
-    { name: 'Lead Sources',  icon: <Users size={18} />,         path: '/lead-sources' },
-    { name: 'WhatsApp',      icon: <MessageCircle size={18} />, path: '/whatsapp-chat' },
-  ];
-
   // -------------------------------------------------------------
-  // GENERAL TEMPLATE NAVIGATION ITEMS
+  // GENERAL TEMPLATE CORE SALES ITEMS
   // -------------------------------------------------------------
-  const genCrmItems = [
-    { name: 'Leads',       icon: <Users size={18} />,     path: '/contacts/customers?type=lead' },
-    { name: 'Customers',   icon: <Users size={18} />,     path: '/contacts/customers' },
-    { name: 'Deals',       icon: <Handshake size={18} />, path: '/deals' },
-    { name: 'Activities',  icon: <Activity size={18} />,  path: '/activities' },
-  ];
-
   const genSalesItems = [
     { name: 'Quotations',    icon: <FileText size={18} />,    path: '/quotations' },
     { name: 'Sales Orders',  icon: <ShoppingBag size={18} />, path: '/sales/orders' },
     { name: 'Delivery Notes',icon: <FileCheck size={18} />,   path: '/sales/documents' },
     { name: 'Invoices',      icon: <FileText size={18} />,    path: '/finance?tab=Invoices' },
-    { name: 'Collections',   icon: <DollarSign size={18} />,  path: '/finance?tab=Collections' },
   ];
 
-  const genInventoryItems = [
+  // -------------------------------------------------------------
+  // OPTIONAL: INVENTORY & WAREHOUSES (Governed by can('inventory'))
+  // -------------------------------------------------------------
+  const inventoryItemsList = [
     { name: 'Products',         icon: <ShoppingBag size={18} />,    path: '/products' },
     { name: 'Warehouses',       icon: <Building size={18} />,       path: '/inventory/warehouses' },
     { name: 'Stock Balances',   icon: <Scale size={18} />,          path: '/inventory/balances' },
@@ -98,34 +81,53 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Item Cards',       icon: <CreditCard size={18} />,     path: '/inventory/item-card' },
   ];
 
-  const genPurchasingItems = [
+  // -------------------------------------------------------------
+  // OPTIONAL: PURCHASING & PROCUREMENT (Governed by can('purchasing') || can('inventory'))
+  // -------------------------------------------------------------
+  const purchasingItemsList = [
     { name: 'Suppliers',        icon: <Truck size={18} />,        path: '/contacts/vendors' },
+    { name: 'Requests',         icon: <FileText size={18} />,     path: '/purchases/requests' },
+    { name: 'RFQs & Bids',      icon: <FileCheck size={18} />,    path: '/purchases/rfqs' },
     { name: 'Purchase Orders',  icon: <FileText size={18} />,     path: '/purchases/orders' },
     { name: 'Goods Receipts',   icon: <FileCheck size={18} />,    path: '/purchases/receipts' },
     { name: 'Supplier Invoices',icon: <ShoppingCart size={18} />, path: '/purchases' },
   ];
 
-  const genFinanceItems = [
-    { name: 'Receivables', icon: <FileText size={18} />,     path: '/finance?tab=Receivables' },
-    { name: 'Invoices',    icon: <FileText size={18} />,     path: '/finance?tab=Invoices' },
-    { name: 'Receipts',    icon: <ArrowDownLeft size={18} />, path: '/finance?tab=Receipts' },
-    { name: 'Collections', icon: <DollarSign size={18} />,    path: '/finance?tab=Collections' },
-    { name: 'Treasury',    icon: <Wallet size={18} />,        path: '/finance?tab=Treasury' },
+  // -------------------------------------------------------------
+  // SHARED FINANCE OPERATIONS (Both Templates — Real Existing Tabs)
+  // -------------------------------------------------------------
+  const sharedFinanceItems = [
+    { name: 'Overview',    icon: <LayoutDashboard size={18} />, path: '/finance?tab=Overview' },
+    { name: 'Invoices',    icon: <FileText size={18} />,        path: '/finance?tab=Invoices' },
+    { name: 'Receipts',    icon: <ArrowDownLeft size={18} />,   path: '/finance?tab=Receipts' },
+    { name: 'Expenses',    icon: <DollarSign size={18} />,      path: '/finance?tab=Expenses' },
+    { name: 'Customers',   icon: <Users size={18} />,           path: '/finance?tab=Customers' },
+    { name: 'Vendors',     icon: <Building2 size={18} />,       path: '/finance?tab=Vendors' },
+    { name: 'Treasury',    icon: <Wallet size={18} />,          path: '/finance?tab=Treasury' },
+    { name: 'Reports',     icon: <BarChart3 size={18} />,       path: '/finance?tab=Reports' },
   ];
 
-  const genMarketingItems = [
+  // -------------------------------------------------------------
+  // SHARED MARKETING & INTEGRATIONS (Both Templates)
+  // -------------------------------------------------------------
+  const sharedMarketingItems = [
     { name: 'Meta Lead Ads', icon: <Share2 size={18} />,        path: '/integrations/meta-forms' },
     { name: 'Campaigns',     icon: <Send size={18} />,          path: '/marketing/whatsapp-campaigns' },
     { name: 'Lead Sources',  icon: <Users size={18} />,         path: '/lead-sources' },
     { name: 'WhatsApp',      icon: <MessageCircle size={18} />, path: '/whatsapp-chat' },
   ];
 
-  // Common Bottom Items for both templates
+  // -------------------------------------------------------------
+  // SHARED OPERATIONAL UTILITIES (Bottom items)
+  // -------------------------------------------------------------
   const bottomNavItems = [
-    { name: 'Tasks',     icon: <CheckSquare size={18} />, path: '/tasks' },
-    { name: 'Documents', icon: <FileText size={18} />,    path: '/files' },
-    { name: 'Reports',   icon: <BarChart3 size={18} />,   path: '/reports' },
-    { name: 'Settings',  icon: <AdminSettingsIcon size={18} />, path: '/settings' },
+    { name: 'Tasks',           icon: <CheckSquare size={18} />,   path: '/tasks' },
+    { name: 'Files',           icon: <FileText size={18} />,      path: '/files' },
+    { name: 'Automation',      icon: <Zap size={18} />,           path: '/automation', module: 'automation' },
+    { name: 'Reports',         icon: <BarChart3 size={18} />,     path: '/reports' },
+    { name: 'System Logs',     icon: <History size={18} />,       path: '/logs' },
+    { name: 'Admin Settings',  icon: <AdminSettingsIcon size={18} />, path: '/settings' },
+    { name: 'Billing',         icon: <CreditCard size={18} />,    path: '/billing' },
   ];
 
   const allowed = safeArray(user?.allowedPages);
@@ -151,20 +153,21 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     return itemTab.toLowerCase() === (currentTab || '').toLowerCase();
   };
 
-  const isInventoryLocked = !can('inventory') && !isRealEstate;
+  const hasInventory = can('inventory');
+  const hasPurchasing = can('purchasing') || can('inventory');
 
   const trialColor = trialDaysLeft !== null
     ? trialDaysLeft <= 3 ? '#ef4444' : trialDaysLeft <= 7 ? '#f59e0b' : '#10b981'
     : null;
 
-  // Active items by template
-  const crmItems = filterByAllowed(isRealEstate ? reCrmItems : genCrmItems);
+  // Active items by template and module entitlement
+  const crmItems = filterByAllowed(sharedCrmItems);
   const propertiesItems = filterByAllowed(rePropertiesItems);
   const salesItems = filterByAllowed(isRealEstate ? reSalesItems : genSalesItems);
-  const inventoryItems = filterByAllowed(genInventoryItems);
-  const purchasingItems = filterByAllowed(genPurchasingItems);
-  const financeItems = filterByAllowed(isRealEstate ? reFinanceItems : genFinanceItems);
-  const marketingItems = filterByAllowed(isRealEstate ? reMarketingItems : genMarketingItems);
+  const inventoryItems = hasInventory ? filterByAllowed(inventoryItemsList) : [];
+  const purchasingItems = hasPurchasing ? filterByAllowed(purchasingItemsList) : [];
+  const financeItems = filterByAllowed(sharedFinanceItems);
+  const marketingItems = filterByAllowed(sharedMarketingItems);
   const visibleBottomItems = filterByAllowed(bottomNavItems);
 
   return (
@@ -267,7 +270,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
       {/* Header */}
       <div className="sidebar-header">
-        <h2>Tashgheel {isRealEstate ? 'RE' : ''}</h2>
+        <h2>Tashgheel</h2>
         <button label="toggle" className="toggle-btn" onClick={toggleSidebar}>
           {isOpen ? <ChevronLeft size={20}/> : <ChevronRight size={20}/>}
         </button>
@@ -324,7 +327,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           <>
             <div className="group-header" onClick={() => isOpen && setSalesOpen(prev => !prev)} title={!isOpen ? 'Sales' : undefined}>
               <ShoppingBag size={18} className="main-icon" />
-              <span className="group-label">Sales</span>
+              <span className="group-label">{isRealEstate ? 'Contracts & Sales' : 'Sales'}</span>
               {isOpen && (salesOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && salesOpen ? 'expanded' : 'collapsed'}`}>
@@ -338,8 +341,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </>
         )}
 
-        {/* 4. Inventory Group (General ONLY) */}
-        {!isRealEstate && inventoryItems.length > 0 && (
+        {/* 4. Inventory Group (Governed by can('inventory')) */}
+        {hasInventory && inventoryItems.length > 0 && (
           <>
             <div className="group-header" onClick={() => isOpen && setInventoryOpen(prev => !prev)} title={!isOpen ? 'Inventory' : undefined}>
               <Package size={18} className="main-icon" />
@@ -357,8 +360,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </>
         )}
 
-        {/* 5. Purchasing Group (General ONLY) */}
-        {!isRealEstate && purchasingItems.length > 0 && (
+        {/* 5. Purchasing Group (Governed by can('purchasing') || can('inventory')) */}
+        {hasPurchasing && purchasingItems.length > 0 && (
           <>
             <div className="group-header" onClick={() => isOpen && setPurchasingOpen(prev => !prev)} title={!isOpen ? 'Purchasing' : undefined}>
               <ShoppingCart size={18} className="main-icon" />
@@ -418,13 +421,28 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </>
         )}
 
-        {/* Bottom standard items: Tasks, Documents, Reports, Settings */}
-        {visibleBottomItems.map((item) => (
-          <NavLink key={item.name} to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>
-            {item.icon}
-            <span>{item.name}</span>
-          </NavLink>
-        ))}
+        {/* Bottom standard items: Tasks, Files, Automation, Reports, Logs, Settings, Billing */}
+        {visibleBottomItems.map((item) => {
+          const isModuleLocked = item.module && !can(item.module);
+
+          if (isModuleLocked) {
+            return (
+              <div key={item.name} className="nav-locked" onClick={() => navigate('/pricing')} title={`Upgrade to access ${item.name}`}>
+                {item.icon}
+                <span className="nav-label">{item.name}</span>
+                <span className="lock-badge"><Lock size={9}/> PRO</span>
+                <div className="lock-tooltip">🔒 Upgrade to unlock {item.name} <ArrowRight size={11}/></div>
+              </div>
+            );
+          }
+
+          return (
+            <NavLink key={item.name} to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>
+              {item.icon}
+              <span>{item.name}</span>
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Trial Banner */}

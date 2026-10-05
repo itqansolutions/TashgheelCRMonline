@@ -143,7 +143,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/meta', metaRoutes);
 app.use('/api/whatsapp', require('./routes/whatsappRoutes'));
 app.use('/api/billing', billingRoutes);
-app.use('/api/products', templateGuard('general'), productRoutes);
+app.use('/api/products', moduleGuard('inventory'), productRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/quotations', quotationRoutes);
@@ -151,7 +151,7 @@ app.use('/api/finance', financeRoutes);
 
 // Module-Guarded Routes (require specific plan modules)
 app.use('/api/hr',        moduleGuard('hr'),        hrRoutes);
-app.use('/api/inventory', templateGuard('general'), moduleGuard('inventory'), inventoryRoutes);
+app.use('/api/inventory', moduleGuard('inventory'), inventoryRoutes);
 app.use('/api/workflows', moduleGuard('automation'), workflowRoutes);
 app.use('/api/rules',     moduleGuard('automation'), rulesRoutes);
 
@@ -188,15 +188,19 @@ app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/vendors', vendorRoutes);
 
-// General Purchasing & Procurement Routes (Protected by templateGuard)
-app.use('/api/purchases',         templateGuard('general'), require('./routes/purchaseRoutes'));
-app.use('/api/purchase-requests', templateGuard('general'), require('./routes/purchaseRequestRoutes'));
-app.use('/api/rfqs',              templateGuard('general'), require('./routes/rfqRoutes'));
-app.use('/api/purchase-orders',   templateGuard('general'), require('./routes/purchaseOrderRoutes'));
-app.use('/api/purchasing',        templateGuard('general'), require('./routes/purchasingRoutes'));
-app.use('/api/erp/purchasing',    templateGuard('general'), require('./routes/purchasingRoutes'));
-app.use('/api/sales', templateGuard('general'), require('./routes/salesRoutes'));
-app.use('/api/erp/sales', templateGuard('general'), require('./routes/salesRoutes'));
+// Purchasing & Procurement Routes
+// Purchasing currently falls back to inventory for backward compatibility with existing plans.
+// Future plan migration may make purchasing a standalone entitlement.
+app.use('/api/purchases',         moduleGuard('purchasing', 'inventory'), require('./routes/purchaseRoutes'));
+app.use('/api/purchase-requests', moduleGuard('purchasing', 'inventory'), require('./routes/purchaseRequestRoutes'));
+app.use('/api/rfqs',              moduleGuard('purchasing', 'inventory'), require('./routes/rfqRoutes'));
+app.use('/api/purchase-orders',   moduleGuard('purchasing', 'inventory'), require('./routes/purchaseOrderRoutes'));
+app.use('/api/purchasing',        moduleGuard('purchasing', 'inventory'), require('./routes/purchasingRoutes'));
+app.use('/api/erp/purchasing',    moduleGuard('purchasing', 'inventory'), require('./routes/purchasingRoutes'));
+
+// General Sales & Delivery Routes (General template core)
+app.use('/api/sales',             templateGuard('general'), require('./routes/salesRoutes'));
+app.use('/api/erp/sales',         templateGuard('general'), require('./routes/salesRoutes'));
 app.use('/api/job-titles', jobTitleRoutes);
 
 // HR Extension Modules

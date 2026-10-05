@@ -1,11 +1,12 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-
+import { useModule } from '../hooks/useModule';
 import { safeArray } from '../utils/dataUtils';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, isAuthenticated, loading } = useAuth();
+  const { can } = useModule();
   const location = useLocation();
 
   if (loading) return (
@@ -21,16 +22,28 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   const currentPath = location.pathname;
   const checkPath = currentPath === '/' ? '/dashboard' : currentPath;
 
-  // Template Boundary Enforcement (Direct URL Access Isolation)
+  // Optional Module Entitlement Enforcement
+  if (checkPath.startsWith('/inventory') || checkPath.startsWith('/products')) {
+    if (!can('inventory')) {
+      return <Navigate to="/dashboard" replace />;
+    }
+  }
+  if (checkPath.startsWith('/purchases')) {
+    if (!can('purchasing') && !can('inventory')) {
+      return <Navigate to="/dashboard" replace />;
+    }
+  }
+
+  // Template Boundary Enforcement (Direct URL Access Isolation for Core Template Features)
   const template = user?.template_name;
   if (template === 'real_estate') {
-    const isGeneralOnly = [
-      '/inventory', '/purchases', '/sales/orders', '/sales/documents',
+    const isGeneralSalesOnly = [
+      '/sales/orders', '/sales/documents',
       '/sales/price-tiers', '/sales/salesmen', '/sales/target',
-      '/erp/sales', '/erp/purchasing'
+      '/erp/sales'
     ].some(prefix => checkPath.startsWith(prefix));
 
-    if (isGeneralOnly) {
+    if (isGeneralSalesOnly) {
       return <Navigate to="/dashboard" replace />;
     }
   } else if (template === 'general') {
@@ -43,7 +56,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     }
   }
 
-  // Admin always has access to everything within their template
+  // Admin always has access to everything within their template & enabled modules
   if (user?.role === 'admin') return children;
   const allowed = safeArray(user?.allowedPages);
 
