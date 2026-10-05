@@ -1,6 +1,10 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
+// In-memory cache for tenant template_name to prevent repeated queries
+const templateCache = new Map();
+const TEMPLATE_CACHE_TTL = 5 * 60 * 1000;
+
 module.exports = async (req, res, next) => {
   const token = req.header('Authorization');
 

@@ -112,6 +112,9 @@ router.get('/treasury/accounts/:id/transactions', financeController.getTreasuryA
 // ==========================================
 
 // @route   GET api/finance/reports
+// @desc    Financial intelligence overview & 5 core reports
+router.get('/reports', financeController.getFinancialReports);
+
 // ==========================================
 // VENDOR ACCOUNTS & PAYABLES — Phase 5A
 // ==========================================
