@@ -114,7 +114,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // 2. CONTACTS ITEMS
   // -------------------------------------------------------------
   const contactsDirectItems = [
-    { name: 'Customers / Leads', icon: <Users size={18} />, path: '/customers' },
+    { name: 'Customers / Tenants', icon: <Users size={18} />, path: '/customers' },
     { name: 'Vendors',           icon: <Truck size={18} />, path: '/contacts/vendors' }
   ];
 
