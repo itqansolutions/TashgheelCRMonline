@@ -37,16 +37,25 @@ export const AuthProvider = ({ children }) => {
         });
       }
 
-      // Load subscription (cached or fresh)
-      const cached = localStorage.getItem('subscription');
-      if (cached && isMounted) setSubscription(JSON.parse(cached));
-
-      // Fetch fresh from API (non-blocking)
-      api.get('/me/subscription').then(subRes => {
-        const sub = subRes.data.data;
+      // Fetch subscription sequentially before marking ready
+      try {
+        const subRes = await api.get('/me/subscription');
+        const sub = subRes.data?.data || null;
         if (isMounted) setSubscription(sub);
-        localStorage.setItem('subscription', JSON.stringify(sub));
-      }).catch(() => {});
+        if (sub) {
+          localStorage.setItem('subscription', JSON.stringify(sub));
+        }
+      } catch (subErr) {
+        console.warn('Subscription fetch failed; failing closed on optional modules:', subErr.message);
+        // Fail closed on optional modules, but do not log out
+        const fallbackSub = {
+          plan: 'basic',
+          plan_name: 'basic',
+          status: 'error',
+          modules: {}
+        };
+        if (isMounted) setSubscription(fallbackSub);
+      }
 
     } catch (err) {
       console.error('Failed to fetch user', err.message);
@@ -80,13 +89,24 @@ export const AuthProvider = ({ children }) => {
       financialPermissions: safeArray(userData.financialPermissions)
     });
 
-    // Fetch subscription on login
+    // Fetch subscription on login sequentially with fail-closed fallback
     try {
       const subRes = await api.get('/me/subscription');
-      const sub = subRes.data.data;
+      const sub = subRes.data?.data || null;
       setSubscription(sub);
-      localStorage.setItem('subscription', JSON.stringify(sub));
-    } catch {}
+      if (sub) {
+        localStorage.setItem('subscription', JSON.stringify(sub));
+      }
+    } catch (subErr) {
+      console.warn('Subscription fetch failed on login; failing closed on optional modules:', subErr.message);
+      const fallbackSub = {
+        plan: 'basic',
+        plan_name: 'basic',
+        status: 'error',
+        modules: {}
+      };
+      setSubscription(fallbackSub);
+    }
 
     return userData;
   };

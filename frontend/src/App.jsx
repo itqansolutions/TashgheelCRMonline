@@ -173,7 +173,6 @@ function App() {
                   <Route path="erp/closing" element={<PeriodClosing />} />
                   <Route path="erp/entries" element={<Entries />} />
                   <Route path="accounting" element={<Navigate to="/erp/accounts" replace />} />
-                  <Route path="reports" element={<Navigate to="/erp/reports" replace />} />
 
                   {/* Warehouse & Inventory Sub-Routes */}
                   <Route path="purchases/requests" element={<PurchaseRequests />} />
@@ -263,6 +262,7 @@ function App() {
                   />
 
                   <Route path="employees" element={<Navigate to="/contacts/employees" replace />} />
+                  <Route path="attendance" element={<Navigate to="/hr/my-attendance" replace />} />
                   <Route path="hr/my-attendance" element={<Attendance />} />
                   <Route path="hr" element={<Navigate to="/hr/dashboard" replace />} />
                   <Route path="hr/my-requests" element={<MyRequests />} />
