@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import {
@@ -700,7 +701,17 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 const ContactsEmployees = () => {
-  const [activeTab, setActiveTab] = useState('employees');
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'employees';
+  const [activeTab, setActiveTab] = useState(['employees', 'departments', 'jobtitles'].includes(initialTab) ? initialTab : 'employees');
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['employees', 'departments', 'jobtitles'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [jobTitles, setJobTitles] = useState([]);

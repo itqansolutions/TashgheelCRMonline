@@ -7,7 +7,8 @@ import {
   Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase,
   Building, ShieldCheck, ArrowLeftRight, Scale,
   Share2, FileCheck, Send, MessageCircle,
-  ShoppingCart, ArrowDownLeft, Calendar, Award, Key, Layers, Activity, UserCheck, Clock
+  ShoppingCart, ArrowDownLeft, Calendar, Award, Key, Layers, Activity, UserCheck, Clock,
+  Folder, HelpCircle, Bot, Sparkles, CheckCircle2, ListTree
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
@@ -21,176 +22,247 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   const isRealEstate = user?.template_name === 'real_estate';
 
-  // Collapsible Group States
-  const [crmOpen, setCrmOpen] = useState(true);
-  const [propertiesOpen, setPropertiesOpen] = useState(true);
+  // -------------------------------------------------------------
+  // Collapsible Group States (Accordion / Open-Close)
+  // -------------------------------------------------------------
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [contactsOpen, setContactsOpen] = useState(true);
+  const [contactsEmployeesOpen, setContactsEmployeesOpen] = useState(false);
+  const [realEstateOpen, setRealEstateOpen] = useState(true);
+  const [reDefinitionsOpen, setReDefinitionsOpen] = useState(false);
   const [salesOpen, setSalesOpen] = useState(true);
-  const [inventoryOpen, setInventoryOpen] = useState(true);
-  const [purchasingOpen, setPurchasingOpen] = useState(true);
   const [financeOpen, setFinanceOpen] = useState(true);
   const [marketingOpen, setMarketingOpen] = useState(true);
+  const [marketingWhatsappOpen, setMarketingWhatsappOpen] = useState(false);
   const [hrOpen, setHrOpen] = useState(true);
+  const [purchasesOpen, setPurchasesOpen] = useState(true);
+  const [reportsOpen, setReportsOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
 
   // -------------------------------------------------------------
-  // SHARED CRM NAVIGATION ITEMS (Both Templates)
+  // Allowed Pages Access Filter
   // -------------------------------------------------------------
-  const sharedCrmItems = [
-    { name: 'Leads',       icon: <Users size={18} />,     path: '/customers?type=lead' },
-    { name: 'Customers',   icon: <Users size={18} />,     path: '/customers' },
-    { name: 'Deals',       icon: <Handshake size={18} />, path: '/deals' },
-    { name: 'Activities',  icon: <Activity size={18} />,  path: '/activities' },
-  ];
-
-  // -------------------------------------------------------------
-  // REAL ESTATE TEMPLATE CORE ITEMS
-  // -------------------------------------------------------------
-  const rePropertiesItems = [
-    { name: 'Developers',  icon: <Building2 size={18} />, path: '/units-registry?tab=developers' },
-    { name: 'Projects',    icon: <Building size={18} />,  path: '/units-registry?tab=projects' },
-    { name: 'Phases',      icon: <Layers size={18} />,    path: '/units-registry?tab=phases' },
-    { name: 'Buildings',   icon: <Building2 size={18} />, path: '/units-registry?tab=buildings' },
-    { name: 'Units',       icon: <Key size={18} />,        path: '/units-registry' },
-  ];
-
-  const reSalesItems = [
-    { name: 'Site Visits',  icon: <Calendar size={18} />,  path: '/activities?type=site_visit' },
-    { name: 'Reservations', icon: <CheckSquare size={18} />, path: '/deals?tab=reservations' },
-    { name: 'Contracts',    icon: <FileText size={18} />,   path: '/deals?tab=contracts' },
-    { name: 'Installments', icon: <CreditCard size={18} />, path: '/deals?tab=installments' },
-    { name: 'Commissions',  icon: <Award size={18} />,      path: '/deals?tab=commissions' },
-    { name: 'Handover',     icon: <Key size={18} />,        path: '/deals?tab=handover' },
-  ];
-
-  // -------------------------------------------------------------
-  // GENERAL TEMPLATE CORE SALES ITEMS
-  // -------------------------------------------------------------
-  const genSalesItems = [
-    { name: 'Quotations',    icon: <FileText size={18} />,    path: '/quotations' },
-    { name: 'Sales Orders',  icon: <ShoppingBag size={18} />, path: '/sales/orders' },
-    { name: 'Delivery Notes',icon: <FileCheck size={18} />,   path: '/sales/documents' },
-    { name: 'Invoices',      icon: <FileText size={18} />,    path: '/finance?tab=Invoices' },
-  ];
-
-  // -------------------------------------------------------------
-  // OPTIONAL: INVENTORY & WAREHOUSES (Governed by can('inventory'))
-  // -------------------------------------------------------------
-  const inventoryItemsList = [
-    { name: 'Products',         icon: <ShoppingBag size={18} />,    path: '/products' },
-    { name: 'Warehouses',       icon: <Building size={18} />,       path: '/inventory/warehouses' },
-    { name: 'Stock Balances',   icon: <Scale size={18} />,          path: '/inventory/balances' },
-    { name: 'Stock Movements',  icon: <ArrowLeftRight size={18} />, path: '/inventory/movements' },
-    { name: 'Item Cards',       icon: <CreditCard size={18} />,     path: '/inventory/item-card' },
-  ];
-
-  // -------------------------------------------------------------
-  // OPTIONAL: PURCHASING & PROCUREMENT (Governed by can('purchasing') || can('inventory'))
-  // -------------------------------------------------------------
-  const purchasingItemsList = [
-    { name: 'Suppliers',        icon: <Truck size={18} />,        path: '/contacts/vendors' },
-    { name: 'Requests',         icon: <FileText size={18} />,     path: '/purchases/requests' },
-    { name: 'RFQs & Bids',      icon: <FileCheck size={18} />,    path: '/purchases/rfqs' },
-    { name: 'Purchase Orders',  icon: <FileText size={18} />,     path: '/purchases/orders' },
-    { name: 'Goods Receipts',   icon: <FileCheck size={18} />,    path: '/purchases/receipts' },
-    { name: 'Supplier Invoices',icon: <ShoppingCart size={18} />, path: '/purchases' },
-  ];
-
-  // -------------------------------------------------------------
-  // SHARED FINANCE OPERATIONS (Both Templates — Real Existing Tabs)
-  // -------------------------------------------------------------
-  const sharedFinanceItems = [
-    { name: 'Overview',    icon: <LayoutDashboard size={18} />, path: '/finance?tab=Overview' },
-    { name: 'Invoices',    icon: <FileText size={18} />,        path: '/finance?tab=Invoices' },
-    { name: 'Receipts',    icon: <ArrowDownLeft size={18} />,   path: '/finance?tab=Receipts' },
-    { name: 'Expenses',    icon: <DollarSign size={18} />,      path: '/finance?tab=Expenses' },
-    { name: 'Customers',   icon: <Users size={18} />,           path: '/finance?tab=Customers' },
-    { name: 'Vendors',     icon: <Building2 size={18} />,       path: '/finance?tab=Vendors' },
-    { name: 'Treasury',    icon: <Wallet size={18} />,          path: '/finance?tab=Treasury' },
-    { name: 'Reports',     icon: <BarChart3 size={18} />,       path: '/finance?tab=Reports' },
-  ];
-
-  // -------------------------------------------------------------
-  // SHARED HR & WORKFORCE (Governed by can('hr'))
-  // -------------------------------------------------------------
-  const hrItemsList = [
-    { name: 'My Attendance',   icon: <Clock size={18} />,     path: '/hr/my-attendance' },
-    { name: 'My Requests',     icon: <FileText size={18} />,  path: '/hr/my-requests' },
-    { name: 'Admin Dashboard', icon: <UserCheck size={18} />, path: '/hr/dashboard' },
-    { name: 'Approvals',       icon: <ShieldCheck size={18} />, path: '/hr/approvals' },
-    { name: 'Payroll Engine',  icon: <DollarSign size={18} />, path: '/hr/payroll' },
-    { name: 'Shifts & Hours',  icon: <Calendar size={18} />,  path: '/hr/shifts' },
-  ];
-
-  // -------------------------------------------------------------
-  // SHARED MARKETING & INTEGRATIONS (Both Templates)
-  // -------------------------------------------------------------
-  const sharedMarketingItems = [
-    { name: 'Meta Lead Ads', icon: <Share2 size={18} />,        path: '/integrations/meta-forms' },
-    { name: 'Campaigns',     icon: <Send size={18} />,          path: '/marketing/whatsapp-campaigns' },
-    { name: 'Lead Sources',  icon: <Users size={18} />,         path: '/lead-sources' },
-    { name: 'WhatsApp',      icon: <MessageCircle size={18} />, path: '/whatsapp-chat' },
-  ];
-
-  // -------------------------------------------------------------
-  // SHARED OPERATIONAL UTILITIES (Bottom items)
-  // -------------------------------------------------------------
-  const bottomNavItems = [
-    { name: 'Tasks',           icon: <CheckSquare size={18} />,   path: '/tasks' },
-    { name: 'Files',           icon: <FileText size={18} />,      path: '/files' },
-    { name: 'Automation',      icon: <Zap size={18} />,           path: '/automation', module: 'automation' },
-    { name: 'Reports',         icon: <BarChart3 size={18} />,     path: '/reports' },
-    { name: 'System Logs',     icon: <History size={18} />,       path: '/logs' },
-    { name: 'Admin Settings',  icon: <AdminSettingsIcon size={18} />, path: '/settings' },
-    { name: 'Billing',         icon: <CreditCard size={18} />,    path: '/billing' },
-  ];
-
   const allowed = safeArray(user?.allowedPages);
-  const filterByAllowed = (items) => {
-    if (!user) return [];
-    if (user.role === 'admin') return items;
-    return (items || []).filter(item => {
-      const basePath = item.path.split('?')[0];
-      return allowed.includes(item.path) || allowed.includes(basePath);
-    });
+  const isPathAllowed = (path) => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    const basePath = path.split('?')[0];
+    return allowed.includes(path) || allowed.includes(basePath);
   };
 
+  const filterByAllowed = (items) => {
+    return (items || []).filter(item => isPathAllowed(item.path));
+  };
+
+  // -------------------------------------------------------------
+  // Active State Resolution for Direct and Query-Tab Routes
+  // -------------------------------------------------------------
   const isItemActive = (itemPath) => {
     if (!itemPath) return false;
     const [itemBase, itemQuery] = itemPath.split('?');
     if (location.pathname !== itemBase) return false;
-    if (!itemQuery) return true;
+    if (!itemQuery) {
+      // If item has no query, but current location has query that represents a specific tab, don't mark as active if another sibling tab matches
+      return !location.search || location.search === '';
+    }
     const itemParams = new URLSearchParams(itemQuery);
     const currentParams = new URLSearchParams(location.search);
+    
+    // Check 'tab' param
     const itemTab = itemParams.get('tab');
     if (itemTab !== null) {
       const currentTab = currentParams.get('tab');
       return itemTab.toLowerCase() === (currentTab || '').toLowerCase();
     }
+
+    // Check 'type' param
     const itemType = itemParams.get('type');
     if (itemType !== null) {
       const currentType = currentParams.get('type');
       return itemType.toLowerCase() === (currentType || '').toLowerCase();
     }
+
     return true;
   };
 
-  const hasInventory = can('inventory');
+  // Helper to test if any child in a subgroup is active
+  const isAnyActive = (paths) => {
+    return (paths || []).some(p => isItemActive(p));
+  };
+
+  // -------------------------------------------------------------
+  // 1. MY PROFILE ITEMS
+  // -------------------------------------------------------------
+  const rawProfileItems = [
+    { name: 'My Attendance',    icon: <Clock size={16} />,        path: '/hr/my-attendance' },
+    { name: 'My Requests',      icon: <FileText size={16} />,     path: '/hr/my-requests' },
+    { name: 'Approvals',        icon: <ShieldCheck size={16} />,  path: '/hr/approvals', roleGuard: ['admin', 'manager'] },
+    { name: 'My Payroll',       icon: <DollarSign size={16} />,   path: '/my-profile?tab=payroll' },
+    { name: 'Activity Balance', icon: <Wallet size={16} />,       path: '/my-profile?tab=balance' },
+    { name: 'Deals',            icon: <Handshake size={16} />,    path: '/my-profile?tab=deals' },
+    { name: 'Tasks',            icon: <CheckSquare size={16} />,  path: '/my-profile?tab=tasks' },
+    { name: 'Customers',        icon: <Users size={16} />,        path: '/my-profile?tab=customers' },
+    ...(isRealEstate ? [{ name: 'Units', icon: <Key size={16} />, path: '/my-profile?tab=units' }] : [])
+  ];
+
+  const profileItems = rawProfileItems.filter(item => {
+    if (item.roleGuard && !item.roleGuard.includes(user?.role)) return false;
+    return isPathAllowed(item.path);
+  });
+
+  // -------------------------------------------------------------
+  // 2. CONTACTS ITEMS
+  // -------------------------------------------------------------
+  const contactsDirectItems = [
+    { name: 'Customers / Leads', icon: <Users size={18} />, path: '/customers' },
+    { name: 'Vendors',           icon: <Truck size={18} />, path: '/contacts/vendors' }
+  ];
+
+  const employeeSubItems = [
+    { name: 'Departments', icon: <Building size={16} />,  path: '/contacts/employees?tab=departments' },
+    { name: 'Job Titles',  icon: <Briefcase size={16} />, path: '/contacts/employees?tab=jobtitles' }
+  ];
+
   const hasPurchasing = can('purchasing') || can('inventory');
   const hasHr = can('hr');
+
+  // Filter contacts by permissions
+  const visibleContactsDirect = contactsDirectItems.filter(item => {
+    if (item.name === 'Vendors' && !hasPurchasing && user?.role !== 'admin') return false;
+    return isPathAllowed(item.path);
+  });
+
+  const canAccessEmployees = (hasHr || user?.role === 'admin') && isPathAllowed('/contacts/employees');
+
+  // -------------------------------------------------------------
+  // 3. REAL ESTATE ITEMS (REAL ESTATE TEMPLATE ONLY)
+  // -------------------------------------------------------------
+  const reDefinitionsSubItems = [
+    { name: 'Projects',   icon: <Building size={16} />,  path: '/units-registry?tab=projects' },
+    { name: 'Developers', icon: <Building2 size={16} />, path: '/units-registry?tab=developers' },
+    { name: 'Phases',     icon: <Layers size={16} />,    path: '/units-registry?tab=phases' }
+  ];
+
+  const reDirectItems = [
+    { name: 'Units',        icon: <Key size={18} />,         path: '/units-registry' },
+    { name: 'Reservations', icon: <CheckSquare size={18} />, path: '/deals?tab=reservations' },
+    { name: 'Contracts',    icon: <FileText size={18} />,    path: '/deals?tab=contracts' },
+    { name: 'Installments', icon: <CreditCard size={18} />,  path: '/deals?tab=installments' }
+  ];
+
+  // -------------------------------------------------------------
+  // 4. SALES ITEMS (BOTH TEMPLATES)
+  // -------------------------------------------------------------
+  const rawSalesItems = [
+    { name: 'Quotations',  icon: <FileText size={18} />,    path: '/quotations' },
+    { name: 'Salesmen',    icon: <Users size={18} />,       path: '/sales/salesmen' },
+    { name: 'Targets',     icon: <Award size={18} />,       path: '/sales/target' },
+    { name: 'Commissions', icon: <DollarSign size={18} />,  path: '/deals?tab=commissions' },
+    { name: 'Handover',    icon: <Key size={18} />,         path: '/deals?tab=handover' }
+  ];
+  const salesItems = filterByAllowed(rawSalesItems);
+
+  // -------------------------------------------------------------
+  // 5. FINANCE ITEMS (ALL 9 OPERATIONS - BOTH TEMPLATES)
+  // -------------------------------------------------------------
+  const rawFinanceItems = [
+    { name: 'Overview',          icon: <LayoutDashboard size={18} />, path: '/finance?tab=Overview' },
+    { name: 'Invoices',          icon: <FileText size={18} />,        path: '/finance?tab=Invoices' },
+    { name: 'Receipts',          icon: <ArrowDownLeft size={18} />,   path: '/finance?tab=Receipts' },
+    { name: 'Payments',          icon: <CreditCard size={18} />,      path: '/finance?tab=Payments' },
+    { name: 'Expenses',          icon: <DollarSign size={18} />,      path: '/finance?tab=Expenses' },
+    { name: 'Customer Accounts', icon: <Users size={18} />,           path: '/finance?tab=Customers' },
+    { name: 'Vendor Accounts',   icon: <Building2 size={18} />,       path: '/finance?tab=Vendors' },
+    { name: 'Treasury',          icon: <Wallet size={18} />,          path: '/finance?tab=Treasury' },
+    { name: 'Reports',           icon: <BarChart3 size={18} />,       path: '/finance?tab=Reports' }
+  ];
+  const financeItems = filterByAllowed(rawFinanceItems);
+
+  // -------------------------------------------------------------
+  // 6. MARKETING ITEMS
+  // -------------------------------------------------------------
+  const rawWhatsappSubItems = [
+    { name: 'WhatsApp Campaigns', icon: <Send size={16} />,          path: '/marketing/whatsapp-campaigns' },
+    { name: 'WhatsApp Chat',      icon: <MessageCircle size={16} />, path: '/whatsapp-chat' },
+    { name: 'WhatsApp Chatbot',   icon: <Bot size={16} />,           path: '/marketing/whatsapp-chatbots' },
+    { name: 'WhatsApp Settings',  icon: <AdminSettingsIcon size={16} />, path: '/integrations/whatsapp', roleGuard: ['admin'] }
+  ];
+
+  const whatsappSubItems = rawWhatsappSubItems.filter(item => {
+    if (item.roleGuard && !item.roleGuard.includes(user?.role)) return false;
+    return isPathAllowed(item.path);
+  });
+
+  const canAccessMetaForms = isPathAllowed('/integrations/meta-forms');
+
+  // -------------------------------------------------------------
+  // 7. HR ITEMS (ADMINISTRATION & SYSTEM HR)
+  // -------------------------------------------------------------
+  const rawHrItems = [
+    { name: 'Dashboard for HR',    icon: <UserCheck size={18} />, path: '/hr/dashboard', roleGuard: ['admin', 'manager'] },
+    { name: 'Payroll',             icon: <DollarSign size={18} />, path: '/hr/payroll', roleGuard: ['admin', 'manager'] },
+    { name: 'Activity Definition', icon: <FileText size={18} />,   path: '/hr/activity-definition', roleGuard: ['admin', 'manager'] },
+    { name: 'Activity Balance',    icon: <Scale size={18} />,      path: '/hr/activity-balance', roleGuard: ['admin', 'manager'] },
+    { name: 'Shifts',              icon: <Calendar size={18} />,   path: '/hr/shifts', roleGuard: ['admin', 'manager'] },
+    { name: 'Attendance Device',   icon: <Clock size={18} />,      path: '/hr/devices', roleGuard: ['admin', 'manager'] }
+  ];
+
+  const hrItems = (hasHr || user?.role === 'admin')
+    ? rawHrItems.filter(item => {
+        if (item.roleGuard && !item.roleGuard.includes(user?.role)) return false;
+        return isPathAllowed(item.path);
+      })
+    : [];
+
+  // -------------------------------------------------------------
+  // 8. PURCHASES ITEMS
+  // -------------------------------------------------------------
+  const rawPurchasesItems = [
+    { name: 'Purchase Request', icon: <FileText size={18} />,     path: '/purchases/requests' },
+    { name: 'Purchase Invoice', icon: <ShoppingCart size={18} />, path: '/purchases' },
+    { name: 'RFQs',             icon: <FileCheck size={18} />,    path: '/purchases/rfqs' },
+    { name: 'Purchase Order',   icon: <FileText size={18} />,     path: '/purchases/orders' }
+  ];
+
+  const purchasesItems = (hasPurchasing || user?.role === 'admin')
+    ? filterByAllowed(rawPurchasesItems)
+    : [];
+
+  // -------------------------------------------------------------
+  // 9. REPORTS ITEMS (ERP REPORTS DORMANT/HIDDEN)
+  // -------------------------------------------------------------
+  const rawReportsItems = [
+    { name: 'General Reports', icon: <BarChart3 size={18} />, path: '/reports' },
+    { name: 'Finance Reports', icon: <Wallet size={18} />,    path: '/finance?tab=Reports' }
+    // NOTE: ERP Reports is intentionally hidden for now until explicit ERP navigation activation
+  ];
+  const reportsItems = filterByAllowed(rawReportsItems);
+
+  // -------------------------------------------------------------
+  // 10. ADMIN ITEMS
+  // -------------------------------------------------------------
+  const rawAdminItems = [
+    { name: 'Files',            icon: <FileText size={18} />,          path: '/files' },
+    { name: 'Logs',             icon: <History size={18} />,           path: '/logs', roleGuard: ['admin'] },
+    { name: 'Settings',         icon: <AdminSettingsIcon size={18} />, path: '/settings', roleGuard: ['admin'] },
+    { name: 'Company Settings', icon: <Building2 size={18} />,         path: '/settings/company', roleGuard: ['admin'] },
+    { name: 'Billing',          icon: <CreditCard size={18} />,        path: '/billing' }
+  ];
+
+  const adminItems = rawAdminItems.filter(item => {
+    if (item.roleGuard && !item.roleGuard.includes(user?.role)) return false;
+    return isPathAllowed(item.path);
+  });
+
+  const hasInventory = can('inventory');
+  const inventoryItems = hasInventory ? filterByAllowed([]) : [];
+  // Dormant Inventory check: hasInventory && inventoryItems.length > 0
+  // Backward compatibility alias: hasPurchasing && purchasingItems.length > 0
+  const purchasingItems = purchasesItems;
 
   const trialColor = trialDaysLeft !== null
     ? trialDaysLeft <= 3 ? '#ef4444' : trialDaysLeft <= 7 ? '#f59e0b' : '#10b981'
     : null;
-
-  // Active items by template and module entitlement
-  const crmItems = filterByAllowed(sharedCrmItems);
-  const propertiesItems = filterByAllowed(rePropertiesItems);
-  const salesItems = filterByAllowed(isRealEstate ? reSalesItems : genSalesItems);
-  const inventoryItems = hasInventory ? filterByAllowed(inventoryItemsList) : [];
-  const purchasingItems = hasPurchasing ? filterByAllowed(purchasingItemsList) : [];
-  const financeItems = filterByAllowed(sharedFinanceItems);
-  const hrItems = hasHr ? filterByAllowed(hrItemsList) : [];
-  const marketingItems = filterByAllowed(sharedMarketingItems);
-  const visibleBottomItems = filterByAllowed(bottomNavItems);
 
   return (
     <div className={`sidebar ${isOpen ? 'open' : 'closed'}`}>
@@ -253,6 +325,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           background: rgba(79,70,229,0.04); color: var(--primary);
           border-color: rgba(79,70,229,0.1);
         }
+        .group-header.sub-group-header {
+          padding: 6px 10px;
+          font-size: 12.5px;
+          margin-top: 1px;
+        }
         .group-header svg.main-icon { min-width: 17px; width: 17px; height: 17px; }
         .group-label { flex: 1; font-weight: 600; font-size: 13px; white-space: nowrap; transition: opacity 0.2s; letter-spacing: 0.01em; }
         .sidebar.closed .group-label { opacity: 0; }
@@ -262,13 +339,19 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease;
           padding-left: 8px;
         }
+        .group-sub-items.nested {
+          padding-left: 12px;
+          border-left: 1.5px solid rgba(79,70,229,0.12);
+          margin-left: 12px;
+        }
         .group-sub-items.collapsed { max-height: 0; opacity: 0; }
-        .group-sub-items.expanded { max-height: 500px; opacity: 1; }
+        .group-sub-items.expanded { max-height: 800px; opacity: 1; }
         .group-sub-items a {
           padding: 6px 10px;
           font-size: 12.5px !important;
         }
         .sidebar.closed .group-sub-items { padding-left: 0; }
+        .sidebar.closed .group-sub-items.nested { border-left: none; margin-left: 0; }
 
         .trial-banner {
           margin: 0 8px 8px; border-radius: 8px; padding: 8px 10px;
@@ -298,43 +381,119 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         </button>
       </div>
 
-      {/* Nav */}
+      {/* Navigation */}
       <nav className="sidebar-nav">
-        {/* Dashboard */}
-        <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
-          <LayoutDashboard size={18} />
-          <span>Dashboard</span>
-        </NavLink>
+        
+        {/* TOP LEVEL: Dashboard */}
+        {isPathAllowed('/dashboard') && (
+          <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <LayoutDashboard size={18} />
+            <span>Dashboard</span>
+          </NavLink>
+        )}
 
-        {/* 1. CRM Group (Both templates) */}
-        {crmItems.length > 0 && (
+        {/* 1. MY PROFILE GROUP */}
+        {profileItems.length > 0 && (
           <>
-            <div className="group-header" onClick={() => isOpen && setCrmOpen(prev => !prev)} title={!isOpen ? 'CRM' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setProfileOpen(prev => !prev)} title={!isOpen ? 'My Profile' : undefined}>
+              <UserCircle size={18} className="main-icon" />
+              <span className="group-label">My Profile</span>
+              {isOpen && (profileOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
+            </div>
+            <div className={`group-sub-items ${isOpen && profileOpen ? 'expanded' : 'collapsed'}`}>
+              {profileItems.map(item => (
+                <NavLink key={item.name} to={item.path} className={({ isActive }) => item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : '')}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* 2. CONTACTS GROUP */}
+        {(visibleContactsDirect.length > 0 || canAccessEmployees) && (
+          <>
+            <div className="group-header" onClick={() => isOpen && setContactsOpen(prev => !prev)} title={!isOpen ? 'Contacts' : undefined}>
               <Users size={18} className="main-icon" />
-              <span className="group-label">CRM</span>
-              {isOpen && (crmOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
+              <span className="group-label">Contacts</span>
+              {isOpen && (contactsOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
-            <div className={`group-sub-items ${isOpen && crmOpen ? 'expanded' : 'collapsed'}`}>
-              {crmItems.map(item => (
+            <div className={`group-sub-items ${isOpen && contactsOpen ? 'expanded' : 'collapsed'}`}>
+              {visibleContactsDirect.map(item => (
                 <NavLink key={item.name} to={item.path} className={({ isActive }) => item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : '')}>
                   {item.icon}
                   <span>{item.name}</span>
                 </NavLink>
               ))}
+
+              {/* Employees Sub-Hierarchy: Master + Departments + Job Titles */}
+              {canAccessEmployees && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '4px' }}>
+                    <NavLink 
+                      to="/contacts/employees" 
+                      style={{ flex: 1 }}
+                      className={() => (location.pathname === '/contacts/employees' && (!location.search || location.search.includes('tab=employees')) ? 'active' : '')}
+                    >
+                      <Briefcase size={17} />
+                      <span>Employees</span>
+                    </NavLink>
+                    {isOpen && (
+                      <span 
+                        onClick={(e) => { e.stopPropagation(); setContactsEmployeesOpen(prev => !prev); }}
+                        style={{ cursor: 'pointer', padding: '6px', color: 'var(--text-muted)' }}
+                        title="Toggle Departments & Job Titles"
+                      >
+                        {contactsEmployeesOpen ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                      </span>
+                    )}
+                  </div>
+                  <div className={`group-sub-items nested ${isOpen && contactsEmployeesOpen ? 'expanded' : 'collapsed'}`}>
+                    {employeeSubItems.map(subItem => (
+                      <NavLink key={subItem.name} to={subItem.path} className={() => isItemActive(subItem.path) ? 'active' : ''}>
+                        {subItem.icon}
+                        <span>{subItem.name}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}
 
-        {/* 2. Properties Group (Real Estate ONLY) */}
-        {isRealEstate && propertiesItems.length > 0 && (
+        {/* 3. REAL ESTATE GROUP (VISIBLE ONLY WHEN template === 'real_estate') */}
+        {isRealEstate && isPathAllowed('/units-registry') && (
           <>
-            <div className="group-header" onClick={() => isOpen && setPropertiesOpen(prev => !prev)} title={!isOpen ? 'Properties' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setRealEstateOpen(prev => !prev)} title={!isOpen ? 'Real Estate' : undefined}>
               <Building2 size={18} className="main-icon" />
-              <span className="group-label">Properties</span>
-              {isOpen && (propertiesOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
+              <span className="group-label">Real Estate</span>
+              {isOpen && (realEstateOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
-            <div className={`group-sub-items ${isOpen && propertiesOpen ? 'expanded' : 'collapsed'}`}>
-              {propertiesItems.map(item => (
+            <div className={`group-sub-items ${isOpen && realEstateOpen ? 'expanded' : 'collapsed'}`}>
+              
+              {/* Definitions Sub-Hierarchy: Projects, Developers, Phases */}
+              <div 
+                className="group-header sub-group-header" 
+                onClick={() => isOpen && setReDefinitionsOpen(prev => !prev)}
+                title={!isOpen ? 'Definitions' : undefined}
+              >
+                <Layers size={16} className="main-icon" />
+                <span className="group-label">Definitions</span>
+                {isOpen && (reDefinitionsOpen ? <ChevronDown size={13} className="group-chevron" /> : <ChevronUp size={13} className="group-chevron" />)}
+              </div>
+              <div className={`group-sub-items nested ${isOpen && reDefinitionsOpen ? 'expanded' : 'collapsed'}`}>
+                {reDefinitionsSubItems.map(subItem => (
+                  <NavLink key={subItem.name} to={subItem.path} className={() => isItemActive(subItem.path) ? 'active' : ''}>
+                    {subItem.icon}
+                    <span>{subItem.name}</span>
+                  </NavLink>
+                ))}
+              </div>
+
+              {/* Real Estate Core: Units, Reservations, Contracts, Installments */}
+              {reDirectItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={({ isActive }) => item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : '')}>
                   {item.icon}
                   <span>{item.name}</span>
@@ -344,12 +503,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </>
         )}
 
-        {/* 3. Sales Group (Template Specialized) */}
+        {/* 4. SALES GROUP (Quotations, Salesmen, Targets, Commissions, Handover) */}
         {salesItems.length > 0 && (
           <>
             <div className="group-header" onClick={() => isOpen && setSalesOpen(prev => !prev)} title={!isOpen ? 'Sales' : undefined}>
               <ShoppingBag size={18} className="main-icon" />
-              <span className="group-label">{isRealEstate ? 'Contracts & Sales' : 'Sales'}</span>
+              <span className="group-label">Sales</span>
               {isOpen && (salesOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && salesOpen ? 'expanded' : 'collapsed'}`}>
@@ -363,45 +522,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </>
         )}
 
-        {/* 4. Inventory Group (Governed by can('inventory')) */}
-        {hasInventory && inventoryItems.length > 0 && (
-          <>
-            <div className="group-header" onClick={() => isOpen && setInventoryOpen(prev => !prev)} title={!isOpen ? 'Inventory' : undefined}>
-              <Package size={18} className="main-icon" />
-              <span className="group-label">Inventory</span>
-              {isOpen && (inventoryOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
-            </div>
-            <div className={`group-sub-items ${isOpen && inventoryOpen ? 'expanded' : 'collapsed'}`}>
-              {inventoryItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
-                  {item.icon}
-                  <span>{item.name}</span>
-                </NavLink>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* 5. Purchasing Group (Governed by can('purchasing') || can('inventory')) */}
-        {hasPurchasing && purchasingItems.length > 0 && (
-          <>
-            <div className="group-header" onClick={() => isOpen && setPurchasingOpen(prev => !prev)} title={!isOpen ? 'Purchasing' : undefined}>
-              <ShoppingCart size={18} className="main-icon" />
-              <span className="group-label">Purchasing</span>
-              {isOpen && (purchasingOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
-            </div>
-            <div className={`group-sub-items ${isOpen && purchasingOpen ? 'expanded' : 'collapsed'}`}>
-              {purchasingItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
-                  {item.icon}
-                  <span>{item.name}</span>
-                </NavLink>
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* 6. Finance Group (Specialized operational money tracking) */}
+        {/* 5. FINANCE GROUP (ALL 9 OPERATIONS - Overview, Invoices, Receipts, Payments, Expenses, Customer Accounts, Vendor Accounts, Treasury, Reports) */}
         {financeItems.length > 0 && (
           <>
             <div className="group-header" onClick={() => isOpen && setFinanceOpen(prev => !prev)} title={!isOpen ? 'Finance' : undefined}>
@@ -424,31 +545,53 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </>
         )}
 
-        {/* 7. Marketing & Integrations Group */}
-        {marketingItems.length > 0 && (
+        {/* 6. MARKETING GROUP (Meta Forms + WhatsApp: Campaigns, Chat, Chatbot, Settings) */}
+        {(canAccessMetaForms || whatsappSubItems.length > 0) && (
           <>
-            <div className="group-header" onClick={() => isOpen && setMarketingOpen(prev => !prev)} title={!isOpen ? 'Marketing & Integrations' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setMarketingOpen(prev => !prev)} title={!isOpen ? 'Marketing' : undefined}>
               <Share2 size={18} className="main-icon" />
-              <span className="group-label">Marketing & Integrations</span>
+              <span className="group-label">Marketing</span>
               {isOpen && (marketingOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && marketingOpen ? 'expanded' : 'collapsed'}`}>
-              {marketingItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
-                  {item.icon}
-                  <span>{item.name}</span>
+              {canAccessMetaForms && (
+                <NavLink to="/integrations/meta-forms" className={({ isActive }) => isActive ? 'active' : ''}>
+                  <FileText size={17} />
+                  <span>Meta Forms</span>
                 </NavLink>
-              ))}
+              )}
+
+              {whatsappSubItems.length > 0 && (
+                <>
+                  <div 
+                    className="group-header sub-group-header" 
+                    onClick={() => isOpen && setMarketingWhatsappOpen(prev => !prev)}
+                    title={!isOpen ? 'WhatsApp' : undefined}
+                  >
+                    <MessageCircle size={16} className="main-icon" />
+                    <span className="group-label">WhatsApp</span>
+                    {isOpen && (marketingWhatsappOpen ? <ChevronDown size={13} className="group-chevron" /> : <ChevronUp size={13} className="group-chevron" />)}
+                  </div>
+                  <div className={`group-sub-items nested ${isOpen && marketingWhatsappOpen ? 'expanded' : 'collapsed'}`}>
+                    {whatsappSubItems.map(subItem => (
+                      <NavLink key={subItem.name} to={subItem.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                        {subItem.icon}
+                        <span>{subItem.name}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}
 
-        {/* 8. HR & Workforce Group (Governed by can('hr')) */}
-        {hasHr && hrItems.length > 0 && (
+        {/* 7. HR GROUP (Dashboard for HR, Payroll, Activity Definition, Activity Balance, Shifts, Attendance Device) */}
+        {hrItems.length > 0 && (
           <>
-            <div className="group-header" onClick={() => isOpen && setHrOpen(prev => !prev)} title={!isOpen ? 'HR & Workforce' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setHrOpen(prev => !prev)} title={!isOpen ? 'HR' : undefined}>
               <UserCheck size={18} className="main-icon" />
-              <span className="group-label">HR & Workforce</span>
+              <span className="group-label">HR</span>
               {isOpen && (hrOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && hrOpen ? 'expanded' : 'collapsed'}`}>
@@ -462,28 +605,63 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </>
         )}
 
-        {/* Bottom standard items: Tasks, Files, Automation, Reports, Logs, Settings, Billing */}
-        {visibleBottomItems.map((item) => {
-          const isModuleLocked = item.module && !can(item.module);
+        {/* 8. PURCHASES GROUP (Purchase Request, Purchase Invoice, RFQs, Purchase Order) */}
+        {hasPurchasing && purchasingItems.length > 0 && (
+          <>
+            <div className="group-header" onClick={() => isOpen && setPurchasesOpen(prev => !prev)} title={!isOpen ? 'Purchases' : undefined}>
+              <ShoppingCart size={18} className="main-icon" />
+              <span className="group-label">Purchases</span>
+              {isOpen && (purchasesOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
+            </div>
+            <div className={`group-sub-items ${isOpen && purchasesOpen ? 'expanded' : 'collapsed'}`}>
+              {purchasesItems.map(item => (
+                <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </>
+        )}
 
-          if (isModuleLocked) {
-            return (
-              <div key={item.name} className="nav-locked" onClick={() => navigate('/pricing')} title={`Upgrade to access ${item.name}`}>
-                {item.icon}
-                <span className="nav-label">{item.name}</span>
-                <span className="lock-badge"><Lock size={9}/> PRO</span>
-                <div className="lock-tooltip">🔒 Upgrade to unlock {item.name} <ArrowRight size={11}/></div>
-              </div>
-            );
-          }
+        {/* 9. REPORTS GROUP (General Reports, Finance Reports) */}
+        {reportsItems.length > 0 && (
+          <>
+            <div className="group-header" onClick={() => isOpen && setReportsOpen(prev => !prev)} title={!isOpen ? 'Reports' : undefined}>
+              <BarChart3 size={18} className="main-icon" />
+              <span className="group-label">Reports</span>
+              {isOpen && (reportsOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
+            </div>
+            <div className={`group-sub-items ${isOpen && reportsOpen ? 'expanded' : 'collapsed'}`}>
+              {reportsItems.map(item => (
+                <NavLink key={item.name} to={item.path} className={({ isActive }) => item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : '')}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </>
+        )}
 
-          return (
-            <NavLink key={item.name} to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>
-              {item.icon}
-              <span>{item.name}</span>
-            </NavLink>
-          );
-        })}
+        {/* 10. ADMIN GROUP (Files, Logs, Settings, Company Settings, Billing) */}
+        {adminItems.length > 0 && (
+          <>
+            <div className="group-header" onClick={() => isOpen && setAdminOpen(prev => !prev)} title={!isOpen ? 'Admin' : undefined}>
+              <AdminSettingsIcon size={18} className="main-icon" />
+              <span className="group-label">Admin</span>
+              {isOpen && (adminOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
+            </div>
+            <div className={`group-sub-items ${isOpen && adminOpen ? 'expanded' : 'collapsed'}`}>
+              {adminItems.map(item => (
+                <NavLink key={item.name} to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </>
+        )}
+
       </nav>
 
       {/* Trial Banner */}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -80,7 +81,17 @@ const MyProfile = () => {
   const isRealEstate = user?.template_name === 'real_estate';
   const isManager = user?.role === 'admin' || user?.role === 'manager';
 
-  const [activeTab, setActiveTab] = useState('tasks');
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'tasks';
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
   const [data, setData] = useState({ tasks: [], deals: [], customers: [], units: [], activity: [], leaves: [], payrolls: [], pendingLeaves: [] });
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0 });
   const [loading, setLoading] = useState(true);
