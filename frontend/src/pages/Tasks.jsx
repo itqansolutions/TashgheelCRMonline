@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -125,6 +126,8 @@ const TaskCard = ({ task, onEdit, onDelete, onStatusChange, taskStatuses, onCrea
 
 const Tasks = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const activityTypeParam = searchParams.get('type') || '';
   const { customers, deals, users, taskStatuses, fetchCustomers, fetchDeals, fetchUsers, fetchTaskStatuses } = useData();
   const [tasks, setTasks] = useState([]);
   const [units, setUnits] = useState([]);
@@ -237,11 +240,17 @@ const Tasks = () => {
 
   // Filtered data
   const filteredTasks = useMemo(() => tasks.filter(t => {
+    if (activityTypeParam) {
+      const matchType = (t.title || '').toLowerCase().includes(activityTypeParam.replace('_', ' ')) ||
+                        (t.description || '').toLowerCase().includes(activityTypeParam.replace('_', ' ')) ||
+                        (t.parent_type || '').toLowerCase() === activityTypeParam.toLowerCase();
+      if (!matchType) return false;
+    }
     if (filterStatus !== 'all' && String(t.status_id) !== filterStatus) return false;
     if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
     if (filterAssignee !== 'all' && String(t.assigned_to) !== filterAssignee) return false;
     return true;
-  }), [tasks, filterStatus, filterPriority, filterAssignee]);
+  }), [tasks, activityTypeParam, filterStatus, filterPriority, filterAssignee]);
 
   // Stats
   const stats = useMemo(() => {
@@ -258,6 +267,10 @@ const Tasks = () => {
   const roleLabel = user?.role === 'admin' ? 'All Organization Tasks' 
                   : user?.role === 'manager' ? 'My Team Tasks' 
                   : 'My Assigned Tasks';
+
+  const titleLabel = activityTypeParam === 'site_visit' ? 'Site Visits & Field Activities'
+                   : activityTypeParam ? `${activityTypeParam.replace('_', ' ').toUpperCase()} Activities`
+                   : 'Task Command Center';
 
   return (
     <div style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
@@ -281,8 +294,8 @@ const Tasks = () => {
               <CheckSquare size={24}/>
             </div>
             <div>
-              <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900, color: '#1e293b', letterSpacing: '-0.02em' }}>Task Command Center</h1>
-              <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px', fontWeight: 600 }}>{roleLabel} • {tasks.length} Tasks</p>
+              <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900, color: '#1e293b', letterSpacing: '-0.02em' }}>{titleLabel}</h1>
+              <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px', fontWeight: 600 }}>{roleLabel} • {filteredTasks.length} {activityTypeParam ? 'Matching Items' : 'Tasks'}</p>
             </div>
           </div>
         </div>

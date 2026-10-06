@@ -23,7 +23,7 @@ const FinanceDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const ALL_TABS = ['Overview', 'Invoices', 'Receipts', 'Expenses', 'Customers', 'Vendors', 'Treasury', 'Reports'];
+  const ALL_TABS = ['Overview', 'Invoices', 'Quotations', 'Receipts', 'Expenses', 'Customers', 'Vendors', 'Treasury', 'Reports'];
 
   const queryParams = new URLSearchParams(location.search);
   const rawTab = queryParams.get('tab') || location.state?.tab || 'Overview';
