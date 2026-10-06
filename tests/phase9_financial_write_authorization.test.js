@@ -373,4 +373,139 @@ test('Phase 9: Financial Write Authorization Hardening Suite', async (t) => {
       db.query = origQuery;
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // 7. Deal -> Invoice Generation Idempotency Test (Phase A)
+  // ---------------------------------------------------------------------------
+  await t.test('Deal -> Invoice Idempotency: repeated generation returns existing active invoice and does not duplicate', async () => {
+    const financeController = require('../controllers/financeController');
+    const invoicesController = require('../controllers/invoicesController');
+    const origQuery = db.query;
+
+    let invoiceInsertCount = 0;
+    let existingActiveInvoice = null;
+
+    db.query = async (sql, params) => {
+      // 1. Transaction controls
+      if (sql.includes('BEGIN') || sql.includes('COMMIT') || sql.includes('ROLLBACK')) {
+        return { rows: [] };
+      }
+      // 2. Fetch Deal with lock
+      if (sql.includes('FROM deals') && (sql.includes('WHERE id') || sql.includes('WHERE d.id'))) {
+        return {
+          rows: [{
+            id: 101,
+            title: 'Commercial Suite 402',
+            value: 250000,
+            pipeline_stage: 'proposal',
+            tenant_id: 'tenant-10',
+            branch_id: 'branch-1',
+            client_id: 55,
+            customer_id: 55,
+            client_name: 'Al-Amal Corp'
+          }]
+        };
+      }
+      // 3. Existing active invoice check for deal
+      if (sql.includes('FROM invoices') && sql.includes('WHERE deal_id')) {
+        if (existingActiveInvoice) {
+          return { rows: [existingActiveInvoice] };
+        }
+        return { rows: [] };
+      }
+      // 4. Invoice sequence generator check
+      if (sql.includes('FROM invoices') && sql.includes('invoice_number')) {
+        return { rows: [{ invoice_number: 'INV-000001' }] };
+      }
+      // 5. Insert invoice
+      if (sql.includes('INSERT INTO invoices')) {
+        invoiceInsertCount++;
+        const newInv = {
+          id: 501,
+          invoice_number: 'INV-000002',
+          total_amount: 250000,
+          status: 'unpaid',
+          tenant_id: 'tenant-10',
+          branch_id: 'branch-1',
+          deal_id: 101
+        };
+        existingActiveInvoice = newInv;
+        return { rows: [newInv] };
+      }
+      // 6. Insert invoice items / update deals stage
+      if (sql.includes('INSERT INTO invoice_items') || sql.includes('UPDATE deals SET pipeline_stage')) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    };
+
+    try {
+      // Step A: First call to POST /api/finance/invoices/from-deal/:dealId
+      let res1Code = null;
+      let res1Data = null;
+      const req1 = {
+        params: { dealId: 101 },
+        user: { id: 1, tenant_id: 'tenant-10' },
+        branchId: 'branch-1'
+      };
+      const res1 = {
+        status(c) { res1Code = c; return this; },
+        json(d) { res1Data = d; return this; }
+      };
+
+      await financeController.createInvoiceFromDeal(req1, res1);
+
+      assert.equal(res1Code, 201, 'First invoice generation must return 201 Created');
+      assert.equal(invoiceInsertCount, 1, 'First invoice generation must insert 1 invoice');
+      assert.equal(res1Data?.data?.id, 501);
+
+      // Step B: Second call to POST /api/finance/invoices/from-deal/:dealId (same deal)
+      let res2Code = null;
+      let res2Data = null;
+      const res2 = {
+        status(c) { res2Code = c; return this; },
+        json(d) { res2Data = d; return this; }
+      };
+
+      await financeController.createInvoiceFromDeal(req1, res2);
+
+      assert.equal(res2Code, 200, 'Second invoice generation must return 200 OK');
+      assert.equal(invoiceInsertCount, 1, 'Second invoice generation must NOT insert another invoice');
+      assert.match(res2Data?.message, /Invoice already exists for this deal/i);
+      assert.equal(res2Data?.data?.id, 501, 'Must return the existing invoice record');
+
+      // Step C: Third call via second endpoint: POST /api/invoices/from-deal/:dealId
+      let res3Code = null;
+      let res3Data = null;
+      const req3 = {
+        params: { dealId: 101 },
+        user: { id: 1, tenant_id: 'tenant-10' }
+      };
+      const res3 = {
+        status(c) { res3Code = c; return this; },
+        json(d) { res3Data = d; return this; }
+      };
+
+      await invoicesController.createInvoiceFromDeal(req3, res3);
+
+      assert.equal(res3Code, 200, 'Invoices controller endpoint must also return 200 OK for existing invoice');
+      assert.equal(invoiceInsertCount, 1, 'Must still have exactly 1 invoice created across both endpoints');
+      assert.equal(res3Data?.data?.id, 501);
+
+      // Step D: Cancelled invoice allows replacement creation
+      existingActiveInvoice = null; // Simulate invoice was cancelled
+      let res4Code = null;
+      let res4Data = null;
+      const res4 = {
+        status(c) { res4Code = c; return this; },
+        json(d) { res4Data = d; return this; }
+      };
+
+      await financeController.createInvoiceFromDeal(req1, res4);
+      assert.equal(res4Code, 201, 'Cancelled invoice must allow creating replacement invoice');
+      assert.equal(invoiceInsertCount, 2, 'Total inserts must now be 2');
+    } finally {
+      db.query = origQuery;
+    }
+  });
 });

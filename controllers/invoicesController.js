@@ -73,6 +73,15 @@ exports.createInvoiceFromDeal = async (req, res) => {
   try {
     const invoice = await salesService.convertDealToInvoice(req.params.dealId, tenant_id);
 
+    if (invoice._alreadyExists) {
+      const { _alreadyExists, ...cleanInvoice } = invoice;
+      return res.status(200).json({
+        status: 'success',
+        message: 'Invoice already exists for this deal',
+        data: cleanInvoice
+      });
+    }
+
     // Log Billing Event
     logAction({ req, action: ACTIONS.BILLING, entityType: 'Invoice', entityId: invoice.id, details: { source: 'deal', sourceId: req.params.dealId } });
 

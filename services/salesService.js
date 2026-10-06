@@ -73,7 +73,7 @@ exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id) => {
  * @returns {Promise<object>} The new invoice
  */
 exports.convertDealToInvoice = async (dealId, tenant_id) => {
-  // 1. Get deal details with unit metadata if applicable
+  // 1. Get deal details with unit metadata if applicable, locking the deal row
   const dealResult = await db.query(`
     SELECT d.*, c.name as client_name, 
            u.project_name, u.unit_number, u.floor, u.area, u.type as unit_type
@@ -81,10 +81,28 @@ exports.convertDealToInvoice = async (dealId, tenant_id) => {
     JOIN customers c ON d.client_id = c.id
     LEFT JOIN re_units u ON d.unit_id = u.id
     WHERE d.id = $1 AND d.tenant_id = $2
+    FOR UPDATE OF d
   `, [dealId, tenant_id]);
   
   if (dealResult.rows.length === 0) throw new Error('Deal not found or unauthorized');
   const deal = dealResult.rows[0];
+
+  // Idempotency check: Return existing active invoice for this deal if one already exists
+  const existingInv = await db.query(
+    `SELECT * FROM invoices 
+     WHERE deal_id::text = $1::text 
+       AND tenant_id::text = $2::text 
+       AND (status IS NULL OR status != 'cancelled')
+     LIMIT 1`,
+    [deal.id, tenant_id]
+  );
+
+  if (existingInv.rows.length > 0) {
+    return {
+      ...existingInv.rows[0],
+      _alreadyExists: true
+    };
+  }
 
   // 2. Construct Premium Description for Real Estate
   let invoiceNotes = `Generated from Deal: ${deal.title}`;
