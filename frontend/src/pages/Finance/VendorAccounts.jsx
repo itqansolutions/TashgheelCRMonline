@@ -6,6 +6,7 @@ import {
   ArrowUpRight, ArrowDownLeft, X, Printer, RefreshCw, ChevronRight,
   Calendar, CheckCircle, CreditCard, Wallet, Plus
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -163,6 +164,7 @@ const RecordPaymentModal = ({ vendor, onClose, onPaid }) => {
 
 // ─── Vendor Statement Drawer ──────────────────────────────────────────────────
 const VendorStatementDrawer = ({ vendorId, onClose, onPaymentRecorded }) => {
+  const { hasFinancialPermission } = useAuth();
   const [statementData, setStatementData] = useState(null);
   const [agingData, setAgingData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -224,12 +226,14 @@ const VendorStatementDrawer = ({ vendorId, onClose, onPaymentRecorded }) => {
             {vendor?.phone && <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{vendor.phone}</div>}
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button
-              onClick={() => setShowPayModal(true)}
-              style={{ ...btnStyle, background: 'var(--primary)', color: 'white', border: 'none', gap: '4px' }}
-            >
-              <Plus size={14} /> Pay Vendor
-            </button>
+            {hasFinancialPermission?.('payment.create') && (
+              <button
+                onClick={() => setShowPayModal(true)}
+                style={{ ...btnStyle, background: 'var(--primary)', color: 'white', border: 'none', gap: '4px' }}
+              >
+                <Plus size={14} /> Pay Vendor
+              </button>
+            )}
             <button onClick={() => window.print()} style={btnStyle} title="Print Statement">
               <Printer size={15} />
             </button>

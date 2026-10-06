@@ -158,8 +158,11 @@ function App() {
                   <Route path="products" element={<Products />} />
                   <Route path="deals" element={<Deals />} />
                   <Route path="tasks" element={<Tasks />} />
+                  <Route path="activities" element={<Tasks />} />
                   <Route path="units-registry" element={<UnitsRegistry />} />
                   <Route path="finance" element={<Invoices />} />
+                  <Route path="quotations" element={<Navigate to="/finance?tab=Quotations" replace />} />
+                  <Route path="lead-sources" element={<Navigate to="/integrations/meta-forms" replace />} />
                   <Route path="finance/invoice-preview/:id" element={<InvoicePreview />} />
                   <Route path="finance/quotation-preview/:id" element={<QuotationPreview />} />
 
@@ -173,7 +176,6 @@ function App() {
                   <Route path="erp/closing" element={<PeriodClosing />} />
                   <Route path="erp/entries" element={<Entries />} />
                   <Route path="accounting" element={<Navigate to="/erp/accounts" replace />} />
-                  <Route path="reports" element={<Navigate to="/erp/reports" replace />} />
 
                   {/* Warehouse & Inventory Sub-Routes */}
                   <Route path="purchases/requests" element={<PurchaseRequests />} />
@@ -263,6 +265,7 @@ function App() {
                   />
 
                   <Route path="employees" element={<Navigate to="/contacts/employees" replace />} />
+                  <Route path="attendance" element={<Navigate to="/hr/my-attendance" replace />} />
                   <Route path="hr/my-attendance" element={<Attendance />} />
                   <Route path="hr" element={<Navigate to="/hr/dashboard" replace />} />
                   <Route path="hr/my-requests" element={<MyRequests />} />

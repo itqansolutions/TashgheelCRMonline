@@ -73,6 +73,15 @@ exports.createInvoiceFromDeal = async (req, res) => {
   try {
     const invoice = await salesService.convertDealToInvoice(req.params.dealId, tenant_id);
 
+    if (invoice._alreadyExists) {
+      const { _alreadyExists, ...cleanInvoice } = invoice;
+      return res.status(200).json({
+        status: 'success',
+        message: 'Invoice already exists for this deal',
+        data: cleanInvoice
+      });
+    }
+
     // Log Billing Event
     logAction({ req, action: ACTIONS.BILLING, entityType: 'Invoice', entityId: invoice.id, details: { source: 'deal', sourceId: req.params.dealId } });
 
@@ -249,7 +258,48 @@ exports.deleteInvoice = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
   try {
-    const result = await db.query('DELETE FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *', [req.params.id, tenant_id, branch_id]);
+    // 1. Verify invoice exists under this tenant
+    const invRes = await db.query(
+      'SELECT id, invoice_number FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text',
+      [req.params.id, tenant_id, branch_id]
+    );
+    if (invRes.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Invoice not found or unauthorized' });
+    }
+
+    // 2. Financial Integrity Guard: reject deletion if active payments or vouchers exist
+    const paymentsCheck = await db.query(
+      `SELECT COUNT(*)::int as count FROM payments 
+       WHERE invoice_id = $1 AND tenant_id::text = $2::text AND (status IS NULL OR status != 'cancelled')`,
+      [req.params.id, tenant_id]
+    );
+    if (paymentsCheck.rows[0].count > 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Cannot delete invoice with existing payment records. Cancel payments or vouchers first.'
+      });
+    }
+
+    try {
+      const vouchersCheck = await db.query(
+        `SELECT COUNT(*)::int as count FROM finance_vouchers 
+         WHERE invoice_id = $1 AND tenant_id::text = $2::text AND (status IS NULL OR status != 'cancelled')`,
+        [req.params.id, tenant_id]
+      );
+      if (vouchersCheck.rows[0].count > 0) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Cannot delete invoice linked to active financial vouchers. Cancel vouchers first.'
+        });
+      }
+    } catch (_) {
+      // finance_vouchers table or column may not exist in pre-migration state
+    }
+
+    const result = await db.query(
+      'DELETE FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *',
+      [req.params.id, tenant_id, branch_id]
+    );
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Invoice not found or unauthorized' });
     }

@@ -10,41 +10,64 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in on mount
+    let isMounted = true;
     const token = localStorage.getItem('token');
     if (token) {
-      fetchUser();
+      fetchUser(isMounted);
     } else {
       setLoading(false);
     }
+    return () => { isMounted = false; };
   }, []);
 
-  const fetchUser = async () => {
+  const fetchUser = async (isMounted = true) => {
     try {
       const res = await api.get('/auth/me');
-      const userData = res.data.user;
-      setUser({
-        ...userData,
-        allowedPages: safeArray(userData.allowedPages),
-        branches: safeArray(userData.branches)
-      });
+      const freshUserData = res.data.user || {};
+      if (isMounted) {
+        setUser(prevUser => {
+          const merged = {
+            ...(prevUser || {}),
+            ...freshUserData,
+            allowedPages: safeArray(freshUserData.allowedPages || prevUser?.allowedPages),
+            branches: safeArray(freshUserData.branches || prevUser?.branches),
+            financialPermissions: safeArray(freshUserData.financialPermissions || prevUser?.financialPermissions)
+          };
+          return merged;
+        });
+      }
 
-      // Load subscription (cached or fresh)
-      const cached = localStorage.getItem('subscription');
-      if (cached) setSubscription(JSON.parse(cached));
-
-      // Fetch fresh from API (non-blocking)
-      api.get('/me/subscription').then(subRes => {
-        const sub = subRes.data.data;
-        setSubscription(sub);
-        localStorage.setItem('subscription', JSON.stringify(sub));
-      }).catch(() => {});
+      // Fetch subscription sequentially before marking ready
+      try {
+        const subRes = await api.get('/me/subscription');
+        const sub = subRes.data?.data || null;
+        if (isMounted) setSubscription(sub);
+        if (sub) {
+          localStorage.setItem('subscription', JSON.stringify(sub));
+        }
+      } catch (subErr) {
+        console.warn('Subscription fetch failed; failing closed on optional modules:', subErr.message);
+        // Fail closed on optional modules, but do not log out
+        const fallbackSub = {
+          plan: 'basic',
+          plan_name: 'basic',
+          status: 'error',
+          modules: {}
+        };
+        if (isMounted) setSubscription(fallbackSub);
+      }
 
     } catch (err) {
-      console.error('Failed to fetch user', err);
-      logout();
+      console.error('Failed to fetch user', err.message);
+      // Only log out if the server explicitly returned 401 Unauthorized
+      if (err.response?.status === 401) {
+        logout();
+      }
+      // On network errors / 5xx / timeouts, preserve session as fallback
     } finally {
-      setLoading(false);
+      if (isMounted) {
+        setLoading(false);
+      }
     }
   };
 
@@ -62,16 +85,28 @@ export const AuthProvider = ({ children }) => {
       ...userData,
       isDemo: userData.isDemo || false,
       allowedPages: safeArray(userData.allowedPages),
-      branches: safeArray(userData.branches)
+      branches: safeArray(userData.branches),
+      financialPermissions: safeArray(userData.financialPermissions)
     });
 
-    // Fetch subscription on login
+    // Fetch subscription on login sequentially with fail-closed fallback
     try {
       const subRes = await api.get('/me/subscription');
-      const sub = subRes.data.data;
+      const sub = subRes.data?.data || null;
       setSubscription(sub);
-      localStorage.setItem('subscription', JSON.stringify(sub));
-    } catch {}
+      if (sub) {
+        localStorage.setItem('subscription', JSON.stringify(sub));
+      }
+    } catch (subErr) {
+      console.warn('Subscription fetch failed on login; failing closed on optional modules:', subErr.message);
+      const fallbackSub = {
+        plan: 'basic',
+        plan_name: 'basic',
+        status: 'error',
+        modules: {}
+      };
+      setSubscription(fallbackSub);
+    }
 
     return userData;
   };
@@ -83,8 +118,20 @@ export const AuthProvider = ({ children }) => {
     setSubscription(null);
   };
 
+  /**
+   * Helper to verify if current user has a specific financial permission.
+   * Admins are always allowed as superusers.
+   * Otherwise checks user.financialPermissions array.
+   */
+  const hasFinancialPermission = (perm) => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    const perms = safeArray(user.financialPermissions);
+    return perms.includes(perm);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, subscription, loading, login, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, subscription, loading, login, logout, isAuthenticated: !!user, hasFinancialPermission }}>
       {children}
     </AuthContext.Provider>
   );

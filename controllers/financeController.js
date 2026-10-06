@@ -490,6 +490,26 @@ exports.createInvoiceFromDeal = async (req, res) => {
         if (dealRes.rows.length === 0) throw new Error('Deal not found or unauthorized');
         
         const deal = dealRes.rows[0];
+
+        // Idempotency check: Return existing active invoice for this deal if one already exists
+        const existingInv = await db.query(
+            `SELECT * FROM invoices 
+             WHERE deal_id::text = $1::text 
+               AND tenant_id::text = $2::text 
+               AND (status IS NULL OR status != 'cancelled')
+             LIMIT 1`,
+            [deal.id, tenant_id]
+        );
+
+        if (existingInv.rows.length > 0) {
+            await db.query('COMMIT');
+            return res.status(200).json({
+                status: 'success',
+                message: 'Invoice already exists for this deal',
+                data: existingInv.rows[0]
+            });
+        }
+
         const invoiceNumber = await generateInvoiceNumber(tenant_id, branch_id);
         const invRes = await db.query(`
             INSERT INTO invoices (invoice_number, total_amount, status, tenant_id, branch_id, deal_id, client_id)

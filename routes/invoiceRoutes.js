@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const invoicesController = require('../controllers/invoicesController');
 const authMiddleware = require('../middleware/auth');
+const { requirePermission } = require('../middleware/financialPermission');
+
+const { authorize } = require('../middleware/roleMiddleware');
 
 // Apply authMiddleware to all routes in this file
 router.use(authMiddleware);
@@ -34,11 +37,11 @@ router.post('/from-sales-order/:orderId', invoicesController.createInvoiceFromSa
 // @route   POST api/invoices/:id/payments
 // @desc    Add Payment to Invoice
 // @access  Private
-router.post('/:id/payments', invoicesController.addPayment);
+router.post('/:id/payments', requirePermission('payment.create'), invoicesController.addPayment);
 
 // @route   DELETE api/invoices/:id
-// @desc    Delete invoice
+// @desc    Delete invoice (Admin only)
 // @access  Private
-router.delete('/:id', invoicesController.deleteInvoice);
+router.delete('/:id', authorize(['admin']), invoicesController.deleteInvoice);
 
 module.exports = router;

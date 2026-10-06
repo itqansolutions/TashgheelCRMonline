@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import api from '../services/api';
-import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRight, MapPin, Coins, Ruler, Building2, Layers, Zap, Clock, AlertCircle, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRight, MapPin, Coins, Ruler, Building2, Layers, Zap, Clock, AlertCircle, FileText, CheckCircle2, XCircle, CreditCard, Award, Key } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import KanbanBoard from '../components/Deals/KanbanBoard';
 import Modal from '../components/Common/Modal';
@@ -12,10 +12,12 @@ import SalesSubNav from '../components/Sales/SalesSubNav';
 import { useAuth } from '../context/AuthContext';
 
 const Deals = () => {
-  const { user } = useAuth();
+  const { user, hasFinancialPermission } = useAuth();
   const { deals, fetchDeals, customers, fetchCustomers, products, fetchProducts, users, fetchUsers, templateConfig, loading } = useData();
   const isRealEstate = user?.template_name === 'real_estate';
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTabParam = searchParams.get('tab') || 'all';
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState(null);
   const [reUnits, setReUnits] = useState([]);
@@ -738,8 +740,22 @@ const Deals = () => {
             {templateConfig?.name === 'Real Estate' ? <Zap size={14} /> : <Target size={14} />}
             {templateConfig?.name?.toUpperCase() || 'GENERAL'} MODE
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Sales Pipeline</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Track your deals from discovery to closing.</p>
+          <h2 style={{ fontSize: '24px', fontWeight: '800' }}>
+            {activeTabParam === 'installments' ? 'Installments & Payment Plans' :
+             activeTabParam === 'contracts' ? 'Sales Contracts' :
+             activeTabParam === 'reservations' ? 'Unit Reservations' :
+             activeTabParam === 'commissions' ? 'Agent Commissions' :
+             activeTabParam === 'handover' ? 'Unit Handovers' :
+             'Sales Pipeline'}
+          </h2>
+          <p style={{ color: 'var(--text-muted)' }}>
+            {activeTabParam === 'installments' ? 'Manage payment schedules, dues, and collections across sales deals.' :
+             activeTabParam === 'contracts' ? 'Formal sales contracts and document lifecycle tracking.' :
+             activeTabParam === 'reservations' ? 'Reserved units and down-payment tracking.' :
+             activeTabParam === 'commissions' ? 'Internal and external broker commission balances.' :
+             activeTabParam === 'handover' ? 'Delivery checklists and unit key handovers.' :
+             'Track your deals from discovery to closing.'}
+          </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
@@ -757,11 +773,74 @@ const Deals = () => {
         </div>
       </div>
 
-      {viewMode === 'table' ? (
+      {/* Real Estate Sales Tabs Navigation Bar */}
+      {isRealEstate && (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '4px' }}>
+          {[
+            { id: 'all', label: 'All Deals', icon: <Handshake size={15} /> },
+            { id: 'reservations', label: 'Reservations', icon: <CheckCircle2 size={15} /> },
+            { id: 'contracts', label: 'Contracts', icon: <FileText size={15} /> },
+            { id: 'installments', label: 'Installments', icon: <CreditCard size={15} /> },
+            { id: 'commissions', label: 'Commissions', icon: <Award size={15} /> },
+            { id: 'handover', label: 'Handover', icon: <Key size={15} /> },
+          ].map(tab => {
+            const isActive = (activeTabParam === tab.id) || (activeTabParam === 'all' && tab.id === 'all');
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => {
+                  if (tab.id === 'all') {
+                    setSearchParams({});
+                  } else {
+                    setSearchParams({ tab: tab.id });
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '10px',
+                  border: isActive ? '1px solid var(--primary)' : '1px solid #e2e8f0',
+                  background: isActive ? 'var(--primary)' : 'white',
+                  color: isActive ? 'white' : '#64748b',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: isActive ? '0 2px 8px rgba(79,70,229,0.2)' : 'none',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {(() => {
+        let displayedDeals = deals || [];
+        if (isRealEstate && activeTabParam !== 'all') {
+          if (activeTabParam === 'reservations') {
+            displayedDeals = displayedDeals.filter(d => d.unit_status === 'Reserved' || (d.pipeline_stage || '').toLowerCase().includes('reser') || (d.pipeline_stage || '').toLowerCase().includes('interest'));
+          } else if (activeTabParam === 'contracts') {
+            displayedDeals = displayedDeals.filter(d => d.unit_status === 'Sold' || ['negotiation', 'won', 'closed'].includes((d.pipeline_stage || '').toLowerCase()));
+          } else if (activeTabParam === 'installments') {
+            displayedDeals = displayedDeals.filter(d => d.unit_id || d.value > 0);
+          } else if (activeTabParam === 'commissions') {
+            displayedDeals = displayedDeals.filter(d => d.value > 0);
+          } else if (activeTabParam === 'handover') {
+            displayedDeals = displayedDeals.filter(d => d.unit_id && ['won', 'closed'].includes((d.pipeline_stage || '').toLowerCase()));
+          }
+        }
+
+        return viewMode === 'table' ? (
           <DataTable 
-            title="Active CRM Opportunities"
+            title={activeTabParam !== 'all' ? `Deals (${activeTabParam.toUpperCase()})` : "Active CRM Opportunities"}
             columns={columns.filter(Boolean)}
-            data={deals || []}
+            data={displayedDeals}
             loading={loading}
             onEdit={handleOpenModal}
             onDelete={handleDelete}
@@ -776,13 +855,14 @@ const Deals = () => {
               </button>
             )}
           />
-      ) : (
+        ) : (
           <KanbanBoard 
-            deals={deals || []}
+            deals={displayedDeals}
             pipelineStages={templateConfig?.pipeline || ['discovery', 'proposal', 'negotiation', 'won', 'lost']}
             onEdit={handleOpenModal}
           />
-      )}
+        );
+      })()}
 
       <Modal 
         isOpen={isModalOpen} 
@@ -1236,7 +1316,7 @@ const Deals = () => {
                                     </span>
                                   </td>
                                   <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                                    {inst.status !== 'Paid' && (
+                                    {inst.status !== 'Paid' && hasFinancialPermission?.('payment.create') && (
                                       <button
                                         type="button"
                                         onClick={() => handlePayInstallment(inst.id, remaining)}
@@ -1423,7 +1503,7 @@ const Deals = () => {
                                     Approve
                                   </button>
                                 )}
-                                {(comm.status === 'Approved' || comm.status === 'Earned' || comm.status === 'Partially Paid') && unpaid > 0 && (
+                                {(comm.status === 'Approved' || comm.status === 'Earned' || comm.status === 'Partially Paid') && unpaid > 0 && hasFinancialPermission?.('payment.create') && (
                                   <button
                                     type="button"
                                     onClick={() => handlePayCommission(comm.id, unpaid)}
@@ -1748,46 +1828,51 @@ const Deals = () => {
                                               className="ap-input"
                                               style={{ flex: 1 }}
                                               id="new_payment_trigger"
+                                              disabled={!hasFinancialPermission?.('payment.create')}
                                           />
-                                          <button 
-                                              type="button"
-                                              onClick={async () => {
-                                                  const newAmt = document.getElementById('new_payment_trigger').value;
-                                                  if (!newAmt) return;
-                                                  try {
-                                                      const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
-                                                      if (payRes.data.data) {
-                                                          const updatedAmt = Number(payRes.data.data.paid_amount) + Number(newAmt);
-                                                          await api.put(`/re-payments/${payRes.data.data.id}`, { paid_amount: updatedAmt });
-                                                          toast.success(`Payment logged: +${newAmt} EGP`);
-                                                          fetchDeals(false);
-                                                          document.getElementById('new_payment_trigger').value = '';
-                                                      }
-                                                  } catch (err) { toast.error('Update failed'); }
-                                              }}
-                                              style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 700, cursor: 'pointer' }}
-                                          >
-                                              Add
-                                          </button>
+                                          {hasFinancialPermission?.('payment.create') && (
+                                              <button 
+                                                  type="button"
+                                                  onClick={async () => {
+                                                      const newAmt = document.getElementById('new_payment_trigger').value;
+                                                      if (!newAmt) return;
+                                                      try {
+                                                          const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
+                                                          if (payRes.data.data) {
+                                                              const updatedAmt = Number(payRes.data.data.paid_amount) + Number(newAmt);
+                                                              await api.put(`/re-payments/${payRes.data.data.id}`, { paid_amount: updatedAmt });
+                                                              toast.success(`Payment logged: +${newAmt} EGP`);
+                                                              fetchDeals(false);
+                                                              document.getElementById('new_payment_trigger').value = '';
+                                                          }
+                                                      } catch (err) { toast.error('Update failed'); }
+                                                  }}
+                                                  style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 700, cursor: 'pointer' }}
+                                              >
+                                                  Add
+                                              </button>
+                                          )}
                                       </div>
                                   </div>
                                   <div className="form-group" style={{ marginBottom: 0 }}>
                                       <label style={{ fontSize: '12px' }}>Next Installment Date</label>
-                                      <input 
-                                          type="date" 
-                                          className="ap-input"
-                                          defaultValue={editingDeal.next_payment_date ? new Date(editingDeal.next_payment_date).toISOString().split('T')[0] : ''}
-                                          onChange={async (e) => {
-                                              try {
-                                                  const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
-                                                  if (payRes.data.data) {
-                                                      await api.put(`/re-payments/${payRes.data.data.id}`, { next_payment_date: e.target.value });
-                                                      toast.success('Installment horizon updated');
-                                                      fetchDeals(false);
-                                                  }
-                                              } catch (err) { toast.error('Update failed'); }
-                                          }}
-                                      />
+                                        <input 
+                                            type="date" 
+                                            className="ap-input"
+                                            disabled={!hasFinancialPermission?.('payment.create')}
+                                            defaultValue={editingDeal.next_payment_date ? new Date(editingDeal.next_payment_date).toISOString().split('T')[0] : ''}
+                                            onChange={async (e) => {
+                                                if (!hasFinancialPermission?.('payment.create')) return;
+                                                try {
+                                                    const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
+                                                    if (payRes.data.data) {
+                                                        await api.put(`/re-payments/${payRes.data.data.id}`, { next_payment_date: e.target.value });
+                                                        toast.success('Installment horizon updated');
+                                                        fetchDeals(false);
+                                                    }
+                                                } catch (err) { toast.error('Update failed'); }
+                                            }}
+                                        />
                                   </div>
                               </div>
                           </>

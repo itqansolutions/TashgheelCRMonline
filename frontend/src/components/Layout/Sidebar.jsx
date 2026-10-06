@@ -7,7 +7,7 @@ import {
   Building2, UserCircle, Phone, ChevronDown, ChevronUp, Truck, Briefcase,
   Building, ShieldCheck, ArrowLeftRight, Scale,
   Share2, FileCheck, Send, MessageCircle,
-  ShoppingCart, ArrowDownLeft, Calendar, Award, Key, Layers, Activity
+  ShoppingCart, ArrowDownLeft, Calendar, Award, Key, Layers, Activity, UserCheck, Clock
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
@@ -29,6 +29,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const [purchasingOpen, setPurchasingOpen] = useState(true);
   const [financeOpen, setFinanceOpen] = useState(true);
   const [marketingOpen, setMarketingOpen] = useState(true);
+  const [hrOpen, setHrOpen] = useState(true);
 
   // -------------------------------------------------------------
   // SHARED CRM NAVIGATION ITEMS (Both Templates)
@@ -108,6 +109,18 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   ];
 
   // -------------------------------------------------------------
+  // SHARED HR & WORKFORCE (Governed by can('hr'))
+  // -------------------------------------------------------------
+  const hrItemsList = [
+    { name: 'My Attendance',   icon: <Clock size={18} />,     path: '/hr/my-attendance' },
+    { name: 'My Requests',     icon: <FileText size={18} />,  path: '/hr/my-requests' },
+    { name: 'Admin Dashboard', icon: <UserCheck size={18} />, path: '/hr/dashboard' },
+    { name: 'Approvals',       icon: <ShieldCheck size={18} />, path: '/hr/approvals' },
+    { name: 'Payroll Engine',  icon: <DollarSign size={18} />, path: '/hr/payroll' },
+    { name: 'Shifts & Hours',  icon: <Calendar size={18} />,  path: '/hr/shifts' },
+  ];
+
+  // -------------------------------------------------------------
   // SHARED MARKETING & INTEGRATIONS (Both Templates)
   // -------------------------------------------------------------
   const sharedMarketingItems = [
@@ -148,13 +161,21 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     const itemParams = new URLSearchParams(itemQuery);
     const currentParams = new URLSearchParams(location.search);
     const itemTab = itemParams.get('tab');
-    if (!itemTab) return true;
-    const currentTab = currentParams.get('tab');
-    return itemTab.toLowerCase() === (currentTab || '').toLowerCase();
+    if (itemTab !== null) {
+      const currentTab = currentParams.get('tab');
+      return itemTab.toLowerCase() === (currentTab || '').toLowerCase();
+    }
+    const itemType = itemParams.get('type');
+    if (itemType !== null) {
+      const currentType = currentParams.get('type');
+      return itemType.toLowerCase() === (currentType || '').toLowerCase();
+    }
+    return true;
   };
 
   const hasInventory = can('inventory');
   const hasPurchasing = can('purchasing') || can('inventory');
+  const hasHr = can('hr');
 
   const trialColor = trialDaysLeft !== null
     ? trialDaysLeft <= 3 ? '#ef4444' : trialDaysLeft <= 7 ? '#f59e0b' : '#10b981'
@@ -167,6 +188,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const inventoryItems = hasInventory ? filterByAllowed(inventoryItemsList) : [];
   const purchasingItems = hasPurchasing ? filterByAllowed(purchasingItemsList) : [];
   const financeItems = filterByAllowed(sharedFinanceItems);
+  const hrItems = hasHr ? filterByAllowed(hrItemsList) : [];
   const marketingItems = filterByAllowed(sharedMarketingItems);
   const visibleBottomItems = filterByAllowed(bottomNavItems);
 
@@ -413,6 +435,25 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             <div className={`group-sub-items ${isOpen && marketingOpen ? 'expanded' : 'collapsed'}`}>
               {marketingItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* 8. HR & Workforce Group (Governed by can('hr')) */}
+        {hasHr && hrItems.length > 0 && (
+          <>
+            <div className="group-header" onClick={() => isOpen && setHrOpen(prev => !prev)} title={!isOpen ? 'HR & Workforce' : undefined}>
+              <UserCheck size={18} className="main-icon" />
+              <span className="group-label">HR & Workforce</span>
+              {isOpen && (hrOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
+            </div>
+            <div className={`group-sub-items ${isOpen && hrOpen ? 'expanded' : 'collapsed'}`}>
+              {hrItems.map(item => (
+                <NavLink key={item.name} to={item.path} className={({ isActive }) => item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : '')}>
                   {item.icon}
                   <span>{item.name}</span>
                 </NavLink>

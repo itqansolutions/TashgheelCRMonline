@@ -18,12 +18,12 @@ import Treasury from './Treasury';
 import Reports from './Reports';
 
 const FinanceDashboard = () => {
-  const { user } = useAuth();
+  const { user, hasFinancialPermission } = useAuth();
   const { customers, products, units, fetchUnits, fetchCustomers, fetchProducts } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   
-  const ALL_TABS = ['Overview', 'Invoices', 'Receipts', 'Expenses', 'Customers', 'Vendors', 'Treasury', 'Reports'];
+  const ALL_TABS = ['Overview', 'Invoices', 'Quotations', 'Receipts', 'Expenses', 'Customers', 'Vendors', 'Treasury', 'Reports'];
 
   const queryParams = new URLSearchParams(location.search);
   const rawTab = queryParams.get('tab') || location.state?.tab || 'Overview';
@@ -361,9 +361,11 @@ const FinanceDashboard = () => {
                         <td>{getStatusBadge(inv.status)}</td>
                         <td>
                             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                <button className="action-btn pay-btn" onClick={() => openPaymentModal(inv)} disabled={inv.status === 'paid'}>
-                                    <CreditCard size={14} /> Pay
-                                </button>
+                                {hasFinancialPermission?.('payment.create') && (
+                                  <button className="action-btn pay-btn" onClick={() => openPaymentModal(inv)} disabled={inv.status === 'paid'}>
+                                      <CreditCard size={14} /> Pay
+                                  </button>
+                                )}
                                 <button className="action-btn" onClick={() => navigate(`/finance/invoice-preview/${inv.id}`)}>
                                     <Download size={14} /> PDF
                                 </button>
@@ -695,12 +697,12 @@ const FinanceDashboard = () => {
                 <Plus size={18} /> New Invoice
               </button>
             )}
-            {activeTab === 'Receipts' && (
+            {activeTab === 'Receipts' && hasFinancialPermission?.('payment.create') && (
               <button className="btn-primary" style={{ background: '#10b981', borderColor: '#10b981' }} onClick={() => { setQuickActionType('Receipt Voucher'); setShowQuickAction(true); }}>
                 <Plus size={16} /> New Receipt
               </button>
             )}
-            {activeTab === 'Expenses' && (
+            {activeTab === 'Expenses' && hasFinancialPermission?.('payment.create') && (
               <button className="btn-primary" style={{ background: '#f59e0b', borderColor: '#f59e0b' }} onClick={() => { setQuickActionType('Expense'); setShowQuickAction(true); }}>
                 <Plus size={16} /> New Expense
               </button>

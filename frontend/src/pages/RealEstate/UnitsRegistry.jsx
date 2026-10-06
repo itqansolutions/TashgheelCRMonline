@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, MapPin } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -16,6 +16,7 @@ export const formatN2 = (val) => {
 
 const UnitsRegistry = () => {
     const { user } = useAuth();
+    const [searchParams] = useSearchParams();
     const { users, customers, fetchCustomers, fetchUsers } = useData();
     const [units, setUnits] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -143,6 +144,18 @@ const UnitsRegistry = () => {
         if (users.length === 0) fetchUsers();
         if (customers.length === 0) fetchCustomers();
     }, []);
+
+    // Sync URL tab with hierarchy management modal
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab === 'developers') {
+            setHierarchyTab('developers');
+            setShowManageHierarchyModal(true);
+        } else if (tab === 'projects' || tab === 'phases' || tab === 'buildings') {
+            setHierarchyTab('projects');
+            setShowManageHierarchyModal(true);
+        }
+    }, [searchParams]);
 
     const handlePriceChange = (e) => {
         const raw = e.target.value.replace(/,/g, '');

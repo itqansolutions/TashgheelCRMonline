@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/reInstallmentsController');
 const authMiddleware = require('../middleware/auth');
+const { requirePermission } = require('../middleware/financialPermission');
 
 router.use(authMiddleware);
 
 router.get('/', ctrl.getInstallments);
 router.post('/generate-schedule', ctrl.generateSchedule);
-router.post('/:id/pay', ctrl.recordPayment);
+router.post('/:id/pay', requirePermission('payment.create'), ctrl.recordPayment);
 router.delete('/:id', ctrl.deleteInstallment);
 
 module.exports = router;
