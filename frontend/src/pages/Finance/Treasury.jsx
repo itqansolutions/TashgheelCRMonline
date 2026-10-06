@@ -7,6 +7,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, Building2,
   Edit2, CheckCircle, AlertCircle
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -204,6 +205,7 @@ const btnStyle = { padding: '10px 18px', borderRadius: '8px', border: '1px solid
 
 // ─── Main Treasury Component ──────────────────────────────────────────────────
 const Treasury = () => {
+  const { hasFinancialPermission } = useAuth();
   const [accounts, setAccounts]     = useState([]);
   const [totals, setTotals]         = useState(null);
   const [loading, setLoading]       = useState(true);
@@ -296,9 +298,11 @@ const Treasury = () => {
             <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Accounts ({accounts.length})
             </div>
-            <button onClick={() => setShowAdd(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}>
-              <Plus size={13} /> Add
-            </button>
+            {hasFinancialPermission?.('payment.create') && (
+              <button onClick={() => setShowAdd(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '12px' }}>
+                <Plus size={13} /> Add
+              </button>
+            )}
           </div>
 
           {accounts.length === 0 ? (
@@ -308,9 +312,11 @@ const Treasury = () => {
               <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
                 Add a Cashbox or Bank Account to start tracking cash flows
               </div>
-              <button onClick={() => setShowAdd(true)} style={{ padding: '8px 20px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
-                + Add First Account
-              </button>
+              {hasFinancialPermission?.('payment.create') && (
+                <button onClick={() => setShowAdd(true)} style={{ padding: '8px 20px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}>
+                  + Add First Account
+                </button>
+              )}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

@@ -10,42 +10,55 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in on mount
+    let isMounted = true;
     const token = localStorage.getItem('token');
     if (token) {
-      fetchUser();
+      fetchUser(isMounted);
     } else {
       setLoading(false);
     }
+    return () => { isMounted = false; };
   }, []);
 
-  const fetchUser = async () => {
+  const fetchUser = async (isMounted = true) => {
     try {
       const res = await api.get('/auth/me');
-      const userData = res.data.user;
-      setUser({
-        ...userData,
-        allowedPages: safeArray(userData.allowedPages),
-        branches: safeArray(userData.branches),
-        financialPermissions: safeArray(userData.financialPermissions)
-      });
+      const freshUserData = res.data.user || {};
+      if (isMounted) {
+        setUser(prevUser => {
+          const merged = {
+            ...(prevUser || {}),
+            ...freshUserData,
+            allowedPages: safeArray(freshUserData.allowedPages || prevUser?.allowedPages),
+            branches: safeArray(freshUserData.branches || prevUser?.branches),
+            financialPermissions: safeArray(freshUserData.financialPermissions || prevUser?.financialPermissions)
+          };
+          return merged;
+        });
+      }
 
       // Load subscription (cached or fresh)
       const cached = localStorage.getItem('subscription');
-      if (cached) setSubscription(JSON.parse(cached));
+      if (cached && isMounted) setSubscription(JSON.parse(cached));
 
       // Fetch fresh from API (non-blocking)
       api.get('/me/subscription').then(subRes => {
         const sub = subRes.data.data;
-        setSubscription(sub);
+        if (isMounted) setSubscription(sub);
         localStorage.setItem('subscription', JSON.stringify(sub));
       }).catch(() => {});
 
     } catch (err) {
-      console.error('Failed to fetch user', err);
-      logout();
+      console.error('Failed to fetch user', err.message);
+      // Only log out if the server explicitly returned 401 Unauthorized
+      if (err.response?.status === 401) {
+        logout();
+      }
+      // On network errors / 5xx / timeouts, preserve session as fallback
     } finally {
-      setLoading(false);
+      if (isMounted) {
+        setLoading(false);
+      }
     }
   };
 

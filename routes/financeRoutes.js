@@ -96,11 +96,11 @@ router.get('/treasury/accounts', financeController.getTreasuryAccounts);
 
 // @route   POST api/finance/treasury/accounts
 // @desc    Create a cashbox or bank account
-router.post('/treasury/accounts', financeController.createTreasuryAccount);
+router.post('/treasury/accounts', requirePermission('payment.create'), financeController.createTreasuryAccount);
 
 // @route   PUT api/finance/treasury/accounts/:id
 // @desc    Update treasury account details (name, bank info, default, active)
-router.put('/treasury/accounts/:id', financeController.updateTreasuryAccount);
+router.put('/treasury/accounts/:id', requirePermission('payment.create'), financeController.updateTreasuryAccount);
 
 // @route   GET api/finance/treasury/accounts/:id/transactions
 // @desc    UNION of payments (IN) + expenses (OUT) for a treasury account

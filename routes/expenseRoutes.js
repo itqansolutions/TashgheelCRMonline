@@ -25,11 +25,11 @@ router.post('/', requirePermission('payment.create'), expensesController.createE
 // @route   PUT api/expenses/:id
 // @desc    Update expense
 // @access  Private
-router.put('/:id', expensesController.updateExpense);
+router.put('/:id', requirePermission('payment.create'), expensesController.updateExpense);
 
 // @route   DELETE api/expenses/:id
 // @desc    Delete expense
 // @access  Private
-router.delete('/:id', expensesController.deleteExpense);
+router.delete('/:id', requirePermission('payment.create'), expensesController.deleteExpense);
 
 module.exports = router;

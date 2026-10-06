@@ -1,4 +1,5 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -51,6 +52,14 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Handle centralized 403 Permission Denied UX
+    if (error.response?.status === 403) {
+      const data = error.response.data;
+      if (data?.code === 'PERMISSION_DENIED' || data?.required_permission || (typeof data?.message === 'string' && data.message.toLowerCase().includes('permission denied'))) {
+        toast.error("You don't have permission to perform this action.");
+      }
+    }
+
     // Handle global errors (401 Unauthorized)
     if (error.response?.status === 401) {
       if (localStorage.getItem('token')) {

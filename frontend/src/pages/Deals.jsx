@@ -1748,46 +1748,51 @@ const Deals = () => {
                                               className="ap-input"
                                               style={{ flex: 1 }}
                                               id="new_payment_trigger"
+                                              disabled={!hasFinancialPermission?.('payment.create')}
                                           />
-                                          <button 
-                                              type="button"
-                                              onClick={async () => {
-                                                  const newAmt = document.getElementById('new_payment_trigger').value;
-                                                  if (!newAmt) return;
-                                                  try {
-                                                      const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
-                                                      if (payRes.data.data) {
-                                                          const updatedAmt = Number(payRes.data.data.paid_amount) + Number(newAmt);
-                                                          await api.put(`/re-payments/${payRes.data.data.id}`, { paid_amount: updatedAmt });
-                                                          toast.success(`Payment logged: +${newAmt} EGP`);
-                                                          fetchDeals(false);
-                                                          document.getElementById('new_payment_trigger').value = '';
-                                                      }
-                                                  } catch (err) { toast.error('Update failed'); }
-                                              }}
-                                              style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 700, cursor: 'pointer' }}
-                                          >
-                                              Add
-                                          </button>
+                                          {hasFinancialPermission?.('payment.create') && (
+                                              <button 
+                                                  type="button"
+                                                  onClick={async () => {
+                                                      const newAmt = document.getElementById('new_payment_trigger').value;
+                                                      if (!newAmt) return;
+                                                      try {
+                                                          const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
+                                                          if (payRes.data.data) {
+                                                              const updatedAmt = Number(payRes.data.data.paid_amount) + Number(newAmt);
+                                                              await api.put(`/re-payments/${payRes.data.data.id}`, { paid_amount: updatedAmt });
+                                                              toast.success(`Payment logged: +${newAmt} EGP`);
+                                                              fetchDeals(false);
+                                                              document.getElementById('new_payment_trigger').value = '';
+                                                          }
+                                                      } catch (err) { toast.error('Update failed'); }
+                                                  }}
+                                                  style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 700, cursor: 'pointer' }}
+                                              >
+                                                  Add
+                                              </button>
+                                          )}
                                       </div>
                                   </div>
                                   <div className="form-group" style={{ marginBottom: 0 }}>
                                       <label style={{ fontSize: '12px' }}>Next Installment Date</label>
-                                      <input 
-                                          type="date" 
-                                          className="ap-input"
-                                          defaultValue={editingDeal.next_payment_date ? new Date(editingDeal.next_payment_date).toISOString().split('T')[0] : ''}
-                                          onChange={async (e) => {
-                                              try {
-                                                  const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
-                                                  if (payRes.data.data) {
-                                                      await api.put(`/re-payments/${payRes.data.data.id}`, { next_payment_date: e.target.value });
-                                                      toast.success('Installment horizon updated');
-                                                      fetchDeals(false);
-                                                  }
-                                              } catch (err) { toast.error('Update failed'); }
-                                          }}
-                                      />
+                                        <input 
+                                            type="date" 
+                                            className="ap-input"
+                                            disabled={!hasFinancialPermission?.('payment.create')}
+                                            defaultValue={editingDeal.next_payment_date ? new Date(editingDeal.next_payment_date).toISOString().split('T')[0] : ''}
+                                            onChange={async (e) => {
+                                                if (!hasFinancialPermission?.('payment.create')) return;
+                                                try {
+                                                    const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
+                                                    if (payRes.data.data) {
+                                                        await api.put(`/re-payments/${payRes.data.data.id}`, { next_payment_date: e.target.value });
+                                                        toast.success('Installment horizon updated');
+                                                        fetchDeals(false);
+                                                    }
+                                                } catch (err) { toast.error('Update failed'); }
+                                            }}
+                                        />
                                   </div>
                               </div>
                           </>

@@ -216,10 +216,101 @@ test('Phase 9: Financial Write Authorization Hardening Suite', async (t) => {
     assert.ok(commPay, 'POST /:id/pay must exist in reCommissionRoutes');
     assert.ok(commPay.length >= 2, 'POST /:id/pay must have guard middleware');
 
-    // 6. expenseRoutes: POST /
+    // 6. expenseRoutes: POST /, PUT /:id, DELETE /:id
     const expenseRoutes = require('../routes/expenseRoutes');
     const expPost = findRouteHandlers(expenseRoutes, '/', 'POST');
     assert.ok(expPost, 'POST / must exist in expenseRoutes');
     assert.ok(expPost.length >= 2, 'POST / must have guard middleware');
+
+    const expPut = findRouteHandlers(expenseRoutes, '/:id', 'PUT');
+    assert.ok(expPut, 'PUT /:id must exist in expenseRoutes');
+    assert.ok(expPut.length >= 2, 'PUT /:id must have guard middleware');
+
+    const expDelete = findRouteHandlers(expenseRoutes, '/:id', 'DELETE');
+    assert.ok(expDelete, 'DELETE /:id must exist in expenseRoutes');
+    assert.ok(expDelete.length >= 2, 'DELETE /:id must have guard middleware');
+
+    // 7. treasury routes: POST /treasury/accounts, PUT /treasury/accounts/:id
+    const postTreasury = findRouteHandlers(financeRoutes, '/treasury/accounts', 'POST');
+    assert.ok(postTreasury, 'POST /treasury/accounts must exist in financeRoutes');
+    assert.ok(postTreasury.length >= 2, 'POST /treasury/accounts must have guard middleware');
+
+    const putTreasury = findRouteHandlers(financeRoutes, '/treasury/accounts/:id', 'PUT');
+    assert.ok(putTreasury, 'PUT /treasury/accounts/:id must exist in financeRoutes');
+    assert.ok(putTreasury.length >= 2, 'PUT /treasury/accounts/:id must have guard middleware');
+
+    // 8. rePaymentRoutes: PUT /:id, DELETE /:id
+    const rePaymentRoutes = require('../routes/rePaymentRoutes');
+    const putRePayment = findRouteHandlers(rePaymentRoutes, '/:id', 'PUT');
+    assert.ok(putRePayment, 'PUT /:id must exist in rePaymentRoutes');
+    assert.ok(putRePayment.length >= 2, 'PUT /:id must have guard middleware');
+
+    const deleteRePayment = findRouteHandlers(rePaymentRoutes, '/:id', 'DELETE');
+    assert.ok(deleteRePayment, 'DELETE /:id must exist in rePaymentRoutes');
+    assert.ok(deleteRePayment.length >= 2, 'DELETE /:id must have guard middleware');
+  });
+
+  // ---------------------------------------------------------------------------
+  // 5. Behavioral Authorization Test with Mock DB
+  // ---------------------------------------------------------------------------
+  await t.test('Behavioral Authorization: newly protected route allows admin/manager but blocks employee with 403 and zero DB mutation', async () => {
+    let dbMutations = 0;
+    db.query = async (sql, params) => {
+      // Intercept permission override queries
+      if (sql.includes('FROM financial_permissions')) {
+        return { rows: [] };
+      }
+      // Count any mutation queries
+      if (/insert|update|delete/i.test(sql)) {
+        dbMutations++;
+        return { rows: [{ id: 99, status: 'deleted' }] };
+      }
+      return { rows: [{ id: 99, tenant_id: 't-1' }] };
+    };
+
+    const expensesController = require('../controllers/expensesController');
+    const guardMw = requirePermission('payment.create');
+
+    // Case 1: Employee attempts expense deletion
+    let employeeStatus = null;
+    let employeeJson = null;
+    let employeeNextCalled = false;
+    const employeeReq = {
+      user: { id: 101, tenant_id: 't-1', role: 'employee' },
+      params: { id: 99 }
+    };
+    const employeeRes = {
+      status(code) { employeeStatus = code; return this; },
+      json(data) { employeeJson = data; return this; }
+    };
+    await guardMw(employeeReq, employeeRes, () => {
+      employeeNextCalled = true;
+      return expensesController.deleteExpense(employeeReq, employeeRes);
+    });
+
+    assert.equal(employeeStatus, 403, 'Employee must be blocked with 403');
+    assert.equal(employeeNextCalled, false, 'Controller must not be called');
+    assert.equal(dbMutations, 0, 'Zero DB mutations must occur for denied employee');
+
+    // Case 2: Manager executes expense deletion
+    let managerStatus = null;
+    let managerJson = null;
+    let managerNextCalled = false;
+    const managerReq = {
+      user: { id: 102, tenant_id: 't-1', role: 'manager' },
+      params: { id: 99 }
+    };
+    const managerRes = {
+      status(code) { managerStatus = code; return this; },
+      json(data) { managerJson = data; return this; }
+    };
+    await guardMw(managerReq, managerRes, async () => {
+      managerNextCalled = true;
+      await expensesController.deleteExpense(managerReq, managerRes);
+    });
+
+    assert.equal(managerNextCalled, true, 'Manager must pass through guard to controller');
+    assert.equal(dbMutations, 1, 'Manager must be permitted to mutate database');
+    assert.equal(managerJson?.status, 'success', 'Manager deletion must succeed');
   });
 });
