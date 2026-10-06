@@ -39,7 +39,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (template === 'real_estate') {
     const isGeneralSalesOnly = [
       '/sales/orders', '/sales/documents',
-      '/sales/price-tiers', '/sales/salesmen', '/sales/target',
+      '/sales/price-tiers',
       '/erp/sales'
     ].some(prefix => checkPath.startsWith(prefix));
 

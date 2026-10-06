@@ -154,7 +154,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // 4. SALES ITEMS (BOTH TEMPLATES)
   // -------------------------------------------------------------
   const rawSalesItems = [
-    { name: 'Quotations',  icon: <FileText size={18} />,    path: '/quotations' },
+    { name: 'Quotations',  icon: <FileText size={18} />,    path: '/finance?tab=Quotations' },
     { name: 'Salesmen',    icon: <Users size={18} />,       path: '/sales/salesmen' },
     { name: 'Targets',     icon: <Award size={18} />,       path: '/sales/target' },
     { name: 'Commissions', icon: <DollarSign size={18} />,  path: '/deals?tab=commissions' },
@@ -386,7 +386,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         
         {/* TOP LEVEL: Dashboard */}
         {isPathAllowed('/dashboard') && (
-          <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
+          <NavLink to="/dashboard" className={() => isItemActive('/dashboard') ? 'active' : ''}>
             <LayoutDashboard size={18} />
             <span>Dashboard</span>
           </NavLink>
@@ -402,7 +402,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             </div>
             <div className={`group-sub-items ${isOpen && profileOpen ? 'expanded' : 'collapsed'}`}>
               {profileItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : '')}>
+                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
                   <span>{item.name}</span>
                 </NavLink>
@@ -421,7 +421,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             </div>
             <div className={`group-sub-items ${isOpen && contactsOpen ? 'expanded' : 'collapsed'}`}>
               {visibleContactsDirect.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : '')}>
+                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
                   <span>{item.name}</span>
                 </NavLink>
@@ -494,7 +494,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
               {/* Real Estate Core: Units, Reservations, Contracts, Installments */}
               {reDirectItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : '')}>
+                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
                   <span>{item.name}</span>
                 </NavLink>
@@ -513,7 +513,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             </div>
             <div className={`group-sub-items ${isOpen && salesOpen ? 'expanded' : 'collapsed'}`}>
               {salesItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : '')}>
+                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
                   <span>{item.name}</span>
                 </NavLink>
@@ -535,7 +535,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                 <NavLink 
                   key={item.name} 
                   to={item.path} 
-                  className={({ isActive }) => (item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : ''))}
+                  className={() => isItemActive(item.path) ? 'active' : ''}
                 >
                   {item.icon}
                   <span>{item.name}</span>
@@ -555,7 +555,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             </div>
             <div className={`group-sub-items ${isOpen && marketingOpen ? 'expanded' : 'collapsed'}`}>
               {canAccessMetaForms && (
-                <NavLink to="/integrations/meta-forms" className={({ isActive }) => isActive ? 'active' : ''}>
+                <NavLink to="/integrations/meta-forms" className={() => isItemActive('/integrations/meta-forms') ? 'active' : ''}>
                   <FileText size={17} />
                   <span>Meta Forms</span>
                 </NavLink>
@@ -574,7 +574,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                   </div>
                   <div className={`group-sub-items nested ${isOpen && marketingWhatsappOpen ? 'expanded' : 'collapsed'}`}>
                     {whatsappSubItems.map(subItem => (
-                      <NavLink key={subItem.name} to={subItem.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                      <NavLink key={subItem.name} to={subItem.path} className={() => isItemActive(subItem.path) ? 'active' : ''}>
                         {subItem.icon}
                         <span>{subItem.name}</span>
                       </NavLink>
@@ -596,7 +596,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             </div>
             <div className={`group-sub-items ${isOpen && hrOpen ? 'expanded' : 'collapsed'}`}>
               {hrItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : '')}>
+                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
                   <span>{item.name}</span>
                 </NavLink>
@@ -615,7 +615,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             </div>
             <div className={`group-sub-items ${isOpen && purchasesOpen ? 'expanded' : 'collapsed'}`}>
               {purchasesItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => isActive ? 'active' : ''}>
+                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
                   <span>{item.name}</span>
                 </NavLink>
@@ -634,7 +634,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             </div>
             <div className={`group-sub-items ${isOpen && reportsOpen ? 'expanded' : 'collapsed'}`}>
               {reportsItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => item.path.includes('?') ? (isItemActive(item.path) ? 'active' : '') : (isActive ? 'active' : '')}>
+                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
                   <span>{item.name}</span>
                 </NavLink>
@@ -653,7 +653,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             </div>
             <div className={`group-sub-items ${isOpen && adminOpen ? 'expanded' : 'collapsed'}`}>
               {adminItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={({ isActive }) => (isActive ? 'active' : '')}>
+                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
                   <span>{item.name}</span>
                 </NavLink>

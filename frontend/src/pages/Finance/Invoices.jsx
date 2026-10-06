@@ -697,6 +697,11 @@ const FinanceDashboard = () => {
                 <Plus size={18} /> New Invoice
               </button>
             )}
+            {activeTab === 'Quotations' && (
+              <button className="btn-primary" onClick={() => { setQuickActionType('Quotation'); setShowQuickAction(true); }}>
+                <Plus size={18} /> New Quotation
+              </button>
+            )}
             {activeTab === 'Receipts' && hasFinancialPermission?.('payment.create') && (
               <button className="btn-primary" style={{ background: '#10b981', borderColor: '#10b981' }} onClick={() => { setQuickActionType('Receipt Voucher'); setShowQuickAction(true); }}>
                 <Plus size={16} /> New Receipt
@@ -769,6 +774,7 @@ const FinanceDashboard = () => {
             {[
                 { id: 'Overview',   label: 'Overview',   icon: <TrendingUp size={16} /> },
                 { id: 'Invoices',   label: 'Invoices',   icon: <FileText size={16} /> },
+                { id: 'Quotations', label: 'Quotations', icon: <FileText size={16} /> },
                 { id: 'Receipts',   label: 'Receipts',   icon: <ArrowDownLeft size={16} /> },
                 { id: 'Expenses',   label: 'Expenses',   icon: <DollarSign size={16} /> },
                 { id: 'Customers',  label: 'Customers',  icon: <Users size={16} /> },
@@ -787,7 +793,7 @@ const FinanceDashboard = () => {
             ))}
         </div>
 
-        {['Invoices', 'Receipts', 'Expenses'].includes(activeTab) && (
+        {['Invoices', 'Quotations', 'Receipts', 'Expenses'].includes(activeTab) && (
         <div style={{ position: 'relative', minWidth: '260px' }}>
             <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input 
