@@ -248,6 +248,11 @@ test('Phase 9: Financial Write Authorization Hardening Suite', async (t) => {
     const deleteRePayment = findRouteHandlers(rePaymentRoutes, '/:id', 'DELETE');
     assert.ok(deleteRePayment, 'DELETE /:id must exist in rePaymentRoutes');
     assert.ok(deleteRePayment.length >= 2, 'DELETE /:id must have guard middleware');
+
+    // 9. invoiceRoutes: DELETE /:id (admin only)
+    const deleteInvoice = findRouteHandlers(invoiceRoutes, '/:id', 'DELETE');
+    assert.ok(deleteInvoice, 'DELETE /:id must exist in invoiceRoutes');
+    assert.ok(deleteInvoice.length >= 2, 'DELETE /:id must have guard middleware');
   });
 
   // ---------------------------------------------------------------------------
@@ -312,5 +317,60 @@ test('Phase 9: Financial Write Authorization Hardening Suite', async (t) => {
     assert.equal(managerNextCalled, true, 'Manager must pass through guard to controller');
     assert.equal(dbMutations, 1, 'Manager must be permitted to mutate database');
     assert.equal(managerJson?.status, 'success', 'Manager deletion must succeed');
+  });
+
+  // ---------------------------------------------------------------------------
+  // 6. Invoice Deletion Integrity Test
+  // ---------------------------------------------------------------------------
+  await t.test('Invoice Deletion: blocks non-admin with 403, and refuses deletion when payments exist', async () => {
+    const { authorize } = require('../middleware/roleMiddleware');
+    const invoicesController = require('../controllers/invoicesController');
+    const adminGuard = authorize(['admin']);
+
+    // Case 1: Manager blocked with 403 by authorize(['admin'])
+    let managerStatus = null;
+    let managerNextCalled = false;
+    const managerReq = { user: { id: 102, tenant_id: 't-1', role: 'manager' } };
+    const managerRes = {
+      status(code) { managerStatus = code; return this; },
+      json() { return this; }
+    };
+    await adminGuard(managerReq, managerRes, () => {
+      managerNextCalled = true;
+    });
+    assert.equal(managerStatus, 403, 'Manager must receive 403 for invoice deletion');
+    assert.equal(managerNextCalled, false, 'deleteInvoice controller must not be called for manager');
+
+    // Case 2: Admin attempts delete on invoice with payments -> rejected with 400
+    let adminStatus = null;
+    let adminJson = null;
+    const origQuery = db.query;
+    db.query = async (sql, params) => {
+      if (sql.includes('FROM invoices WHERE id = $1')) {
+        return { rows: [{ id: 42, invoice_number: 'INV-42' }] };
+      }
+      if (sql.includes('FROM payments')) {
+        return { rows: [{ count: 1 }] }; // Active payment exists!
+      }
+      return { rows: [] };
+    };
+
+    const adminReq = {
+      user: { id: 1, tenant_id: 't-1', role: 'admin' },
+      branchId: 'b-1',
+      params: { id: 42 }
+    };
+    const adminRes = {
+      status(code) { adminStatus = code; return this; },
+      json(data) { adminJson = data; return this; }
+    };
+
+    try {
+      await invoicesController.deleteInvoice(adminReq, adminRes);
+      assert.equal(adminStatus, 400, 'Must return 400 when payments exist');
+      assert.match(adminJson?.message, /Cannot delete invoice with existing payment/i);
+    } finally {
+      db.query = origQuery;
+    }
   });
 });
