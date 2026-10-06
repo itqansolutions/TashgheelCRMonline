@@ -12,6 +12,11 @@ router.use(authMiddleware);
 // Apply branchScope middleware so we have access to req.branchId
 router.use(branchScope);
 
+// @route   GET api/dashboard/summary
+// @desc    Consolidated tenant-scoped dashboard metrics (Redesigned)
+// @access  Private
+router.get('/summary', dashboardController.getDashboardSummary);
+
 // @route   GET api/dashboard/branch-summary
 // @desc    Get top-level KPIs (Role-Based & ViewMode enabled)
 // @access  Private
@@ -23,3 +28,4 @@ router.get('/branch-summary', dashboardController.getBranchSummary);
 router.get('/branch-comparison', authorize(['admin', 'manager']), dashboardController.getComparison);
 
 module.exports = router;
+

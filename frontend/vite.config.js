@@ -10,10 +10,18 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
-    // Raise chunk size warning threshold to prevent Railway CI from treating
-    // Vite chunk warnings (written to stderr) as build failures
     chunkSizeWarningLimit: 1500,
   },
 })
+
 

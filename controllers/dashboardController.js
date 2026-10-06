@@ -390,3 +390,150 @@ exports.getComparison = async (req, res) => {
         res.status(500).json({ status: 'error', message: 'Intelligence Dashboard Comparison failed.' });
     }
 };
+
+/**
+ * ---------------------------------------------------------------------------
+ * REDESIGNED DASHBOARD COCKPIT (Phase 2): Consolidated Tenant Summary
+ * ---------------------------------------------------------------------------
+ * GET /api/dashboard/summary
+ * Strictly tenant-scoped, permission-aware, template-aware.
+ */
+const dashboardService = require('../services/dashboardService');
+const { checkFinancialPermission } = require('../middleware/financialPermission');
+
+exports.getDashboardSummary = async (req, res) => {
+    // 1. Strict Tenant Scoping from authenticated user ONLY
+    const tenant_id = String(req.user.tenant_id);
+    const userId = req.user.id;
+    const role = req.user.role;
+    const { timeFilter = 'THIS_MONTH' } = req.query;
+
+    try {
+        // 2. Identify Tenant Template
+        const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id::text = $1::text', [tenant_id]);
+        if (tenantRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Tenant not found.' });
+        }
+        const templateName = tenantRes.rows[0].template_name || 'general';
+
+        // 3. Module Entitlement Check (Attached by subscriptionGuard or loaded)
+        let modules = req.modules;
+        if (!modules) {
+            // Fallback load subscription if not already populated
+            const subRes = await db.query(`
+                SELECT p.modules FROM subscriptions s
+                JOIN plans p ON s.plan_id = p.id
+                WHERE s.tenant_id::text = $1::text
+            `, [tenant_id]);
+            modules = subRes.rows[0]?.modules || {};
+            if (typeof modules === 'string') {
+                try { modules = JSON.parse(modules); } catch (e) { modules = {}; }
+            }
+        }
+
+        const isModuleEnabled = (mod) => {
+            if (!mod) return true;
+            // Default essential modules to true if legacy without explicit subscription map
+            if (!modules || Object.keys(modules).length === 0) return true;
+            return modules[mod] === true;
+        };
+
+        // 4. Financial Permission Check
+        let hasFinanceAccess = false;
+        if (role === 'admin') {
+            hasFinanceAccess = true;
+        } else {
+            hasFinanceAccess = await checkFinancialPermission(userId, tenant_id, 'reports.operational', role);
+        }
+
+        const hasPurchasingAccess = isModuleEnabled('purchasing');
+        const hasInventoryAccess = isModuleEnabled('inventory');
+        const hasHrAccess = isModuleEnabled('hr');
+
+        // 5. Execute Template-Specific Aggregations
+        if (templateName === 'real_estate') {
+            const [
+                unitsOverview,
+                pipeline,
+                expiringReservations,
+                contractsAndInstallments,
+                collectionsFlow,
+                commissionsOverview,
+                upcomingHandovers
+            ] = await Promise.all([
+                dashboardService.getRealEstateUnitsOverview(tenant_id),
+                dashboardService.getRealEstatePipeline(tenant_id),
+                dashboardService.getRealEstateExpiringReservations(tenant_id),
+                dashboardService.getRealEstateContractsAndInstallments(tenant_id),
+                dashboardService.getRealEstateCollectionsFlow(tenant_id, hasFinanceAccess),
+                dashboardService.getRealEstateCommissionsOverview(tenant_id, hasFinanceAccess),
+                dashboardService.getRealEstateUpcomingHandovers(tenant_id)
+            ]);
+
+            return res.json({
+                status: 'success',
+                template: 'real_estate',
+                timeFilter,
+                modules: {
+                    finance: hasFinanceAccess,
+                    purchasing: hasPurchasingAccess,
+                    inventory: hasInventoryAccess,
+                    hr: hasHrAccess
+                },
+                data: {
+                    unitsOverview,
+                    pipeline,
+                    expiringReservations,
+                    contractsAndInstallments,
+                    collectionsFlow,
+                    commissionsOverview,
+                    upcomingHandovers
+                }
+            });
+        } else {
+            // General Template
+            const [
+                financeMetrics,
+                pipeline,
+                procurement,
+                inventory,
+                hrMetrics,
+                pendingActions
+            ] = await Promise.all([
+                dashboardService.getGeneralFinanceMetrics(tenant_id, timeFilter, hasFinanceAccess),
+                dashboardService.getGeneralPipeline(tenant_id),
+                dashboardService.getGeneralProcurementMetrics(tenant_id, hasPurchasingAccess),
+                dashboardService.getGeneralInventoryMetrics(tenant_id, hasInventoryAccess),
+                dashboardService.getGeneralHrMetrics(tenant_id, hasHrAccess),
+                dashboardService.getUserPendingActions(tenant_id, userId, role)
+            ]);
+
+            return res.json({
+                status: 'success',
+                template: 'general',
+                timeFilter,
+                modules: {
+                    finance: hasFinanceAccess,
+                    purchasing: hasPurchasingAccess,
+                    inventory: hasInventoryAccess,
+                    hr: hasHrAccess
+                },
+                data: {
+                    financeMetrics,
+                    pipeline,
+                    procurement,
+                    inventory,
+                    hrMetrics,
+                    pendingActions
+                }
+            });
+        }
+    } catch (err) {
+        console.error('[Dashboard Summary Error]:', err.message);
+        return res.status(500).json({
+            status: 'error',
+            message: 'Failed to aggregate dashboard metrics safely.'
+        });
+    }
+};
+
