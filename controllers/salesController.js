@@ -5,6 +5,7 @@
 const db = require('../config/db');
 const SalesOrderService = require('../src/domains/sales/SalesOrderService');
 const DeliveryNoteService = require('../src/domains/sales/DeliveryNoteService');
+const SalesReturnService = require('../src/domains/sales/SalesReturnService');
 const salesService = require('../services/salesService');
 
 // ── SALES ORDERS ──
@@ -88,6 +89,48 @@ exports.confirmDeliveryNote = async (req, res) => {
   } catch (err) {
     console.error('[salesController] confirmDeliveryNote error:', err.message);
     res.status(400).json({ status: 'error', message: err.message });
+  }
+};
+
+// ── DELIVERY RETURNS (Stock IN) ──
+
+exports.getSalesReturns = async (req, res) => {
+  try {
+    const data = await SalesReturnService.getSalesReturns(req.user.tenant_id, req.branchId);
+    res.json({ status: 'success', data });
+  } catch (err) {
+    console.error('[salesController] getSalesReturns error:', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+exports.createSalesReturn = async (req, res) => {
+  try {
+    const data = await SalesReturnService.createSalesReturn(req.user.tenant_id, req.branchId, req.body, req.user.id);
+    res.status(201).json({ status: 'success', data });
+  } catch (err) {
+    console.error('[salesController] createSalesReturn error:', err.message);
+    res.status(400).json({ status: 'error', message: err.message });
+  }
+};
+
+exports.confirmSalesReturn = async (req, res) => {
+  try {
+    const data = await SalesReturnService.confirmSalesReturn(req.user.tenant_id, req.branchId, req.params.id, req.user.id);
+    res.json({ status: 'success', message: 'Sales Return confirmed and Stock IN recorded.', data });
+  } catch (err) {
+    console.error('[salesController] confirmSalesReturn error:', err.message);
+    res.status(400).json({ status: 'error', message: err.message });
+  }
+};
+
+exports.getDeliveryNoteNetDelivered = async (req, res) => {
+  try {
+    const data = await SalesReturnService.getDeliveryNoteNetDelivered(req.user.tenant_id, req.params.deliveryNoteId);
+    res.json({ status: 'success', data });
+  } catch (err) {
+    console.error('[salesController] getDeliveryNoteNetDelivered error:', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
   }
 };
 

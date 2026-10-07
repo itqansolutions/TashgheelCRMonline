@@ -21,6 +21,17 @@ router.put('/deliveries/:id/confirm',
   controller.confirmDeliveryNote
 );
 
+// ── Delivery Returns (Stock IN) ──
+router.get('/returns', requirePermission('reports.operational'), controller.getSalesReturns);
+router.get('/deliveries/:deliveryNoteId/net-delivered', requirePermission('reports.operational'), controller.getDeliveryNoteNetDelivered);
+router.post('/returns', requirePermission('grn.create'), controller.createSalesReturn);
+router.put('/returns/:id/confirm',
+  requirePermission('grn.approve'),
+  loadDocument('sales_returns', 'id'),
+  sodGuard('sales_return'),
+  controller.confirmSalesReturn
+);
+
 // ── Sales Targets ──
 router.get('/targets', controller.getTargets);
 router.post('/targets', controller.createTarget);

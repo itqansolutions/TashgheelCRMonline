@@ -1050,6 +1050,19 @@ const reconcileDatabase = async () => {
             )
         `);
 
+        // Sales Return Items
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS sales_return_items (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                sales_return_id UUID REFERENCES sales_returns(id) ON DELETE CASCADE,
+                delivery_note_item_id UUID REFERENCES delivery_note_items(id) ON DELETE RESTRICT,
+                product_id INTEGER REFERENCES products(id) ON DELETE RESTRICT,
+                quantity_returned NUMERIC(12,3) NOT NULL CHECK (quantity_returned > 0),
+                unit_cost NUMERIC(12,2) DEFAULT 0,
+                tenant_id VARCHAR(255) NOT NULL
+            )
+        `);
+
         // Credit Notes
         await db.query(`
             CREATE TABLE IF NOT EXISTS credit_notes (
@@ -1074,6 +1087,14 @@ const reconcileDatabase = async () => {
         await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sales_order_id VARCHAR(255)`);
         await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS accounting_status VARCHAR(20) DEFAULT 'unposted'`);
         await db.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS journal_entry_id UUID REFERENCES journal_entries(id)`);
+
+        // Phase G-3: Drop restrictive deal-level invoice index & establish sales_order_id uniqueness
+        await db.query(`DROP INDEX IF EXISTS uq_invoices_active_deal;`);
+        await db.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_invoices_active_sales_order
+            ON invoices (tenant_id, sales_order_id)
+            WHERE sales_order_id IS NOT NULL AND (status IS NULL OR status != 'cancelled');
+        `);
 
         console.log('✅ [DB-RECON] ERP Stage 1 Sales Cycle tables verified (sales_orders, delivery_notes, sales_returns, credit_notes).');
 
