@@ -23,13 +23,31 @@ const scanAndReleaseExpiredReservations = async () => {
         let releasedCount = 0;
 
         for (const unit of expiredUnitsRes.rows) {
-            // Find active deals associated with this unit
+            // Guard: if the unit is held by a finalized deal (Real Estate 'Closed' / General 'won'),
+            // the reservation converted into a sale – finalize the unit instead of releasing it.
+            const finalizedRes = await db.query(`
+                SELECT id FROM deals
+                WHERE unit_id::text = $1::text AND tenant_id::text = $2::text
+                AND LOWER(COALESCE(pipeline_stage, '')) IN ('closed', 'won')
+                LIMIT 1
+            `, [unit.id, unit.tenant_id]);
+            if (finalizedRes.rows.length > 0) {
+                await db.query(`
+                    UPDATE re_units
+                    SET status = 'Sold', reservation_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $1 AND tenant_id::text = $2::text
+                `, [unit.id, unit.tenant_id]);
+                console.log(`[ReservationEngine] Unit ${unit.id} has a closed deal – finalized as Sold (not released).`);
+                continue;
+            }
+
+            // Find active (open) deals associated with this unit
             const dealRes = await db.query(`
                 SELECT id, title 
                 FROM deals 
-                WHERE unit_id = $1 
-                AND pipeline_stage NOT IN ('won', 'lost')
-            `, [unit.id]);
+                WHERE unit_id::text = $1::text AND tenant_id::text = $2::text
+                AND LOWER(COALESCE(pipeline_stage, '')) NOT IN ('won', 'lost', 'closed')
+            `, [unit.id, unit.tenant_id]);
 
             // Release the unit back to the market
             await db.query(`
@@ -156,7 +174,7 @@ const extendReservation = async ({ unitId = null, dealId = null, tenantId, branc
         }
 
         // 3. Deal Status Check: If associated with a deal, must not be won or lost
-        if (targetDeal && ['won', 'lost'].includes(targetDeal.pipeline_stage?.toLowerCase())) {
+        if (targetDeal && ['won', 'lost', 'closed'].includes(targetDeal.pipeline_stage?.toLowerCase())) {
             await client.query('ROLLBACK');
             const err = new Error(`Cannot extend reservation: Associated deal is already ${targetDeal.pipeline_stage}.`);
             err.statusCode = 400;

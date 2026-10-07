@@ -206,6 +206,7 @@ app.use('/api/job-titles', jobTitleRoutes);
 // HR Extension Modules
 app.use('/api/hr/activity-types', hrActivityRoutes);
 app.use('/api/hr/activity-balances', hrActivityBalanceRoutes);
+app.use('/api/hr/activity-balance', hrActivityBalanceRoutes);
 app.use('/api/hr/shifts', hrShiftsRoutes);
 app.use('/api/hr/devices', hrDevicesRoutes);
 
@@ -644,6 +645,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     console.log('⚡ [Boot] Enterprise Event Bus, Event Store & Outbox Engine initialized.');
 
     startReservationScanner(10);
+    require('./services/contractExpiryService').startContractExpiryScanner(60);
     await promoteOnStartup();
     await seedDemoAccount();
   } catch (bootErr) {

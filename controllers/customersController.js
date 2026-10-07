@@ -21,7 +21,26 @@ async function ensureCustomerColumns() {
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS classification_id INTEGER`);
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS classification_name VARCHAR(100)`);
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS area_id INTEGER`);
-  await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS area_name VARCHAR(100)`);
+  await run(`
+    CREATE TABLE IF NOT EXISTS customer_classifications (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      color VARCHAR(30) DEFAULT '#3b82f6',
+      description TEXT,
+      tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`
+    CREATE TABLE IF NOT EXISTS customer_areas (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      color VARCHAR(30) DEFAULT '#0ea5e9',
+      description TEXT,
+      tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
   customerColumnsEnsured = true;
   console.log('[Customers] Column guard done.');
 }

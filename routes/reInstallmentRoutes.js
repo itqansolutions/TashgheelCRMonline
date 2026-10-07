@@ -7,6 +7,7 @@ const { requirePermission } = require('../middleware/financialPermission');
 router.use(authMiddleware);
 
 router.get('/', ctrl.getInstallments);
+router.get('/:id/payments', ctrl.getInstallmentPayments);
 router.post('/generate-schedule', ctrl.generateSchedule);
 router.post('/:id/pay', requirePermission('payment.create'), ctrl.recordPayment);
 router.delete('/:id', ctrl.deleteInstallment);

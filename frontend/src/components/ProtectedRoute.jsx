@@ -47,8 +47,10 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
       return <Navigate to="/dashboard" replace />;
     }
   } else if (template === 'general') {
+    // Real Estate-only workspaces (backend also enforces templateGuard('real_estate'))
     const isReOnly = [
-      '/units-registry'
+      '/units-registry', '/my-units',
+      '/reservations', '/contracts', '/installments', '/commissions', '/handover'
     ].some(prefix => checkPath.startsWith(prefix));
 
     if (isReOnly) {
@@ -58,17 +60,28 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   // Admin always has access to everything within their template & enabled modules
   if (user?.role === 'admin') return children;
+  const allowed = safeArray(user?.allowedPages);
+
+  // Personal self-service pages: data is scoped to the authenticated user server-side
+  // (GET /hr/payroll/my, GET /hr/activity-balances/my), so no admin screen permission is required.
+  const SELF_SERVICE = ['/my-profile', '/my-payroll', '/activity-balance'];
+  if (SELF_SERVICE.includes(checkPath)) return children;
+
   // Route alias & canonical mapping for permission evaluation
   const ROUTE_ALIASES = {
     '/my-attendance': '/hr/my-attendance',
     '/my-requests': '/hr/my-requests',
     '/approvals': '/hr/approvals',
-    '/my-payroll': '/hr/payroll',
-    '/activity-balance': '/hr/activity-balance',
     '/my-deals': '/deals',
     '/my-tasks': '/tasks',
     '/my-customers': '/customers',
     '/my-units': '/units-registry',
+    // Deal-originated workspaces share the Deals screen permission
+    '/reservations': '/deals',
+    '/contracts': '/deals',
+    '/installments': '/deals',
+    '/commissions': '/deals',
+    '/handover': '/deals',
   };
 
   const canonicalPath = ROUTE_ALIASES[checkPath] || checkPath;

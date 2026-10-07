@@ -46,19 +46,26 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     '/my-attendance': '/hr/my-attendance',
     '/my-requests': '/hr/my-requests',
     '/approvals': '/hr/approvals',
-    '/my-payroll': '/hr/payroll',
-    '/activity-balance': '/hr/activity-balance',
     '/my-deals': '/deals',
     '/my-tasks': '/tasks',
     '/my-customers': '/customers',
     '/my-units': '/units-registry',
+    // Deal-originated workspaces share the Deals screen permission
+    '/reservations': '/deals',
+    '/contracts': '/deals',
+    '/installments': '/deals',
+    '/commissions': '/deals',
+    '/handover': '/deals',
   };
+  // Personal self-service pages (server scopes data to the authenticated user)
+  const SELF_SERVICE = ['/my-profile', '/my-payroll', '/activity-balance'];
 
   const allowed = safeArray(user?.allowedPages);
   const isPathAllowed = (path) => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     const basePath = path.split('?')[0];
+    if (SELF_SERVICE.includes(basePath)) return true;
     const canonicalPath = ROUTE_ALIASES[basePath] || basePath;
     return allowed.includes(path) || allowed.includes(basePath) || allowed.includes(canonicalPath);
   };
@@ -158,20 +165,22 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   const reDirectItems = [
     { name: 'Units',        icon: <Key size={18} />,         path: '/units-registry' },
-    { name: 'Reservations', icon: <CheckSquare size={18} />, path: '/deals?tab=reservations' },
-    { name: 'Contracts',    icon: <FileText size={18} />,    path: '/deals?tab=contracts' },
-    { name: 'Installments', icon: <CreditCard size={18} />,  path: '/deals?tab=installments' }
+    { name: 'Reservations', icon: <CheckSquare size={18} />, path: '/reservations' },
+    { name: 'Contracts',    icon: <FileText size={18} />,    path: '/contracts' },
+    { name: 'Installments', icon: <CreditCard size={18} />,  path: '/installments' }
   ];
 
   // -------------------------------------------------------------
-  // 4. SALES ITEMS (BOTH TEMPLATES)
+  // 4. SALES ITEMS (BOTH TEMPLATES; Commissions & Handover are Real Estate workspaces)
   // -------------------------------------------------------------
   const rawSalesItems = [
     { name: 'Quotations',  icon: <FileText size={18} />,    path: '/finance?tab=Quotations' },
     { name: 'Salesmen',    icon: <Users size={18} />,       path: '/sales/salesmen' },
     { name: 'Targets',     icon: <Award size={18} />,       path: '/sales/target' },
-    { name: 'Commissions', icon: <DollarSign size={18} />,  path: '/deals?tab=commissions' },
-    { name: 'Handover',    icon: <Key size={18} />,         path: '/deals?tab=handover' }
+    ...(isRealEstate ? [
+      { name: 'Commissions', icon: <DollarSign size={18} />,  path: '/commissions' },
+      { name: 'Handover',    icon: <Key size={18} />,         path: '/handover' }
+    ] : [])
   ];
   const salesItems = filterByAllowed(rawSalesItems);
 

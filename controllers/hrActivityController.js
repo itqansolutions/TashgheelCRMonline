@@ -143,6 +143,41 @@ exports.getActivityBalances = async (req, res) => {
   }
 };
 
+// @desc    Get MY activity balances (read-only self view)
+// @route   GET /api/hr/activity-balances/my
+//          Query: ?month=&year=   (user identity is NEVER taken from the client)
+exports.getMyActivityBalances = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  const user_id = req.user.id;
+  const { month, year } = req.query;
+
+  let query = `
+    SELECT b.id, b.activity_type_id, b.period_month, b.period_year,
+           b.allocated, b.used, b.notes,
+           at.name as activity_name, at.unit
+    FROM hr_activity_balances b
+    JOIN hr_activity_types at ON b.activity_type_id = at.id AND at.tenant_id = b.tenant_id
+    WHERE b.tenant_id = $1 AND b.user_id = $2
+  `;
+  const params = [tenant_id, user_id];
+  let i = 3;
+  if (month) { query += ` AND b.period_month = $${i++}`; params.push(parseInt(month)); }
+  if (year)  { query += ` AND b.period_year = $${i++}`; params.push(parseInt(year)); }
+  query += ` ORDER BY b.period_year DESC, b.period_month DESC, at.name ASC`;
+
+  try {
+    const result = await db.query(query, params);
+    const data = result.rows.map(r => ({
+      ...r,
+      remaining: parseFloat(r.allocated) - parseFloat(r.used)
+    }));
+    res.json({ status: 'success', data });
+  } catch (err) {
+    console.error('[getMyActivityBalances]', err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
 // @desc    Create activity balance
 // @route   POST /api/hr/activity-balances
 exports.createActivityBalance = async (req, res) => {
@@ -154,6 +189,22 @@ exports.createActivityBalance = async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Employee, activity, and period are required' });
   }
   try {
+    // Tenant isolation: employee and activity type must belong to the caller's tenant
+    const [uChk, aChk] = await Promise.all([
+      db.query(`SELECT id FROM users WHERE id = $1 AND tenant_id = $2`, [parseInt(user_id), tenant_id]),
+      db.query(`SELECT id FROM hr_activity_types WHERE id = $1 AND tenant_id = $2`, [parseInt(activity_type_id), tenant_id])
+    ]);
+    if (uChk.rows.length === 0 || aChk.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Employee or activity type not found' });
+    }
+    const existing = await db.query(
+      `SELECT tenant_id FROM hr_activity_balances
+       WHERE user_id = $1 AND activity_type_id = $2 AND period_month = $3 AND period_year = $4`,
+      [parseInt(user_id), parseInt(activity_type_id), parseInt(period_month), parseInt(period_year)]
+    );
+    if (existing.rows.length > 0 && String(existing.rows[0].tenant_id) !== String(tenant_id)) {
+      return res.status(403).json({ status: 'error', message: 'Access denied' });
+    }
     const result = await db.query(
       `INSERT INTO hr_activity_balances
         (tenant_id, branch_id, user_id, activity_type_id, period_month, period_year, allocated, notes)

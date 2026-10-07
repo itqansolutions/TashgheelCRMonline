@@ -4,6 +4,7 @@
  */
 
 const db = require('../config/db');
+const accessScopeService = require('../services/accessScopeService');
 
 // Helper to add months to a Date
 function addMonths(date, months) {
@@ -12,11 +13,12 @@ function addMonths(date, months) {
     return d.toISOString().split('T')[0];
 }
 
-// @desc    Get installments for a contract or deal
+// @desc    Get installments (workspace list, or filtered by contract / deal)
 // @route   GET /api/re-installments
+//          Query: contract_id, deal_id, status (Pending|Partial|Paid), overdue=true
 exports.getInstallments = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
-    const { contract_id, deal_id } = req.query;
+    const { contract_id, deal_id, status, overdue } = req.query;
 
     try {
         let whereClause = `WHERE ri.tenant_id::text = $1::text`;
@@ -29,6 +31,20 @@ exports.getInstallments = async (req, res) => {
             params.push(parseInt(deal_id));
             whereClause += ` AND ri.deal_id = $${params.length}`;
         }
+        if (status) {
+            params.push(String(status));
+            whereClause += ` AND ri.status = $${params.length}`;
+        }
+        if (overdue === 'true') {
+            whereClause += ` AND ri.status <> 'Paid' AND ri.due_date < CURRENT_DATE`;
+        }
+
+        // Row-level scope: same visibility as the originating deal
+        const scope = await accessScopeService.buildScopePredicate({
+            user: req.user, tableAlias: 'd', assigneeCol: 'assigned_to', paramIndex: params.length + 1
+        });
+        whereClause += ` AND (${scope.sql})`;
+        params.push(...scope.params);
 
         const result = await db.query(`
             SELECT 
@@ -36,11 +52,18 @@ exports.getInstallments = async (req, res) => {
                 rc.contract_number,
                 rc.contract_value,
                 rc.status as contract_status,
+                d.title as deal_title,
+                c.name as customer_name,
+                ru.name as unit_name,
+                ru.unit_number,
                 (ri.amount - ri.paid_amount) as remaining_balance
             FROM re_installments ri
             JOIN re_contracts rc ON ri.contract_id = rc.id AND rc.tenant_id::text = ri.tenant_id::text
+            JOIN deals d ON d.id = rc.deal_id AND d.tenant_id::text = rc.tenant_id::text
+            LEFT JOIN customers c ON c.id = rc.customer_id
+            LEFT JOIN re_units ru ON ru.id::text = rc.unit_id::text AND ru.tenant_id::text = rc.tenant_id::text
             ${whereClause}
-            ORDER BY ri.installment_number ASC
+            ORDER BY ${(contract_id || deal_id) ? 'ri.installment_number ASC' : 'ri.due_date ASC, ri.installment_number ASC'}
         `, params);
 
         // Compute summary aggregates
@@ -396,6 +419,43 @@ exports.recordPayment = async (req, res) => {
         res.status(500).json({ status: 'error', message: err.message });
     } finally {
         client.release();
+    }
+};
+
+// @desc    Payment history of an installment (source of truth: finance_vouchers)
+// @route   GET /api/re-installments/:id/payments
+exports.getInstallmentPayments = async (req, res) => {
+    const tenant_id = String(req.user.tenant_id);
+    const { id } = req.params;
+    try {
+        const params = [id, tenant_id];
+        const scope = await accessScopeService.buildScopePredicate({
+            user: req.user, tableAlias: 'd', assigneeCol: 'assigned_to', paramIndex: 3
+        });
+        params.push(...scope.params);
+        const instRes = await db.query(`
+            SELECT ri.id FROM re_installments ri
+            JOIN re_contracts rc ON ri.contract_id = rc.id AND rc.tenant_id::text = ri.tenant_id::text
+            JOIN deals d ON d.id = rc.deal_id AND d.tenant_id::text = rc.tenant_id::text
+            WHERE ri.id::text = $1::text AND ri.tenant_id::text = $2::text AND (${scope.sql})
+        `, params);
+        if (instRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Installment not found or unauthorized.' });
+        }
+        let rows = [];
+        try {
+            const v = await db.query(`
+                SELECT id, voucher_number, amount, payment_method, notes, voucher_date, created_at
+                FROM finance_vouchers
+                WHERE installment_id::text = $1::text AND tenant_id::text = $2::text
+                ORDER BY voucher_date DESC, id DESC
+            `, [id, tenant_id]);
+            rows = v.rows;
+        } catch (e) { /* installment_id column not yet created → no payments */ }
+        res.json({ status: 'success', data: rows });
+    } catch (err) {
+        console.error('[Get Installment Payments Error]:', err.message);
+        res.status(500).json({ status: 'error', message: err.message });
     }
 };
 

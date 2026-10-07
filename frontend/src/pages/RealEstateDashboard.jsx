@@ -62,7 +62,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
           icon={<Clock size={20} />}
           color="warning"
           subtitle="Awaiting contract signing"
-          onClick={() => navigate('/deals?tab=reservations')}
+          onClick={() => navigate('/reservations')}
         />
         <KPICard 
           title="Sold Units" 
@@ -88,7 +88,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
               icon={<Layers size={20} />}
               color="purple"
               subtitle="From formal binding contracts"
-              onClick={() => navigate('/deals?tab=contracts')}
+              onClick={() => navigate('/contracts')}
             />
             <KPICard 
               title="Collected Amount" 
@@ -141,7 +141,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                 <span className="dot dot-avail" />
                 <span>Available ({unitsOverview.available})</span>
               </div>
-              <div className="legend-item" onClick={() => navigate('/deals?tab=reservations')}>
+              <div className="legend-item" onClick={() => navigate('/reservations')}>
                 <span className="dot dot-res" />
                 <span>Reserved ({unitsOverview.reserved})</span>
               </div>
@@ -186,7 +186,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
             <h3>Expiring Reservations</h3>
             <span className="card-subtitle">Units currently on temporary hold requiring customer commitment</span>
           </div>
-          <button className="text-btn" onClick={() => navigate('/deals?tab=reservations')}>
+          <button className="text-btn" onClick={() => navigate('/reservations')}>
             Manage Reservations <ChevronRight size={14} />
           </button>
         </div>
@@ -228,7 +228,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                       <td>
                         <button 
                           className="table-action-btn"
-                          onClick={() => navigate('/deals?tab=reservations')}
+                          onClick={() => navigate('/reservations')}
                         >
                           Review
                         </button>
@@ -250,28 +250,28 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         <div className="dashboard-card">
           <div className="card-header">
             <h3>Contracts & Installments</h3>
-            <button className="text-btn" onClick={() => navigate('/deals?tab=contracts')}>
+            <button className="text-btn" onClick={() => navigate('/contracts')}>
               Contracts Workspace <ChevronRight size={14} />
             </button>
           </div>
           <div className="card-body">
             <div className="stats-subgrid">
-              <div className="stat-box" onClick={() => navigate('/deals?tab=contracts')}>
+              <div className="stat-box" onClick={() => navigate('/contracts')}>
                 <span className="stat-label">Contracts This Month</span>
                 <span className="stat-val">{contractsAndInstallments.contracts.contractsThisMonth}</span>
                 <span className="stat-sub">{formatEgp(contractsAndInstallments.contracts.contractedValueThisMonth)}</span>
               </div>
-              <div className="stat-box" onClick={() => navigate('/deals?tab=installments')}>
+              <div className="stat-box" onClick={() => navigate('/installments')}>
                 <span className="stat-label">Installments Due Today</span>
                 <span className="stat-val">{formatEgp(contractsAndInstallments.installments.dueToday)}</span>
                 <span className="stat-sub">Immediate collections</span>
               </div>
-              <div className="stat-box" onClick={() => navigate('/deals?tab=installments')}>
+              <div className="stat-box" onClick={() => navigate('/installments')}>
                 <span className="stat-label">Due This Week</span>
                 <span className="stat-val">{formatEgp(contractsAndInstallments.installments.dueThisWeek)}</span>
                 <span className="stat-sub">Upcoming cash inflows</span>
               </div>
-              <div className="stat-box box-danger" onClick={() => navigate('/deals?tab=installments')}>
+              <div className="stat-box box-danger" onClick={() => navigate('/installments')}>
                 <span className="stat-label">Overdue Installments</span>
                 <span className="stat-val">{formatEgp(contractsAndInstallments.installments.overdue)}</span>
                 <span className="stat-sub">{contractsAndInstallments.installments.overdueCount} installments past due</span>
@@ -328,7 +328,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         <div className="dashboard-card">
           <div className="card-header">
             <h3>Sales Representatives</h3>
-            <button className="text-btn" onClick={() => navigate('/deals?tab=commissions')}>
+            <button className="text-btn" onClick={() => navigate('/commissions')}>
               Commissions Workspace <ChevronRight size={14} />
             </button>
           </div>
@@ -366,7 +366,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
               <h3>Upcoming Deliveries</h3>
               <span className="card-subtitle">Scheduled unit keys and snagging handovers</span>
             </div>
-            <button className="text-btn" onClick={() => navigate('/deals?tab=handover')}>
+            <button className="text-btn" onClick={() => navigate('/handover')}>
               Handover Workspace <ChevronRight size={14} />
             </button>
           </div>
@@ -374,7 +374,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
             {upcomingHandovers.length > 0 ? (
               <div className="handovers-list">
                 {upcomingHandovers.map((h) => (
-                  <div key={h.id} className="handover-item" onClick={() => navigate('/deals?tab=handover')}>
+                  <div key={h.id} className="handover-item" onClick={() => navigate('/handover')}>
                     <div className="ho-icon"><Key size={16} /></div>
                     <div className="ho-details">
                       <span className="ho-unit">{h.unitNumber} ({h.projectName})</span>

@@ -8,7 +8,6 @@ import DataTable from '../components/Common/DataTable';
 import KanbanBoard from '../components/Deals/KanbanBoard';
 import Modal from '../components/Common/Modal';
 import ActivityTimeline from '../components/Common/ActivityTimeline';
-import SalesSubNav from '../components/Sales/SalesSubNav';
 import { useAuth } from '../context/AuthContext';
 
 const Deals = () => {
@@ -17,34 +16,19 @@ const Deals = () => {
   const isRealEstate = user?.template_name === 'real_estate';
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTabParam = searchParams.get('tab') || 'all';
+  // Legacy /deals?tab=X URLs → standalone workspaces (Deals no longer hosts inner tabs)
+  const legacyTab = searchParams.get('tab');
+  useEffect(() => {
+    const map = { reservations: '/reservations', contracts: '/contracts', installments: '/installments', commissions: '/commissions', handover: '/handover', handovers: '/handover' };
+    if (legacyTab && map[legacyTab]) navigate(map[legacyTab], { replace: true });
+    else if (legacyTab) setSearchParams({}, { replace: true });
+  }, [legacyTab]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState(null);
   const [reUnits, setReUnits] = useState([]);
   const [viewMode, setViewMode] = useState(isRealEstate ? 'table' : 'kanban');
   const [dealContract, setDealContract] = useState(null);
   const [contractLoading, setContractLoading] = useState(false);
-  const [installments, setInstallments] = useState([]);
-  const [installmentSummary, setInstallmentSummary] = useState(null);
-  const [showScheduleGenerator, setShowScheduleGenerator] = useState(false);
-  const [scheduleConfig, setScheduleConfig] = useState({
-    down_payment: 0,
-    number_of_installments: 4,
-    frequency: 'quarterly',
-    start_date: new Date().toISOString().split('T')[0]
-  });
-  const [commissions, setCommissions] = useState([]);
-  const [commissionSummary, setCommissionSummary] = useState(null);
-  const [showCommissionForm, setShowCommissionForm] = useState(false);
-  const [commissionForm, setCommissionForm] = useState({
-    beneficiary_type: 'internal_agent',
-    beneficiary_name: '',
-    commission_type: 'percentage',
-    rate: 2.5,
-    calculated_amount: 0,
-    trigger_event: 'contract_signing',
-    notes: ''
-  });
   const [cancellationRecord, setCancellationRecord] = useState(null);
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [cancelFormData, setCancelFormData] = useState({
@@ -52,12 +36,9 @@ const Deals = () => {
     deduction_amount: 0,
     unit_action: 'release'
   });
-  const [dealHandover, setDealHandover] = useState(null);
-  const [showHandoverForm, setShowHandoverForm] = useState(false);
-  const [handoverFormData, setHandoverFormData] = useState({
-    scheduled_date: '',
-    snagging_notes: ''
-  });
+  // Deal Lock (mirrors backend): final stage (Closed/won) or a live contract freezes core commercial fields
+  const isFinalDealStage = ['closed', 'won'].includes(String(editingDeal?.pipeline_stage || '').toLowerCase());
+  const isDealLocked = !!editingDeal && (isFinalDealStage || (dealContract && dealContract.status !== 'Cancelled'));
 
   // Helper to map icon names to Lucide components (Polish Sprint)
   const getFieldIcon = (iconName) => {
@@ -137,86 +118,18 @@ const Deals = () => {
     }
   }, [templateConfig]);
 
-  const fetchInstallments = async (contractId) => {
-    if (!contractId) {
-      setInstallments([]);
-      setInstallmentSummary(null);
-      return;
-    }
-    try {
-      const res = await api.get(`/re-installments?contract_id=${contractId}`);
-      setInstallments(res.data.data || []);
-      setInstallmentSummary(res.data.summary || null);
-    } catch (err) {
-      console.error('Failed to fetch installments:', err);
-      setInstallments([]);
-      setInstallmentSummary(null);
-    }
-  };
-
+  // Contract summary for the Related Records panel (full lifecycle lives in /contracts)
   const fetchDealContract = async (dealId) => {
-    if (!dealId) {
-      setDealContract(null);
-      setInstallments([]);
-      setInstallmentSummary(null);
-      return;
-    }
+    if (!dealId) { setDealContract(null); return; }
     setContractLoading(true);
     try {
       const res = await api.get(`/re-contracts?deal_id=${dealId}`);
-      if (res.data.data && res.data.data.length > 0) {
-        const contract = res.data.data[0];
-        setDealContract(contract);
-        fetchInstallments(contract.id);
-      } else {
-        setDealContract(null);
-        setInstallments([]);
-        setInstallmentSummary(null);
-      }
+      setDealContract(res.data.data && res.data.data.length > 0 ? res.data.data[0] : null);
     } catch (err) {
       console.error('Failed to fetch deal contract:', err);
       setDealContract(null);
-      setInstallments([]);
-      setInstallmentSummary(null);
     } finally {
       setContractLoading(false);
-    }
-  };
-
-  const handleGenerateSchedule = async () => {
-    if (!dealContract?.id) return;
-    try {
-      const res = await api.post('/re-installments/generate-schedule', {
-        contract_id: dealContract.id,
-        down_payment: Number(scheduleConfig.down_payment) || 0,
-        number_of_installments: parseInt(scheduleConfig.number_of_installments) || 4,
-        frequency: scheduleConfig.frequency,
-        start_date: scheduleConfig.start_date || new Date().toISOString().split('T')[0]
-      });
-      toast.success(res.data.message || 'Schedule generated successfully');
-      setShowScheduleGenerator(false);
-      fetchInstallments(dealContract.id);
-      fetchDealContract(editingDeal.id);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to generate schedule');
-    }
-  };
-
-  const handlePayInstallment = async (installmentId, defaultAmount) => {
-    const payAmt = window.prompt('Enter payment amount in EGP:', defaultAmount);
-    if (!payAmt) return;
-    try {
-      const res = await api.post(`/re-installments/${installmentId}/pay`, {
-        amount: parseFloat(payAmt),
-        payment_date: new Date().toISOString().split('T')[0],
-        notes: 'Payment recorded via Deal CRM'
-      });
-      toast.success(res.data.message || 'Payment recorded');
-      fetchInstallments(dealContract.id);
-      fetchDealContract(editingDeal.id);
-      fetchDeals(false);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Payment failed');
     }
   };
 
@@ -235,86 +148,6 @@ const Deals = () => {
       fetchDealContract(editingDeal.id);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create contract');
-    }
-  };
-
-  const handleUpdateContractStatus = async (contractId, nextStatus) => {
-    try {
-      const res = await api.patch(`/re-contracts/${contractId}/status`, { status: nextStatus });
-      toast.success(res.data.message || `Contract status updated to ${nextStatus}`);
-      if (editingDeal?.id) {
-        fetchDealContract(editingDeal.id);
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update contract status');
-    }
-  };
-
-  const fetchCommissions = async (dealId) => {
-    if (!dealId) {
-      setCommissions([]);
-      setCommissionSummary(null);
-      return;
-    }
-    try {
-      const res = await api.get(`/re-commissions?deal_id=${dealId}`);
-      setCommissions(res.data.data || []);
-      setCommissionSummary(res.data.summary || null);
-    } catch (err) {
-      console.error('Failed to fetch commissions:', err);
-      setCommissions([]);
-      setCommissionSummary(null);
-    }
-  };
-
-  const handleCreateCommission = async () => {
-    if (!editingDeal?.id) return;
-    try {
-      const baseVal = editingDeal.value || formData.value || 0;
-      const res = await api.post('/re-commissions', {
-        deal_id: editingDeal.id,
-        contract_id: dealContract?.id || null,
-        beneficiary_type: commissionForm.beneficiary_type,
-        beneficiary_name: commissionForm.beneficiary_name || user?.name || 'Agent',
-        commission_type: commissionForm.commission_type,
-        rate: Number(commissionForm.rate) || 0,
-        base_amount: baseVal,
-        calculated_amount: commissionForm.commission_type === 'fixed' 
-          ? Number(commissionForm.calculated_amount)
-          : undefined,
-        trigger_event: commissionForm.trigger_event || 'contract_signing',
-        notes: commissionForm.notes
-      });
-      toast.success(res.data.message || 'Commission created');
-      setShowCommissionForm(false);
-      fetchCommissions(editingDeal.id);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create commission');
-    }
-  };
-
-  const handleUpdateCommissionStatus = async (commissionId, newStatus) => {
-    try {
-      const res = await api.patch(`/re-commissions/${commissionId}/status`, { status: newStatus });
-      toast.success(res.data.message || `Commission ${newStatus}`);
-      fetchCommissions(editingDeal.id);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update commission');
-    }
-  };
-
-  const handlePayCommission = async (commissionId, defaultAmt) => {
-    const payAmt = window.prompt('Enter commission payout amount in EGP:', defaultAmt);
-    if (!payAmt) return;
-    try {
-      const res = await api.post(`/re-commissions/${commissionId}/pay`, {
-        amount: parseFloat(payAmt),
-        payment_date: new Date().toISOString().split('T')[0]
-      });
-      toast.success(res.data.message || 'Commission paid');
-      fetchCommissions(editingDeal.id);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Payout failed');
     }
   };
 
@@ -372,54 +205,6 @@ const Deals = () => {
     }
   };
 
-  const fetchHandover = async (dealId) => {
-    if (!dealId) {
-      setDealHandover(null);
-      return;
-    }
-    try {
-      const res = await api.get(`/re-handovers?deal_id=${dealId}`);
-      if (res.data.data && res.data.data.length > 0) {
-        setDealHandover(res.data.data[0]);
-      } else {
-        setDealHandover(null);
-      }
-    } catch (err) {
-      console.error('Failed to fetch handover:', err);
-      setDealHandover(null);
-    }
-  };
-
-  const handleCreateHandover = async () => {
-    if (!editingDeal?.id) return;
-    try {
-      const res = await api.post('/re-handovers', {
-        deal_id: editingDeal.id,
-        scheduled_date: handoverFormData.scheduled_date || new Date().toISOString().split('T')[0],
-        snagging_notes: handoverFormData.snagging_notes
-      });
-      toast.success(res.data.message || 'Handover milestone scheduled');
-      setShowHandoverForm(false);
-      fetchHandover(editingDeal.id);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to schedule handover');
-    }
-  };
-
-  const handleUpdateHandoverStatus = async (handoverId, newStatus) => {
-    try {
-      const res = await api.patch(`/re-handovers/${handoverId}/status`, {
-        status: newStatus
-      });
-      toast.success(res.data.message || `Handover status: ${newStatus}`);
-      fetchHandover(editingDeal.id);
-      if (isRealEstate) fetchReUnits();
-      fetchDeals(false);
-      if (editingDeal?.id) fetchDealContract(editingDeal.id);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update handover status');
-    }
-  };
 
   const handleOpenModal = (deal = null) => {
     if (deal) {
@@ -441,19 +226,13 @@ const Deals = () => {
       });
       if (isRealEstate) {
         fetchDealContract(deal.id);
-        fetchCommissions(deal.id);
         fetchCancellation(deal.id);
-        fetchHandover(deal.id);
       }
     } else {
       setEditingDeal(null);
       setDealContract(null);
-      setCommissions([]);
-      setCommissionSummary(null);
       setCancellationRecord(null);
       setShowCancelForm(false);
-      setDealHandover(null);
-      setShowHandoverForm(false);
       setFormData({ 
         title: '', 
         value: 0, 
@@ -548,7 +327,7 @@ const Deals = () => {
         fetchDeals(false);
         if (isRealEstate) fetchReUnits();
       } catch (err) {
-        toast.error('Failed to delete');
+        toast.error(err.response?.data?.message || 'Failed to delete');
       }
     }
   };
@@ -718,7 +497,6 @@ const Deals = () => {
 
   return (
     <div>
-      <SalesSubNav />
       <div className="deals-page">
       <style>{`
         .btn-add { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; transition: background 0.2s; }
@@ -740,22 +518,8 @@ const Deals = () => {
             {templateConfig?.name === 'Real Estate' ? <Zap size={14} /> : <Target size={14} />}
             {templateConfig?.name?.toUpperCase() || 'GENERAL'} MODE
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: '800' }}>
-            {activeTabParam === 'installments' ? 'Installments & Payment Plans' :
-             activeTabParam === 'contracts' ? 'Sales Contracts' :
-             activeTabParam === 'reservations' ? 'Unit Reservations' :
-             activeTabParam === 'commissions' ? 'Agent Commissions' :
-             activeTabParam === 'handover' ? 'Unit Handovers' :
-             'Sales Pipeline'}
-          </h2>
-          <p style={{ color: 'var(--text-muted)' }}>
-            {activeTabParam === 'installments' ? 'Manage payment schedules, dues, and collections across sales deals.' :
-             activeTabParam === 'contracts' ? 'Formal sales contracts and document lifecycle tracking.' :
-             activeTabParam === 'reservations' ? 'Reserved units and down-payment tracking.' :
-             activeTabParam === 'commissions' ? 'Internal and external broker commission balances.' :
-             activeTabParam === 'handover' ? 'Delivery checklists and unit key handovers.' :
-             'Track your deals from discovery to closing.'}
-          </p>
+          <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Deals</h2>
+          <p style={{ color: 'var(--text-muted)' }}>Track your deals from first contact to closing.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
@@ -773,96 +537,32 @@ const Deals = () => {
         </div>
       </div>
 
-      {/* Real Estate Sales Tabs Navigation Bar */}
-      {isRealEstate && (
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '4px' }}>
-          {[
-            { id: 'all', label: 'All Deals', icon: <Handshake size={15} /> },
-            { id: 'reservations', label: 'Reservations', icon: <CheckCircle2 size={15} /> },
-            { id: 'contracts', label: 'Contracts', icon: <FileText size={15} /> },
-            { id: 'installments', label: 'Installments', icon: <CreditCard size={15} /> },
-            { id: 'commissions', label: 'Commissions', icon: <Award size={15} /> },
-            { id: 'handover', label: 'Handover', icon: <Key size={15} /> },
-          ].map(tab => {
-            const isActive = (activeTabParam === tab.id) || (activeTabParam === 'all' && tab.id === 'all');
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  if (tab.id === 'all') {
-                    setSearchParams({});
-                  } else {
-                    setSearchParams({ tab: tab.id });
-                  }
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '8px 14px',
-                  borderRadius: '10px',
-                  border: isActive ? '1px solid var(--primary)' : '1px solid #e2e8f0',
-                  background: isActive ? 'var(--primary)' : 'white',
-                  color: isActive ? 'white' : '#64748b',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: isActive ? '0 2px 8px rgba(79,70,229,0.2)' : 'none',
-                  transition: 'all 0.2s'
-                }}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+      {viewMode === 'table' ? (
+        <DataTable 
+          title="Deals"
+          columns={columns.filter(Boolean)}
+          data={deals || []}
+          loading={loading}
+          onEdit={handleOpenModal}
+          onDelete={handleDelete}
+          actions={(row) => (
+            <button 
+              title="Generate Invoice" 
+              onClick={() => handleGenerateInvoice(row.id)}
+              style={{ padding: '6px', borderRadius: '6px', background: '#f0fdf4', color: '#16a34a', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+            >
+              <Receipt size={16} />
+              <span style={{ fontSize: '12px', fontWeight: '600' }}>Bill</span>
+            </button>
+          )}
+        />
+      ) : (
+        <KanbanBoard 
+          deals={deals || []}
+          pipelineStages={templateConfig?.pipeline || ['discovery', 'proposal', 'negotiation', 'won', 'lost']}
+          onEdit={handleOpenModal}
+        />
       )}
-
-      {(() => {
-        let displayedDeals = deals || [];
-        if (isRealEstate && activeTabParam !== 'all') {
-          if (activeTabParam === 'reservations') {
-            displayedDeals = displayedDeals.filter(d => d.unit_status === 'Reserved' || (d.pipeline_stage || '').toLowerCase().includes('reser') || (d.pipeline_stage || '').toLowerCase().includes('interest'));
-          } else if (activeTabParam === 'contracts') {
-            displayedDeals = displayedDeals.filter(d => d.unit_status === 'Sold' || ['negotiation', 'won', 'closed'].includes((d.pipeline_stage || '').toLowerCase()));
-          } else if (activeTabParam === 'installments') {
-            displayedDeals = displayedDeals.filter(d => d.unit_id || d.value > 0);
-          } else if (activeTabParam === 'commissions') {
-            displayedDeals = displayedDeals.filter(d => d.value > 0);
-          } else if (activeTabParam === 'handover') {
-            displayedDeals = displayedDeals.filter(d => d.unit_id && ['won', 'closed'].includes((d.pipeline_stage || '').toLowerCase()));
-          }
-        }
-
-        return viewMode === 'table' ? (
-          <DataTable 
-            title={activeTabParam !== 'all' ? `Deals (${activeTabParam.toUpperCase()})` : "Active CRM Opportunities"}
-            columns={columns.filter(Boolean)}
-            data={displayedDeals}
-            loading={loading}
-            onEdit={handleOpenModal}
-            onDelete={handleDelete}
-            actions={(row) => (
-              <button 
-                title="Generate Invoice" 
-                onClick={() => handleGenerateInvoice(row.id)}
-                style={{ padding: '6px', borderRadius: '6px', background: '#f0fdf4', color: '#16a34a', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-              >
-                <Receipt size={16} />
-                <span style={{ fontSize: '12px', fontWeight: '600' }}>Bill</span>
-              </button>
-            )}
-          />
-        ) : (
-          <KanbanBoard 
-            deals={displayedDeals}
-            pipelineStages={templateConfig?.pipeline || ['discovery', 'proposal', 'negotiation', 'won', 'lost']}
-            onEdit={handleOpenModal}
-          />
-        );
-      })()}
 
       <Modal 
         isOpen={isModalOpen} 
@@ -878,6 +578,15 @@ const Deals = () => {
         }
       >
         <form className="form-grid">
+          {isDealLocked && (
+            <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '8px', background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', fontWeight: 700 }}>
+              <AlertCircle size={16} />
+              {isFinalDealStage
+                ? `This deal is ${editingDeal?.pipeline_stage}. Customer, unit, value, owner and commercial terms are locked.`
+                : `This deal has an active contract (${dealContract?.contract_number}). Customer, unit, value, owner and commercial terms are locked.`}
+              {isRealEstate && ' Use "Cancel Deal & Refund" to reverse it.'}
+            </div>
+          )}
           <div className="form-group full">
             <label>Deal Title</label>
             <input 
@@ -899,6 +608,7 @@ const Deals = () => {
                     className="ap-input" 
                     style={{ border: '1px solid #0ea5e9' }}
                     value={formData.unit_id} 
+                    disabled={!!editingDeal}
                     onChange={(e) => handleUnitChange(e.target.value)}
                 >
                     <option value="">-- Select Available Unit --</option>
@@ -923,6 +633,7 @@ const Deals = () => {
                 type={field.type || 'text'}
                 placeholder={`Enter ${field.label || field.key.replace('_', ' ')}`}
                 value={formData.custom_fields?.[field.key] || ''}
+                disabled={isDealLocked}
                 onChange={(e) => handleCustomFieldChange(field.key, e.target.value)}
               />
             </div>
@@ -933,6 +644,7 @@ const Deals = () => {
                 <label>Select Product (Optional)</label>
                 <select 
                 value={formData.product_id}
+                disabled={isDealLocked}
                 onChange={(e) => handleProductChange(e.target.value)}
                 >
                 <option value="">-- No Specific Product --</option>
@@ -947,6 +659,7 @@ const Deals = () => {
             <label>Link to Customer</label>
             <select 
               value={formData.client_id}
+              disabled={isDealLocked}
               onChange={(e) => setFormData({...formData, client_id: e.target.value})}
               required
             >
@@ -962,13 +675,14 @@ const Deals = () => {
               type="number" 
               value={formData.value}
               onChange={(e) => setFormData({...formData, value: e.target.value})}
-              disabled={!!formData.unit_id}
+              disabled={!!formData.unit_id || isDealLocked}
             />
           </div>
           <div className="form-group">
             <label>Pipeline Stage</label>
             <select 
               value={formData.pipeline_stage}
+              disabled={isDealLocked && isFinalDealStage}
               onChange={(e) => setFormData({...formData, pipeline_stage: e.target.value})}
             >
               {(templateConfig?.pipeline || []).map(stage => (
@@ -1004,6 +718,7 @@ const Deals = () => {
             <label>Deal Owner</label>
             <select 
               value={formData.assigned_to}
+              disabled={isDealLocked}
               onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
             >
               <option value="">Me (Default)</option>
@@ -1057,7 +772,7 @@ const Deals = () => {
           )}
 
           {/* Phase 2: Unit Reservation & Extension Management */}
-          {isRealEstate && editingDeal?.unit_id && editingDeal?.pipeline_stage?.toLowerCase() !== 'won' && editingDeal?.pipeline_stage?.toLowerCase() !== 'lost' && (
+          {isRealEstate && editingDeal?.unit_id && !['won', 'closed'].includes(editingDeal?.pipeline_stage?.toLowerCase()) && editingDeal?.pipeline_stage?.toLowerCase() !== 'lost' && (
             <div style={{ gridColumn: 'span 2', background: '#f0fdf4', border: '2px solid #bbf7d0', borderRadius: '12px', padding: '18px', marginTop: '6px', marginBottom: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#166534' }}>
@@ -1103,245 +818,29 @@ const Deals = () => {
             </div>
           )}
 
-          {/* Phase 2.2: Real Estate Sales Contract Lifecycle */}
-          {isRealEstate && editingDeal?.unit_id && (
-            <div style={{ gridColumn: 'span 2', background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '12px', padding: '18px', marginTop: '6px', marginBottom: '8px' }}>
+          {/* Related Records – downstream workspaces originate from this Deal but live in their own pages */}
+          {isRealEstate && editingDeal?.id && (
+            <div style={{ gridColumn: 'span 2', background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginTop: '6px', marginBottom: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a' }}>
-                  <FileText size={18} color="#2563eb" /> Real Estate Contract
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a' }}>
+                  <FileText size={16} color="#2563eb" /> Related Records
                 </h4>
-                {dealContract ? (
-                  <div style={{
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    background: dealContract.status === 'Completed' ? '#dcfce7' : dealContract.status === 'Cancelled' ? '#fee2e2' : dealContract.status === 'Active' ? '#dbeafe' : dealContract.status === 'Signed' ? '#fef3c7' : '#f1f5f9',
-                    color: dealContract.status === 'Completed' ? '#15803d' : dealContract.status === 'Cancelled' ? '#b91c1c' : dealContract.status === 'Active' ? '#1d4ed8' : dealContract.status === 'Signed' ? '#b45309' : '#475569',
-                    border: '1px solid currentColor'
-                  }}>
-                    {dealContract.status}
-                  </div>
+                {contractLoading ? (
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>Loading…</span>
+                ) : dealContract ? (
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#1d4ed8' }}>
+                    {dealContract.contract_number} • {dealContract.status}
+                    {dealContract.expiry_state === 'expiring_soon' && ` • expires in ${dealContract.days_remaining}d`}
+                    {dealContract.expiry_state === 'expired' && ' • EXPIRED'}
+                  </span>
                 ) : (
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>No contract generated</span>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>No contract yet</span>
                 )}
               </div>
 
-              {contractLoading ? (
-                <div style={{ fontSize: '12px', color: '#64748b', padding: '10px 0' }}>Loading contract details...</div>
-              ) : dealContract ? (
-                <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '14px', fontSize: '12px' }}>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>Contract Number:</span>
-                      <span style={{ fontWeight: 800, color: '#1e293b' }}>{dealContract.contract_number}</span>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>Contract Value:</span>
-                      <span style={{ fontWeight: 800, color: '#1e293b' }}>{Number(dealContract.contract_value).toLocaleString()} EGP</span>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>Down Payment / Remaining:</span>
-                      <span style={{ fontWeight: 800, color: '#166534' }}>{Number(dealContract.down_payment).toLocaleString()} EGP</span>
-                      <span style={{ color: '#64748b', fontSize: '11px' }}> / {Number(dealContract.remaining_amount).toLocaleString()} EGP</span>
-                    </div>
-                  </div>
-
-                  {/* Lifecycle transition controls */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #e2e8f0', gap: '8px', flexWrap: 'wrap' }}>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>
-                      Lifecycle: <strong style={{ color: '#0f172a' }}>{dealContract.status}</strong>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      {dealContract.status === 'Draft' && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateContractStatus(dealContract.id, 'Generated')}
-                          style={{ padding: '6px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Generate Formal Document
-                        </button>
-                      )}
-                      {dealContract.status === 'Generated' && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateContractStatus(dealContract.id, 'Signed')}
-                          style={{ padding: '6px 14px', background: '#d97706', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Mark as Signed
-                        </button>
-                      )}
-                      {dealContract.status === 'Signed' && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateContractStatus(dealContract.id, 'Active')}
-                          style={{ padding: '6px 14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Activate Contract
-                        </button>
-                      )}
-                      {dealContract.status === 'Active' && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateContractStatus(dealContract.id, 'Completed')}
-                          style={{ padding: '6px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Mark as Completed
-                        </button>
-                      )}
-                      {['Draft', 'Generated', 'Signed', 'Active'].includes(dealContract.status) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm('Are you sure you want to cancel this contract?')) {
-                              handleUpdateContractStatus(dealContract.id, 'Cancelled');
-                            }
-                          }}
-                          style={{ padding: '6px 12px', background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Cancel Contract
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Phase 2.3: Installments & Payment Schedule */}
-                  <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>
-                        Payment Schedule ({installments.length} Installments)
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowScheduleGenerator(!showScheduleGenerator)}
-                        style={{ padding: '4px 10px', background: '#f1f5f9', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        {showScheduleGenerator ? 'Close Plan Generator' : installments.length > 0 ? 'Regenerate Schedule' : '+ Generate Payment Plan'}
-                      </button>
-                    </div>
-
-                    {/* Schedule Generator Form */}
-                    {showScheduleGenerator && (
-                      <div style={{ background: '#f8fafc', border: '1px dashed #94a3b8', borderRadius: '8px', padding: '12px', marginBottom: '12px' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '10px' }}>
-                          <div>
-                            <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Down Payment (EGP)</label>
-                            <input 
-                              type="number" 
-                              value={scheduleConfig.down_payment} 
-                              onChange={(e) => setScheduleConfig({ ...scheduleConfig, down_payment: e.target.value })} 
-                              style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Number of Installments</label>
-                            <input 
-                              type="number" 
-                              min="1" 
-                              max="120"
-                              value={scheduleConfig.number_of_installments} 
-                              onChange={(e) => setScheduleConfig({ ...scheduleConfig, number_of_installments: e.target.value })} 
-                              style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Frequency</label>
-                            <select 
-                              value={scheduleConfig.frequency} 
-                              onChange={(e) => setScheduleConfig({ ...scheduleConfig, frequency: e.target.value })}
-                              style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                            >
-                              <option value="monthly">Monthly</option>
-                              <option value="quarterly">Quarterly</option>
-                              <option value="semi-annual">Semi-Annual</option>
-                              <option value="annual">Annual</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Start Date</label>
-                            <input 
-                              type="date" 
-                              value={scheduleConfig.start_date} 
-                              onChange={(e) => setScheduleConfig({ ...scheduleConfig, start_date: e.target.value })} 
-                              style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                            />
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleGenerateSchedule}
-                          style={{ padding: '6px 14px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Generate & Save Plan
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Installments Table */}
-                    {installments.length > 0 ? (
-                      <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
-                        <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', textAlign: 'left' }}>
-                          <thead>
-                            <tr style={{ background: '#f1f5f9', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>
-                              <th style={{ padding: '6px 8px' }}>#</th>
-                              <th style={{ padding: '6px 8px' }}>Type</th>
-                              <th style={{ padding: '6px 8px' }}>Due Date</th>
-                              <th style={{ padding: '6px 8px' }}>Amount</th>
-                              <th style={{ padding: '6px 8px' }}>Paid</th>
-                              <th style={{ padding: '6px 8px' }}>Status</th>
-                              <th style={{ padding: '6px 8px', textAlign: 'right' }}>Action</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {installments.map((inst) => {
-                              const remaining = Math.max(0, Number(inst.amount) - Number(inst.paid_amount));
-                              return (
-                                <tr key={inst.id} style={{ borderBottom: '1px solid #f1f5f9', background: inst.status === 'Paid' ? '#f0fdf4' : inst.is_overdue ? '#fef2f2' : 'white' }}>
-                                  <td style={{ padding: '6px 8px', fontWeight: 700 }}>{inst.installment_number}</td>
-                                  <td style={{ padding: '6px 8px', textTransform: 'capitalize' }}>{inst.installment_type?.replace('_', ' ')}</td>
-                                  <td style={{ padding: '6px 8px' }}>{inst.due_date ? inst.due_date.split('T')[0] : '-'}</td>
-                                  <td style={{ padding: '6px 8px', fontWeight: 700 }}>{Number(inst.amount).toLocaleString()} EGP</td>
-                                  <td style={{ padding: '6px 8px', color: '#16a34a' }}>{Number(inst.paid_amount).toLocaleString()} EGP</td>
-                                  <td style={{ padding: '6px 8px' }}>
-                                    <span style={{
-                                      padding: '2px 6px',
-                                      borderRadius: '4px',
-                                      fontSize: '10px',
-                                      fontWeight: 800,
-                                      background: inst.status === 'Paid' ? '#dcfce7' : inst.status === 'Partially Paid' ? '#fef3c7' : inst.is_overdue ? '#fee2e2' : '#f1f5f9',
-                                      color: inst.status === 'Paid' ? '#15803d' : inst.status === 'Partially Paid' ? '#b45309' : inst.is_overdue ? '#b91c1c' : '#64748b'
-                                    }}>
-                                      {inst.is_overdue && inst.status !== 'Paid' ? 'Overdue' : inst.status}
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                                    {inst.status !== 'Paid' && hasFinancialPermission?.('payment.create') && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handlePayInstallment(inst.id, remaining)}
-                                        style={{ padding: '3px 8px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
-                                      >
-                                        Pay
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic', padding: '6px 0' }}>
-                        No installment schedule created yet. Click above to generate schedule.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '12px', color: '#64748b' }}>Ready to generate formal real estate sales contract.</span>
+              {!dealContract && !contractLoading && editingDeal?.unit_id && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>This deal can originate a sales contract.</span>
                   <button
                     type="button"
                     onClick={handleCreateContract}
@@ -1351,180 +850,25 @@ const Deals = () => {
                   </button>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* Phase 2.4: Real Estate Commissions (Agent / Broker) */}
-          {isRealEstate && editingDeal?.id && (
-            <div style={{ gridColumn: 'span 2', background: '#fdfbf7', border: '2px solid #fed7aa', borderRadius: '12px', padding: '18px', marginTop: '6px', marginBottom: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#9a3412' }}>
-                  <Coins size={18} color="#ea580c" /> Sales Commissions
-                </h4>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {commissionSummary && (
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#c2410c' }}>
-                      Total: {commissionSummary.total_commissions.toLocaleString()} EGP (Paid: {commissionSummary.total_paid.toLocaleString()} EGP)
-                    </span>
-                  )}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                {[
+                  { label: 'Contract', path: '/contracts', icon: <FileText size={14} />, enabled: !!dealContract },
+                  { label: 'Installments', path: '/installments', icon: <CreditCard size={14} />, enabled: !!dealContract },
+                  { label: 'Commissions', path: '/commissions', icon: <Award size={14} />, enabled: true },
+                  { label: 'Handover', path: '/handover', icon: <Key size={14} />, enabled: !!editingDeal?.unit_id },
+                ].map(link => (
                   <button
+                    key={link.path}
                     type="button"
-                    onClick={() => setShowCommissionForm(!showCommissionForm)}
-                    style={{ padding: '4px 10px', background: '#ffedd5', color: '#9a3412', border: '1px solid #fdba74', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                    disabled={!link.enabled}
+                    onClick={() => { setIsModalOpen(false); navigate(`${link.path}?deal_id=${editingDeal.id}`); }}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', background: link.enabled ? 'white' : '#f1f5f9', color: link.enabled ? '#0f172a' : '#94a3b8', fontSize: '12px', fontWeight: 700, cursor: link.enabled ? 'pointer' : 'not-allowed' }}
                   >
-                    {showCommissionForm ? 'Close' : '+ Add Commission'}
+                    {link.icon} {link.label} <ArrowRight size={12} />
                   </button>
-                </div>
+                ))}
               </div>
-
-              {/* Commission Creation Form */}
-              {showCommissionForm && (
-                <div style={{ background: '#fff', border: '1px dashed #ea580c', borderRadius: '8px', padding: '12px', marginBottom: '12px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '10px' }}>
-                    <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Beneficiary Type</label>
-                      <select 
-                        value={commissionForm.beneficiary_type} 
-                        onChange={(e) => setCommissionForm({ ...commissionForm, beneficiary_type: e.target.value })}
-                        style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      >
-                        <option value="internal_agent">Internal Agent</option>
-                        <option value="broker">External Broker</option>
-                        <option value="agency">Agency / Partner</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Beneficiary Name</label>
-                      <input 
-                        type="text" 
-                        placeholder="Agent / Broker Name"
-                        value={commissionForm.beneficiary_name} 
-                        onChange={(e) => setCommissionForm({ ...commissionForm, beneficiary_name: e.target.value })} 
-                        style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Calculation</label>
-                      <select 
-                        value={commissionForm.commission_type} 
-                        onChange={(e) => setCommissionForm({ ...commissionForm, commission_type: e.target.value })}
-                        style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      >
-                        <option value="percentage">Percentage (%)</option>
-                        <option value="fixed">Fixed Amount (EGP)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>
-                        {commissionForm.commission_type === 'percentage' ? 'Rate (%)' : 'Amount (EGP)'}
-                      </label>
-                      <input 
-                        type="number" 
-                        step="0.01"
-                        value={commissionForm.commission_type === 'percentage' ? commissionForm.rate : commissionForm.calculated_amount} 
-                        onChange={(e) => {
-                          if (commissionForm.commission_type === 'percentage') {
-                            setCommissionForm({ ...commissionForm, rate: e.target.value });
-                          } else {
-                            setCommissionForm({ ...commissionForm, calculated_amount: e.target.value });
-                          }
-                        }} 
-                        style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Trigger Event</label>
-                      <select 
-                        value={commissionForm.trigger_event} 
-                        onChange={(e) => setCommissionForm({ ...commissionForm, trigger_event: e.target.value })}
-                        style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      >
-                        <option value="contract_signing">Contract Signing</option>
-                        <option value="down_payment">Down Payment</option>
-                        <option value="installment_collection">Installment Collection</option>
-                      </select>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCreateCommission}
-                    style={{ padding: '6px 14px', background: '#ea580c', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Save Commission
-                  </button>
-                </div>
-              )}
-
-              {/* Commissions List */}
-              {commissions.length > 0 ? (
-                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #fed7aa', borderRadius: '8px', background: 'white' }}>
-                  <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ background: '#fff7ed', color: '#9a3412', borderBottom: '1px solid #fed7aa' }}>
-                        <th style={{ padding: '6px 8px' }}>Beneficiary</th>
-                        <th style={{ padding: '6px 8px' }}>Type</th>
-                        <th style={{ padding: '6px 8px' }}>Rate / Calc</th>
-                        <th style={{ padding: '6px 8px' }}>Total Due</th>
-                        <th style={{ padding: '6px 8px' }}>Paid</th>
-                        <th style={{ padding: '6px 8px' }}>Status</th>
-                        <th style={{ padding: '6px 8px', textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {commissions.map((comm) => {
-                        const unpaid = Math.max(0, Number(comm.calculated_amount) - Number(comm.paid_amount));
-                        return (
-                          <tr key={comm.id} style={{ borderBottom: '1px solid #ffedd5' }}>
-                            <td style={{ padding: '6px 8px', fontWeight: 700, color: '#1e293b' }}>{comm.beneficiary_name}</td>
-                            <td style={{ padding: '6px 8px', textTransform: 'capitalize', color: '#64748b' }}>{comm.beneficiary_type?.replace('_', ' ')}</td>
-                            <td style={{ padding: '6px 8px' }}>{comm.commission_type === 'percentage' ? `${comm.rate}%` : 'Fixed'}</td>
-                            <td style={{ padding: '6px 8px', fontWeight: 700, color: '#9a3412' }}>{Number(comm.calculated_amount).toLocaleString()} EGP</td>
-                            <td style={{ padding: '6px 8px', color: '#16a34a' }}>{Number(comm.paid_amount).toLocaleString()} EGP</td>
-                            <td style={{ padding: '6px 8px' }}>
-                              <span style={{
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontSize: '10px',
-                                fontWeight: 800,
-                                background: comm.status === 'Paid' ? '#dcfce7' : (comm.status === 'Approved' || comm.status === 'Earned') ? '#dbeafe' : comm.status === 'Clawback' ? '#fee2e2' : comm.status === 'Cancelled' ? '#f1f5f9' : '#fef3c7',
-                                color: comm.status === 'Paid' ? '#15803d' : (comm.status === 'Approved' || comm.status === 'Earned') ? '#1d4ed8' : comm.status === 'Clawback' ? '#b91c1c' : comm.status === 'Cancelled' ? '#64748b' : '#b45309'
-                              }}>
-                                {comm.status}
-                              </span>
-                            </td>
-                            <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                              <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
-                                {comm.status === 'Pending' && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateCommissionStatus(comm.id, 'Approved')}
-                                    style={{ padding: '2px 6px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
-                                  >
-                                    Approve
-                                  </button>
-                                )}
-                                {(comm.status === 'Approved' || comm.status === 'Earned' || comm.status === 'Partially Paid') && unpaid > 0 && hasFinancialPermission?.('payment.create') && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handlePayCommission(comm.id, unpaid)}
-                                    style={{ padding: '2px 6px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '4px', fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
-                                  >
-                                    Pay
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ fontSize: '11px', color: '#9a3412', fontStyle: 'italic', padding: '6px 0' }}>
-                  No commissions recorded for this deal yet. Click '+ Add Commission' to set up agent or broker fee.
-                </div>
-              )}
             </div>
           )}
 
@@ -1637,248 +981,6 @@ const Deals = () => {
                 </div>
               )}
             </div>
-          )}
-
-          {/* Phase 2.6: Handover Lightweight Milestone */}
-          {isRealEstate && editingDeal?.unit_id && (
-            <div style={{ gridColumn: 'span 2', background: '#f0fdfa', border: '2px solid #99f6e4', borderRadius: '12px', padding: '16px', marginTop: '6px', marginBottom: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: dealHandover || showHandoverForm ? '12px' : 0 }}>
-                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#0f766e' }}>
-                  <Building2 size={16} color="#0d9488" /> Unit Delivery & Handover Milestone
-                </h4>
-                {dealHandover ? (
-                  <span style={{
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    background: dealHandover.status === 'Handed Over' ? '#ccfbf1' : '#f1f5f9',
-                    color: dealHandover.status === 'Handed Over' ? '#0f766e' : '#475569',
-                    border: '1px solid currentColor'
-                  }}>
-                    {dealHandover.status}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowHandoverForm(!showHandoverForm)}
-                    style={{ padding: '4px 10px', background: '#ccfbf1', color: '#0f766e', border: '1px solid #5eead4', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {showHandoverForm ? 'Close' : '+ Schedule Handover'}
-                  </button>
-                )}
-              </div>
-
-              {/* Handover Details */}
-              {dealHandover && (
-                <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '11px', marginBottom: '10px' }}>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>Scheduled Date:</span>
-                      <strong style={{ color: '#1e293b' }}>{dealHandover.scheduled_date ? dealHandover.scheduled_date.split('T')[0] : 'Not Scheduled'}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>Actual Delivery:</span>
-                      <strong style={{ color: dealHandover.actual_handover_date ? '#0f766e' : '#94a3b8' }}>
-                        {dealHandover.actual_handover_date ? dealHandover.actual_handover_date.split('T')[0] : 'Pending Delivery'}
-                      </strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>Key & Clearance:</span>
-                      <strong style={{ color: dealHandover.keys_handed_over ? '#0f766e' : '#64748b' }}>
-                        {dealHandover.keys_handed_over ? 'Keys & Certificate Issued' : 'Pending Clearance'}
-                      </strong>
-                    </div>
-                  </div>
-                  {dealHandover.snagging_notes && (
-                    <div style={{ fontSize: '11px', color: '#475569', marginBottom: '10px', background: '#fff', padding: '8px', borderRadius: '6px', border: '1px solid #ccfbf1' }}>
-                      <strong>Snagging / Punch List Notes:</strong> {dealHandover.snagging_notes}
-                    </div>
-                  )}
-
-                  {/* Handover lifecycle transitions */}
-                  {dealHandover.status !== 'Handed Over' && (
-                    <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid #ccfbf1' }}>
-                      {dealHandover.status === 'Scheduled' && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateHandoverStatus(dealHandover.id, 'Inspection')}
-                          style={{ padding: '5px 12px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Start Inspection
-                        </button>
-                      )}
-                      {dealHandover.status === 'Inspection' && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateHandoverStatus(dealHandover.id, 'Ready for Delivery')}
-                          style={{ padding: '5px 12px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Mark Ready for Delivery
-                        </button>
-                      )}
-                      {['Scheduled', 'Inspection', 'Ready for Delivery'].includes(dealHandover.status) && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateHandoverStatus(dealHandover.id, 'Handed Over')}
-                          style={{ padding: '5px 12px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                        >
-                          Complete Handover & Release Keys
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Handover Scheduling Form */}
-              {!dealHandover && showHandoverForm && (
-                <div style={{ background: '#fff', border: '1px dashed #0d9488', borderRadius: '8px', padding: '12px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginBottom: '10px' }}>
-                    <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Target Delivery Date</label>
-                      <input
-                        type="date"
-                        value={handoverFormData.scheduled_date}
-                        onChange={(e) => setHandoverFormData({ ...handoverFormData, scheduled_date: e.target.value })}
-                        style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Inspection / Snagging Notes</label>
-                      <input
-                        type="text"
-                        placeholder="Any client punch list notes or pending finishing touch..."
-                        value={handoverFormData.snagging_notes}
-                        onChange={(e) => setHandoverFormData({ ...handoverFormData, snagging_notes: e.target.value })}
-                        style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCreateHandover}
-                    style={{ padding: '6px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Confirm Handover Schedule
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* PAYMENT SUMMARY MVP (Phase 2 Upgrade) */}
-          {isRealEstate && (editingDeal?.pipeline_stage?.toLowerCase() === 'won' || formData.pipeline_stage?.toLowerCase() === 'won') && editingDeal?.unit_id && (
-              <div style={{ gridColumn: 'span 2', background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '12px', padding: '20px', marginTop: '10px' }}>
-                  {(() => {
-                      const totalValue = Number(editingDeal.payment_total || editingDeal.value || 0);
-                      const paidValue = Number(editingDeal.paid_amount || 0);
-                      const remainingValue = totalValue - paidValue;
-                      const percentage = totalValue > 0 ? Math.min(100, (paidValue / totalValue) * 100).toFixed(1) : 0;
-                      
-                      let riskColor = '#3b82f6';
-                      let riskText = 'On Track';
-                      let riskBg = '#eff6ff';
-                      
-                      if (remainingValue <= 0) {
-                          riskColor = '#10b981'; riskText = 'Fully Paid'; riskBg = '#dcfce7';
-                      } else if (editingDeal.next_payment_date) {
-                          const diffDays = Math.ceil((new Date(editingDeal.next_payment_date) - new Date()) / (1000 * 60 * 60 * 24));
-                          if (diffDays < 0) {
-                              riskColor = '#ef4444'; riskText = `OVERDUE (${Math.abs(diffDays)} Days)`; riskBg = '#fef2f2';
-                          } else if (diffDays <= 7) {
-                              riskColor = '#f59e0b'; riskText = `DUE IN ${diffDays} DAYS`; riskBg = '#fffbeb';
-                          }
-                      }
-
-                      return (
-                          <>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                                  <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
-                                      <DollarSign size={18} color="#16a34a"/> Cash Flow Timeline
-                                  </h4>
-                                  <div style={{ display: 'flex', gap: '8px' }}>
-                                      <div style={{ padding: '4px 12px', background: riskBg, color: riskColor, borderRadius: '8px', fontSize: '12px', fontWeight: 800, border: `1px solid ${riskColor}40` }}>
-                                          <AlertCircle size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                                          {riskText}
-                                      </div>
-                                  </div>
-                              </div>
-                              
-                              {/* Central Progress Visualization */}
-                              <div style={{ marginBottom: '24px' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: '#64748b' }}>
-                                      <span>Paid: {paidValue.toLocaleString()} EGP</span>
-                                      <span style={{ color: 'var(--primary)', fontWeight: 900 }}>{percentage}% Collected</span>
-                                      <span>Target: {totalValue.toLocaleString()} EGP</span>
-                                  </div>
-                                  <div style={{ width: '100%', height: '14px', background: '#e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-                                      <div style={{ width: `${percentage}%`, height: '100%', background: remainingValue <= 0 ? '#10b981' : 'var(--primary)', transition: 'width 0.5s ease-out' }}></div>
-                                  </div>
-                              </div>
-
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
-                                  <div className="form-group" style={{ marginBottom: 0 }}>
-                                      <label style={{ fontSize: '12px' }}>Log New Payment</label>
-                                      <div style={{ display: 'flex', gap: '8px' }}>
-                                          <input 
-                                              type="number" 
-                                              placeholder="Amount..."
-                                              className="ap-input"
-                                              style={{ flex: 1 }}
-                                              id="new_payment_trigger"
-                                              disabled={!hasFinancialPermission?.('payment.create')}
-                                          />
-                                          {hasFinancialPermission?.('payment.create') && (
-                                              <button 
-                                                  type="button"
-                                                  onClick={async () => {
-                                                      const newAmt = document.getElementById('new_payment_trigger').value;
-                                                      if (!newAmt) return;
-                                                      try {
-                                                          const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
-                                                          if (payRes.data.data) {
-                                                              const updatedAmt = Number(payRes.data.data.paid_amount) + Number(newAmt);
-                                                              await api.put(`/re-payments/${payRes.data.data.id}`, { paid_amount: updatedAmt });
-                                                              toast.success(`Payment logged: +${newAmt} EGP`);
-                                                              fetchDeals(false);
-                                                              document.getElementById('new_payment_trigger').value = '';
-                                                          }
-                                                      } catch (err) { toast.error('Update failed'); }
-                                                  }}
-                                                  style={{ background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', padding: '0 16px', fontWeight: 700, cursor: 'pointer' }}
-                                              >
-                                                  Add
-                                              </button>
-                                          )}
-                                      </div>
-                                  </div>
-                                  <div className="form-group" style={{ marginBottom: 0 }}>
-                                      <label style={{ fontSize: '12px' }}>Next Installment Date</label>
-                                        <input 
-                                            type="date" 
-                                            className="ap-input"
-                                            disabled={!hasFinancialPermission?.('payment.create')}
-                                            defaultValue={editingDeal.next_payment_date ? new Date(editingDeal.next_payment_date).toISOString().split('T')[0] : ''}
-                                            onChange={async (e) => {
-                                                if (!hasFinancialPermission?.('payment.create')) return;
-                                                try {
-                                                    const payRes = await api.get(`/re-payments/deal/${editingDeal.id}`);
-                                                    if (payRes.data.data) {
-                                                        await api.put(`/re-payments/${payRes.data.data.id}`, { next_payment_date: e.target.value });
-                                                        toast.success('Installment horizon updated');
-                                                        fetchDeals(false);
-                                                    }
-                                                } catch (err) { toast.error('Update failed'); }
-                                            }}
-                                        />
-                                  </div>
-                              </div>
-                          </>
-                      );
-                  })()}
-              </div>
           )}
         </form>
         {editingDeal && (

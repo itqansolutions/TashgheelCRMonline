@@ -4,6 +4,7 @@
  */
 
 const db = require('../config/db');
+const accessScopeService = require('../services/accessScopeService');
 
 // @desc    Get commissions list with summary
 // @route   GET /api/re-commissions
@@ -31,6 +32,14 @@ exports.getCommissions = async (req, res) => {
             params.push(status);
             whereClause += ` AND rc.status = $${params.length}`;
         }
+
+        // Row-level scope: deal visibility, or the current user is the beneficiary
+        const scope = await accessScopeService.buildScopePredicate({
+            user: req.user, tableAlias: 'd', assigneeCol: 'assigned_to', paramIndex: params.length + 1
+        });
+        params.push(...scope.params);
+        params.push(String(req.user.id));
+        whereClause += ` AND ((${scope.sql}) OR rc.beneficiary_user_id::text = $${params.length}::text)`;
 
         const result = await db.query(`
             SELECT 

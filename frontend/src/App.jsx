@@ -37,6 +37,12 @@ import PayrollEngine from './pages/HR/PayrollEngine';
 import MyPayroll from './pages/HR/MyPayroll';
 import ActivityDefinition from './pages/HR/ActivityDefinition';
 import ActivityBalance from './pages/HR/ActivityBalance';
+import MyActivityBalance from './pages/HR/MyActivityBalance';
+import Reservations from './pages/RealEstate/Reservations';
+import Contracts from './pages/RealEstate/Contracts';
+import Installments from './pages/RealEstate/Installments';
+import Commissions from './pages/RealEstate/Commissions';
+import Handover from './pages/RealEstate/Handover';
 import Shifts from './pages/HR/Shifts';
 import AttendanceDevices from './pages/HR/AttendanceDevices';
 import InventoryControl from './pages/Inventory/InventoryControl';
@@ -161,6 +167,12 @@ function App() {
                   <Route path="tasks" element={<Tasks />} />
                   <Route path="activities" element={<Tasks />} />
                   <Route path="units-registry" element={<UnitsRegistry />} />
+                  {/* Real Estate / Sales standalone workspaces (formerly inner tabs of Deals) */}
+                  <Route path="reservations" element={<Reservations />} />
+                  <Route path="contracts" element={<Contracts />} />
+                  <Route path="installments" element={<Installments />} />
+                  <Route path="commissions" element={<Commissions />} />
+                  <Route path="handover" element={<Handover />} />
                   <Route path="finance" element={<Invoices />} />
                   <Route path="quotations" element={<Navigate to="/finance?tab=Quotations" replace />} />
                   <Route path="lead-sources" element={<Navigate to="/integrations/meta-forms" replace />} />
@@ -277,7 +289,7 @@ function App() {
                     } 
                   />
                   <Route path="my-payroll" element={<MyPayroll />} />
-                  <Route path="activity-balance" element={<ActivityBalance />} />
+                  <Route path="activity-balance" element={<MyActivityBalance />} />
                   
                   {/* Convenient My-Workspace Aliases redirecting directly to canonical workspaces */}
                   <Route path="my-deals" element={<Navigate to="/deals" replace />} />
@@ -321,7 +333,11 @@ function App() {
                   />
                   <Route 
                     path="hr/activity-balance" 
-                    element={<Navigate to="/activity-balance" replace />}
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <ActivityBalance />
+                      </ProtectedRoute>
+                    } 
                   />
                   <Route 
                     path="hr/shifts" 

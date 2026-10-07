@@ -26,6 +26,52 @@ async function ensureDealColumns() {
   console.log('[Deals] Column guard completed.');
 }
 
+// ─── Deal Lock (commercial integrity) ────────────────────────────────────────
+// A deal becomes locked once it reaches its canonical final stage
+// (Real Estate: 'Closed'; General: 'won') OR once it has originated a
+// non-cancelled contract. Locked deals cannot change core commercial data,
+// cannot leave the final stage and cannot be deleted. The only exit path is
+// the audited Cancellation workflow (/api/re-cancellations).
+const FINAL_DEAL_STAGES = ['closed', 'won'];
+const isFinalStage = (stage) => FINAL_DEAL_STAGES.includes(String(stage || '').trim().toLowerCase());
+
+async function getDealLockState(queryable, deal, tenantId) {
+  if (isFinalStage(deal.pipeline_stage)) {
+    return { locked: true, reason: `Deal is ${deal.pipeline_stage}` };
+  }
+  try {
+    const c = await queryable.query(
+      `SELECT contract_number, status FROM re_contracts
+       WHERE deal_id::text = $1::text AND tenant_id::text = $2::text
+         AND COALESCE(status, '') <> 'Cancelled'
+       LIMIT 1`,
+      [deal.id, tenantId]
+    );
+    if (c.rows.length > 0) {
+      return { locked: true, reason: `Deal has contract ${c.rows[0].contract_number || ''} (${c.rows[0].status})`.trim() };
+    }
+  } catch (e) {
+    // re_contracts may not exist for General tenants – not locked by contract
+  }
+  return { locked: false, reason: null };
+}
+
+const normScalar = (v) => (v === undefined || v === null || v === '') ? '' : String(v);
+// Operational (non-commercial) custom fields that stay editable on locked deals
+const NON_COMMERCIAL_FIELDS = new Set(['visit_date', 'visit_result', 'visit_notes']);
+const stableJson = (obj) => {
+  const src = (obj && typeof obj === 'object') ? obj : {};
+  const out = {};
+  Object.keys(src).sort().forEach(k => {
+    if (NON_COMMERCIAL_FIELDS.has(k)) return;
+    const raw = src[k] && typeof src[k] === 'object' ? JSON.stringify(src[k]) : src[k];
+    const n = normScalar(raw);
+    if (n !== '') out[k] = n;
+  });
+  return JSON.stringify(out);
+};
+
+
 // @desc    Get all deals
 // @route   GET /api/deals
 // @access  Private
@@ -414,6 +460,28 @@ exports.updateDeal = async (req, res) => {
     const cleanSourceId = (source_id !== undefined) ? (source_id ? String(source_id) : null) : oldData.source_id;
     const cleanCustomFields = (custom_fields && typeof custom_fields === 'object') ? custom_fields : (oldData.custom_fields || {});
 
+    // ── Deal Lock enforcement ──
+    const lock = await getDealLockState(db, oldData, tenant_id);
+    if (lock.locked) {
+      const violations = [];
+      if (normScalar(cleanClientId) !== normScalar(oldData.client_id)) violations.push('customer');
+      if (Number(cleanValue || 0) !== Number(oldData.value || 0)) violations.push('deal value');
+      if (normScalar(cleanAssignedTo) !== normScalar(oldData.assigned_to)) violations.push('owner');
+      if (normScalar(cleanProductId) !== normScalar(oldData.product_id)) violations.push('product');
+      if (normScalar(cleanProjectId) !== normScalar(oldData.project_id)) violations.push('project');
+      if (stableJson(cleanCustomFields) !== stableJson(oldData.custom_fields)) violations.push('commercial terms');
+      const newStage = pipeline_stage ? String(pipeline_stage).trim().toLowerCase() : String(oldData.pipeline_stage || '').toLowerCase();
+      const oldStageLc = String(oldData.pipeline_stage || '').toLowerCase();
+      if (newStage !== oldStageLc && (isFinalStage(oldStageLc) || newStage === 'lost')) violations.push('stage');
+      if (violations.length > 0) {
+        return res.status(409).json({
+          status: 'error',
+          code: 'DEAL_LOCKED',
+          message: `${lock.reason}. Locked fields cannot be changed: ${violations.join(', ')}. Use the Cancellation workflow to reverse a closed deal.`
+        });
+      }
+    }
+
     // 2. Perform Update (With phase 2 metrics)
     const result = await db.query(
       `UPDATE deals 
@@ -424,6 +492,17 @@ exports.updateDeal = async (req, res) => {
 
     // Audit Logging
     logUpdate(req, 'Deal', req.params.id, oldData, result.rows[0]);
+
+    // Real Estate: entering the canonical final stage finalizes the unit as Sold
+    if (oldData.unit_id && pipeline_stage && isFinalStage(pipeline_stage) && !isFinalStage(oldData.pipeline_stage)) {
+      try {
+        await db.query(
+          `UPDATE re_units SET status = 'Sold', reservation_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+           WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+          [oldData.unit_id, tenant_id]
+        );
+      } catch (e) { console.warn('[Deal Update] Unit finalize notice:', e.message); }
+    }
 
     // Trigger Template Automation if stage changed
     if (oldData.pipeline_stage !== pipeline_stage) {
@@ -505,6 +584,19 @@ exports.updateDealStatus = async (req, res) => {
     }
     const { title, pipeline_stage: oldStage, assigned_to } = oldResult.rows[0];
 
+    // Deal Lock: a closed/contracted deal cannot leave its final stage or be marked lost here
+    if (String(oldStage || '').toLowerCase() !== cleanStage.toLowerCase()) {
+      const lock = await getDealLockState(db, { id: req.params.id, pipeline_stage: oldStage }, tenant_id);
+      if (lock.locked && (isFinalStage(oldStage) || cleanStage.toLowerCase() === 'lost')) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          status: 'error',
+          code: 'DEAL_LOCKED',
+          message: `${lock.reason}. Stage cannot be changed. Use the Cancellation workflow to reverse a closed deal.`
+        });
+      }
+    }
+
     // 2. Update status
     const result = await client.query(
       'UPDATE deals SET pipeline_stage = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) RETURNING *',
@@ -522,7 +614,15 @@ exports.updateDealStatus = async (req, res) => {
       const unit_id = unitIdRes.rows[0]?.unit_id;
 
       if (unit_id) {
-          if (lowerStage === 'won') {
+          if (lowerStage === 'closed') {
+              // Real Estate canonical final stage: unit is finalized as Sold.
+              // Collections come from installments → finance_vouchers (no re_payments_mvp seeding).
+              await client.query(
+                `UPDATE re_units SET status = 'Sold', reservation_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+                 WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+                [unit_id, tenant_id]
+              );
+          } else if (lowerStage === 'won') {
               await client.query(
                 'UPDATE re_units SET status = \'Sold\' WHERE id::text = $1::text AND tenant_id::text = $2::text',
                 [unit_id, tenant_id]
@@ -554,7 +654,7 @@ exports.updateDealStatus = async (req, res) => {
                  WHERE unit_id::text = $1::text 
                    AND id::text != $2::text 
                    AND tenant_id::text = $3::text 
-                   AND LOWER(COALESCE(pipeline_stage, '')) NOT IN ('lost', 'won') 
+                   AND LOWER(COALESCE(pipeline_stage, '')) <> 'lost' 
                  LIMIT 1`,
                 [unit_id, req.params.id, tenant_id]
               );
@@ -638,6 +738,23 @@ exports.deleteDeal = async (req, res) => {
 
   try {
     await ensureDealColumns();
+
+    // Deal Lock: closed or contracted deals cannot be deleted (re_contracts cascades on delete)
+    const existing = await db.query(
+      'SELECT id, pipeline_stage FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)',
+      [req.params.id, tenant_id, branch_id]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
+    }
+    const lock = await getDealLockState(db, existing.rows[0], tenant_id);
+    if (lock.locked) {
+      return res.status(409).json({
+        status: 'error',
+        code: 'DEAL_LOCKED',
+        message: `${lock.reason}. Closed or contracted deals cannot be deleted. Use the Cancellation workflow instead.`
+      });
+    }
 
     const result = await db.query(
       'DELETE FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) RETURNING *', 

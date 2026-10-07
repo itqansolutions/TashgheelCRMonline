@@ -4,6 +4,7 @@
  */
 
 const db = require('../config/db');
+const accessScopeService = require('../services/accessScopeService');
 
 // @desc    Get handovers
 // @route   GET /api/re-handovers
@@ -31,6 +32,13 @@ exports.getHandovers = async (req, res) => {
             params.push(status);
             whereClause += ` AND rh.status = $${params.length}`;
         }
+
+        // Row-level scope: same visibility as the originating deal
+        const scope = await accessScopeService.buildScopePredicate({
+            user: req.user, tableAlias: 'd', assigneeCol: 'assigned_to', paramIndex: params.length + 1
+        });
+        whereClause += ` AND (${scope.sql})`;
+        params.push(...scope.params);
 
         const result = await db.query(`
             SELECT 
