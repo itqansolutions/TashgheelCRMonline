@@ -45,6 +45,9 @@ router.put('/leaves/:id/status', roleGuard(['admin', 'manager']), hrController.u
 // PHASE 3: PAYROLL ENGINE
 // ============================================
 
+// @route   GET api/hr/payroll/my (Employee Self-Service)
+router.get('/payroll/my', hrController.getMyPayrolls);
+
 // @route   POST api/hr/payroll/generate
 router.post('/payroll/generate', roleGuard(['admin', 'manager']), hrController.generatePayroll);
 

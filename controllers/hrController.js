@@ -473,3 +473,27 @@ exports.finalizePayroll = async (req, res) => {
         res.status(500).json({ status: 'error', message: 'Failed to finalize payroll.' });
     }
 };
+
+// @desc    Get Current User's Payroll Slips (Employee Self-Service)
+// @route   GET /api/hr/payroll/my
+// @access  Private (All Authenticated Employees)
+exports.getMyPayrolls = async (req, res) => {
+    const user_id = req.user.id;
+    const tenant_id = req.user.tenant_id;
+
+    try {
+        const result = await db.query(`
+            SELECT p.*, u.name as employee_name, 
+                   (SELECT json_agg(i.*) FROM hr_payroll_items i WHERE i.payroll_id = p.id) as details
+            FROM hr_payroll p
+            JOIN users u ON p.user_id = u.id
+            WHERE p.user_id = $1 AND p.tenant_id::text = $2::text
+            ORDER BY p.payroll_year DESC, p.payroll_month DESC
+        `, [user_id, tenant_id]);
+
+        res.json({ status: 'success', data: result.rows });
+    } catch (err) {
+        console.error('getMyPayrolls Error:', err.message);
+        res.status(500).json({ status: 'error', message: 'Failed to retrieve your payroll slips.' });
+    }
+};

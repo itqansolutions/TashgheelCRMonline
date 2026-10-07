@@ -34,6 +34,7 @@ import UnitsRegistry from './pages/RealEstate/UnitsRegistry';
 import MyRequests from './pages/HR/MyRequests';
 import ApprovalCenter from './pages/HR/ApprovalCenter';
 import PayrollEngine from './pages/HR/PayrollEngine';
+import MyPayroll from './pages/HR/MyPayroll';
 import ActivityDefinition from './pages/HR/ActivityDefinition';
 import ActivityBalance from './pages/HR/ActivityBalance';
 import Shifts from './pages/HR/Shifts';
@@ -264,11 +265,32 @@ function App() {
                     }
                   />
 
+                  {/* Personal My Profile Workspaces & Operational Sibling Routes */}
+                  <Route path="my-attendance" element={<Attendance />} />
+                  <Route path="my-requests" element={<MyRequests />} />
+                  <Route 
+                    path="approvals" 
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <ApprovalCenter />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route path="my-payroll" element={<MyPayroll />} />
+                  <Route path="activity-balance" element={<ActivityBalance />} />
+                  
+                  {/* Convenient My-Workspace Aliases redirecting directly to canonical workspaces */}
+                  <Route path="my-deals" element={<Navigate to="/deals" replace />} />
+                  <Route path="my-tasks" element={<Navigate to="/tasks" replace />} />
+                  <Route path="my-customers" element={<Navigate to="/customers" replace />} />
+                  <Route path="my-units" element={<Navigate to="/units-registry" replace />} />
+
+                  {/* Legacy HR Routes Preserved for Backward Compatibility */}
                   <Route path="employees" element={<Navigate to="/contacts/employees" replace />} />
-                  <Route path="attendance" element={<Navigate to="/hr/my-attendance" replace />} />
-                  <Route path="hr/my-attendance" element={<Attendance />} />
+                  <Route path="attendance" element={<Navigate to="/my-attendance" replace />} />
+                  <Route path="hr/my-attendance" element={<Navigate to="/my-attendance" replace />} />
                   <Route path="hr" element={<Navigate to="/hr/dashboard" replace />} />
-                  <Route path="hr/my-requests" element={<MyRequests />} />
+                  <Route path="hr/my-requests" element={<Navigate to="/my-requests" replace />} />
                   <Route 
                     path="hr/dashboard" 
                     element={
@@ -279,11 +301,7 @@ function App() {
                   />
                   <Route 
                     path="hr/approvals" 
-                    element={
-                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                        <ApprovalCenter />
-                      </ProtectedRoute>
-                    } 
+                    element={<Navigate to="/approvals" replace />}
                   />
                   <Route 
                     path="hr/payroll" 
@@ -303,11 +321,7 @@ function App() {
                   />
                   <Route 
                     path="hr/activity-balance" 
-                    element={
-                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
-                        <ActivityBalance />
-                      </ProtectedRoute>
-                    } 
+                    element={<Navigate to="/activity-balance" replace />}
                   />
                   <Route 
                     path="hr/shifts" 

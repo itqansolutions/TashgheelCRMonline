@@ -53,7 +53,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
           value={unitsOverview.available}
           icon={<Building2 size={20} />}
           color="success"
-          subtitle={`Out of ${unitsOverview.total} total inventory`}
+          subtitle={`Out of ${unitsOverview.total} total units`}
           onClick={() => navigate('/units-registry')}
         />
         <KPICard 
@@ -107,7 +107,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         {/* Unit Status Breakdown */}
         <div className="dashboard-card">
           <div className="card-header">
-            <h3>Inventory Status</h3>
+            <h3>Unit Status</h3>
             <button className="text-btn" onClick={() => navigate('/units-registry')}>
               View Units <ChevronRight size={14} />
             </button>
@@ -239,7 +239,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
               </table>
             </div>
           ) : (
-            <EmptyState message="No reservations approaching expiration." />
+            <EmptyState message="No reservations approaching expiration." compact={true} />
           )}
         </div>
       </div>
@@ -272,7 +272,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                 <span className="stat-sub">Upcoming cash inflows</span>
               </div>
               <div className="stat-box box-danger" onClick={() => navigate('/deals?tab=installments')}>
-                <span className="stat-label">Overdue Schedule</span>
+                <span className="stat-label">Overdue Installments</span>
                 <span className="stat-val">{formatEgp(contractsAndInstallments.installments.overdue)}</span>
                 <span className="stat-sub">{contractsAndInstallments.installments.overdueCount} installments past due</span>
               </div>
@@ -316,7 +316,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
               <h3>Financial Collections</h3>
             </div>
             <div className="card-body">
-              <EmptyState message="Financial information is restricted for your role." />
+              <EmptyState message="Financial information is restricted for your role." compact={true} />
             </div>
           </div>
         )}
@@ -340,14 +340,21 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                     <div className="agent-rank">{idx + 1}</div>
                     <div className="agent-meta">
                       <span className="agent-name">{ag.name}</span>
-                      <span className="agent-deals">{ag.dealsCount} closed deals</span>
+                      <span className="agent-deals">
+                        {ag.dealsCount} closed deals
+                        {ag.commissionStatus && (
+                          <span className={`agent-comm-badge badge-${ag.commissionStatus.toLowerCase().replace(/\s+/g, '-')}`}>
+                            • {ag.commissionStatus} {ag.commissionAmount ? `(${formatEgp(ag.commissionAmount)})` : ''}
+                          </span>
+                        )}
+                      </span>
                     </div>
                     <span className="agent-val">{formatEgp(ag.dealValue)}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <EmptyState message="No sales performance data available yet." />
+              <EmptyState message="No sales performance data available yet." compact={true} />
             )}
           </div>
         </div>
@@ -381,11 +388,12 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                 ))}
               </div>
             ) : (
-              <EmptyState message="No pending unit deliveries scheduled." />
+              <EmptyState message="No pending unit deliveries scheduled." compact={true} />
             )}
           </div>
         </div>
       </div>
+
 
       <style>{`
         .re-dashboard-content {

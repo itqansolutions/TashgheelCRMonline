@@ -42,12 +42,25 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // -------------------------------------------------------------
   // Allowed Pages Access Filter
   // -------------------------------------------------------------
+  const ROUTE_ALIASES = {
+    '/my-attendance': '/hr/my-attendance',
+    '/my-requests': '/hr/my-requests',
+    '/approvals': '/hr/approvals',
+    '/my-payroll': '/hr/payroll',
+    '/activity-balance': '/hr/activity-balance',
+    '/my-deals': '/deals',
+    '/my-tasks': '/tasks',
+    '/my-customers': '/customers',
+    '/my-units': '/units-registry',
+  };
+
   const allowed = safeArray(user?.allowedPages);
   const isPathAllowed = (path) => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     const basePath = path.split('?')[0];
-    return allowed.includes(path) || allowed.includes(basePath);
+    const canonicalPath = ROUTE_ALIASES[basePath] || basePath;
+    return allowed.includes(path) || allowed.includes(basePath) || allowed.includes(canonicalPath);
   };
 
   const filterByAllowed = (items) => {
@@ -91,18 +104,18 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   };
 
   // -------------------------------------------------------------
-  // 1. MY PROFILE ITEMS
+  // 1. MY PROFILE ITEMS (All direct siblings)
   // -------------------------------------------------------------
   const rawProfileItems = [
-    { name: 'My Attendance',    icon: <Clock size={16} />,        path: '/hr/my-attendance' },
-    { name: 'My Requests',      icon: <FileText size={16} />,     path: '/hr/my-requests' },
-    { name: 'Approvals',        icon: <ShieldCheck size={16} />,  path: '/hr/approvals', roleGuard: ['admin', 'manager'] },
-    { name: 'My Payroll',       icon: <DollarSign size={16} />,   path: '/my-profile?tab=payroll' },
-    { name: 'Activity Balance', icon: <Wallet size={16} />,       path: '/my-profile?tab=balance' },
-    { name: 'Deals',            icon: <Handshake size={16} />,    path: '/my-profile?tab=deals' },
-    { name: 'Tasks',            icon: <CheckSquare size={16} />,  path: '/my-profile?tab=tasks' },
-    { name: 'Customers',        icon: <Users size={16} />,        path: '/my-profile?tab=customers' },
-    ...(isRealEstate ? [{ name: 'Units', icon: <Key size={16} />, path: '/my-profile?tab=units' }] : [])
+    { name: 'My Attendance',    icon: <Clock size={16} />,        path: '/my-attendance' },
+    { name: 'My Requests',      icon: <FileText size={16} />,     path: '/my-requests' },
+    { name: 'Approvals',        icon: <ShieldCheck size={16} />,  path: '/approvals', roleGuard: ['admin', 'manager'] },
+    { name: 'My Payroll',       icon: <DollarSign size={16} />,   path: '/my-payroll' },
+    { name: 'Activity Balance', icon: <Wallet size={16} />,       path: '/activity-balance' },
+    { name: 'Deals',            icon: <Handshake size={16} />,    path: '/deals' },
+    { name: 'Tasks',            icon: <CheckSquare size={16} />,  path: '/tasks' },
+    { name: 'Customers',        icon: <Users size={16} />,        path: '/customers' },
+    ...(isRealEstate ? [{ name: 'Units', icon: <Key size={16} />, path: '/units-registry' }] : [])
   ];
 
   const profileItems = rawProfileItems.filter(item => {

@@ -3,6 +3,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Plus, Edit2, Trash2, Wallet, Filter, Search, UserCheck } from 'lucide-react';
 import HRSubNav from '../../components/HR/HRSubNav';
+import { useAuth } from '../../context/AuthContext';
 
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
@@ -13,6 +14,8 @@ const MONTHS_EN = [
 ];
 
 const ActivityBalance = () => {
+  const { user } = useAuth();
+  const isManager = user?.role === 'admin' || user?.role === 'manager';
   const [balances, setBalances] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [activityTypes, setActivityTypes] = useState([]);
@@ -156,17 +159,19 @@ const ActivityBalance = () => {
               Allocate and track per-employee activity balances across monthly periods
             </p>
           </div>
-          <button
-            onClick={() => handleOpenModal()}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
-              background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white',
-              border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(16,185,129,0.25)'
-            }}
-          >
-            <Plus size={18} /> Assign Employee Balance
-          </button>
+          {isManager && (
+            <button
+              onClick={() => handleOpenModal()}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
+                background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white',
+                border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(16,185,129,0.25)'
+              }}
+            >
+              <Plus size={18} /> Assign Employee Balance
+            </button>
+          )}
         </div>
 
         {/* Filter Bar */}
@@ -191,14 +196,16 @@ const ActivityBalance = () => {
             </select>
           </div>
 
-          <div>
-            <select value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)} style={inputStyle}>
-              <option value="">All Employees</option>
-              {employees.map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          </div>
+          {isManager && (
+            <div>
+              <select value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)} style={inputStyle}>
+                <option value="">All Employees</option>
+                {employees.map(e => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <select value={selectedType} onChange={(e) => setSelectedType(e.target.value)} style={inputStyle}>
@@ -231,7 +238,7 @@ const ActivityBalance = () => {
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Used</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Remaining</th>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Notes</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569', textAlign: 'center' }}>Actions</th>
+                  {isManager && <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569', textAlign: 'center' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -266,16 +273,18 @@ const ActivityBalance = () => {
                       <td style={{ padding: '14px 18px', fontSize: '12px', color: '#94a3b8' }}>
                         {b.notes || '—'}
                       </td>
-                      <td style={{ padding: '14px 18px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                          <button onClick={() => handleOpenModal(b)} style={{ padding: '6px', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white', cursor: 'pointer', color: '#4f46e5' }}>
-                            <Edit2 size={16} />
-                          </button>
-                          <button onClick={() => handleDelete(b.id)} style={{ padding: '6px', border: '1px solid #fee2e2', borderRadius: '8px', background: '#fef2f2', cursor: 'pointer', color: '#dc2626' }}>
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
+                      {isManager && (
+                        <td style={{ padding: '14px 18px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                            <button onClick={() => handleOpenModal(b)} style={{ padding: '6px', border: '1px solid #e2e8f0', borderRadius: '8px', background: 'white', cursor: 'pointer', color: '#4f46e5' }}>
+                              <Edit2 size={16} />
+                            </button>
+                            <button onClick={() => handleDelete(b.id)} style={{ padding: '6px', border: '1px solid #fee2e8', borderRadius: '8px', background: '#fef2f2', cursor: 'pointer', color: '#dc2626' }}>
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

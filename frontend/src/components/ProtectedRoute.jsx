@@ -58,10 +58,23 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   // Admin always has access to everything within their template & enabled modules
   if (user?.role === 'admin') return children;
-  const allowed = safeArray(user?.allowedPages);
+  // Route alias & canonical mapping for permission evaluation
+  const ROUTE_ALIASES = {
+    '/my-attendance': '/hr/my-attendance',
+    '/my-requests': '/hr/my-requests',
+    '/approvals': '/hr/approvals',
+    '/my-payroll': '/hr/payroll',
+    '/activity-balance': '/hr/activity-balance',
+    '/my-deals': '/deals',
+    '/my-tasks': '/tasks',
+    '/my-customers': '/customers',
+    '/my-units': '/units-registry',
+  };
+
+  const canonicalPath = ROUTE_ALIASES[checkPath] || checkPath;
 
   // If user has explicit screen permission in allowedPages, allow access immediately
-  if (allowed.length > 0 && allowed.includes(checkPath)) {
+  if (allowed.length > 0 && (allowed.includes(checkPath) || allowed.includes(canonicalPath))) {
     return children;
   }
 

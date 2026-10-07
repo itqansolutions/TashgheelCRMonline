@@ -113,7 +113,7 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         {finance.accessible ? (
           <div className="dashboard-card">
             <div className="card-header">
-              <h3>Sales Performance (Last 30 Days)</h3>
+              <h3>Sales Performance ({finance.periodLabel || (timeFilter === 'TODAY' ? 'Today' : timeFilter === 'THIS_WEEK' ? 'This Week' : 'This Month')})</h3>
               <button className="text-btn" onClick={() => navigate('/finance')}>
                 View Invoices <ChevronRight size={14} />
               </button>
@@ -135,7 +135,7 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                   ))}
                 </div>
               ) : (
-                <EmptyState message="No sales transactions recorded in the past 30 days." />
+                <EmptyState message="No sales transactions recorded in this period." compact={true} />
               )}
             </div>
           </div>
@@ -145,7 +145,7 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
               <h3>Sales Performance</h3>
             </div>
             <div className="card-body">
-              <EmptyState message="Financial performance details are restricted for your role." />
+              <EmptyState message="Financial performance details are restricted for your role." compact={true} />
             </div>
           </div>
         )}
@@ -308,7 +308,7 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                     ))}
                   </div>
                 ) : (
-                  <EmptyState message="No pending tasks assigned." />
+                  <EmptyState message="No pending tasks assigned." compact={true} />
                 )}
               </div>
 
@@ -328,12 +328,12 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                     ))}
                   </div>
                 ) : (
-                  <EmptyState message="No pending quotations." />
+                  <EmptyState message="No pending quotations." compact={true} />
                 )}
               </div>
             </div>
           ) : (
-            <EmptyState message="All action items are up to date." />
+            <EmptyState message="All action items are up to date." compact={true} />
           )}
         </div>
       </div>

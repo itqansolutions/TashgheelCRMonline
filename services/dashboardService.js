@@ -95,7 +95,20 @@ async function getGeneralFinanceMetrics(tenantId, timeFilter, hasFinanceAccess) 
         // Table might be absent or empty in some environments
     }
 
-    // 4. Sales performance trend over recent days / weeks
+    // 4. Sales performance trend over current selected filter period
+    let trendIntervalCond = "created_at >= date_trunc('month', CURRENT_DATE)";
+    let periodLabel = "This Month";
+    if (timeFilter === 'TODAY') {
+        trendIntervalCond = "created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + INTERVAL '1 day'";
+        periodLabel = "Today";
+    } else if (timeFilter === 'THIS_WEEK') {
+        trendIntervalCond = "created_at >= date_trunc('week', CURRENT_DATE)";
+        periodLabel = "This Week";
+    } else if (timeFilter === 'YTD') {
+        trendIntervalCond = "created_at >= date_trunc('year', CURRENT_DATE)";
+        periodLabel = "Year to Date";
+    }
+
     const performanceRes = await db.query(`
         SELECT 
             TO_CHAR(created_at, 'YYYY-MM-DD') as period_date,
@@ -104,7 +117,7 @@ async function getGeneralFinanceMetrics(tenantId, timeFilter, hasFinanceAccess) 
         FROM invoices
         WHERE tenant_id::text = $1::text
         AND (status IS NULL OR status != 'cancelled')
-        AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+        AND ${trendIntervalCond}
         GROUP BY TO_CHAR(created_at, 'YYYY-MM-DD')
         ORDER BY period_date ASC
     `, [tenantId]);
@@ -114,6 +127,7 @@ async function getGeneralFinanceMetrics(tenantId, timeFilter, hasFinanceAccess) 
         salesToday: parseFloat(salesKpiRes.rows[0]?.sales_today) || 0,
         salesThisMonth: parseFloat(salesKpiRes.rows[0]?.sales_this_month) || 0,
         salesFiltered: parseFloat(salesKpiRes.rows[0]?.sales_filtered_period) || 0,
+        periodLabel,
         receivables: {
             outstanding: parseFloat(receivablesRes.rows[0]?.outstanding) || 0,
             overdue: parseFloat(receivablesRes.rows[0]?.overdue) || 0,
@@ -127,6 +141,7 @@ async function getGeneralFinanceMetrics(tenantId, timeFilter, hasFinanceAccess) 
         }))
     };
 }
+
 
 /**
  * Get General CRM Sales Pipeline
@@ -575,6 +590,8 @@ async function getRealEstateCommissionsOverview(tenantId, hasFinanceAccess) {
         `, [tenantId]);
 
         let commissionMetrics = null;
+        const agentCommissionsMap = {};
+
         if (hasFinanceAccess) {
             const commRes = await db.query(`
                 SELECT 
@@ -590,15 +607,46 @@ async function getRealEstateCommissionsOverview(tenantId, hasFinanceAccess) {
                 totalPaid: parseFloat(commRes.rows[0]?.total_paid) || 0,
                 outstanding: parseFloat(commRes.rows[0]?.outstanding) || 0
             };
+
+            // Fetch per-agent commission totals safely
+            const perAgentCommRes = await db.query(`
+                SELECT 
+                    beneficiary_user_id,
+                    COALESCE(SUM(calculated_amount), 0) as agent_comm_amount,
+                    COALESCE(SUM(paid_amount), 0) as agent_paid_amount,
+                    COUNT(*) FILTER (WHERE status = 'Paid') as paid_count,
+                    COUNT(*) as total_count
+                FROM re_commissions
+                WHERE tenant_id::text = $1::text
+                AND beneficiary_user_id IS NOT NULL
+                GROUP BY beneficiary_user_id
+            `, [tenantId]);
+
+            perAgentCommRes.rows.forEach(r => {
+                const uid = String(r.beneficiary_user_id);
+                const commAmt = parseFloat(r.agent_comm_amount) || 0;
+                const paidAmt = parseFloat(r.agent_paid_amount) || 0;
+                const isAllPaid = parseInt(r.paid_count) === parseInt(r.total_count);
+                agentCommissionsMap[uid] = {
+                    commissionAmount: commAmt,
+                    commissionPaid: paidAmt,
+                    status: isAllPaid ? 'Paid' : (paidAmt > 0 ? 'Partially Paid' : 'Pending')
+                };
+            });
         }
 
         return {
-            topAgents: topAgentsRes.rows.map(a => ({
-                userId: a.user_id,
-                name: a.user_name || 'Agent',
-                dealsCount: parseInt(a.deals_count) || 0,
-                dealValue: parseFloat(a.total_deal_value) || 0
-            })),
+            topAgents: topAgentsRes.rows.map(a => {
+                const commInfo = agentCommissionsMap[String(a.user_id)] || null;
+                return {
+                    userId: a.user_id,
+                    name: a.user_name || 'Agent',
+                    dealsCount: parseInt(a.deals_count) || 0,
+                    dealValue: parseFloat(a.total_deal_value) || 0,
+                    commissionAmount: commInfo ? commInfo.commissionAmount : null,
+                    commissionStatus: commInfo ? commInfo.status : null
+                };
+            }),
             commissions: commissionMetrics
         };
     } catch (e) {
