@@ -97,11 +97,22 @@ const ensureInvoicesTable = async () => {
         await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS client_id VARCHAR(255);`);
         await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS customer_id VARCHAR(255);`);
         await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255);`);
+        await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS sales_order_id VARCHAR(255);`);
         await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS unit_id VARCHAR(255);`);
         await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`);
         await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS notes TEXT;`);
         await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS accounting_status VARCHAR(20) DEFAULT 'unposted';`);
         await safeAlter(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS journal_entry_id UUID;`);
+
+        // Phase G-3: Align General CRM multi-order index
+        // Drop restrictive deal-level index so Deals support multiple Sales Orders & Invoices
+        await safeAlter(`DROP INDEX IF EXISTS uq_invoices_active_deal;`);
+        // Enforce single active invoice per Sales Order
+        await safeAlter(`
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_invoices_active_sales_order
+            ON invoices (tenant_id, sales_order_id)
+            WHERE sales_order_id IS NOT NULL AND (status IS NULL OR status != 'cancelled');
+        `);
 
         // 2. Invoice Items Table
         await db.query(`
@@ -626,12 +637,12 @@ const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount,
             const vRes = await db.query(`
                 INSERT INTO finance_vouchers (
                     voucher_number, voucher_type, party_type, party_name, customer_id, invoice_id,
-                    amount, payment_method, notes, voucher_date, created_by, tenant_id, branch_id
-                ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, CURRENT_DATE, $8, $9, $10)
+                    amount, payment_method, treasury_account_id, notes, voucher_date, created_by, tenant_id, branch_id
+                ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, $8, CURRENT_DATE, $9, $10, $11)
                 RETURNING *
             `, [
                 voucherNumber, clientName, targetCustId ? String(targetCustId) : null, invoice_id, amount,
-                payment_method || 'cash', notes ? `${notes} (سداد فاتورة ${invoice.invoice_number})` : `سداد فاتورة رقم ${invoice.invoice_number}`,
+                payment_method || 'cash', resolvedTreasuryId, notes ? `${notes} (سداد فاتورة ${invoice.invoice_number})` : `سداد فاتورة رقم ${invoice.invoice_number}`,
                 user_id || null, tenant_id, branch_id ? String(branch_id) : null
             ]);
             voucherData = vRes.rows[0];
@@ -643,14 +654,9 @@ const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount,
         }
     }
 
-    if (newStatus === 'paid') {
-        try {
-            const inventoryHooks = require('../services/inventoryHooks');
-            await inventoryHooks.onInvoicePaid(invoice_id, tenant_id, branch_id, user_id);
-        } catch (hErr) {
-            console.warn('[Inventory Hook Warning]:', hErr.message);
-        }
-    }
+    // Phase G-1 Architectural Boundary:
+    // Physical stock deductions are strictly governed by DeliveryNoteService upon delivery confirmation.
+    // Invoices are financial obligation documents and must never move warehouse stock on settlement.
 
     if (req) {
         logAction({ req, action: ACTIONS.PAYMENT, entityType: 'Invoice', entityId: invoice_id, details: { amount, newStatus } });
@@ -889,12 +895,29 @@ exports.createVoucher = async (req, res) => {
             effectivePartyName = voucher_type === 'receipt' ? 'عميل نقدي' : 'جهة الصرف';
         }
 
+        // Resolve treasury_account_id: provided → fallback to default account for method → null
+        let resolvedTreasuryId = req.body.treasury_account_id || null;
+        if (!resolvedTreasuryId) {
+            try {
+                const accType = (payment_method === 'bank_transfer' || payment_method === 'card' || payment_method === 'check')
+                    ? 'bank' : 'cash';
+                const taRes = await db.query(`
+                    SELECT id FROM treasury_accounts
+                    WHERE tenant_id::text = $1::text
+                      AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+                      AND type = $3 AND is_default = true AND is_active = true
+                    LIMIT 1
+                `, [tenant_id, branch_id ? String(branch_id) : null, accType]);
+                if (taRes.rows.length > 0) resolvedTreasuryId = taRes.rows[0].id;
+            } catch (_) {}
+        }
+
         const vRes = await db.query(`
             INSERT INTO finance_vouchers (
                 voucher_number, voucher_type, party_type, party_name, customer_id, vendor_id,
-                invoice_id, amount, payment_method, treasury_account, reference_no,
+                invoice_id, amount, payment_method, treasury_account, treasury_account_id, reference_no,
                 notes, voucher_date, created_by, tenant_id, branch_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING *
         `, [
             voucherNumber,
@@ -907,6 +930,7 @@ exports.createVoucher = async (req, res) => {
             parseFloat(amount),
             payment_method || 'cash',
             treasury_account || 'Main Cash / الخزينة الرئيسية',
+            resolvedTreasuryId,
             reference_no || null,
             notes || null,
             voucher_date || new Date().toISOString().split('T')[0],
@@ -925,6 +949,7 @@ exports.createVoucher = async (req, res) => {
                 invoice_id,
                 amount,
                 payment_method,
+                treasury_account_id: resolvedTreasuryId,
                 notes: notes ? `${notes} (سند قبض ${voucherNumber})` : `سند قبض رقم ${voucherNumber}`,
                 user_id: req.user.id,
                 req,
@@ -1445,8 +1470,7 @@ exports.getCustomerAccounts = async (req, res) => {
     await ensureInvoicesTable();
 
     try {
-        // One query: per-customer aggregation from invoices + payments
-        // Overdue = unpaid/partial invoices where due_date < today
+        // One query: per-customer aggregation from invoices + payments + on-account vouchers
         const result = await db.query(`
             SELECT
                 c.id                                                        AS customer_id,
@@ -1457,11 +1481,11 @@ exports.getCustomerAccounts = async (req, res) => {
                 -- Totals derived from invoices
                 COALESCE(SUM(i.total_amount), 0)                            AS total_invoiced,
 
-                -- Total paid: sum of all payments linked to this customer's invoices
-                COALESCE(SUM(p_agg.paid), 0)                                AS total_paid,
+                -- Total paid: sum of all payments linked to this customer's invoices + on-account receipts
+                COALESCE(SUM(p_agg.paid), 0) + COALESCE(MAX(v_agg.on_account_paid), 0) AS total_paid,
 
-                -- Outstanding = invoiced - paid (only unpaid/partial)
-                COALESCE(SUM(CASE WHEN i.status != 'paid' THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END), 0) AS outstanding,
+                -- Outstanding = invoiced - total_paid (floored at 0)
+                GREATEST(0, COALESCE(SUM(CASE WHEN i.status != 'paid' THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END), 0) - COALESCE(MAX(v_agg.on_account_paid), 0)) AS outstanding,
 
                 -- Overdue = outstanding where due_date < today
                 COALESCE(SUM(
@@ -1474,10 +1498,11 @@ exports.getCustomerAccounts = async (req, res) => {
                     END
                 ), 0) AS overdue,
 
-                -- Last transaction = latest of invoice created_at or last payment
+                -- Last transaction = latest of invoice created_at, last payment, or last voucher
                 GREATEST(
                     MAX(i.created_at),
-                    MAX(p_agg.last_payment_date)
+                    MAX(p_agg.last_payment_date),
+                    MAX(v_agg.last_voucher_date)
                 )                                                           AS last_transaction,
 
                 COUNT(i.id)                                                 AS invoice_count,
@@ -1485,12 +1510,12 @@ exports.getCustomerAccounts = async (req, res) => {
                 -- Account status: 'overdue' > 'outstanding' > 'clear'
                 CASE
                     WHEN COALESCE(SUM(CASE WHEN i.status != 'paid' AND i.due_date IS NOT NULL AND i.due_date < CURRENT_DATE THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END), 0) > 0 THEN 'overdue'
-                    WHEN COALESCE(SUM(CASE WHEN i.status != 'paid' THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END), 0) > 0 THEN 'outstanding'
+                    WHEN GREATEST(0, COALESCE(SUM(CASE WHEN i.status != 'paid' THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END), 0) - COALESCE(MAX(v_agg.on_account_paid), 0)) > 0 THEN 'outstanding'
                     ELSE 'clear'
                 END                                                         AS account_status
 
             FROM customers c
-            INNER JOIN invoices i ON (
+            LEFT JOIN invoices i ON (
                 i.client_id::text = c.id::text OR i.customer_id::text = c.id::text
             )
             LEFT JOIN (
@@ -1508,13 +1533,26 @@ exports.getCustomerAccounts = async (req, res) => {
                   AND ($2::text IS NULL OR inv.branch_id::text = $2::text OR inv.branch_id IS NULL)
                 GROUP BY inv.id, inv.client_id, inv.customer_id
             ) p_agg ON p_agg.invoice_id = i.id
+            LEFT JOIN (
+                SELECT
+                    fv.customer_id,
+                    COALESCE(SUM(fv.amount), 0) AS on_account_paid,
+                    MAX(fv.voucher_date::timestamp with time zone) AS last_voucher_date
+                FROM finance_vouchers fv
+                WHERE fv.tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                  AND fv.voucher_type = 'receipt'
+                  AND fv.invoice_id IS NULL
+                  AND (COALESCE(fv.status, 'active') != 'cancelled')
+                GROUP BY fv.customer_id
+            ) v_agg ON v_agg.customer_id::text = c.id::text
 
             WHERE c.tenant_id::text = $1::text
-              AND i.tenant_id::text = $1::text
+              AND (i.tenant_id::text = $1::text OR i.tenant_id IS NULL)
               AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
 
             GROUP BY c.id, c.name, c.phone, c.email
-            HAVING COALESCE(SUM(i.total_amount), 0) > 0
+            HAVING (COALESCE(SUM(i.total_amount), 0) > 0 OR COALESCE(MAX(v_agg.on_account_paid), 0) > 0)
 
             ORDER BY outstanding DESC, total_invoiced DESC
         `, [tenant_id, branch_id ? String(branch_id) : null]);
@@ -1605,7 +1643,7 @@ exports.getCustomerStatement = async (req, res) => {
             ORDER BY i.created_at ASC
         `, invParams);
 
-        // 3. Payments for this customer's invoices → CREDIT entries
+        // 3. Payments for this customer's invoices (Invoice-Linked Receipts)
         let payWhere = `
             WHERE p.tenant_id::text = $1::text
               AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
@@ -1622,14 +1660,7 @@ exports.getCustomerStatement = async (req, res) => {
                 p.payment_date::date               AS txn_date,
                 'Receipt'                          AS txn_type,
                 COALESCE(
-                    (SELECT fv.voucher_number
-                     FROM finance_vouchers fv
-                     WHERE fv.invoice_id = i.id
-                       AND fv.voucher_type = 'receipt'
-                       AND fv.tenant_id::text = $1::text
-                       AND ABS(fv.amount - p.amount) < 0.01
-                       AND fv.voucher_date = p.payment_date::date
-                     ORDER BY fv.id DESC LIMIT 1),
+                    fv.voucher_number,
                     'PMT-' || p.id::text
                 )                                  AS reference,
                 0                                  AS debit,
@@ -1639,14 +1670,44 @@ exports.getCustomerStatement = async (req, res) => {
                 p.id                               AS source_id
             FROM payments p
             JOIN invoices i ON p.invoice_id::text = i.id::text
+            LEFT JOIN finance_vouchers fv ON p.voucher_id = fv.id
             ${payWhere}
             ORDER BY p.payment_date ASC
         `, payParams);
+
+        // 3B. Phase G-4: On-Account Receipts (finance_vouchers with customer_id and NO invoice_id)
+        let onAccWhere = `
+            WHERE fv.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+              AND fv.customer_id::text = $3::text
+              AND fv.voucher_type = 'receipt'
+              AND fv.invoice_id IS NULL
+              AND (COALESCE(fv.status, 'active') != 'cancelled')
+        `;
+        const onAccParams = [tenant_id, branch_id ? String(branch_id) : null, customer_id];
+        if (date_from) { onAccParams.push(date_from); onAccWhere += ` AND fv.voucher_date >= $${onAccParams.length}`; }
+        if (date_to)   { onAccParams.push(date_to);   onAccWhere += ` AND fv.voucher_date <= $${onAccParams.length}`; }
+
+        const onAccVouchersRes = await db.query(`
+            SELECT
+                fv.voucher_date::date              AS txn_date,
+                'On-Account Receipt'               AS txn_type,
+                fv.voucher_number                  AS reference,
+                0                                  AS debit,
+                fv.amount                          AS credit,
+                NULL                               AS linked_invoice,
+                fv.payment_method,
+                fv.id                              AS source_id
+            FROM finance_vouchers fv
+            ${onAccWhere}
+            ORDER BY fv.voucher_date ASC
+        `, onAccParams);
 
         // 4. Merge & sort chronologically, compute running balance
         const allTxns = [
             ...invoicesRes.rows.map(r => ({ ...r, debit: parseFloat(r.debit), credit: 0 })),
             ...paymentsRes.rows.map(r => ({ ...r, debit: 0, credit: parseFloat(r.credit) })),
+            ...onAccVouchersRes.rows.map(r => ({ ...r, debit: 0, credit: parseFloat(r.credit) })),
         ].sort((a, b) => new Date(a.txn_date) - new Date(b.txn_date) || (a.txn_type === 'Invoice' ? -1 : 1));
 
         let runningBalance = 0;
@@ -1675,16 +1736,33 @@ exports.getCustomerStatement = async (req, res) => {
               AND (i.client_id::text = $3::text OR i.customer_id::text = $3::text)
         `, [tenant_id, branch_id ? String(branch_id) : null, customer_id]);
 
-        const summary = summaryRes.rows[0];
+        // Phase G-4: Sum total on-account receipts (no invoice link)
+        const onAccSumRes = await db.query(`
+            SELECT COALESCE(SUM(amount), 0) AS total_on_account
+            FROM finance_vouchers
+            WHERE tenant_id::text = $1::text
+              AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+              AND customer_id::text = $3::text
+              AND voucher_type = 'receipt'
+              AND invoice_id IS NULL
+              AND (COALESCE(status, 'active') != 'cancelled')
+        `, [tenant_id, branch_id ? String(branch_id) : null, customer_id]);
+
+        const summary = summaryRes.rows[0] || {};
+        const totalOnAccount = parseFloat(onAccSumRes.rows[0]?.total_on_account || 0);
+        const totalInvoiced = parseFloat(summary.total_invoiced || 0);
+        const totalPaid = parseFloat(summary.total_paid || 0) + totalOnAccount;
+        const outstanding = Math.max(0, parseFloat(summary.outstanding || 0) - totalOnAccount);
+        const overdue = parseFloat(summary.overdue || 0);
 
         res.json({
             status: 'success',
             customer,
             summary: {
-                total_invoiced:  parseFloat(summary.total_invoiced  || 0),
-                total_paid:      parseFloat(summary.total_paid      || 0),
-                outstanding:     parseFloat(summary.outstanding     || 0),
-                overdue:         parseFloat(summary.overdue         || 0),
+                total_invoiced:  totalInvoiced,
+                total_paid:      totalPaid,
+                outstanding:     outstanding,
+                overdue:         overdue,
             },
             statement,
         });
@@ -1791,7 +1869,7 @@ exports.getTreasuryAccounts = async (req, res) => {
         const accountsRes = await db.query(`
             SELECT
                 ta.*,
-                -- Incoming: sum of payments linked to this account
+                -- Incoming: sum of payments linked to this account + on-account receipts linked to this account
                 COALESCE((
                     SELECT SUM(p.amount)
                     FROM payments p
@@ -1799,6 +1877,16 @@ exports.getTreasuryAccounts = async (req, res) => {
                       AND p.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
                       AND (COALESCE(p.status, 'active') != 'cancelled')
+                ), 0) +
+                COALESCE((
+                    SELECT SUM(fv.amount)
+                    FROM finance_vouchers fv
+                    WHERE fv.treasury_account_id = ta.id
+                      AND fv.voucher_type = 'receipt'
+                      AND fv.invoice_id IS NULL
+                      AND fv.tenant_id::text = ta.tenant_id::text
+                      AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                      AND (COALESCE(fv.status, 'active') != 'cancelled')
                 ), 0) AS total_incoming,
 
                 -- Outgoing: sum of expenses + vendor payments linked to this account
@@ -1819,7 +1907,7 @@ exports.getTreasuryAccounts = async (req, res) => {
                       AND (COALESCE(fv.status, 'active') != 'cancelled')
                 ), 0) AS total_outgoing,
 
-                -- This month incoming
+                -- This month incoming (payments + on-account receipts)
                 COALESCE((
                     SELECT SUM(p.amount)
                     FROM payments p
@@ -1828,6 +1916,17 @@ exports.getTreasuryAccounts = async (req, res) => {
                       AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
                       AND (COALESCE(p.status, 'active') != 'cancelled')
                       AND date_trunc('month', p.payment_date) = date_trunc('month', CURRENT_DATE)
+                ), 0) +
+                COALESCE((
+                    SELECT SUM(fv.amount)
+                    FROM finance_vouchers fv
+                    WHERE fv.treasury_account_id = ta.id
+                      AND fv.voucher_type = 'receipt'
+                      AND fv.invoice_id IS NULL
+                      AND fv.tenant_id::text = ta.tenant_id::text
+                      AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                      AND (COALESCE(fv.status, 'active') != 'cancelled')
+                      AND date_trunc('month', fv.voucher_date) = date_trunc('month', CURRENT_DATE)
                 ), 0) AS month_incoming,
 
                 -- This month outgoing (expenses + vendor payments)
@@ -2065,6 +2164,28 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
                   AND p.tenant_id::text = $2::text
                   AND ($3::text IS NULL OR p.branch_id::text = $3::text OR p.branch_id IS NULL)
                   AND (COALESCE(p.status, 'active') != 'cancelled')
+
+                UNION ALL
+
+                -- INCOMING: Customer On-Account Receipts
+                SELECT
+                    fv.id::text                                             AS source_id,
+                    'On-Account Receipt'                                    AS txn_type,
+                    'in'                                                    AS direction,
+                    fv.voucher_date::date                                   AS txn_date,
+                    fv.voucher_number                                       AS reference,
+                    CONCAT('On-Account Receipt — ', COALESCE(c.name, fv.party_name, 'N/A')) AS description,
+                    fv.amount                                               AS amount,
+                    fv.payment_method,
+                    fv.notes
+                FROM finance_vouchers fv
+                LEFT JOIN customers c ON c.id::text = fv.customer_id::text
+                WHERE fv.treasury_account_id = $1
+                  AND fv.voucher_type = 'receipt'
+                  AND fv.invoice_id IS NULL
+                  AND fv.tenant_id::text = $2::text
+                  AND ($3::text IS NULL OR fv.branch_id::text = $3::text OR fv.branch_id IS NULL)
+                  AND (COALESCE(fv.status, 'active') != 'cancelled')
 
                 UNION ALL
 
@@ -2729,6 +2850,7 @@ exports.getVendorAging = async (req, res) => {
 exports.ensureInvoicesTable = ensureInvoicesTable;
 exports.ensureVouchersTable = ensureVouchersTable;
 exports.generateVoucherNumber = generateVoucherNumber;
+exports.generateInvoiceNumber = generateInvoiceNumber;
 
 
 

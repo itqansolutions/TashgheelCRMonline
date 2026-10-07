@@ -431,34 +431,62 @@ exports.getCustomerStatement = async (req, res) => {
       [customer_id, tenant_id]
     );
 
-    // 3. Get all invoices linked to this customer's deals
+    // 3. Get all invoices for this customer (direct, via deal, or via sales order)
     const invoicesResult = await db.query(
       `SELECT inv.id, inv.invoice_number, inv.total_amount, inv.status, inv.due_date, inv.created_at,
-              d.title as deal_title
+              COALESCE(d.title, inv.notes) as deal_title
        FROM invoices inv
        LEFT JOIN quotations q ON inv.quotation_id = q.id
-       LEFT JOIN deals d ON q.deal_id = d.id
-       WHERE d.client_id = $1 AND inv.tenant_id::text = $2::text
+       LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id) = d.id
+       WHERE (inv.client_id::text = $1::text OR inv.customer_id::text = $1::text OR d.client_id::text = $1::text)
+         AND inv.tenant_id::text = $2::text
        ORDER BY inv.created_at DESC`,
       [customer_id, tenant_id]
     );
 
-    // 4. Get all payments for those invoices
+    // 4. Get all payments for those invoices (Invoice-Linked Receipts)
     const paymentsResult = await db.query(
       `SELECT p.id, p.amount, p.payment_method, p.payment_date, p.notes,
-              inv.invoice_number
+              inv.invoice_number,
+              COALESCE(fv.voucher_number, 'PMT-' || p.id::text) as voucher_number
        FROM payments p
-       JOIN invoices inv ON p.invoice_id = inv.id
+       JOIN invoices inv ON p.invoice_id::text = inv.id::text
        LEFT JOIN quotations q ON inv.quotation_id = q.id
-       LEFT JOIN deals d ON q.deal_id = d.id
-       WHERE d.client_id = $1 AND p.tenant_id::text = $2::text AND (COALESCE(p.status, 'active') != 'cancelled')
+       LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id) = d.id
+       LEFT JOIN finance_vouchers fv ON p.voucher_id = fv.id
+       WHERE (inv.client_id::text = $1::text OR inv.customer_id::text = $1::text OR d.client_id::text = $1::text)
+         AND p.tenant_id::text = $2::text
+         AND (COALESCE(p.status, 'active') != 'cancelled')
        ORDER BY p.payment_date DESC`,
       [customer_id, tenant_id]
     );
 
-    // 5. Calculate totals
+    // 4B. Phase G-4: Get On-Account Receipts (finance_vouchers with customer_id and NO invoice_id)
+    const onAccountVouchersResult = await db.query(
+      `SELECT fv.id, fv.amount, fv.payment_method, fv.voucher_date as payment_date, fv.notes,
+              fv.voucher_number as invoice_number,
+              fv.voucher_number
+       FROM finance_vouchers fv
+       WHERE fv.customer_id::text = $1::text
+         AND fv.tenant_id::text = $2::text
+         AND fv.voucher_type = 'receipt'
+         AND fv.invoice_id IS NULL
+         AND (COALESCE(fv.status, 'active') != 'cancelled')
+       ORDER BY fv.voucher_date DESC`,
+      [customer_id, tenant_id]
+    );
+
+    // Combine invoice-linked payments and on-account receipts for client payments view
+    const allPayments = [
+      ...paymentsResult.rows,
+      ...onAccountVouchersResult.rows
+    ].sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+
+    // 5. Calculate totals (Zero double-counting: invoices = debit, payments + on-account vouchers = credit)
     const totalInvoiced = invoicesResult.rows.reduce((sum, inv) => sum + parseFloat(inv.total_amount || 0), 0);
-    const totalPaid = paymentsResult.rows.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const totalInvoicePaid = paymentsResult.rows.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const totalOnAccountPaid = onAccountVouchersResult.rows.reduce((sum, v) => sum + parseFloat(v.amount || 0), 0);
+    const totalPaid = totalInvoicePaid + totalOnAccountPaid;
     const balance = totalInvoiced - totalPaid;
 
     res.json({
@@ -467,7 +495,7 @@ exports.getCustomerStatement = async (req, res) => {
         customer,
         deals: dealsResult.rows,
         invoices: invoicesResult.rows,
-        payments: paymentsResult.rows,
+        payments: allPayments,
         summary: {
           total_invoiced: totalInvoiced,
           total_paid: totalPaid,
