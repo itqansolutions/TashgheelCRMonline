@@ -538,10 +538,10 @@ exports.getCustomer360 = async (req, res) => {
       FROM customers c
       LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
       LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
-      LEFT JOIN customer_classifications cc ON c.classification_id = cc.id
-      LEFT JOIN customer_areas ca ON c.area_id = ca.id
+      LEFT JOIN customer_classifications cc ON c.classification_id::text = cc.id::text
+      LEFT JOIN customer_areas ca ON c.area_id::text = ca.id::text
       LEFT JOIN branches b ON c.branch_id::text = b.id::text
-      WHERE c.id = $1 AND c.tenant_id::text = $2::text AND c.branch_id::text = $3::text
+      WHERE c.id::text = $1::text AND c.tenant_id::text = $2::text AND c.branch_id::text = $3::text
     `, [customer_id, tenant_id, branch_id]);
 
     if (custResult.rows.length === 0) {
@@ -575,7 +575,7 @@ exports.getCustomer360 = async (req, res) => {
         LEFT JOIN users u ON d.assigned_to::text = u.id::text
         LEFT JOIN products p ON d.product_id::text = p.id::text
         LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND d.tenant_id::text = ru.tenant_id::text
-        WHERE d.client_id = $1 AND d.tenant_id::text = $2::text
+        WHERE d.client_id::text = $1::text AND d.tenant_id::text = $2::text
         ORDER BY d.created_at DESC
       `, [customer_id, tenant_id]),
 
@@ -584,7 +584,7 @@ exports.getCustomer360 = async (req, res) => {
         SELECT q.id, q.deal_id, q.total_amount, q.status, q.valid_until, q.expiry_date, q.created_at,
                COALESCE(d.title, 'General Quotation') as deal_title
         FROM quotations q
-        LEFT JOIN deals d ON q.deal_id = d.id
+        LEFT JOIN deals d ON q.deal_id::text = d.id::text
         WHERE (q.client_id::text = $1::text OR d.client_id::text = $1::text)
           AND q.tenant_id::text = $2::text
         ORDER BY q.created_at DESC
@@ -597,7 +597,7 @@ exports.getCustomer360 = async (req, res) => {
                COALESCE(d.title, 'Direct Order') as deal_title,
                u.name as assigned_to_name
         FROM sales_orders so
-        LEFT JOIN deals d ON so.deal_id = d.id
+        LEFT JOIN deals d ON so.deal_id::text = d.id::text
         LEFT JOIN users u ON so.assigned_to::text = u.id::text
         WHERE (so.customer_id::text = $1::text OR d.client_id::text = $1::text)
           AND so.tenant_id::text = $2::text
@@ -611,8 +611,8 @@ exports.getCustomer360 = async (req, res) => {
                so.number as sales_order_number,
                w.name as warehouse_name
         FROM delivery_notes dn
-        LEFT JOIN sales_orders so ON dn.sales_order_id = so.id
-        LEFT JOIN warehouses w ON dn.warehouse_id = w.id
+        LEFT JOIN sales_orders so ON dn.sales_order_id::text = so.id::text
+        LEFT JOIN warehouses w ON dn.warehouse_id::text = w.id::text
         WHERE dn.customer_id::text = $1::text
           AND dn.tenant_id::text = $2::text
         ORDER BY dn.created_at DESC
@@ -625,9 +625,9 @@ exports.getCustomer360 = async (req, res) => {
                COALESCE(d.title, inv.notes) as deal_title,
                so.number as sales_order_number
         FROM invoices inv
-        LEFT JOIN sales_orders so ON inv.sales_order_id = so.id
-        LEFT JOIN quotations q ON inv.quotation_id = q.id
-        LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id) = d.id
+        LEFT JOIN sales_orders so ON inv.sales_order_id::text = so.id::text
+        LEFT JOIN quotations q ON inv.quotation_id::text = q.id::text
+        LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id)::text = d.id::text
         WHERE (inv.client_id::text = $1::text OR inv.customer_id::text = $1::text OR d.client_id::text = $1::text)
           AND inv.tenant_id::text = $2::text
         ORDER BY inv.created_at DESC
@@ -639,7 +639,7 @@ exports.getCustomer360 = async (req, res) => {
                sr.accounting_status, sr.total_amount, sr.created_at,
                dn.number as delivery_note_number
         FROM sales_returns sr
-        LEFT JOIN delivery_notes dn ON sr.delivery_note_id = dn.id
+        LEFT JOIN delivery_notes dn ON sr.delivery_note_id::text = dn.id::text
         WHERE sr.customer_id::text = $1::text
           AND sr.tenant_id::text = $2::text
         ORDER BY sr.created_at DESC
@@ -653,9 +653,9 @@ exports.getCustomer360 = async (req, res) => {
                fv.id as voucher_id
         FROM payments p
         JOIN invoices inv ON p.invoice_id::text = inv.id::text
-        LEFT JOIN quotations q ON inv.quotation_id = q.id
-        LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id) = d.id
-        LEFT JOIN finance_vouchers fv ON p.voucher_id = fv.id
+        LEFT JOIN quotations q ON inv.quotation_id::text = q.id::text
+        LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id)::text = d.id::text
+        LEFT JOIN finance_vouchers fv ON p.voucher_id::text = fv.id::text
         WHERE (inv.client_id::text = $1::text OR inv.customer_id::text = $1::text OR d.client_id::text = $1::text)
           AND p.tenant_id::text = $2::text
           AND (COALESCE(p.status, 'active') != 'cancelled')
@@ -681,7 +681,7 @@ exports.getCustomer360 = async (req, res) => {
       db.query(`
         SELECT a.*, COALESCE(u.name, a.actor_name, 'System') as user_name
         FROM activities a
-        LEFT JOIN users u ON a.user_id = u.id
+        LEFT JOIN users u ON a.user_id::text = u.id::text
         WHERE a.tenant_id::text = $1::text
           AND (
             (LOWER(a.entity_type) = 'customer' AND a.entity_id::text = $2::text)
@@ -697,8 +697,8 @@ exports.getCustomer360 = async (req, res) => {
       db.query(`
         SELECT c.*, u.unit_number, p.name as project_name
         FROM re_contracts c
-        LEFT JOIN re_units u ON c.unit_id = u.id
-        LEFT JOIN re_projects p ON u.project_id = p.id
+        LEFT JOIN re_units u ON c.unit_id::text = u.id::text
+        LEFT JOIN re_projects p ON u.project_id::text = p.id::text
         WHERE c.customer_id::text = $1::text AND c.tenant_id::text = $2::text
         ORDER BY c.created_at DESC
       `, [customer_id, tenant_id]),
@@ -707,8 +707,8 @@ exports.getCustomer360 = async (req, res) => {
       db.query(`
         SELECT inst.*, c.contract_number, u.unit_number
         FROM re_installments inst
-        JOIN re_contracts c ON inst.contract_id = c.id
-        LEFT JOIN re_units u ON c.unit_id = u.id
+        JOIN re_contracts c ON inst.contract_id::text = c.id::text
+        LEFT JOIN re_units u ON c.unit_id::text = u.id::text
         WHERE c.customer_id::text = $1::text AND inst.tenant_id::text = $2::text
         ORDER BY inst.due_date ASC
       `, [customer_id, tenant_id]),
@@ -717,8 +717,8 @@ exports.getCustomer360 = async (req, res) => {
       db.query(`
         SELECT h.*, c.contract_number, u.unit_number
         FROM re_handovers h
-        LEFT JOIN re_contracts c ON h.contract_id = c.id
-        LEFT JOIN re_units u ON h.unit_id = u.id
+        LEFT JOIN re_contracts c ON h.contract_id::text = c.id::text
+        LEFT JOIN re_units u ON h.unit_id::text = u.id::text
         WHERE h.customer_id::text = $1::text AND h.tenant_id::text = $2::text
         ORDER BY h.created_at DESC
       `, [customer_id, tenant_id]),
@@ -729,13 +729,13 @@ exports.getCustomer360 = async (req, res) => {
                fv.status, fv.deal_id, fv.contract_id, fv.installment_id,
                c.contract_number, u.unit_number
         FROM finance_vouchers fv
-        LEFT JOIN re_contracts c ON fv.contract_id = c.id
-        LEFT JOIN re_units u ON c.unit_id = u.id
+        LEFT JOIN re_contracts c ON fv.contract_id::text = c.id::text
+        LEFT JOIN re_units u ON c.unit_id::text = u.id::text
         WHERE fv.customer_id::text = $1::text
           AND fv.tenant_id::text = $2::text
           AND fv.voucher_type = 'receipt'
-          AND (fv.contract_id IS NOT NULL OR fv.installment_id IS NOT NULL OR fv.deal_id IN (
-            SELECT id FROM deals WHERE client_id::text = $1::text AND tenant_id::text = $2::text AND (unit_id IS NOT NULL OR project_id IS NOT NULL)
+          AND (fv.contract_id IS NOT NULL OR fv.installment_id IS NOT NULL OR fv.deal_id::text IN (
+            SELECT id::text FROM deals WHERE client_id::text = $1::text AND tenant_id::text = $2::text AND (unit_id IS NOT NULL OR project_id IS NOT NULL)
           ))
           AND (COALESCE(fv.status, 'active') != 'cancelled')
         ORDER BY fv.voucher_date DESC
