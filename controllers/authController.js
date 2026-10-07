@@ -222,13 +222,16 @@ const getUserAllowedPages = async (userId, userRole) => {
       '/dashboard', '/my-profile', '/customers', '/contacts/customers', '/contacts/vendors',
       '/contacts/employees', '/deals', '/tasks', '/files', '/reports',
       '/hr/my-attendance', '/hr/my-requests', '/hr/dashboard', '/hr/approvals',
-      '/sales/orders', '/sales/salesmen', '/sales/target'
+      '/sales/orders', '/sales/documents', '/sales/price-tiers', '/sales/salesmen', '/sales/target',
+      '/products', '/inventory/warehouses', '/inventory/keepers', '/inventory/balances',
+      '/inventory/movements', '/inventory/transaction-impact', '/inventory/item-card'
     ];
   } else {
     // Standard employee
     return [
       '/dashboard', '/my-profile', '/customers', '/contacts/customers',
-      '/deals', '/tasks', '/files', '/hr/my-attendance', '/hr/my-requests'
+      '/deals', '/tasks', '/files', '/hr/my-attendance', '/hr/my-requests',
+      '/sales/orders', '/sales/documents'
     ];
   }
 };

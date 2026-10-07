@@ -31,6 +31,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const [realEstateOpen, setRealEstateOpen] = useState(true);
   const [reDefinitionsOpen, setReDefinitionsOpen] = useState(false);
   const [salesOpen, setSalesOpen] = useState(true);
+  const [warehouseOpen, setWarehouseOpen] = useState(true);
   const [financeOpen, setFinanceOpen] = useState(true);
   const [marketingOpen, setMarketingOpen] = useState(true);
   const [marketingWhatsappOpen, setMarketingWhatsappOpen] = useState(false);
@@ -56,6 +57,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     '/installments': '/deals',
     '/commissions': '/deals',
     '/handover': '/deals',
+    '/sales/orders': '/sales',
+    '/sales/documents': '/sales',
+    '/sales/price-tiers': '/sales',
+    '/inventory/warehouses': '/inventory',
+    '/inventory/movements': '/inventory',
+    '/inventory/keepers': '/inventory',
+    '/inventory/balances': '/inventory',
+    '/inventory/transaction-impact': '/inventory',
+    '/inventory/item-card': '/inventory',
   };
   // Personal self-service pages (server scopes data to the authenticated user)
   const SELF_SERVICE = ['/my-profile', '/my-payroll', '/activity-balance'];
@@ -174,15 +184,33 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // 4. SALES ITEMS (BOTH TEMPLATES; Commissions & Handover are Real Estate workspaces)
   // -------------------------------------------------------------
   const rawSalesItems = [
-    { name: 'Quotations',  icon: <FileText size={18} />,    path: '/finance?tab=Quotations' },
-    { name: 'Salesmen',    icon: <Users size={18} />,       path: '/sales/salesmen' },
-    { name: 'Targets',     icon: <Award size={18} />,       path: '/sales/target' },
+    { name: 'Quotations',     icon: <FileText size={18} />,     path: '/finance?tab=Quotations' },
+    { name: 'Sales Orders',   icon: <ShoppingCart size={18} />, path: '/sales/orders' },
+    { name: 'Documents Hub',  icon: <FileCheck size={18} />,    path: '/sales/documents' },
+    { name: 'Price Tiers',    icon: <DollarSign size={18} />,   path: '/sales/price-tiers' },
+    { name: 'Salesmen',       icon: <Users size={18} />,        path: '/sales/salesmen' },
+    { name: 'Targets',        icon: <Award size={18} />,        path: '/sales/target' },
     ...(isRealEstate ? [
-      { name: 'Commissions', icon: <DollarSign size={18} />,  path: '/commissions' },
-      { name: 'Handover',    icon: <Key size={18} />,         path: '/handover' }
+      { name: 'Commissions',  icon: <DollarSign size={18} />,   path: '/commissions' },
+      { name: 'Handover',     icon: <Key size={18} />,          path: '/handover' }
     ] : [])
   ];
   const salesItems = filterByAllowed(rawSalesItems);
+
+  // -------------------------------------------------------------
+  // 5. WAREHOUSE & INVENTORY ITEMS
+  // -------------------------------------------------------------
+  const rawWarehouseItems = [
+    { name: 'Products',           icon: <Package size={18} />,        path: '/products' },
+    { name: 'Warehouses',         icon: <Building size={18} />,       path: '/inventory/warehouses' },
+    { name: 'Keepers',            icon: <ShieldCheck size={18} />,    path: '/inventory/keepers' },
+    { name: 'Stock Balances',     icon: <Scale size={18} />,          path: '/inventory/balances' },
+    { name: 'Stock Movements',    icon: <ArrowLeftRight size={18} />,  path: '/inventory/movements' },
+    { name: 'Transaction Impact', icon: <Activity size={18} />,       path: '/inventory/transaction-impact' },
+    { name: 'Item Card',          icon: <CreditCard size={18} />,     path: '/inventory/item-card' }
+  ];
+  const hasInventory = can('inventory') || can('purchasing') || user?.role === 'admin' || !isRealEstate;
+  const warehouseItems = hasInventory ? filterByAllowed(rawWarehouseItems) : [];
 
   // -------------------------------------------------------------
   // 5. FINANCE ITEMS (ALL 9 OPERATIONS - BOTH TEMPLATES)
@@ -276,9 +304,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     return isPathAllowed(item.path);
   });
 
-  const hasInventory = can('inventory');
-  const inventoryItems = hasInventory ? filterByAllowed([]) : [];
-  // Dormant Inventory check: hasInventory && inventoryItems.length > 0
   // Backward compatibility alias: hasPurchasing && purchasingItems.length > 0
   const purchasingItems = purchasesItems;
 
@@ -544,7 +569,26 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </>
         )}
 
-        {/* 5. FINANCE GROUP (ALL 9 OPERATIONS - Overview, Invoices, Receipts, Payments, Expenses, Customer Accounts, Vendor Accounts, Treasury, Reports) */}
+        {/* 5. WAREHOUSE GROUP (Products, Warehouses, Keepers, Stock Balances, Stock Movements, Transaction Impact, Item Card) */}
+        {warehouseItems.length > 0 && (
+          <>
+            <div className="group-header" onClick={() => isOpen && setWarehouseOpen(prev => !prev)} title={!isOpen ? 'Warehouse' : undefined}>
+              <Package size={18} className="main-icon" />
+              <span className="group-label">Warehouse</span>
+              {isOpen && (warehouseOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
+            </div>
+            <div className={`group-sub-items ${isOpen && warehouseOpen ? 'expanded' : 'collapsed'}`}>
+              {warehouseItems.map(item => (
+                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
+                  {item.icon}
+                  <span>{item.name}</span>
+                </NavLink>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* 6. FINANCE GROUP (ALL 9 OPERATIONS - Overview, Invoices, Receipts, Payments, Expenses, Customer Accounts, Vendor Accounts, Treasury, Reports) */}
         {financeItems.length > 0 && (
           <>
             <div className="group-header" onClick={() => isOpen && setFinanceOpen(prev => !prev)} title={!isOpen ? 'Finance' : undefined}>
