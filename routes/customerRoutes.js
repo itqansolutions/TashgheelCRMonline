@@ -15,6 +15,7 @@ router.get('/', customersController.getCustomers);
 // @desc    Get single customer
 // @access  Private
 router.get('/:id', customersController.getCustomerById);
+router.get('/:id/360', customersController.getCustomer360);
 router.get('/:id/statement', customersController.getCustomerStatement);
 
 // @route   POST api/customers

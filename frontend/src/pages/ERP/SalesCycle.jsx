@@ -10,15 +10,26 @@ const SalesCycle = () => {
   const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
   const [quotations, setQuotations] = useState([]);
+  const [deals, setDeals] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showDeliverModal, setShowDeliverModal] = useState(false);
+  const [deliverOrder, setDeliverOrder] = useState(null);
+  const [deliveryFormData, setDeliveryFormData] = useState({
+    warehouse_id: '',
+    delivery_date: new Date().toISOString().split('T')[0],
+    notes: '',
+    items: []
+  });
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
     customer_id: '',
+    deal_id: '',
     quotation_id: '',
     order_date: new Date().toISOString().split('T')[0],
     expected_delivery: '',
@@ -43,14 +54,18 @@ const SalesCycle = () => {
 
   const fetchDropdownData = async () => {
     try {
-      const [cRes, pRes, qRes] = await Promise.all([
+      const [cRes, pRes, qRes, dRes, wRes] = await Promise.all([
         api.get('/customers').catch(() => ({ data: { data: [] } })),
         api.get('/products').catch(() => ({ data: { data: [] } })),
-        api.get('/quotations').catch(() => ({ data: { data: [] } }))
+        api.get('/quotations').catch(() => ({ data: { data: [] } })),
+        api.get('/deals').catch(() => ({ data: { data: [] } })),
+        api.get('/inventory/warehouses').catch(() => ({ data: { data: [] } }))
       ]);
       setCustomers(cRes.data?.data || []);
       setProducts(pRes.data?.data || []);
       setQuotations(qRes.data?.data || []);
+      setDeals(dRes.data?.data || []);
+      setWarehouses(wRes.data?.data || []);
     } catch (err) {
       console.error('Failed to fetch dropdown dependencies', err);
     }
@@ -64,6 +79,7 @@ const SalesCycle = () => {
   const handleOpenCreate = () => {
     setFormData({
       customer_id: customers.length > 0 ? String(customers[0].id) : '',
+      deal_id: '',
       quotation_id: '',
       order_date: new Date().toISOString().split('T')[0],
       expected_delivery: '',
@@ -101,6 +117,7 @@ const SalesCycle = () => {
       setFormData(prev => ({
         ...prev,
         quotation_id: String(quote.id),
+        deal_id: quote.deal_id ? String(quote.deal_id) : prev.deal_id,
         customer_id: String(quote.client_id || prev.customer_id),
         notes: `Imported from Quotation #QT-${quote.id}. ${quote.notes || ''}`.trim(),
         items: quoteItems
@@ -167,6 +184,7 @@ const SalesCycle = () => {
       await api.post('/erp/sales/orders', {
         ...formData,
         customer_id: parseInt(formData.customer_id),
+        deal_id: formData.deal_id ? parseInt(formData.deal_id) : null,
         quotation_id: formData.quotation_id ? parseInt(formData.quotation_id) : null,
         items: formData.items.map(it => ({
           product_id: it.product_id ? parseInt(it.product_id) : null,
@@ -193,6 +211,63 @@ const SalesCycle = () => {
       fetchOrders();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to confirm order');
+    }
+  };
+
+  const handleOpenDeliver = (order) => {
+    setDeliverOrder(order);
+    const orderItems = order.items || [];
+    setDeliveryFormData({
+      warehouse_id: warehouses.length > 0 ? String(warehouses[0].id) : '',
+      delivery_date: new Date().toISOString().split('T')[0],
+      notes: `Delivery for Sales Order #${order.number || order.order_number || order.id}`,
+      items: orderItems.map(it => ({
+        sales_order_item_id: it.id,
+        product_id: it.product_id,
+        product_name: it.product_name || it.description || 'Item',
+        ordered_qty: Number(it.quantity || 1),
+        quantity_delivered: Number(it.quantity || 1)
+      }))
+    });
+    setShowDeliverModal(true);
+  };
+
+  const handleDeliverOrderSubmit = async (e) => {
+    e.preventDefault();
+    if (!deliverOrder) return;
+    if (deliveryFormData.items.length === 0) return toast.error('No items to deliver');
+
+    setSubmitting(true);
+    try {
+      // 1. Create Delivery Note
+      const dnRes = await api.post('/api/sales/deliveries', {
+        sales_order_id: deliverOrder.id,
+        warehouse_id: deliveryFormData.warehouse_id || null,
+        delivery_date: deliveryFormData.delivery_date,
+        notes: deliveryFormData.notes,
+        items: deliveryFormData.items.map(it => ({
+          sales_order_item_id: it.sales_order_item_id,
+          product_id: it.product_id,
+          quantity_delivered: parseFloat(it.quantity_delivered) || 0
+        }))
+      });
+
+      const createdDN = dnRes.data?.data;
+      if (createdDN?.id) {
+        // 2. Automatically confirm delivery note to execute authoritative Stock OUT
+        await api.put(`/api/sales/deliveries/${createdDN.id}/confirm`);
+        toast.success(`Delivery Note #${createdDN.number || ''} confirmed & stock deducted!`);
+      } else {
+        toast.success('Delivery Note created!');
+      }
+
+      setShowDeliverModal(false);
+      setDeliverOrder(null);
+      fetchOrders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to process delivery');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -333,6 +408,20 @@ const SalesCycle = () => {
                         </button>
                       )}
 
+                      {order.status !== 'draft' && (
+                        <button
+                          onClick={() => handleOpenDeliver(order)}
+                          title="Dispatch items and generate a Delivery Note"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '6px 12px',
+                            backgroundColor: '#0284c7', color: 'white', border: 'none',
+                            borderRadius: '8px', fontSize: '12px', fontWeight: '700', cursor: 'pointer'
+                          }}
+                        >
+                          <Truck size={13} /> Deliver
+                        </button>
+                      )}
+
                       {order.status !== 'invoiced' && (
                         <button
                           onClick={() => handleConvertToInvoice(order.id)}
@@ -383,6 +472,24 @@ const SalesCycle = () => {
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>{c.name} ({c.phone || c.email || 'No contact'})</option>
                     ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Deal (Optional)</label>
+                  <select
+                    value={formData.deal_id}
+                    onChange={(e) => setFormData({ ...formData, deal_id: e.target.value })}
+                    style={{ ...inputStyle, background: formData.deal_id ? '#eff6ff' : '#f8fafc', borderColor: formData.deal_id ? '#3b82f6' : '#e2e8f0' }}
+                  >
+                    <option value="">None (Independent Order)</option>
+                    {deals
+                      .filter(d => !formData.customer_id || String(d.client_id) === String(formData.customer_id))
+                      .map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.title} (${parseFloat(d.value || 0).toLocaleString()})
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -617,6 +724,17 @@ const SalesCycle = () => {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+                {selectedOrder.status !== 'draft' && (
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleOpenDeliver(selectedOrder);
+                    }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                  >
+                    <Truck size={14} /> Deliver
+                  </button>
+                )}
                 {selectedOrder.status !== 'invoiced' && (
                   <button
                     onClick={() => {
@@ -636,6 +754,129 @@ const SalesCycle = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deliver / Dispatch Modal (Phase G-6 Delivery Note Creation) */}
+      {showDeliverModal && deliverOrder && (
+        <div style={modalStyle}>
+          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding: '18px 24px', background: 'linear-gradient(135deg, #0284c7, #0369a1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
+              <div>
+                <h3 style={{ margin: 0, fontWeight: 800, fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Truck size={20} /> Dispatch & Deliver Order #{deliverOrder.number || deliverOrder.order_number || deliverOrder.id}
+                </h3>
+                <span style={{ fontSize: '12px', color: '#e0f2fe' }}>Customer: {deliverOrder.customer_name}</span>
+              </div>
+              <button onClick={() => setShowDeliverModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleDeliverOrderSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label style={labelStyle}>Source Warehouse</label>
+                  <select
+                    value={deliveryFormData.warehouse_id}
+                    onChange={(e) => setDeliveryFormData({ ...deliveryFormData, warehouse_id: e.target.value })}
+                    style={inputStyle}
+                  >
+                    <option value="">Default Warehouse</option>
+                    {warehouses.map(w => (
+                      <option key={w.id} value={w.id}>{w.name} ({w.code || 'WH'})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Delivery Date *</label>
+                  <input
+                    type="date"
+                    value={deliveryFormData.delivery_date}
+                    onChange={(e) => setDeliveryFormData({ ...deliveryFormData, delivery_date: e.target.value })}
+                    style={inputStyle}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ ...labelStyle, fontSize: '13px', fontWeight: 800 }}>Items to Dispatch</label>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                        <th style={{ padding: '10px 12px', fontWeight: 700 }}>Product</th>
+                        <th style={{ padding: '10px 12px', fontWeight: 700, width: '100px' }}>Ordered</th>
+                        <th style={{ padding: '10px 12px', fontWeight: 700, width: '130px' }}>Dispatch Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {deliveryFormData.items.map((it, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '10px 12px', fontWeight: 600 }}>{it.product_name}</td>
+                          <td style={{ padding: '10px 12px', color: '#64748b' }}>{it.ordered_qty}</td>
+                          <td style={{ padding: '8px 12px' }}>
+                            <input
+                              type="number"
+                              min="0.001"
+                              step="any"
+                              value={it.quantity_delivered}
+                              onChange={(e) => {
+                                const newItems = [...deliveryFormData.items];
+                                newItems[idx].quantity_delivered = e.target.value;
+                                setDeliveryFormData({ ...deliveryFormData, items: newItems });
+                              }}
+                              style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }}
+                              required
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Delivery Notes / Shipping Remarks</label>
+                <textarea
+                  rows="2"
+                  value={deliveryFormData.notes}
+                  onChange={(e) => setDeliveryFormData({ ...deliveryFormData, notes: e.target.value })}
+                  style={{ ...inputStyle, resize: 'vertical' }}
+                  placeholder="Carrier info, tracking or gate pass remarks..."
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowDeliverModal(false)}
+                  style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  style={{
+                    padding: '10px 22px',
+                    background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontWeight: 800,
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)'
+                  }}
+                >
+                  {submitting ? 'Confirming Dispatch...' : 'Confirm Delivery & Deduct Stock'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -109,8 +109,10 @@ const Documents = () => {
         >
           <option value="All Types">All Document Types</option>
           <option value="Quotation">Quotations</option>
-          <option value="Invoice">Invoices</option>
           <option value="Sales Order">Sales Orders</option>
+          <option value="Delivery Note">Delivery Notes</option>
+          <option value="Sales Return">Sales Returns</option>
+          <option value="Invoice">Invoices</option>
         </select>
       </div>
 
@@ -122,7 +124,7 @@ const Documents = () => {
           <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
             <FileText size={48} style={{ color: '#cbd5e1', marginBottom: '16px' }} />
             <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>No Sales Documents Found</h3>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>Created quotations, sales orders, and invoices will appear automatically in this ledger.</p>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>Created quotations, sales orders, delivery notes, returns, and invoices will appear automatically in this ledger.</p>
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -150,8 +152,8 @@ const Documents = () => {
                   <td style={{ padding: '14px 18px' }}>
                     <span style={{
                       padding: '4px 10px',
-                      background: d.type === 'Invoice' ? '#f3e8ff' : d.type === 'Quotation' ? '#e0f2fe' : '#ecfdf5',
-                      color: d.type === 'Invoice' ? '#7e22ce' : d.type === 'Quotation' ? '#0369a1' : '#047857',
+                      background: d.type === 'Invoice' ? '#f3e8ff' : d.type === 'Quotation' ? '#e0f2fe' : d.type === 'Delivery Note' ? '#fef3c7' : d.type === 'Sales Return' ? '#fee2e2' : '#ecfdf5',
+                      color: d.type === 'Invoice' ? '#7e22ce' : d.type === 'Quotation' ? '#0369a1' : d.type === 'Delivery Note' ? '#b45309' : d.type === 'Sales Return' ? '#b91c1c' : '#047857',
                       borderRadius: '20px', fontSize: '12px', fontWeight: 800
                     }}>
                       {d.type}
@@ -166,8 +168,8 @@ const Documents = () => {
                   <td style={{ padding: '14px 18px' }}>
                     <span style={{
                       padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800,
-                      background: d.status === 'paid' || d.status === 'confirmed' || d.status === 'delivered' ? '#dcfce7' : '#fef3c7',
-                      color: d.status === 'paid' || d.status === 'confirmed' || d.status === 'delivered' ? '#15803d' : '#b45309'
+                      background: d.status === 'paid' || d.status === 'confirmed' || d.status === 'delivered' || d.status === 'completed' ? '#dcfce7' : '#fef3c7',
+                      color: d.status === 'paid' || d.status === 'confirmed' || d.status === 'delivered' || d.status === 'completed' ? '#15803d' : '#b45309'
                     }}>
                       {d.status?.toUpperCase()}
                     </span>

@@ -63,8 +63,8 @@ exports.getCustomers = async (req, res) => {
 
   // Declare query OUTSIDE try so the catch block can log it
   let query = `
-    SELECT 
-      c.*, 
+    SELECT
+      c.*,
       COALESCE(u.name, 'Unassigned') as assigned_to_name,
       COALESCE(ls.name, 'Direct') as source_name,
       cc.name as classification_name,
@@ -76,7 +76,7 @@ exports.getCustomers = async (req, res) => {
     LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
     LEFT JOIN customer_classifications cc ON c.classification_id = cc.id
     LEFT JOIN customer_areas ca ON c.area_id = ca.id
-    WHERE c.tenant_id::text = $1::text 
+    WHERE c.tenant_id::text = $1::text
       AND (c.branch_id::text = $2::text OR c.branch_id IS NULL OR c.branch_id::text = 'default-branch')
   `;
   const params = [tenant_id, branch_id];
@@ -181,8 +181,8 @@ exports.getCustomerById = async (req, res) => {
 
   try {
     const result = await db.query(`
-      SELECT 
-        c.*, 
+      SELECT
+        c.*,
         COALESCE(u.name, 'Unassigned') as assigned_to_name,
         COALESCE(ls.name, 'Direct') as source_name,
         cc.name as classification_name,
@@ -211,7 +211,7 @@ exports.getCustomerById = async (req, res) => {
 // @route   POST /api/customers
 // @access  Private
 exports.createCustomer = async (req, res) => {
-  const { 
+  const {
     name, company_name, email, phone, address, source_id, assigned_to, manager_id, status,
     entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms,
     tax_no, reg_no, is_active, is_blacklisted, classification_id, area_id
@@ -251,7 +251,7 @@ exports.createCustomer = async (req, res) => {
     logCreate(req, 'Customer', result.rows[0].id, result.rows[0]);
 
     // Activity Timeline Logging
-    await logActivity(tenant_id, req.user, 'customer', result.rows[0].id, 'created', { 
+    await logActivity(tenant_id, req.user, 'customer', result.rows[0].id, 'created', {
         name: { to: name },
         company_name: { to: company_name }
     });
@@ -296,7 +296,7 @@ exports.createCustomer = async (req, res) => {
 // @route   PUT /api/customers/:id
 // @access  Private
 exports.updateCustomer = async (req, res) => {
-  const { 
+  const {
     name, company_name, email, phone, address, source_id, assigned_to, manager_id, status,
     entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms,
     tax_no, reg_no, is_active, is_blacklisted, classification_id, area_id
@@ -314,11 +314,11 @@ exports.updateCustomer = async (req, res) => {
 
     // 🔥 DEFINITIVE SANITIZATION: Prevent SQL Syntax errors on Empty Strings
     const cleanSourceId = (source_id && source_id !== '') ? parseInt(source_id) : null;
-    const cleanClassificationId = (classification_id !== undefined && classification_id !== '') ? 
-      (classification_id ? parseInt(classification_id) : null) : 
+    const cleanClassificationId = (classification_id !== undefined && classification_id !== '') ?
+      (classification_id ? parseInt(classification_id) : null) :
       (classification_id === '' || classification_id === null ? null : oldData.classification_id);
-    const cleanAreaId = (area_id !== undefined && area_id !== '') ? 
-      (area_id ? parseInt(area_id) : null) : 
+    const cleanAreaId = (area_id !== undefined && area_id !== '') ?
+      (area_id ? parseInt(area_id) : null) :
       (area_id === '' || area_id === null ? null : oldData.area_id);
     const cleanBudgetMin = (budget_min && budget_min !== '') ? parseFloat(budget_min) : 0;
     const cleanBudgetMax = (budget_max && budget_max !== '') ? parseFloat(budget_max) : 0;
@@ -330,14 +330,14 @@ exports.updateCustomer = async (req, res) => {
 
     // 2. Perform update
     const result = await db.query(
-      `UPDATE customers SET 
-        name = $1, company_name = $2, email = $3, phone = $4, address = $5, source_id = $6, assigned_to = $7, manager_id = $8, status = $9, 
+      `UPDATE customers SET
+        name = $1, company_name = $2, email = $3, phone = $4, address = $5, source_id = $6, assigned_to = $7, manager_id = $8, status = $9,
         entity_type = $10, budget_min = $11, budget_max = $12, preferred_area_min = $13, preferred_area_max = $14, preferred_location = $15, preferred_rooms = $16,
         tax_no = $17, reg_no = $18, is_active = $19, is_blacklisted = $20, classification_id = $21, area_id = $22,
-        updated_at = CURRENT_TIMESTAMP 
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = $23 AND tenant_id::text = $24::text AND branch_id::text = $25::text RETURNING *`,
       [
-        name, company_name, email, phone, address, cleanSourceId, cleanAssignedTo, cleanManagerId, status, 
+        name, company_name, email, phone, address, cleanSourceId, cleanAssignedTo, cleanManagerId, status,
         entity_type, cleanBudgetMin, cleanBudgetMax, cleanAreaMin, cleanAreaMax, preferred_location, cleanRooms,
         tax_no || null, reg_no || null,
         is_active !== false ? (is_active !== undefined ? is_active : oldData.is_active) : false,
@@ -352,8 +352,8 @@ exports.updateCustomer = async (req, res) => {
 
     // Activity Timeline Logging
     if (assigned_to && assigned_to !== oldData.assigned_to) {
-        await logActivity(tenant_id, req.user, 'customer', req.params.id, 'assigned', { 
-            assigned_to: { from: oldData.assigned_to, to: assigned_to } 
+        await logActivity(tenant_id, req.user, 'customer', req.params.id, 'assigned', {
+            assigned_to: { from: oldData.assigned_to, to: assigned_to }
         });
         if (String(assigned_to) !== String(req.user.id)) {
           notificationService.notifyAssignment({
@@ -368,8 +368,8 @@ exports.updateCustomer = async (req, res) => {
           }).catch(e => console.warn('[Customer Reassignment Notification Warning]:', e.message));
         }
     } else {
-        await logActivity(tenant_id, req.user, 'customer', req.params.id, 'updated', { 
-            fields_updated: { to: Object.keys(req.body) } 
+        await logActivity(tenant_id, req.user, 'customer', req.params.id, 'updated', {
+            fields_updated: { to: Object.keys(req.body) }
         });
     }
 
@@ -506,5 +506,481 @@ exports.getCustomerStatement = async (req, res) => {
   } catch (err) {
     console.error('[Customer Statement Error]', err.message);
     res.status(500).json({ status: 'error', message: `Server error: ${err.message}` });
+  }
+};
+
+// @desc    Get Customer 360 Aggregation (Overview, Deals, General Sales, Finance, Real Estate, Unified Timeline)
+// @route   GET /api/customers/:id/360
+// @access  Private
+exports.getCustomer360 = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
+  const customer_id = req.params.id;
+
+  if (!branch_id) {
+    return res.status(400).json({ status: 'error', message: 'Branch context required for this operation.' });
+  }
+
+  await ensureCustomerColumns();
+
+  try {
+    // 1. Fetch customer with strict tenant and branch isolation
+    const custResult = await db.query(`
+      SELECT
+        c.*,
+        COALESCE(u.name, 'Unassigned') as assigned_to_name,
+        COALESCE(ls.name, 'Direct') as source_name,
+        cc.name as classification_name,
+        cc.color as classification_color,
+        ca.name as area_name,
+        ca.color as area_color,
+        b.name as branch_name
+      FROM customers c
+      LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
+      LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
+      LEFT JOIN customer_classifications cc ON c.classification_id = cc.id
+      LEFT JOIN customer_areas ca ON c.area_id = ca.id
+      LEFT JOIN branches b ON c.branch_id::text = b.id::text
+      WHERE c.id = $1 AND c.tenant_id::text = $2::text AND c.branch_id::text = $3::text
+    `, [customer_id, tenant_id, branch_id]);
+
+    if (custResult.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized' });
+    }
+    const customer = custResult.rows[0];
+
+    // 2. Parallel aggregation queries across all relevant modules
+    const [
+      dealsRes,
+      quotationsRes,
+      salesOrdersRes,
+      deliveryNotesRes,
+      invoicesRes,
+      returnsRes,
+      paymentsRes,
+      onAccountVouchersRes,
+      activitiesRes,
+      reContractsRes,
+      reInstallmentsRes,
+      reHandoversRes,
+      reVouchersRes
+    ] = await Promise.all([
+      // Deals
+      db.query(`
+        SELECT d.*, u.name as assigned_to_name, p.name as product_name,
+               ru.unit_number, ru.project_name as unit_project_name, ru.status as unit_status,
+               ru.reservation_expires_at as unit_reservation_expires_at,
+               ru.reservation_extended_at as unit_reservation_extended_at
+        FROM deals d
+        LEFT JOIN users u ON d.assigned_to::text = u.id::text
+        LEFT JOIN products p ON d.product_id::text = p.id::text
+        LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND d.tenant_id::text = ru.tenant_id::text
+        WHERE d.client_id = $1 AND d.tenant_id::text = $2::text
+        ORDER BY d.created_at DESC
+      `, [customer_id, tenant_id]),
+
+      // Quotations
+      db.query(`
+        SELECT q.id, q.deal_id, q.total_amount, q.status, q.valid_until, q.expiry_date, q.created_at,
+               COALESCE(d.title, 'General Quotation') as deal_title
+        FROM quotations q
+        LEFT JOIN deals d ON q.deal_id = d.id
+        WHERE (q.client_id::text = $1::text OR d.client_id::text = $1::text)
+          AND q.tenant_id::text = $2::text
+        ORDER BY q.created_at DESC
+      `, [customer_id, tenant_id]),
+
+      // Sales Orders
+      db.query(`
+        SELECT so.id, so.number, so.deal_id, so.quotation_id, so.order_date, so.expected_delivery,
+               so.status, so.accounting_status, so.total_amount, so.created_at,
+               COALESCE(d.title, 'Direct Order') as deal_title,
+               u.name as assigned_to_name
+        FROM sales_orders so
+        LEFT JOIN deals d ON so.deal_id = d.id
+        LEFT JOIN users u ON so.assigned_to::text = u.id::text
+        WHERE (so.customer_id::text = $1::text OR d.client_id::text = $1::text)
+          AND so.tenant_id::text = $2::text
+        ORDER BY so.created_at DESC
+      `, [customer_id, tenant_id]),
+
+      // Delivery Notes
+      db.query(`
+        SELECT dn.id, dn.number, dn.sales_order_id, dn.delivery_date, dn.status,
+               dn.accounting_status, dn.notes, dn.created_at,
+               so.number as sales_order_number,
+               w.name as warehouse_name
+        FROM delivery_notes dn
+        LEFT JOIN sales_orders so ON dn.sales_order_id = so.id
+        LEFT JOIN warehouses w ON dn.warehouse_id = w.id
+        WHERE dn.customer_id::text = $1::text
+          AND dn.tenant_id::text = $2::text
+        ORDER BY dn.created_at DESC
+      `, [customer_id, tenant_id]),
+
+      // Invoices
+      db.query(`
+        SELECT inv.id, inv.invoice_number, inv.total_amount, inv.status, inv.due_date,
+               inv.sales_order_id, inv.accounting_status, inv.created_at,
+               COALESCE(d.title, inv.notes) as deal_title,
+               so.number as sales_order_number
+        FROM invoices inv
+        LEFT JOIN sales_orders so ON inv.sales_order_id = so.id
+        LEFT JOIN quotations q ON inv.quotation_id = q.id
+        LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id) = d.id
+        WHERE (inv.client_id::text = $1::text OR inv.customer_id::text = $1::text OR d.client_id::text = $1::text)
+          AND inv.tenant_id::text = $2::text
+        ORDER BY inv.created_at DESC
+      `, [customer_id, tenant_id]),
+
+      // Sales Returns
+      db.query(`
+        SELECT sr.id, sr.number, sr.delivery_note_id, sr.return_date, sr.status,
+               sr.accounting_status, sr.total_amount, sr.created_at,
+               dn.number as delivery_note_number
+        FROM sales_returns sr
+        LEFT JOIN delivery_notes dn ON sr.delivery_note_id = dn.id
+        WHERE sr.customer_id::text = $1::text
+          AND sr.tenant_id::text = $2::text
+        ORDER BY sr.created_at DESC
+      `, [customer_id, tenant_id]),
+
+      // Invoice-Linked Payments
+      db.query(`
+        SELECT p.id, p.amount, p.payment_method, p.payment_date, p.notes,
+               p.invoice_id, inv.invoice_number,
+               COALESCE(fv.voucher_number, 'PMT-' || p.id::text) as voucher_number,
+               fv.id as voucher_id
+        FROM payments p
+        JOIN invoices inv ON p.invoice_id::text = inv.id::text
+        LEFT JOIN quotations q ON inv.quotation_id = q.id
+        LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id) = d.id
+        LEFT JOIN finance_vouchers fv ON p.voucher_id = fv.id
+        WHERE (inv.client_id::text = $1::text OR inv.customer_id::text = $1::text OR d.client_id::text = $1::text)
+          AND p.tenant_id::text = $2::text
+          AND (COALESCE(p.status, 'active') != 'cancelled')
+        ORDER BY p.payment_date DESC
+      `, [customer_id, tenant_id]),
+
+      // On-Account Receipts
+      db.query(`
+        SELECT fv.id, fv.voucher_number, fv.amount, fv.payment_method, fv.voucher_date, fv.notes,
+               fv.status, fv.reference_no,
+               u.name as created_by_name
+        FROM finance_vouchers fv
+        LEFT JOIN users u ON fv.created_by::text = u.id::text
+        WHERE fv.customer_id::text = $1::text
+          AND fv.tenant_id::text = $2::text
+          AND fv.voucher_type = 'receipt'
+          AND fv.invoice_id IS NULL
+          AND (COALESCE(fv.status, 'active') != 'cancelled')
+        ORDER BY fv.voucher_date DESC
+      `, [customer_id, tenant_id]),
+
+      // Activities (CRM interactions)
+      db.query(`
+        SELECT a.*, COALESCE(u.name, a.actor_name, 'System') as user_name
+        FROM activities a
+        LEFT JOIN users u ON a.user_id = u.id
+        WHERE a.tenant_id::text = $1::text
+          AND (
+            (LOWER(a.entity_type) = 'customer' AND a.entity_id::text = $2::text)
+            OR (LOWER(a.entity_type) = 'deal' AND a.entity_id::text IN (
+                 SELECT id::text FROM deals WHERE client_id::text = $2::text AND tenant_id::text = $1::text
+               ))
+          )
+        ORDER BY a.created_at DESC
+        LIMIT 50
+      `, [tenant_id, customer_id]),
+
+      // Real Estate: Contracts
+      db.query(`
+        SELECT c.*, u.unit_number, p.name as project_name
+        FROM re_contracts c
+        LEFT JOIN re_units u ON c.unit_id = u.id
+        LEFT JOIN re_projects p ON u.project_id = p.id
+        WHERE c.customer_id::text = $1::text AND c.tenant_id::text = $2::text
+        ORDER BY c.created_at DESC
+      `, [customer_id, tenant_id]),
+
+      // Real Estate: Installments
+      db.query(`
+        SELECT inst.*, c.contract_number, u.unit_number
+        FROM re_installments inst
+        JOIN re_contracts c ON inst.contract_id = c.id
+        LEFT JOIN re_units u ON c.unit_id = u.id
+        WHERE c.customer_id::text = $1::text AND inst.tenant_id::text = $2::text
+        ORDER BY inst.due_date ASC
+      `, [customer_id, tenant_id]),
+
+      // Real Estate: Handovers
+      db.query(`
+        SELECT h.*, c.contract_number, u.unit_number
+        FROM re_handovers h
+        LEFT JOIN re_contracts c ON h.contract_id = c.id
+        LEFT JOIN re_units u ON h.unit_id = u.id
+        WHERE h.customer_id::text = $1::text AND h.tenant_id::text = $2::text
+        ORDER BY h.created_at DESC
+      `, [customer_id, tenant_id]),
+
+      // Real Estate: Collections / Vouchers
+      db.query(`
+        SELECT fv.id, fv.voucher_number, fv.amount, fv.payment_method, fv.voucher_date, fv.notes,
+               fv.status, fv.deal_id, fv.contract_id, fv.installment_id,
+               c.contract_number, u.unit_number
+        FROM finance_vouchers fv
+        LEFT JOIN re_contracts c ON fv.contract_id = c.id
+        LEFT JOIN re_units u ON c.unit_id = u.id
+        WHERE fv.customer_id::text = $1::text
+          AND fv.tenant_id::text = $2::text
+          AND fv.voucher_type = 'receipt'
+          AND (fv.contract_id IS NOT NULL OR fv.installment_id IS NOT NULL OR fv.deal_id IN (
+            SELECT id FROM deals WHERE client_id::text = $1::text AND tenant_id::text = $2::text AND (unit_id IS NOT NULL OR project_id IS NOT NULL)
+          ))
+          AND (COALESCE(fv.status, 'active') != 'cancelled')
+        ORDER BY fv.voucher_date DESC
+      `, [customer_id, tenant_id])
+    ]);
+
+    // 3. Financial calculations verified against G-4 Source of Truth
+    const totalInvoiced = invoicesRes.rows.reduce((sum, inv) => sum + parseFloat(inv.total_amount || 0), 0);
+    const totalInvoicePaid = paymentsRes.rows.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const totalOnAccountPaid = onAccountVouchersRes.rows.reduce((sum, v) => sum + parseFloat(v.amount || 0), 0);
+    const totalCollected = totalInvoicePaid + totalOnAccountPaid;
+    const outstandingBalance = totalInvoiced - totalCollected;
+
+    // Overdue balance (invoices past due date that are not fully paid)
+    const now = new Date();
+    const overdueInvoices = invoicesRes.rows.filter(inv => {
+      return inv.due_date && new Date(inv.due_date) < now && inv.status !== 'paid';
+    });
+    const overdueAmount = overdueInvoices.reduce((sum, inv) => sum + parseFloat(inv.total_amount || 0), 0);
+
+    // 4. Construct Unified Chronological Timeline
+    // Merges CRM activities + key document milestones into a single sorted stream
+    const timelineItems = [];
+
+    // A. CRM Activities
+    for (const act of activitiesRes.rows) {
+      let message = act.title || act.details || act.action;
+      if (act.meta && act.meta.changes && act.meta.changes.note && act.meta.changes.note.to) {
+        message = act.meta.changes.note.to;
+      }
+      timelineItems.push({
+        id: `act-${act.id}`,
+        timestamp: act.created_at,
+        source: 'crm',
+        type: act.action || act.activity_type || 'interaction',
+        actor_name: act.user_name || 'System',
+        title: act.action ? `${act.action.toUpperCase()}` : 'Interaction',
+        description: message,
+        meta: act.meta || {}
+      });
+    }
+
+    // B. Deals
+    for (const d of dealsRes.rows) {
+      timelineItems.push({
+        id: `deal-${d.id}`,
+        timestamp: d.created_at,
+        source: 'deal',
+        type: 'deal_created',
+        actor_name: d.assigned_to_name || 'System',
+        title: `🤝 Deal Created`,
+        description: `Deal "${d.title}" (${Number(d.value || 0).toLocaleString()} EGP) - Stage: ${d.pipeline_stage}`,
+        meta: { deal_id: d.id, stage: d.pipeline_stage, value: d.value }
+      });
+    }
+
+    // C. Quotations
+    for (const q of quotationsRes.rows) {
+      timelineItems.push({
+        id: `quot-${q.id}`,
+        timestamp: q.created_at,
+        source: 'quotation',
+        type: 'quotation_issued',
+        actor_name: 'Sales',
+        title: `📄 Quotation Issued`,
+        description: `Quotation for ${q.deal_title} (${Number(q.total_amount || 0).toLocaleString()} EGP) - Status: ${q.status}`,
+        meta: { quotation_id: q.id, status: q.status }
+      });
+    }
+
+    // D. Sales Orders
+    for (const so of salesOrdersRes.rows) {
+      timelineItems.push({
+        id: `so-${so.id}`,
+        timestamp: so.created_at,
+        source: 'sales_order',
+        type: 'order_placed',
+        actor_name: so.assigned_to_name || 'Sales',
+        title: `🛒 Sales Order ${so.number || ''}`,
+        description: `Order ${so.number || `#${so.id}`} (${Number(so.total_amount || 0).toLocaleString()} EGP) - Status: ${so.status}`,
+        meta: { order_id: so.id, status: so.status }
+      });
+    }
+
+    // E. Delivery Notes
+    for (const dn of deliveryNotesRes.rows) {
+      timelineItems.push({
+        id: `dn-${dn.id}`,
+        timestamp: dn.created_at,
+        source: 'delivery_note',
+        type: 'delivery_dispatched',
+        actor_name: 'Warehouse',
+        title: `🚚 Delivery Note ${dn.number || ''}`,
+        description: `Delivery ${dn.number || `#${dn.id}`} from ${dn.warehouse_name || 'Warehouse'} - Status: ${dn.status}`,
+        meta: { delivery_id: dn.id, status: dn.status }
+      });
+    }
+
+    // F. Invoices
+    for (const inv of invoicesRes.rows) {
+      timelineItems.push({
+        id: `inv-${inv.id}`,
+        timestamp: inv.created_at,
+        source: 'invoice',
+        type: 'invoice_issued',
+        actor_name: 'Finance',
+        title: `🧾 Invoice ${inv.invoice_number || ''}`,
+        description: `Invoice ${inv.invoice_number || `#${inv.id}`} for ${Number(inv.total_amount || 0).toLocaleString()} EGP - Status: ${inv.status}`,
+        meta: { invoice_id: inv.id, status: inv.status }
+      });
+    }
+
+    // G. Payments & Vouchers
+    for (const p of paymentsRes.rows) {
+      timelineItems.push({
+        id: `pmt-${p.id}`,
+        timestamp: p.payment_date || p.created_at,
+        source: 'payment',
+        type: 'payment_received',
+        actor_name: 'Treasury',
+        title: `💵 Payment Received (${p.voucher_number})`,
+        description: `Collected ${Number(p.amount || 0).toLocaleString()} EGP for Invoice ${p.invoice_number || ''} via ${p.payment_method || 'Cash'}`,
+        meta: { payment_id: p.id, voucher_number: p.voucher_number, amount: p.amount }
+      });
+    }
+
+    for (const v of onAccountVouchersRes.rows) {
+      timelineItems.push({
+        id: `vouch-${v.id}`,
+        timestamp: v.voucher_date || v.created_at,
+        source: 'voucher',
+        type: 'on_account_receipt',
+        actor_name: v.created_by_name || 'Treasury',
+        title: `💼 On-Account Receipt (${v.voucher_number})`,
+        description: `Received on-account credit ${Number(v.amount || 0).toLocaleString()} EGP via ${v.payment_method || 'Cash'}`,
+        meta: { voucher_id: v.id, voucher_number: v.voucher_number, amount: v.amount }
+      });
+    }
+
+    // H. Sales Returns
+    for (const sr of returnsRes.rows) {
+      timelineItems.push({
+        id: `sr-${sr.id}`,
+        timestamp: sr.created_at,
+        source: 'return',
+        type: 'return_recorded',
+        actor_name: 'Warehouse/Sales',
+        title: `🔄 Sales Return ${sr.number || ''}`,
+        description: `Return ${sr.number || `#${sr.id}`} linked to Delivery ${sr.delivery_note_number || ''} - Status: ${sr.status}`,
+        meta: { return_id: sr.id, status: sr.status }
+      });
+    }
+
+    // I. Real Estate Contracts
+    for (const c of reContractsRes.rows) {
+      timelineItems.push({
+        id: `rec-${c.id}`,
+        timestamp: c.contract_date || c.created_at,
+        source: 'contract',
+        type: 'contract_signed',
+        actor_name: 'Legal/RE',
+        title: `📜 Real Estate Contract (${c.contract_number})`,
+        description: `Contract for Unit ${c.unit_number || 'N/A'} in ${c.project_name || 'Project'} (${Number(c.contract_value || 0).toLocaleString()} EGP) - Status: ${c.status}`,
+        meta: { contract_id: c.id, unit_number: c.unit_number }
+      });
+    }
+
+    // J. Real Estate Collections / Installment Payments
+    for (const rv of reVouchersRes.rows) {
+      timelineItems.push({
+        id: `rev-${rv.id}`,
+        timestamp: rv.voucher_date || rv.created_at,
+        source: 're_collection',
+        type: 're_payment_received',
+        actor_name: 'Treasury/RE',
+        title: `🏢 Property Collection (${rv.voucher_number})`,
+        description: `Collected ${Number(rv.amount || 0).toLocaleString()} EGP ${rv.contract_number ? `for Contract ${rv.contract_number}` : ''} ${rv.unit_number ? `(Unit ${rv.unit_number})` : ''} via ${rv.payment_method || 'Cash'}`,
+        meta: { voucher_id: rv.id, voucher_number: rv.voucher_number, amount: rv.amount }
+      });
+    }
+
+    // Sort combined timeline descending (newest first)
+    timelineItems.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    // Filter deals with reservations
+    const reservationsList = dealsRes.rows.filter(d => {
+      const stage = (d.pipeline_stage || '').toLowerCase();
+      return stage.includes('reserv') || d.unit_reservation_expires_at || (d.unit_id && d.unit_status === 'Reserved');
+    });
+
+    // Determine if Real Estate section should be shown
+    const hasRealEstateData = reContractsRes.rows.length > 0 ||
+                              reInstallmentsRes.rows.length > 0 ||
+                              reHandoversRes.rows.length > 0 ||
+                              reVouchersRes.rows.length > 0 ||
+                              reservationsList.length > 0 ||
+                              dealsRes.rows.some(d => d.unit_id || d.project_id);
+
+    // 5. Build structured response
+    res.json({
+      status: 'success',
+      data: {
+        customer,
+        summary: {
+          total_invoiced: totalInvoiced,
+          total_collected: totalCollected,
+          outstanding_balance: outstandingBalance,
+          overdue_amount: overdueAmount,
+          deals_count: dealsRes.rows.length,
+          sales_orders_count: salesOrdersRes.rows.length,
+          invoices_count: invoicesRes.rows.length,
+          contracts_count: reContractsRes.rows.length,
+          reservations_count: reservationsList.length,
+          has_real_estate: hasRealEstateData
+        },
+        deals: dealsRes.rows,
+        general_sales: {
+          quotations: quotationsRes.rows,
+          sales_orders: salesOrdersRes.rows,
+          delivery_notes: deliveryNotesRes.rows,
+          invoices: invoicesRes.rows,
+          sales_returns: returnsRes.rows
+        },
+        finance: {
+          invoices: invoicesRes.rows,
+          linked_payments: paymentsRes.rows,
+          on_account_vouchers: onAccountVouchersRes.rows,
+          total_invoiced: totalInvoiced,
+          total_collected: totalCollected,
+          outstanding_balance: outstandingBalance,
+          overdue_amount: overdueAmount
+        },
+        real_estate: {
+          reservations: reservationsList,
+          contracts: reContractsRes.rows,
+          installments: reInstallmentsRes.rows,
+          collections: reVouchersRes.rows,
+          handovers: reHandoversRes.rows
+        },
+        timeline: timelineItems
+      }
+    });
+
+  } catch (err) {
+    console.error('[Customer 360 Error]', err);
+    res.status(500).json({ status: 'error', message: `Customer 360 resolution failed: ${err.message}` });
   }
 };

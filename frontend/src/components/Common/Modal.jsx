@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
-const Modal = ({ isOpen, onClose, title, children, footer }) => {
+const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) => {
   // Close on ESC key
   useEffect(() => {
     const handleEsc = (e) => {
@@ -34,7 +34,7 @@ const Modal = ({ isOpen, onClose, title, children, footer }) => {
         .modal-content {
           background: white;
           width: 100%;
-          max-width: 500px;
+          max-width: ${maxWidth || width || '500px'};
           border-radius: 12px;
           box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
           animation: slideUp 0.3s ease-out;

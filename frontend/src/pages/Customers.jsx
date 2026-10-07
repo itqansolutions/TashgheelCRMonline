@@ -7,19 +7,20 @@ import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 import FileUploader from '../components/Common/FileUploader';
 import ActivityTimeline from '../components/Common/ActivityTimeline';
+import Customer360Workspace from '../components/Customers/Customer360Workspace';
 import { exportCustomersToExcel } from '../utils/excelExport';
 
 import { useAuth } from '../context/AuthContext';
 
 const Customers = () => {
   const { user } = useAuth();
-  const { 
-    customers, fetchCustomers, 
-    users, fetchUsers, 
-    leadSources, fetchLeadSources, 
-    customerClassifications, fetchCustomerClassifications, 
+  const {
+    customers, fetchCustomers,
+    users, fetchUsers,
+    leadSources, fetchLeadSources,
+    customerClassifications, fetchCustomerClassifications,
     customerAreas, fetchCustomerAreas,
-    loading 
+    loading
   } = useData();
   const isRealEstate = user?.template_name === 'real_estate';
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -30,14 +31,14 @@ const Customers = () => {
   const [matchedUnits, setMatchedUnits] = useState([]);
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [expandedMatchId, setExpandedMatchId] = useState(null);
-  
+
   // UI Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [entityFilter, setEntityFilter] = useState('all'); // all, customer, vendor, broker
   const [sourceFilter, setSourceFilter] = useState('all');
   const [classificationFilter, setClassificationFilter] = useState('all');
   const [areaFilter, setAreaFilter] = useState('all');
-  const [roomsFilter, setRoomsFilter] = useState('');  
+  const [roomsFilter, setRoomsFilter] = useState('');
 
   // Quick Classification Modal State
   const [showQuickClassificationModal, setShowQuickClassificationModal] = useState(false);
@@ -138,7 +139,7 @@ const Customers = () => {
       });
     } else {
       setEditingCustomer(null);
-      setFormData({ 
+      setFormData({
           name: '', company_name: '', email: '', phone: '', address: '', status: 'lead', source_id: '', classification_id: '', area_id: '', manager_id: '', assigned_to: '',
           entity_type: 'customer', budget_min: 0, budget_max: 0, preferred_area_min: 0, preferred_area_max: 0, preferred_location: '', preferred_rooms: 0
       });
@@ -187,33 +188,33 @@ const Customers = () => {
   // Filtered Data Logic (Instant Client-side Search & Filter)
   const filteredCustomers = (customers || []).filter(c => {
     const q = searchQuery.toLowerCase().trim();
-    const matchesSearch = !q || 
-        c.name?.toLowerCase().includes(q) || 
+    const matchesSearch = !q ||
+        c.name?.toLowerCase().includes(q) ||
         c.phone?.includes(q) ||
         c.meta_form_name?.toLowerCase().includes(q) ||
         c.company_name?.toLowerCase().includes(q) ||
         c.notes?.toLowerCase().includes(q) ||
         c.address?.toLowerCase().includes(q);
-    
+
     const matchesEntity = entityFilter === 'all' || c.entity_type === entityFilter;
     const matchesRooms = !roomsFilter || c.preferred_rooms === parseInt(roomsFilter);
-    const matchesSource = sourceFilter === 'all' || 
+    const matchesSource = sourceFilter === 'all' ||
         (sourceFilter === 'direct' && (!c.source_id || c.source_name === 'Direct')) ||
         String(c.source_id) === String(sourceFilter) ||
         c.source_name?.toLowerCase() === sourceFilter.toLowerCase();
-    
+
     const matchesClassification = classificationFilter === 'all' ||
         (classificationFilter === 'unclassified' ? !c.classification_id : String(c.classification_id) === String(classificationFilter));
-    
+
     const matchesArea = areaFilter === 'all' ||
         (areaFilter === 'no_area' ? !c.area_id : String(c.area_id) === String(areaFilter));
-    
+
     return matchesSearch && matchesEntity && matchesRooms && matchesSource && matchesClassification && matchesArea;
   });
 
   const columns = [
-    { 
-      key: 'name', 
+    {
+      key: 'name',
       label: 'Customer Name',
       render: (val, item) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -227,14 +228,14 @@ const Customers = () => {
         </div>
       )
     },
-    { 
-      key: 'phone', 
+    {
+      key: 'phone',
       label: 'Phone / Mobile',
       render: (val) => val ? (
         <span style={{ fontWeight: '700', direction: 'ltr', display: 'inline-block', color: '#1e293b' }}>{val}</span>
       ) : <span style={{ color: '#94a3b8' }}>—</span>
     },
-    { 
+    {
       key: 'classification_name',
       label: 'Classification',
       render: (val, item) => val ? (
@@ -257,7 +258,7 @@ const Customers = () => {
         <span style={{ color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>—</span>
       )
     },
-    { 
+    {
       key: 'area_name',
       label: 'Area / المنطقة',
       render: (val, item) => val ? (
@@ -281,8 +282,8 @@ const Customers = () => {
       )
     },
     { key: 'company_name', label: 'Company / Job' },
-    { 
-      key: 'source_name', 
+    {
+      key: 'source_name',
       label: 'Source',
       render: (val, item) => (
         <div>
@@ -295,13 +296,13 @@ const Customers = () => {
         </div>
       )
     },
-    { 
-      key: 'manager_name', 
+    {
+      key: 'manager_name',
       label: 'Director/Manager',
       render: (val) => val || 'Not Assigned'
     },
-    { 
-      key: 'status', 
+    {
+      key: 'status',
       label: 'Status',
       render: (val) => (
         <span className={`status-badge`}>{val}</span>
@@ -330,7 +331,7 @@ const Customers = () => {
           transition: background 0.2s;
         }
         .btn-add:hover { background-color: var(--primary-hover); }
-        
+
         /* Form Styles */
         .form-grid {
           display: grid;
@@ -356,7 +357,7 @@ const Customers = () => {
           outline: none;
         }
         .form-group input:focus { border-color: var(--primary); }
-        
+
         .btn-cancel {
           background: #f1f5f9;
           color: var(--text-muted);
@@ -379,13 +380,13 @@ const Customers = () => {
             {isRealEstate ? 'Leads & Prospective Buyers' : 'Customers'}
           </h2>
           <p style={{ color: 'var(--text-muted)' }}>
-            {isRealEstate 
-              ? 'Manage your real estate interests and potential buyers.' 
+            {isRealEstate
+              ? 'Manage your real estate interests and potential buyers.'
               : 'Manage your leads and active clients.'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button 
+          <button
             onClick={() => exportCustomersToExcel(filteredCustomers, `customers_${new Date().toISOString().slice(0,10)}`)}
             style={{
               background: '#ecfdf5', color: '#059669', border: '1.5px solid #a7f3d0',
@@ -407,14 +408,14 @@ const Customers = () => {
       <div className="filter-bar">
         <div className="search-box">
           <Phone size={18} className="search-icon" />
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="Search by Name, Phone, Form Name, or Notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        
+
         <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
           <option value="all">All Sources</option>
           {(leadSources || []).map(s => (
@@ -494,7 +495,7 @@ const Customers = () => {
         }
       `}</style>
 
-      <DataTable 
+      <DataTable
         title={isRealEstate ? "Prospective Buyers" : "Customer Directory"}
         columns={columns}
         data={filteredCustomers}
@@ -502,30 +503,31 @@ const Customers = () => {
         onEdit={handleOpenModal}
         onDelete={handleDelete}
         actions={(item) => (
-          <button 
+          <button
             onClick={() => {
                 setEditingCustomer(item);
                 setIsViewingDetails(true);
                 setIsModalOpen(true);
             }}
-            style={{ 
-                padding: '6px 12px', background: 'rgba(79, 70, 229, 0.1)', 
-                color: 'var(--primary)', border: 'none', borderRadius: '6px', 
-                fontSize: '12px', fontWeight: '800' 
+            style={{
+                padding: '6px 12px', background: 'rgba(79, 70, 229, 0.1)',
+                color: 'var(--primary)', border: 'none', borderRadius: '6px',
+                fontSize: '12px', fontWeight: '800', cursor: 'pointer'
             }}
           >
-            VIEW CARD
+            CUSTOMER 360
           </button>
         )}
       />
 
-      <Modal 
-        isOpen={isModalOpen} 
+      <Modal
+        isOpen={isModalOpen}
+        maxWidth={isViewingDetails ? '1100px' : '550px'}
         onClose={() => {
             setIsModalOpen(false);
             setIsViewingDetails(false);
         }}
-        title={isViewingDetails ? 'Lead Identity Card' : (editingCustomer ? 'Edit Customer' : 'Add New Customer')}
+        title={isViewingDetails ? `Customer 360 Workspace — ${editingCustomer?.name || ''}` : (editingCustomer ? 'Edit Customer' : 'Add New Customer')}
         footer={
           !isViewingDetails ? (
             <>
@@ -538,274 +540,19 @@ const Customers = () => {
         }
       >
         {isViewingDetails ? (
-            <div className="lead-card">
-                <div className="lc-header">
-                    <div className="lc-avatar">
-                        {editingCustomer.name?.[0]?.toUpperCase()}
-                    </div>
-                    <div>
-                        <h3>{editingCustomer.name}</h3>
-                        <div className="lc-badge">{editingCustomer.entity_type?.toUpperCase()}</div>
-                    </div>
-                </div>
-
-                <div className="lc-grid">
-                    <div className="lc-item">
-                        <label><Phone size={14}/> Phone</label>
-                        <span>{editingCustomer.phone || 'N/A'}</span>
-                    </div>
-                    <div className="lc-item">
-                        <label><Mail size={14}/> Email</label>
-                        <span>{editingCustomer.email || 'N/A'}</span>
-                    </div>
-                    <div className="lc-item">
-                        <label><MapPin size={14}/> Location</label>
-                        <span>{editingCustomer.address || 'N/A'}</span>
-                    </div>
-                    <div className="lc-item">
-                        <label><Building size={14}/> Branch</label>
-                        <span>{editingCustomer.branch_name || 'Main Branch'}</span>
-                    </div>
-                    <div className="lc-item">
-                        <label>🌐 Source</label>
-                        <span style={{ color: '#4f46e5', fontWeight: 800 }}>{editingCustomer.source_name || 'Direct'}</span>
-                    </div>
-                    {editingCustomer.meta_form_name && (
-                      <div className="lc-item">
-                          <label>📋 Meta Form</label>
-                          <span style={{ color: '#0284c7', fontWeight: 800 }}>{editingCustomer.meta_form_name}</span>
-                      </div>
-                    )}
-                    {editingCustomer.classification_name && (
-                      <div className="lc-item">
-                          <label>🏷️ Classification</label>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            fontWeight: 800,
-                            color: editingCustomer.classification_color || '#4f46e5'
-                          }}>
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: editingCustomer.classification_color || '#4f46e5' }}></span>
-                            {editingCustomer.classification_name}
-                          </span>
-                      </div>
-                    )}
-                    {editingCustomer.area_name && (
-                      <div className="lc-item">
-                          <label>📍 Area / المنطقة</label>
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            fontWeight: 800,
-                            color: editingCustomer.area_color || '#0ea5e9'
-                          }}>
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: editingCustomer.area_color || '#0ea5e9' }}></span>
-                            {editingCustomer.area_name}
-                          </span>
-                      </div>
-                    )}
-                </div>
-
-                {/* Form Responses & Notes */}
-                {editingCustomer.notes && (
-                  <div style={{ marginTop: '20px', padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                    <h4 style={{ fontSize: '14px', fontWeight: '800', color: 'var(--primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      📝 Form Responses & Notes
-                    </h4>
-                    <div style={{ whiteSpace: 'pre-wrap', fontSize: '13px', color: '#334155', lineHeight: '1.6', background: '#ffffff', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                      {editingCustomer.notes}
-                    </div>
-                  </div>
-                )}
-
-                {isRealEstate && (
-                    <div className="lc-specs">
-                        <h4>Real Estate Specifications</h4>
-                        <div className="lc-grid">
-                            <div className="lc-item">
-                                <label>Budget Range</label>
-                                <span>{Number(editingCustomer.budget_min).toLocaleString()} - {Number(editingCustomer.budget_max).toLocaleString()} EGP</span>
-                            </div>
-                            <div className="lc-item">
-                                <label>Area Range</label>
-                                <span>{editingCustomer.preferred_area_min} - {editingCustomer.preferred_area_max} sqm</span>
-                            </div>
-                            <div className="lc-item">
-                                <label>Rooms</label>
-                                <span>{editingCustomer.preferred_rooms} Rooms</span>
-                            </div>
-                            <div className="lc-item">
-                                <label>Location</label>
-                                <span>{editingCustomer.preferred_location || 'Anywhere'}</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Related Data Module */}
-                <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-                        
-                        <div>
-                            <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Building size={16} color="var(--primary)"/> Related Units
-                            </h4>
-                            {loadingRel ? <span style={{ fontSize:'12px', color:'var(--text-muted)' }}>Loading...</span> : (
-                                relatedUnits.length > 0 ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {relatedUnits.map(u => (
-                                            <div key={u.id} style={{ padding: '10px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px' }}>
-                                                <div style={{ fontWeight: 800, color: 'var(--primary)', marginBottom: '4px' }}>Unit {u.unit_number}</div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '11px', fontWeight: 600 }}>
-                                                    <span>{u.project_name || 'Individual'}</span>
-                                                    <span>{Number(u.price).toLocaleString()} EGP</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div style={{ padding: '16px', background: '#f1f5f9', borderRadius: '8px', color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic' }}>
-                                        No linked units found for this {editingCustomer.entity_type}.
-                                    </div>
-                                )
-                            )}
-                        </div>
-
-                        <div>
-                            <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <MapPin size={16} color="var(--primary)"/> Identity Documents
-                            </h4>
-                            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-                                <FileUploader linkedType="customer" linkedId={editingCustomer.id} />
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-
-                {/* 🎯 Real Estate Smart Unit Matching Module */}
-                {isRealEstate && (
-                    <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                            <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Sparkles size={16} color="#eab308" /> 🎯 Smart Unit Matching (Deterministic AI Engine)
-                            </h4>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px' }}>
-                                {matchedUnits.length} Available Unit(s) Analyzed
-                            </span>
-                        </div>
-
-                        {loadingMatches ? (
-                            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-                                Calculating deterministic compatibility scores...
-                            </div>
-                        ) : matchedUnits.length === 0 ? (
-                            <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '10px', color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center' }}>
-                                No units currently available in inventory to match.
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                {matchedUnits.slice(0, 5).map(({ unit, match_score, match_grade, breakdown }) => {
-                                    const isExpanded = expandedMatchId === unit.id;
-                                    const gradeColor = match_score >= 85 ? '#16a34a' : match_score >= 65 ? '#2563eb' : match_score >= 45 ? '#d97706' : '#64748b';
-                                    const gradeBg = match_score >= 85 ? '#dcfce7' : match_score >= 65 ? '#dbeafe' : match_score >= 45 ? '#fef3c7' : '#f1f5f9';
-
-                                    return (
-                                        <div key={unit.id} style={{ border: `1px solid ${isExpanded ? gradeColor : '#e2e8f0'}`, borderRadius: '10px', background: 'white', overflow: 'hidden', transition: 'all 0.2s' }}>
-                                            <div 
-                                                onClick={() => setExpandedMatchId(isExpanded ? null : unit.id)}
-                                                style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: isExpanded ? `${gradeBg}40` : 'transparent' }}
-                                            >
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                    <div style={{ textAlign: 'center', minWidth: '55px', padding: '4px 8px', borderRadius: '8px', background: gradeBg, color: gradeColor, fontWeight: 900 }}>
-                                                        <div style={{ fontSize: '16px', lineHeight: '1' }}>{match_score}%</div>
-                                                        <div style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{match_grade}</div>
-                                                    </div>
-                                                    <div>
-                                                        <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)' }}>
-                                                            Unit {unit.unit_number} • {unit.project_name || 'Individual'}
-                                                        </div>
-                                                        <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
-                                                            <span>{unit.type}</span>
-                                                            <span>•</span>
-                                                            <span>{unit.area_sqm} m²</span>
-                                                            <span>•</span>
-                                                            <span>{unit.rooms} Rooms</span>
-                                                            <span>•</span>
-                                                            <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{Number(unit.price).toLocaleString()} EGP</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <a 
-                                                        href={`/deals?new=1&client_id=${editingCustomer.id}&unit_id=${unit.id}`}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--primary)', color: 'white', textDecoration: 'none', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                    >
-                                                        Create Deal <ArrowRight size={12} />
-                                                    </a>
-                                                    {isExpanded ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
-                                                </div>
-                                            </div>
-
-                                            {/* Detailed Scoring Breakdown Accordion */}
-                                            {isExpanded && (
-                                                <div style={{ padding: '12px 16px', borderTop: '1px solid #f1f5f9', background: '#fafafa', fontSize: '12px' }}>
-                                                    <div style={{ fontWeight: 800, color: '#334155', marginBottom: '8px' }}>Scoring Breakdown Rationale:</div>
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#0f172a' }}>
-                                                                <span>💰 Budget ({breakdown.budget.score}/{breakdown.budget.max} pts)</span>
-                                                            </div>
-                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.budget.reason}</div>
-                                                        </div>
-                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#0f172a' }}>
-                                                                <span>📐 Area ({breakdown.area.score}/{breakdown.area.max} pts)</span>
-                                                            </div>
-                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.area.reason}</div>
-                                                        </div>
-                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#0f172a' }}>
-                                                                <span>📍 Location ({breakdown.location.score}/{breakdown.location.max} pts)</span>
-                                                            </div>
-                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.location.reason}</div>
-                                                        </div>
-                                                        <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: '#0f172a' }}>
-                                                                <span>🛏️ Rooms ({breakdown.rooms.score}/{breakdown.rooms.max} pts)</span>
-                                                            </div>
-                                                            <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.rooms.reason}</div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Activity Timeline */}
-                <div style={{ marginTop: '32px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
-                    <h4 style={{ fontSize: '15px', fontWeight: '800', color: 'var(--text-main)', marginBottom: '16px' }}>Activity Timeline</h4>
-                    <ActivityTimeline entityType="customer" entityId={editingCustomer.id} />
-                </div>
-
-                <div style={{ marginTop: '32px', display: 'flex', gap: '10px' }}>
-                    <button className="btn-save" onClick={() => setIsViewingDetails(false)}>Edit Details</button>
-                    <button className="btn-cancel" onClick={() => window.print()}>Print Card</button>
-                </div>
-            </div>
+          <Customer360Workspace
+            customerId={editingCustomer?.id}
+            initialCustomer={editingCustomer}
+            onClose={() => {
+              setIsModalOpen(false);
+              setIsViewingDetails(false);
+            }}
+          />
         ) : (
             <form className="form-grid">
               <div className="form-group">
                 <label>Entity Type</label>
-                <select 
+                <select
                   value={formData.entity_type}
                   onChange={(e) => setFormData({...formData, entity_type: e.target.value})}
                 >
@@ -817,8 +564,8 @@ const Customers = () => {
               </div>
               <div className="form-group">
                 <label>Full Name</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="e.g. John Doe"
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
@@ -827,8 +574,8 @@ const Customers = () => {
               </div>
               <div className="form-group">
                 <label>Phone Number</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="+20 123 456 789"
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
@@ -836,8 +583,8 @@ const Customers = () => {
               </div>
               <div className="form-group">
                 <label>Email Address</label>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   placeholder="johndoe@email.com"
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
@@ -882,7 +629,7 @@ const Customers = () => {
 
               <div className="form-group">
                 <label>Assigned Employee</label>
-                <select 
+                <select
                   value={formData.assigned_to}
                   onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
                 >
@@ -894,7 +641,7 @@ const Customers = () => {
               </div>
               <div className="form-group">
                 <label>Director/Manager Override</label>
-                <select 
+                <select
                   value={formData.manager_id}
                   onChange={(e) => setFormData({...formData, manager_id: e.target.value})}
                 >
@@ -906,7 +653,7 @@ const Customers = () => {
               </div>
               <div className="form-group">
                 <label>Lead Source</label>
-                <select 
+                <select
                   value={formData.source_id}
                   onChange={(e) => setFormData({...formData, source_id: e.target.value})}
                 >
@@ -919,11 +666,11 @@ const Customers = () => {
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                   <label style={{ margin: 0 }}>Classification</label>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setShowQuickClassificationModal(true)}
-                    style={{ 
-                      background: 'none', border: 'none', color: 'var(--primary)', 
+                    style={{
+                      background: 'none', border: 'none', color: 'var(--primary)',
                       fontSize: '12px', fontWeight: '700', cursor: 'pointer', padding: 0,
                       display: 'flex', alignItems: 'center', gap: '3px'
                     }}
@@ -931,7 +678,7 @@ const Customers = () => {
                     <Plus size={13} /> Add Classification
                   </button>
                 </div>
-                <select 
+                <select
                   value={formData.classification_id || ''}
                   onChange={(e) => setFormData({...formData, classification_id: e.target.value})}
                 >
@@ -944,11 +691,11 @@ const Customers = () => {
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                   <label style={{ margin: 0 }}>Area / المنطقة</label>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setShowQuickAreaModal(true)}
-                    style={{ 
-                      background: 'none', border: 'none', color: 'var(--primary)', 
+                    style={{
+                      background: 'none', border: 'none', color: 'var(--primary)',
                       fontSize: '12px', fontWeight: '700', cursor: 'pointer', padding: 0,
                       display: 'flex', alignItems: 'center', gap: '3px'
                     }}
@@ -956,7 +703,7 @@ const Customers = () => {
                     <Plus size={13} /> Add Area
                   </button>
                 </div>
-                <select 
+                <select
                   value={formData.area_id || ''}
                   onChange={(e) => setFormData({...formData, area_id: e.target.value})}
                 >
@@ -968,7 +715,7 @@ const Customers = () => {
               </div>
               <div className="form-group">
                 <label>Lead Status</label>
-                <select 
+                <select
                   value={formData.status}
                   onChange={(e) => setFormData({...formData, status: e.target.value})}
                 >
@@ -979,7 +726,7 @@ const Customers = () => {
               </div>
               <div className="form-group full">
                 <label>Address</label>
-                <textarea 
+                <textarea
                   rows="2"
                   placeholder="Notes or physical address"
                   value={formData.address}
@@ -1012,20 +759,20 @@ const Customers = () => {
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
                 🏷️ Add New Customer Classification
               </h3>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowQuickClassificationModal(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '18px' }}
               >
                 ✕
               </button>
             </div>
-            
+
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
                 Classification Name (e.g. VIP, Corporate, Retail...) *
               </label>
-              <input 
+              <input
                 type="text"
                 placeholder="e.g. VIP Client"
                 value={newClassificationName}
@@ -1039,7 +786,7 @@ const Customers = () => {
                 Badge Color
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <input 
+                <input
                   type="color"
                   value={newClassificationColor}
                   onChange={e => setNewClassificationColor(e.target.value)}
@@ -1056,15 +803,15 @@ const Customers = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowQuickClassificationModal(false)}
                 style={{ padding: '8px 16px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
               >
                 Cancel
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 disabled={savingClassification}
                 onClick={async () => {
                   if (!newClassificationName.trim()) return toast.error('Please enter a classification name');
@@ -1110,20 +857,20 @@ const Customers = () => {
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
                 📍 Add New Customer Area (تصنيف المنطقة)
               </h3>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowQuickAreaModal(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '18px' }}
               >
                 ✕
               </button>
             </div>
-            
+
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
                 Area Name / اسم المنطقة (e.g. التجمع الخامس، زايد، المعادي، 6 أكتوبر...) *
               </label>
-              <input 
+              <input
                 type="text"
                 placeholder="e.g. التجمع الخامس / New Cairo"
                 value={newAreaName}
@@ -1137,7 +884,7 @@ const Customers = () => {
                 Badge Color
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <input 
+                <input
                   type="color"
                   value={newAreaColor}
                   onChange={e => setNewAreaColor(e.target.value)}
@@ -1154,15 +901,15 @@ const Customers = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowQuickAreaModal(false)}
                 style={{ padding: '8px 16px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
               >
                 Cancel
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 disabled={savingArea}
                 onClick={async () => {
                   if (!newAreaName.trim()) return toast.error('Please enter an area name');
@@ -1203,17 +950,17 @@ const Customers = () => {
             border: 1px dashed #cbd5e1;
         }
         .specs-section h4 { font-size: 14px; font-weight: 800; color: var(--primary); margin-bottom: 12px; }
-        
+
         .lead-card { padding: 8px; }
         .lc-header { display: flex; gap: 16px; align-items: center; margin-bottom: 24px; }
-        .lc-avatar { 
-            width: 60px; height: 60px; background: var(--primary); color: white; 
+        .lc-avatar {
+            width: 60px; height: 60px; background: var(--primary); color: white;
             border-radius: 16px; display: flex; align-items: center; justify-content: center;
             font-size: 24px; font-weight: 800;
         }
         .lc-header h3 { font-size: 20px; font-weight: 800; margin: 0; }
-        .lc-badge { 
-            display: inline-block; padding: 2px 8px; background: #e0e7ff; 
+        .lc-badge {
+            display: inline-block; padding: 2px 8px; background: #e0e7ff;
             color: #4338ca; border-radius: 6px; font-size: 10px; font-weight: 800; margin-top: 4px;
         }
         .lc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }

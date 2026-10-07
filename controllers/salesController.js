@@ -488,6 +488,57 @@ exports.getSalesDocuments = async (req, res) => {
       });
     });
 
+    // 4. Delivery Notes (Phase G-6 Documents Hub)
+    const dnRes = await db.query(`
+      SELECT dn.id, dn.number, dn.delivery_date, dn.created_at, dn.status,
+             COALESCE(c.name, 'Customer') as customer_name,
+             COALESCE(SUM(dni.quantity_delivered * dni.unit_cost), 0) as total_amount
+      FROM delivery_notes dn
+      LEFT JOIN customers c ON dn.customer_id = c.id
+      LEFT JOIN delivery_note_items dni ON dni.delivery_note_id = dn.id
+      WHERE dn.tenant_id::text = $1::text
+      GROUP BY dn.id, dn.number, dn.delivery_date, dn.created_at, dn.status, c.name
+      ORDER BY dn.created_at DESC LIMIT 50
+    `, [tenant_id]).catch(() => ({ rows: [] }));
+
+    dnRes.rows.forEach(dn => {
+      documents.push({
+        id: `dn-${dn.id}`,
+        doc_no: dn.number || `DN-${dn.id}`,
+        title: `Delivery Note - ${dn.customer_name}`,
+        type: 'Delivery Note',
+        customer: dn.customer_name,
+        total_amount: parseFloat(dn.total_amount || 0),
+        status: dn.status || 'draft',
+        date: dn.delivery_date ? new Date(dn.delivery_date).toISOString().split('T')[0] : (dn.created_at ? new Date(dn.created_at).toISOString().split('T')[0] : ''),
+        view_url: `/sales/orders`
+      });
+    });
+
+    // 5. Sales Returns (Phase G-6 Documents Hub)
+    const srRes = await db.query(`
+      SELECT sr.id, sr.number, sr.return_date, sr.created_at, sr.status, sr.total_amount,
+             COALESCE(c.name, 'Customer') as customer_name
+      FROM sales_returns sr
+      LEFT JOIN customers c ON sr.customer_id = c.id
+      WHERE sr.tenant_id::text = $1::text
+      ORDER BY sr.created_at DESC LIMIT 50
+    `, [tenant_id]).catch(() => ({ rows: [] }));
+
+    srRes.rows.forEach(sr => {
+      documents.push({
+        id: `sr-${sr.id}`,
+        doc_no: sr.number || `SR-${sr.id}`,
+        title: `Sales Return - ${sr.customer_name}`,
+        type: 'Sales Return',
+        customer: sr.customer_name,
+        total_amount: parseFloat(sr.total_amount || 0),
+        status: sr.status || 'draft',
+        date: sr.return_date ? new Date(sr.return_date).toISOString().split('T')[0] : (sr.created_at ? new Date(sr.created_at).toISOString().split('T')[0] : ''),
+        view_url: `/sales/orders`
+      });
+    });
+
     // Sort all documents by date descending
     documents.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 

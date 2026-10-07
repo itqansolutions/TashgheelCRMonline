@@ -170,6 +170,7 @@ exports.getFunnelReport = async (req, res) => {
             const [
                 leadsRes,
                 customersRes,
+                dealsRes,
                 quotationsRes,
                 salesOrdersRes,
                 deliveriesRes,
@@ -178,6 +179,7 @@ exports.getFunnelReport = async (req, res) => {
             ] = await Promise.all([
                 db.query(`SELECT COUNT(*)::int as count FROM customers WHERE tenant_id::text = $1::text AND status = 'lead'`, [tenant_id]),
                 db.query(`SELECT COUNT(*)::int as count FROM customers WHERE tenant_id::text = $1::text AND status = 'customer'`, [tenant_id]),
+                db.query(`SELECT COUNT(*)::int as count FROM deals WHERE tenant_id::text = $1::text`, [tenant_id]),
                 db.query(`SELECT COUNT(*)::int as count FROM quotations WHERE tenant_id::text = $1::text`, [tenant_id]),
                 db.query(`SELECT COUNT(*)::int as count FROM sales_orders WHERE tenant_id::text = $1::text`, [tenant_id]),
                 db.query(`SELECT COUNT(*)::int as count FROM delivery_notes WHERE tenant_id::text = $1::text`, [tenant_id]),
@@ -188,6 +190,7 @@ exports.getFunnelReport = async (req, res) => {
             const funnelStages = [
                 { stage: 'lead', name: 'Lead', count: leadsRes.rows[0].count },
                 { stage: 'customer', name: 'Customer', count: customersRes.rows[0].count },
+                { stage: 'deal', name: 'Deal', count: dealsRes.rows[0].count },
                 { stage: 'quotation', name: 'Quotation', count: quotationsRes.rows[0].count },
                 { stage: 'sales_order', name: 'Sales Order', count: salesOrdersRes.rows[0].count },
                 { stage: 'delivery', name: 'Delivery', count: deliveriesRes.rows[0].count },
