@@ -13,19 +13,28 @@ const TransactionImpact = () => {
     const fetchImpactLogs = async () => {
       setLoading(true);
       try {
-        const res = await api.get('/accounting/journals').catch(() => ({ data: { data: [] } }));
-        const journals = res.data.data || res.data || [];
-        const logs = journals.map((j, i) => ({
-          id: j.id || i + 1,
-          type: 'JOURNAL',
-          reference: j.entry_number || `JV-${j.id}`,
-          product: j.description || 'General Inventory Movement',
-          qty: '-',
-          unit_cost: parseFloat(j.total_debit || 0),
-          total_value: parseFloat(j.total_debit || 0),
-          financial_account: 'General Ledger',
-          date: j.entry_date ? new Date(j.entry_date).toLocaleDateString() : ''
-        }));
+        const res = await api.get('/inventory/movements').catch(() => ({ data: { data: [] } }));
+        const movements = res.data?.data || [];
+        const logs = movements.map((m, i) => {
+          const typeLower = (m.type || '').toLowerCase();
+          const isInbound = typeLower === 'in' || typeLower === 'inbound';
+          const isOutbound = typeLower === 'out' || typeLower === 'outbound';
+          const qty = parseFloat(m.quantity || 0);
+          const unitCost = parseFloat(m.unit_cost || m.cost || 0);
+          const totalVal = qty * unitCost;
+
+          return {
+            id: m.id || i + 1,
+            type: isInbound ? 'INBOUND' : isOutbound ? 'OUTBOUND' : (m.type || 'TRANSFER').toUpperCase(),
+            reference: m.reference_number || (m.reference_type ? `${m.reference_type.toUpperCase()}-${m.reference_id || m.id}` : `MOV-${m.id}`),
+            product: m.product_name || 'Inventory Item',
+            qty: isInbound ? `+${qty}` : isOutbound ? `-${qty}` : `${qty}`,
+            unit_cost: unitCost,
+            total_value: isInbound ? totalVal : -totalVal,
+            financial_account: isInbound ? 'Inventory Asset' : 'Cost of Goods Sold (COGS)',
+            date: m.created_at ? new Date(m.created_at).toLocaleDateString() : ''
+          };
+        });
         setImpactLogs(logs);
       } catch (err) {
         toast.error('Failed to load transaction impact data');

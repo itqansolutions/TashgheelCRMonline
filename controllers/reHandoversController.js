@@ -111,11 +111,19 @@ exports.createHandover = async (req, res) => {
             return res.status(409).json({ status: 'error', message: 'A handover record already exists for this deal.' });
         }
 
-        // 3. Resolve contract if exists
+        // 3. A handover starts only for a signed/active contract.
         const contractRes = await db.query(`
-            SELECT id FROM re_contracts WHERE deal_id = $1 AND tenant_id::text = $2::text
+            SELECT id, status FROM re_contracts
+            WHERE deal_id = $1 AND tenant_id::text = $2::text
         `, [deal.id, tenant_id]);
-        const contractId = contractRes.rows.length > 0 ? contractRes.rows[0].id : null;
+        if (contractRes.rows.length === 0) {
+            return res.status(409).json({ status: 'error', message: 'A signed Sales Contract is required before scheduling handover.' });
+        }
+        const contract = contractRes.rows[0];
+        if (!['Signed', 'Active'].includes(contract.status)) {
+            return res.status(409).json({ status: 'error', message: `Handover requires a Signed or Active contract. Current status: ${contract.status}.` });
+        }
+        const contractId = contract.id;
 
         const insertRes = await db.query(`
             INSERT INTO re_handovers (
@@ -182,6 +190,27 @@ exports.updateHandoverStatus = async (req, res) => {
 
         const ho = hoRes.rows[0];
 
+        if (status === 'Handed Over') {
+            const contractRes = await client.query(`
+                SELECT status FROM re_contracts
+                WHERE id::text = $1::text AND tenant_id::text = $2::text
+                FOR UPDATE
+            `, [String(ho.contract_id), tenant_id]);
+            if (contractRes.rows.length === 0 || !['Signed', 'Active'].includes(contractRes.rows[0].status)) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({ status: 'error', message: 'A Signed or Active contract is required to complete handover.' });
+            }
+            const unitRes = await client.query(`
+                SELECT status FROM re_units
+                WHERE id::text = $1::text AND tenant_id::text = $2::text
+                FOR UPDATE
+            `, [String(ho.unit_id), tenant_id]);
+            if (unitRes.rows.length === 0 || String(unitRes.rows[0].status || '').toLowerCase() !== 'contracted') {
+                await client.query('ROLLBACK');
+                return res.status(409).json({ status: 'error', message: 'Only a Contracted unit can be handed over.' });
+            }
+        }
+
         const isDelivered = status === 'Handed Over';
         const actualDate = isDelivered 
             ? (actual_handover_date || new Date().toISOString().split('T')[0]) 
@@ -202,10 +231,10 @@ exports.updateHandoverStatus = async (req, res) => {
             RETURNING *
         `, [status, actualDate, keysFlag, certFlag, snagging_notes, ho.id, tenant_id]);
 
-        // If handed over, finalize unit status as 'Sold' and advance contract to 'Completed'
+        // Physical possession is final only when handover is completed.
         if (isDelivered) {
             await client.query(`
-                UPDATE re_units SET status = 'Sold', updated_at = NOW()
+                UPDATE re_units SET status = 'Handed Over', updated_at = NOW()
                 WHERE id::text = $1::text AND tenant_id::text = $2::text
             `, [ho.unit_id, tenant_id]);
 

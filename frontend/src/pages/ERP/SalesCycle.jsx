@@ -235,14 +235,15 @@ const SalesCycle = () => {
   const handleDeliverOrderSubmit = async (e) => {
     e.preventDefault();
     if (!deliverOrder) return;
+    if (!deliveryFormData.warehouse_id) return toast.error('Select a source warehouse before confirming delivery');
     if (deliveryFormData.items.length === 0) return toast.error('No items to deliver');
 
     setSubmitting(true);
     try {
       // 1. Create Delivery Note
-      const dnRes = await api.post('/api/sales/deliveries', {
+      const dnRes = await api.post('/sales/deliveries', {
         sales_order_id: deliverOrder.id,
-        warehouse_id: deliveryFormData.warehouse_id || null,
+        warehouse_id: deliveryFormData.warehouse_id,
         delivery_date: deliveryFormData.delivery_date,
         notes: deliveryFormData.notes,
         items: deliveryFormData.items.map(it => ({
@@ -255,7 +256,7 @@ const SalesCycle = () => {
       const createdDN = dnRes.data?.data;
       if (createdDN?.id) {
         // 2. Automatically confirm delivery note to execute authoritative Stock OUT
-        await api.put(`/api/sales/deliveries/${createdDN.id}/confirm`);
+        await api.put(`/sales/deliveries/${createdDN.id}/confirm`);
         toast.success(`Delivery Note #${createdDN.number || ''} confirmed & stock deducted!`);
       } else {
         toast.success('Delivery Note created!');
@@ -783,7 +784,7 @@ const SalesCycle = () => {
                     onChange={(e) => setDeliveryFormData({ ...deliveryFormData, warehouse_id: e.target.value })}
                     style={inputStyle}
                   >
-                    <option value="">Default Warehouse</option>
+                    <option value="" disabled>Select source warehouse</option>
                     {warehouses.map(w => (
                       <option key={w.id} value={w.id}>{w.name} ({w.code || 'WH'})</option>
                     ))}

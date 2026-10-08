@@ -19,11 +19,19 @@ const db = require('../../../config/db');
 const { nextSequence } = require('../../infrastructure/sequencing/DocumentSequencer');
 const TransactionEngine = require('../shared/TransactionEngine');
 
+let inventoryTrackingColumnChecked = false;
+async function ensureInventoryTrackingColumn(client) {
+  if (inventoryTrackingColumnChecked) return;
+  await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_inventory_item BOOLEAN NOT NULL DEFAULT true;`);
+  inventoryTrackingColumnChecked = true;
+}
+
 /**
  * Create a Sales Return draft linked to a Delivery Note.
  */
 async function createSalesReturn(tenantId, branchId, data, userId) {
   return await TransactionEngine.executeTransaction(async (client) => {
+    await ensureInventoryTrackingColumn(client);
     const { delivery_note_id, return_date, items, notes } = data;
 
     if (!delivery_note_id) throw new Error('delivery_note_id is required.');
@@ -165,6 +173,7 @@ async function createSalesReturn(tenantId, branchId, data, userId) {
  */
 async function confirmSalesReturn(tenantId, branchId, returnId, userId) {
   return await TransactionEngine.executeTransaction(async (client) => {
+    await ensureInventoryTrackingColumn(client);
     // 1. Fetch and Lock Sales Return
     const srRes = await client.query(`
       SELECT sr.*, items.items_json
@@ -252,7 +261,7 @@ async function confirmSalesReturn(tenantId, branchId, returnId, userId) {
 
       // Lock product row to prevent race conditions during physical stock increment
       const pRes = await client.query(`
-        SELECT id, current_qty, avg_cost
+        SELECT id, current_qty, avg_cost, is_inventory_item
         FROM products
         WHERE id::text = $1::text AND tenant_id::text = $2::text
         FOR UPDATE
@@ -263,29 +272,37 @@ async function confirmSalesReturn(tenantId, branchId, returnId, userId) {
       }
 
       const product = pRes.rows[0];
+      const isInventoryItem = product.is_inventory_item !== false;
       const unitCost = Number(item.unit_cost || product.avg_cost || 0);
 
-      // 4. Create authoritative Stock Movement (type = 'in')
-      await client.query(`
+      if (isInventoryItem && !dn.warehouse_id) {
+        throw new Error('Associated Delivery Note has no warehouse to receive this inventory return.');
+      }
+
+      if (isInventoryItem) {
+        // 4. Restore physical inventory only; service returns never create Stock IN.
+        await client.query(`
         INSERT INTO stock_movements
-          (type, product_id, to_warehouse_id, quantity, unit_cost, status, tenant_id, reference_type, reference_id, created_by)
-        VALUES ('in', $1, $2, $3, $4, 'approved', $5, 'sales_return', $6, $7)
-      `, [
+          (type, product_id, to_warehouse_id, quantity, unit_cost, status, tenant_id, branch_id, reference_type, reference_id, created_by)
+        VALUES ('in', $1, $2, $3, $4, 'approved', $5, $6, 'sales_return', $7, $8)
+        `, [
         item.product_id,
         dn.warehouse_id,
         returnQty,
         unitCost,
         String(tenantId),
+        dn.branch_id || branchId || null,
         sr.id,
         userId
-      ]);
+        ]);
 
-      // 5. Restore Physical Stock: Increment products.current_qty
-      await client.query(`
+        // 5. Restore the company-wide inventory cache only for physical items.
+        await client.query(`
         UPDATE products
         SET current_qty = COALESCE(current_qty, 0) + $1
         WHERE id::text = $2::text AND tenant_id::text = $3::text
-      `, [returnQty, String(item.product_id), String(tenantId)]);
+        `, [returnQty, String(item.product_id), String(tenantId)]);
+      }
 
       // Note: sales_order_items.quantity_delivered is intentionally PRESERVED as historical delivered qty.
       // Net Delivered is dynamically derived as (quantity_delivered - total_returned).

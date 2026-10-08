@@ -23,8 +23,8 @@ const scanAndReleaseExpiredReservations = async () => {
         let releasedCount = 0;
 
         for (const unit of expiredUnitsRes.rows) {
-            // Guard: if the unit is held by a finalized deal (Real Estate 'Closed' / General 'won'),
-            // the reservation converted into a sale – finalize the unit instead of releasing it.
+            // Legacy guard: a finalized deal keeps the unit unavailable. New contracts clear
+            // reservation expiry as soon as they are signed, so this is only for older records.
             const finalizedRes = await db.query(`
                 SELECT id FROM deals
                 WHERE unit_id::text = $1::text AND tenant_id::text = $2::text
@@ -34,10 +34,10 @@ const scanAndReleaseExpiredReservations = async () => {
             if (finalizedRes.rows.length > 0) {
                 await db.query(`
                     UPDATE re_units
-                    SET status = 'Sold', reservation_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+                    SET status = 'Contracted', reservation_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
                     WHERE id = $1 AND tenant_id::text = $2::text
                 `, [unit.id, unit.tenant_id]);
-                console.log(`[ReservationEngine] Unit ${unit.id} has a closed deal – finalized as Sold (not released).`);
+                console.log(`[ReservationEngine] Unit ${unit.id} has a closed deal – marked Contracted (not released).`);
                 continue;
             }
 

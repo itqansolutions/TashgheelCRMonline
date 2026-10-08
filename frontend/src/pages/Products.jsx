@@ -22,7 +22,8 @@ const Products = () => {
     cost_price: 0,
     selling_price: 0,
     category: '',
-    unit: 'piece'
+    unit: 'piece',
+    is_inventory_item: true
   });
 
   useEffect(() => {
@@ -39,11 +40,12 @@ const Products = () => {
         cost_price: product.cost_price || 0,
         selling_price: product.selling_price || 0,
         category: product.category || '',
-        unit: product.unit || 'piece'
+        unit: product.unit || 'piece',
+        is_inventory_item: product.is_inventory_item !== false
       });
     } else {
       setEditingProduct(null);
-      setFormData({ name: '', sku: '', description: '', cost_price: 0, selling_price: 0, category: '', unit: 'piece' });
+      setFormData({ name: '', sku: '', description: '', cost_price: 0, selling_price: 0, category: '', unit: 'piece', is_inventory_item: true });
     }
     setIsModalOpen(true);
   };
@@ -92,6 +94,7 @@ const Products = () => {
     },
     { key: 'sku', label: 'SKU' },
     { key: 'unit', label: 'Unit', render: (val) => val || 'piece' },
+    { key: 'is_inventory_item', label: 'Inventory', render: (val) => val === false ? 'Service / Non-stock' : 'Stock item' },
     { key: 'category', label: 'Category' },
     { 
       key: 'cost_price', 
@@ -191,6 +194,16 @@ const Products = () => {
               value={formData.unit}
               onChange={(e) => setFormData({...formData, unit: e.target.value})}
             />
+          </div>
+          <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '26px' }}>
+            <input
+              id="is_inventory_item"
+              type="checkbox"
+              checked={formData.is_inventory_item}
+              onChange={(e) => setFormData({ ...formData, is_inventory_item: e.target.checked })}
+              style={{ width: '16px', height: '16px' }}
+            />
+            <label htmlFor="is_inventory_item" style={{ margin: 0 }}>Track this item in inventory</label>
           </div>
           <div className="form-group">
             <label>Cost Price (EGP)</label>

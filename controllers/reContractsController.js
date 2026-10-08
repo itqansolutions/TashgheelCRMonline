@@ -241,6 +241,24 @@ exports.createContract = async (req, res) => {
         }
 
         const deal = dealRes.rows[0];
+        if (!deal.unit_id) {
+            return res.status(400).json({ status: 'error', message: 'A Real Estate Sales Contract requires a linked unit.' });
+        }
+
+        // A contract can only be prepared for a unit actively reserved for this sale.
+        const unitRes = await db.query(`
+            SELECT id, status FROM re_units
+            WHERE id::text = $1::text AND tenant_id::text = $2::text
+        `, [String(deal.unit_id), tenant_id]);
+        if (unitRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Linked unit not found or unauthorized.' });
+        }
+        if (String(unitRes.rows[0].status || '').toLowerCase() !== 'reserved') {
+            return res.status(409).json({
+                status: 'error',
+                message: `A contract can only be created for a Reserved unit. This unit is currently ${unitRes.rows[0].status || 'unavailable'}.`
+            });
+        }
 
         // 2. Prevent duplicate contract for same deal
         const existingRes = await db.query(`
@@ -366,18 +384,70 @@ exports.updateContractStatus = async (req, res) => {
             });
         }
 
-        const updateRes = await db.query(`
+        // Completion is the outcome of a confirmed handover, not a manual contract transition.
+        if (targetStatus === 'Completed') {
+            return res.status(409).json({
+                status: 'error',
+                message: 'Complete the handover to complete this contract.'
+            });
+        }
+
+        const client = await db.connect();
+        try {
+            await client.query('BEGIN');
+
+            // Lock the unit before changing either record so a second deal cannot claim it concurrently.
+            const unitRes = await client.query(`
+                SELECT id, status FROM re_units
+                WHERE id::text = $1::text AND tenant_id::text = $2::text
+                FOR UPDATE
+            `, [String(contract.unit_id), tenant_id]);
+            if (unitRes.rows.length === 0) throw new Error('Linked unit not found or unauthorized.');
+
+            const currentUnitStatus = String(unitRes.rows[0].status || '').toLowerCase();
+            if (targetStatus === 'Signed' && currentUnitStatus !== 'reserved') {
+                throw new Error(`Cannot sign this contract because the unit is currently ${unitRes.rows[0].status || 'unavailable'}.`);
+            }
+            if (targetStatus === 'Active' && currentUnitStatus !== 'contracted') {
+                throw new Error('A contract can become Active only after its unit is Contracted.');
+            }
+
+            const updateRes = await client.query(`
             UPDATE re_contracts
             SET status = $1, updated_at = CURRENT_TIMESTAMP
             WHERE id::text = $2::text AND tenant_id::text = $3::text
             RETURNING *
-        `, [targetStatus, id, tenant_id]);
+            `, [targetStatus, id, tenant_id]);
 
-        res.json({
-            status: 'success',
-            data: updateRes.rows[0],
-            message: `Contract ${contract.contract_number} transitioned to ${targetStatus}.`
-        });
+            if (targetStatus === 'Signed') {
+                await client.query(`
+                    UPDATE re_units
+                    SET status = 'Contracted', reservation_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+                    WHERE id::text = $1::text AND tenant_id::text = $2::text
+                `, [String(contract.unit_id), tenant_id]);
+            } else if (targetStatus === 'Cancelled') {
+                await client.query(`
+                    UPDATE re_units
+                    SET status = 'Available', reservation_expires_at = NULL,
+                        reservation_extended_at = NULL, reservation_extended_by = NULL,
+                        reservation_extension_count = 0, updated_at = CURRENT_TIMESTAMP
+                    WHERE id::text = $1::text AND tenant_id::text = $2::text
+                `, [String(contract.unit_id), tenant_id]);
+            }
+
+            await client.query('COMMIT');
+
+            res.json({
+                status: 'success',
+                data: updateRes.rows[0],
+                message: `Contract ${contract.contract_number} transitioned to ${targetStatus}.`
+            });
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
     } catch (err) {
         console.error('[Update Contract Status Error]:', err.message);
         res.status(500).json({ status: 'error', message: err.message });

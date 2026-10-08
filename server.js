@@ -235,6 +235,8 @@ if (process.env.ENABLE_ERP_ACCOUNTING === 'true') {
   app.use('/api/erp/banking', require('./routes/bankingRoutes'));
   app.use('/api/erp/closing', require('./routes/closingRoutes'));
 } else {
+  // Graceful read fallback for dormant journal queries (returns empty ledger instead of 404)
+  app.get(['/api/accounting/journals', '/api/erp/journals'], (req, res) => res.json({ status: 'success', data: [] }));
   app.use('/api/accounting', erpAccountingDisabled);
   app.use('/api/erp/fiscal-years', erpAccountingDisabled);
   app.use('/api/erp/accounts', erpAccountingDisabled);

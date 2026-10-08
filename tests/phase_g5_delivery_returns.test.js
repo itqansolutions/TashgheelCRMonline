@@ -179,15 +179,16 @@ test('Phase G-5: Delivery Returns & Stock IN Integrity Suite', async (t) => {
       assert.equal(result.status, 'completed');
 
       // Verify Stock Movement IN parameters:
-      // ('in', product_id, to_warehouse_id, quantity, unit_cost, 'approved', tenant_id, 'sales_return', sr.id, userId)
+      // ('in', product_id, to_warehouse_id, quantity, unit_cost, 'approved', tenant_id, branch_id, 'sales_return', sr.id, userId)
       assert.ok(capturedStockMovement, 'Stock movement must be inserted');
       assert.equal(capturedStockMovement.params[0], 500); // product_id
       assert.equal(capturedStockMovement.params[1], 'wh-1'); // to_warehouse_id
       assert.equal(capturedStockMovement.params[2], 4); // quantity
       assert.equal(capturedStockMovement.params[3], 75.00); // unit_cost
       assert.equal(capturedStockMovement.params[4], 'tenant-1'); // tenant_id
-      assert.equal(capturedStockMovement.params[5], 'sr-100'); // reference_id
-      assert.equal(capturedStockMovement.params[6], 99); // userId
+      assert.equal(capturedStockMovement.params[5], 'branch-1'); // branch_id
+      assert.equal(capturedStockMovement.params[6], 'sr-100'); // reference_id
+      assert.equal(capturedStockMovement.params[7], 99); // userId
 
       // Verify Product current_qty increment:
       assert.ok(capturedProductUpdate, 'Product current_qty must be updated');

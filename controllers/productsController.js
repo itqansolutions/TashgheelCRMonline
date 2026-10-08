@@ -1,12 +1,14 @@
 const db = require('../config/db');
 
-// Self-healing schema guard for products.unit
-let unitChecked = false;
+// Self-healing schema guard for product catalog fields.
+let catalogSchemaChecked = false;
 async function ensureUnitColumn() {
-  if (unitChecked) return;
+  if (catalogSchemaChecked) return;
   try {
     await db.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS unit VARCHAR(50) DEFAULT 'piece';`);
-    unitChecked = true;
+    // Existing catalog entries keep their historical behavior and remain stock-tracked.
+    await db.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_inventory_item BOOLEAN NOT NULL DEFAULT true;`);
+    catalogSchemaChecked = true;
   } catch (e) {}
 }
 
@@ -20,7 +22,7 @@ exports.getProducts = async (req, res) => {
   try {
     await ensureUnitColumn();
     const result = await db.query(
-      'SELECT id, name, sku, description, cost_price, selling_price, category, COALESCE(unit, \'piece\') as unit, tenant_id, branch_id, created_at, updated_at FROM products WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR $2 IS NULL) ORDER BY name ASC',
+      'SELECT id, name, sku, description, cost_price, selling_price, category, COALESCE(unit, \'piece\') as unit, COALESCE(is_inventory_item, true) as is_inventory_item, tenant_id, branch_id, created_at, updated_at FROM products WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR $2 IS NULL) ORDER BY name ASC',
       [tenant_id, branch_id || null]
     );
     res.json({ status: 'success', data: result.rows });
@@ -40,7 +42,7 @@ exports.getProductById = async (req, res) => {
   try {
     await ensureUnitColumn();
     const result = await db.query(
-      'SELECT id, name, sku, description, cost_price, selling_price, category, COALESCE(unit, \'piece\') as unit, tenant_id, branch_id, created_at, updated_at FROM products WHERE id = $1 AND tenant_id::text = $2::text',
+      'SELECT id, name, sku, description, cost_price, selling_price, category, COALESCE(unit, \'piece\') as unit, COALESCE(is_inventory_item, true) as is_inventory_item, tenant_id, branch_id, created_at, updated_at FROM products WHERE id = $1 AND tenant_id::text = $2::text',
       [req.params.id, tenant_id]
     );
     if (result.rows.length === 0) {
@@ -57,15 +59,15 @@ exports.getProductById = async (req, res) => {
 // @route   POST /api/products
 // @access  Private
 exports.createProduct = async (req, res) => {
-  const { name, sku, description, cost_price, selling_price, category, unit } = req.body;
+  const { name, sku, description, cost_price, selling_price, category, unit, is_inventory_item } = req.body;
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
 
   try {
     await ensureUnitColumn();
     const result = await db.query(
-      'INSERT INTO products (name, sku, description, cost_price, selling_price, category, unit, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-      [name, sku, description, cost_price, selling_price, category, unit || 'piece', tenant_id, branch_id || null]
+      'INSERT INTO products (name, sku, description, cost_price, selling_price, category, unit, is_inventory_item, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+      [name, sku, description, cost_price, selling_price, category, unit || 'piece', is_inventory_item !== false, tenant_id, branch_id || null]
     );
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
@@ -78,15 +80,15 @@ exports.createProduct = async (req, res) => {
 // @route   PUT /api/products/:id
 // @access  Private
 exports.updateProduct = async (req, res) => {
-  const { name, sku, description, cost_price, selling_price, category, unit } = req.body;
+  const { name, sku, description, cost_price, selling_price, category, unit, is_inventory_item } = req.body;
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
 
   try {
     await ensureUnitColumn();
     const result = await db.query(
-      'UPDATE products SET name = $1, sku = $2, description = $3, cost_price = $4, selling_price = $5, category = $6, unit = $7, updated_at = CURRENT_TIMESTAMP WHERE id = $8 AND tenant_id::text = $9::text RETURNING *',
-      [name, sku, description, cost_price, selling_price, category, unit || 'piece', req.params.id, tenant_id]
+      'UPDATE products SET name = $1, sku = $2, description = $3, cost_price = $4, selling_price = $5, category = $6, unit = $7, is_inventory_item = $8, updated_at = CURRENT_TIMESTAMP WHERE id = $9 AND tenant_id::text = $10::text RETURNING *',
+      [name, sku, description, cost_price, selling_price, category, unit || 'piece', is_inventory_item !== false, req.params.id, tenant_id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Product not found or unauthorized' });
