@@ -209,7 +209,10 @@ exports.getBranchSummary = async (req, res) => {
                     COUNT(*) as total_units,
                     COUNT(*) FILTER (WHERE status = 'Available') as available,
                     COUNT(*) FILTER (WHERE status = 'Reserved') as reserved,
-                    COUNT(*) FILTER (WHERE status = 'Sold') as sold
+                    COUNT(*) FILTER (WHERE status = 'Contracted') as contracted,
+                    COUNT(*) FILTER (WHERE status = 'Handed Over') as handed_over,
+                    COUNT(*) FILTER (WHERE status = 'Under Dispute') as under_dispute,
+                    COUNT(*) FILTER (WHERE status IN ('Contracted', 'Handed Over', 'Sold')) as sold
                 FROM re_units 
                 WHERE tenant_id::text = $1::text ${branchFilter}
             `, queryParams);

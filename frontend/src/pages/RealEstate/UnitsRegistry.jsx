@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, MapPin } from 'lucide-react';
+import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, MapPin, FileText, KeyRound, AlertTriangle } from 'lucide-react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -427,7 +427,10 @@ const UnitsRegistry = () => {
         switch (s) {
             case 'available': return { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981', icon: <CheckCircle2 size={13}/>, glow: 'status-glow-success' };
             case 'reserved': return { bg: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', icon: <Clock size={13}/>, glow: 'status-glow-warning' };
-            case 'sold': return { bg: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', icon: <XCircle size={13}/>, glow: 'status-glow-danger' };
+            case 'contracted': return { bg: 'rgba(99, 102, 241, 0.12)', color: '#6366f1', icon: <FileText size={13}/>, glow: 'status-glow-info' };
+            case 'handed over': return { bg: 'rgba(13, 148, 136, 0.12)', color: '#0d9488', icon: <KeyRound size={13}/>, glow: 'status-glow-success' };
+            case 'under dispute': return { bg: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', icon: <AlertTriangle size={13}/>, glow: 'status-glow-danger' };
+            case 'sold': return { bg: 'rgba(99, 102, 241, 0.12)', color: '#6366f1', icon: <FileText size={13}/>, glow: '' };
             default: return { bg: 'rgba(107, 114, 128, 0.1)', color: '#6b7280', icon: null, glow: '' };
         }
     };
@@ -595,13 +598,13 @@ const UnitsRegistry = () => {
                 </select>
 
                 <div style={{ height: '32px', width: '1px', background: 'var(--border)' }}></div>
-                <div style={{ display: 'flex', background: 'rgba(0,0,0,0.03)', padding: '5px', borderRadius: '12px' }}>
-                    {['All', 'Available', 'Reserved', 'Sold'].map(tab => (
+                <div style={{ display: 'flex', background: 'rgba(0,0,0,0.03)', padding: '5px', borderRadius: '12px', gap: '3px', flexWrap: 'wrap' }}>
+                    {['All', 'Available', 'Reserved', 'Contracted', 'Handed Over', 'Under Dispute'].map(tab => (
                         <button 
                             key={tab}
                             onClick={() => setFilter(tab)}
                             style={{ 
-                                padding: '8px 16px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 800,
+                                padding: '8px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 800,
                                 background: filter === tab ? 'white' : 'transparent',
                                 color: filter === tab ? 'var(--primary)' : 'var(--text-muted)',
                                 boxShadow: filter === tab ? 'var(--shadow-md)' : 'none',

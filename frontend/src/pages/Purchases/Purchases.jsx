@@ -152,7 +152,7 @@ const Purchases = () => {
           unit_price: parseFloat(it.unit_price)
         }))
       });
-      toast.success('Purchase Invoice created & stock received!');
+      toast.success('Purchase Invoice created successfully!');
       setShowModal(false);
       fetchPurchases();
     } catch (err) {
@@ -190,7 +190,7 @@ const Purchases = () => {
               <ShoppingCart size={24} style={{ color: '#0ea5e9' }} /> Purchase Invoices
             </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
-              Record purchases from suppliers, automatically update warehouse stock, and track payable debt
+              Record supplier invoices, create accounts payable debt, and track vendor balances
             </p>
           </div>
 
@@ -447,7 +447,7 @@ const Purchases = () => {
                     Cancel
                   </button>
                   <button type="submit" disabled={submitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
-                    {submitting ? 'Recording...' : 'Save & Receive Stock'}
+                    {submitting ? 'Recording...' : 'Save Purchase Invoice'}
                   </button>
                 </div>
               </form>

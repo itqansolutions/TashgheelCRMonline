@@ -157,7 +157,10 @@ const PERMISSION_GROUPS = [
     pages: [
       { id: '/products', label: 'Products' },
       { id: '/inventory/warehouses', label: 'Warehouses' },
-      { id: '/purchases', label: 'Purchases' },
+      { id: '/purchases', label: 'Purchases (Invoices)' },
+      { id: '/purchases/requests', label: 'Purchase Requests' },
+      { id: '/purchases/orders', label: 'Purchase Orders' },
+      { id: '/purchases/rfqs', label: 'RFQs' },
       { id: '/inventory/movements', label: 'Stock Movements' },
       { id: '/inventory/balances', label: 'Stock Balances' },
       { id: '/inventory/item-card', label: 'Item Card' },
@@ -215,6 +218,11 @@ const PERMISSION_GROUPS = [
     title: 'Real Estate & Properties',
     pages: [
       { id: '/units-registry', label: 'Units Registry' },
+      { id: '/reservations', label: 'Reservations' },
+      { id: '/contracts', label: 'Contracts' },
+      { id: '/installments', label: 'Installments' },
+      { id: '/commissions', label: 'Commissions' },
+      { id: '/handover', label: 'Handover' },
     ]
   },
   {

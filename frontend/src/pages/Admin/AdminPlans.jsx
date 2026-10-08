@@ -479,6 +479,9 @@ const AdminPlans = () => {
                                             </div>
                                         ))}
                                     </div>
+                                    <p className="text-xs text-slate-400 mt-2">
+                                        ℹ️ <strong>Purchasing</strong> automatically activates when <em>Inventory Control</em> is enabled. <strong>Real Estate</strong> workspaces are controlled by the tenant's Template profile.
+                                    </p>
                                 </div>
 
                                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">

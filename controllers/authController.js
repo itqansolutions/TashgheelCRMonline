@@ -195,7 +195,6 @@ const getUserAllowedPages = async (userId, userRole) => {
     let allowedPages = accessRes.rows.map(r => r.page_path);
     if (allowedPages.length > 0) {
       if (!allowedPages.includes('/my-profile')) allowedPages.push('/my-profile');
-      if (!allowedPages.includes('/dashboard')) allowedPages.push('/dashboard');
       return allowedPages;
     }
   } catch (err) {

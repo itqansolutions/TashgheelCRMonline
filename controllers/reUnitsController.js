@@ -217,6 +217,42 @@ exports.updateUnit = async (req, res) => {
         }
     }
 
+    if (req.body.hasOwnProperty('status')) {
+        const targetStatus = req.body.status;
+        const ALLOWED_UNIT_STATUSES = ['Available', 'Reserved', 'Contracted', 'Handed Over', 'Under Dispute'];
+        if (!ALLOWED_UNIT_STATUSES.includes(targetStatus)) {
+            return res.status(400).json({ status: 'error', message: `Invalid unit status. Allowed: ${ALLOWED_UNIT_STATUSES.join(', ')}` });
+        }
+
+        // Fetch current unit status to validate state machine transitions
+        const currentRes = await db.query(
+            `SELECT status FROM re_units WHERE id = $1::uuid AND tenant_id::text = $2::text`,
+            [id, tenant_id]
+        );
+        if (currentRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+        }
+        const curr = currentRes.rows[0].status;
+
+        const ALLOWED_MANUAL_TRANSITIONS = {
+            'Available': ['Reserved', 'Under Dispute'],
+            'Reserved': ['Available', 'Contracted', 'Under Dispute'],
+            'Contracted': ['Handed Over', 'Available', 'Under Dispute'],
+            'Handed Over': ['Under Dispute'],
+            'Under Dispute': ['Available', 'Contracted']
+        };
+
+        if (curr !== targetStatus) {
+            const allowedNext = ALLOWED_MANUAL_TRANSITIONS[curr] || [];
+            if (!allowedNext.includes(targetStatus)) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: `Invalid transition from '${curr}' to '${targetStatus}'. Direct jumps are prohibited.`
+                });
+            }
+        }
+    }
+
     if (setClauses.length === 0) {
         return res.status(400).json({ status: 'error', message: 'No fields to update' });
     }
@@ -312,12 +348,12 @@ exports.deleteUnit = async (req, res) => {
     const branch_id = String(req.branchId || req.user?.branch_id);
 
     try {
-        // Safety: Can't delete if Reserved or Sold
+        // Safety: Can only delete Available units
         const check = await db.query('SELECT status FROM re_units WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [id, tenant_id, branch_id]);
         if (check.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Unit not found' });
         
         if (check.rows[0].status !== 'Available') {
-            return res.status(400).json({ status: 'error', message: 'Cannot delete a unit that is Reserved or Sold' });
+            return res.status(400).json({ status: 'error', message: `Cannot delete a unit with status '${check.rows[0].status}'. Only Available units can be removed.` });
         }
 
         await db.query('DELETE FROM re_units WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [id, tenant_id, branch_id]);

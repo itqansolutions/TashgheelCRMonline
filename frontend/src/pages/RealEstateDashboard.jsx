@@ -65,12 +65,12 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
           onClick={() => navigate('/reservations')}
         />
         <KPICard 
-          title="Sold Units" 
-          value={unitsOverview.sold}
+          title="Contracted Units" 
+          value={unitsOverview.contracted !== undefined ? unitsOverview.contracted : unitsOverview.sold}
           icon={<CheckCircle2 size={20} />}
           color="info"
-          subtitle="Finalized property acquisitions"
-          onClick={() => navigate('/units-registry')}
+          subtitle={unitsOverview.handed_over ? `${unitsOverview.handed_over} handed over` : "Binding legal contracts"}
+          onClick={() => navigate('/contracts')}
         />
         <KPICard 
           title="Active Deals" 

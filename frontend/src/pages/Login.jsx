@@ -11,14 +11,26 @@ const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = location.state?.from?.pathname || "/dashboard";
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     try {
-      await login(email, password);
-      navigate(from, { replace: true });
+      const loggedInUser = await login(email, password);
+      const requestedPath = location.state?.from?.pathname;
+      const allowed = Array.isArray(loggedInUser?.allowedPages) ? loggedInUser.allowedPages : [];
+      const isAdmin = loggedInUser?.role === 'admin' || loggedInUser?.role === 'super_admin';
+
+      let target = '/dashboard';
+      if (requestedPath && requestedPath !== '/login') {
+        // If they specifically navigated somewhere, check if they can access it or if they have dashboard
+        target = requestedPath;
+      } else if (isAdmin || allowed.includes('/dashboard')) {
+        target = '/dashboard';
+      } else {
+        target = '/my-profile';
+      }
+
+      navigate(target, { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid email or password');
     }

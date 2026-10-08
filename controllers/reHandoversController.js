@@ -46,9 +46,12 @@ exports.getHandovers = async (req, res) => {
                 d.title as deal_title,
                 d.value as deal_value,
                 rcon.contract_number,
+                rcon.contract_value,
                 ru.unit_number,
                 ru.project_name,
-                c.name as customer_name
+                c.name as customer_name,
+                COALESCE((SELECT SUM(paid_amount) FROM re_installments WHERE contract_id = rh.contract_id), 0) as total_paid,
+                COALESCE((SELECT COUNT(*) FROM re_installments WHERE contract_id = rh.contract_id AND status != 'Paid' AND due_date < CURRENT_DATE), 0) as overdue_installments_count
             FROM re_handovers rh
             JOIN deals d ON rh.deal_id = d.id AND d.tenant_id::text = rh.tenant_id::text
             LEFT JOIN re_contracts rcon ON rh.contract_id = rcon.id AND rcon.tenant_id::text = rh.tenant_id::text

@@ -86,6 +86,22 @@ const Handover = () => {
     { key: 'customer_name', label: 'Customer', render: (v) => v || '—' },
     { key: 'contract_number', label: 'Contract', render: (v) => v || '—' },
     { key: 'scheduled_date', label: 'Scheduled', render: fmtDate },
+    { 
+      key: 'total_paid', 
+      label: 'Collections (Info)', 
+      render: (_, r) => {
+        const val = Number(r.contract_value) || 0;
+        const paid = Number(r.total_paid) || 0;
+        const pct = val > 0 ? Math.round((paid / val) * 100) : 0;
+        const overdue = Number(r.overdue_installments_count) || 0;
+        return (
+          <div style={{ fontSize: '12px' }}>
+            <span style={{ fontWeight: 600 }}>{pct}% Paid</span>
+            {overdue > 0 && <span style={{ marginLeft: '6px', color: '#dc2626', fontSize: '11px' }}>({overdue} Overdue)</span>}
+          </div>
+        );
+      }
+    },
     { key: 'actual_handover_date', label: 'Delivered', render: fmtDate },
     { key: 'keys_handed_over', label: 'Keys', render: (v) => (v ? <Badge color="teal">Issued</Badge> : <Badge>Pending</Badge>) },
     { key: 'status', label: 'Status', render: (v) => <Badge color={STATUS_COLOR[v]}>{v}</Badge> },

@@ -147,9 +147,8 @@ app.use('/api/products', moduleGuard('inventory'), productRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/quotations', quotationRoutes);
-app.use('/api/finance', financeRoutes);
-
 // Module-Guarded Routes (require specific plan modules)
+app.use('/api/finance',   moduleGuard('finance'),   financeRoutes);
 app.use('/api/hr',        moduleGuard('hr'),        hrRoutes);
 app.use('/api/inventory', moduleGuard('inventory'), inventoryRoutes);
 app.use('/api/workflows', moduleGuard('automation'), workflowRoutes);
@@ -163,7 +162,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/reports', reportRoutes);
+app.use('/api/reports',   moduleGuard('reports'),   reportRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/lead-sources', leadSourceRoutes);
 app.use('/api/customer-classifications', require('./routes/customerClassificationRoutes'));

@@ -426,13 +426,24 @@ exports.updateContractStatus = async (req, res) => {
                     WHERE id::text = $1::text AND tenant_id::text = $2::text
                 `, [String(contract.unit_id), tenant_id]);
             } else if (targetStatus === 'Cancelled') {
-                await client.query(`
-                    UPDATE re_units
-                    SET status = 'Available', reservation_expires_at = NULL,
-                        reservation_extended_at = NULL, reservation_extended_by = NULL,
-                        reservation_extension_count = 0, updated_at = CURRENT_TIMESTAMP
-                    WHERE id::text = $1::text AND tenant_id::text = $2::text
-                `, [String(contract.unit_id), tenant_id]);
+                const unitAction = req.body.unit_action || 'release';
+                if (unitAction === 'dispute') {
+                    await client.query(`
+                        UPDATE re_units
+                        SET status = 'Under Dispute', reservation_expires_at = NULL,
+                            reservation_extended_at = NULL, reservation_extended_by = NULL,
+                            reservation_extension_count = 0, updated_at = CURRENT_TIMESTAMP
+                        WHERE id::text = $1::text AND tenant_id::text = $2::text
+                    `, [String(contract.unit_id), tenant_id]);
+                } else {
+                    await client.query(`
+                        UPDATE re_units
+                        SET status = 'Available', reservation_expires_at = NULL,
+                            reservation_extended_at = NULL, reservation_extended_by = NULL,
+                            reservation_extension_count = 0, updated_at = CURRENT_TIMESTAMP
+                        WHERE id::text = $1::text AND tenant_id::text = $2::text
+                    `, [String(contract.unit_id), tenant_id]);
+                }
             }
 
             await client.query('COMMIT');

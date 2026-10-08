@@ -21,16 +21,18 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   const currentPath = location.pathname;
   const checkPath = currentPath === '/' ? '/dashboard' : currentPath;
+  const allowed = safeArray(user?.allowedPages);
+  const safeFallback = (allowed.includes('/dashboard')) ? '/dashboard' : '/my-profile';
 
   // Optional Module Entitlement Enforcement
   if (checkPath.startsWith('/inventory') || checkPath.startsWith('/products')) {
     if (!can('inventory')) {
-      return <Navigate to="/dashboard" replace />;
+      return <Navigate to={safeFallback} replace />;
     }
   }
   if (checkPath.startsWith('/purchases')) {
     if (!can('purchasing') && !can('inventory')) {
-      return <Navigate to="/dashboard" replace />;
+      return <Navigate to={safeFallback} replace />;
     }
   }
 
@@ -44,7 +46,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     ].some(prefix => checkPath.startsWith(prefix));
 
     if (isGeneralSalesOnly) {
-      return <Navigate to="/dashboard" replace />;
+      return <Navigate to={safeFallback} replace />;
     }
   } else if (template === 'general') {
     // Real Estate-only workspaces (backend also enforces templateGuard('real_estate'))
@@ -54,20 +56,19 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     ].some(prefix => checkPath.startsWith(prefix));
 
     if (isReOnly) {
-      return <Navigate to="/dashboard" replace />;
+      return <Navigate to={safeFallback} replace />;
     }
   }
 
   // Admin always has access to everything within their template & enabled modules
   if (user?.role === 'admin') return children;
-  const allowed = safeArray(user?.allowedPages);
 
   // Personal self-service pages: data is scoped to the authenticated user server-side
   // (GET /hr/payroll/my, GET /hr/activity-balances/my), so no admin screen permission is required.
   const SELF_SERVICE = ['/my-profile', '/my-payroll', '/activity-balance'];
   if (SELF_SERVICE.includes(checkPath)) return children;
 
-  // Route alias & canonical mapping for permission evaluation
+  // Route alias & canonical mapping for permission evaluation (only for actual aliases, not RE workspaces that now have independent permissions)
   const ROUTE_ALIASES = {
     '/my-attendance': '/hr/my-attendance',
     '/my-requests': '/hr/my-requests',
@@ -76,12 +77,6 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     '/my-tasks': '/tasks',
     '/my-customers': '/customers',
     '/my-units': '/units-registry',
-    // Deal-originated workspaces share the Deals screen permission
-    '/reservations': '/deals',
-    '/contracts': '/deals',
-    '/installments': '/deals',
-    '/commissions': '/deals',
-    '/handover': '/deals',
   };
 
   const canonicalPath = ROUTE_ALIASES[checkPath] || checkPath;
@@ -91,20 +86,16 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return children;
   }
 
-  // If user has allowedPages configured and current path is not included, redirect
+  // If user has allowedPages configured and current path is not included, redirect to safe fallback
   if (allowed.length > 0 && !allowed.includes(checkPath)) {
-    if (checkPath !== '/dashboard' && allowed.includes('/dashboard')) {
-      return <Navigate to="/dashboard" replace />;
-    }
-    const fallback = allowed[0] || '/my-profile';
-    if (checkPath !== fallback) {
-      return <Navigate to={fallback} replace />;
+    if (checkPath !== safeFallback) {
+      return <Navigate to={safeFallback} replace />;
     }
   }
 
   // RBAC Fallback: only check role if allowedPages is not configured
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={safeFallback} replace />;
   }
 
   return children;

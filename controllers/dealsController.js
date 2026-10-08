@@ -493,16 +493,9 @@ exports.updateDeal = async (req, res) => {
     // Audit Logging
     logUpdate(req, 'Deal', req.params.id, oldData, result.rows[0]);
 
-    // Real Estate: entering the canonical final stage finalizes the unit as Sold
-    if (oldData.unit_id && pipeline_stage && isFinalStage(pipeline_stage) && !isFinalStage(oldData.pipeline_stage)) {
-      try {
-        await db.query(
-          `UPDATE re_units SET status = 'Sold', reservation_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
-           WHERE id::text = $1::text AND tenant_id::text = $2::text`,
-          [oldData.unit_id, tenant_id]
-        );
-      } catch (e) { console.warn('[Deal Update] Unit finalize notice:', e.message); }
-    }
+    // Real Estate: entering the canonical final stage does NOT change unit to 'Sold'.
+    // The binding contractual status is governed by contract signing (Contracted) and handover (Handed Over).
+
 
     // Trigger Template Automation if stage changed
     if (oldData.pipeline_stage !== pipeline_stage) {
@@ -614,19 +607,11 @@ exports.updateDealStatus = async (req, res) => {
       const unit_id = unitIdRes.rows[0]?.unit_id;
 
       if (unit_id) {
-          if (lowerStage === 'closed') {
-              // Real Estate canonical final stage: unit is finalized as Sold.
-              // Collections come from installments → finance_vouchers (no re_payments_mvp seeding).
-              await client.query(
-                `UPDATE re_units SET status = 'Sold', reservation_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
-                 WHERE id::text = $1::text AND tenant_id::text = $2::text`,
-                [unit_id, tenant_id]
-              );
-          } else if (lowerStage === 'won') {
-              await client.query(
-                'UPDATE re_units SET status = \'Sold\' WHERE id::text = $1::text AND tenant_id::text = $2::text',
-                [unit_id, tenant_id]
-              );
+          if (lowerStage === 'closed' || lowerStage === 'won') {
+              // Real Estate: Deal winning or closure does not mark the unit 'Sold'.
+              // The unit remains 'Reserved' until contract is Signed (which transitions it to 'Contracted').
+              // If a signed contract already exists, the unit is already 'Contracted'.
+              // No direct status = 'Sold' writes allowed.
 
               // Create Payment Registry
               const dealRes = await client.query(

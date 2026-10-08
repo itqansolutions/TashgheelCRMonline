@@ -51,12 +51,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     '/my-tasks': '/tasks',
     '/my-customers': '/customers',
     '/my-units': '/units-registry',
-    // Deal-originated workspaces share the Deals screen permission
-    '/reservations': '/deals',
-    '/contracts': '/deals',
-    '/installments': '/deals',
-    '/commissions': '/deals',
-    '/handover': '/deals',
     '/sales/orders': '/sales',
     '/sales/documents': '/sales',
     '/sales/price-tiers': '/sales',
@@ -209,8 +203,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Transaction Impact', icon: <Activity size={18} />,       path: '/inventory/transaction-impact' },
     { name: 'Item Card',          icon: <CreditCard size={18} />,     path: '/inventory/item-card' }
   ];
-  const hasInventory = can('inventory') || can('purchasing') || user?.role === 'admin' || !isRealEstate;
-  const warehouseItems = hasInventory ? filterByAllowed(rawWarehouseItems) : [];
+  const hasInventory = can('inventory') || can('purchasing') || user?.role === 'admin';
+  const inventoryItems = hasInventory ? filterByAllowed(rawWarehouseItems) : [];
+  const warehouseItems = inventoryItems;
 
   // -------------------------------------------------------------
   // 5. FINANCE ITEMS (ALL 9 OPERATIONS - BOTH TEMPLATES)
@@ -570,7 +565,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         )}
 
         {/* 5. WAREHOUSE GROUP (Products, Warehouses, Keepers, Stock Balances, Stock Movements, Transaction Impact, Item Card) */}
-        {warehouseItems.length > 0 && (
+        {hasInventory && inventoryItems.length > 0 && (
           <>
             <div className="group-header" onClick={() => isOpen && setWarehouseOpen(prev => !prev)} title={!isOpen ? 'Warehouse' : undefined}>
               <Package size={18} className="main-icon" />

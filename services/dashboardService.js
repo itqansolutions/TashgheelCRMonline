@@ -353,7 +353,10 @@ async function getRealEstateUnitsOverview(tenantId) {
             COUNT(*) as total_units,
             COUNT(*) FILTER (WHERE status = 'Available') as available,
             COUNT(*) FILTER (WHERE status = 'Reserved') as reserved,
-            COUNT(*) FILTER (WHERE status = 'Sold') as sold
+            COUNT(*) FILTER (WHERE status = 'Contracted') as contracted,
+            COUNT(*) FILTER (WHERE status = 'Handed Over') as handed_over,
+            COUNT(*) FILTER (WHERE status = 'Under Dispute') as under_dispute,
+            COUNT(*) FILTER (WHERE status IN ('Contracted', 'Handed Over', 'Sold')) as sold
         FROM re_units
         WHERE tenant_id::text = $1::text
     `, [tenantId]);
@@ -363,6 +366,9 @@ async function getRealEstateUnitsOverview(tenantId) {
         total: parseInt(row.total_units) || 0,
         available: parseInt(row.available) || 0,
         reserved: parseInt(row.reserved) || 0,
+        contracted: parseInt(row.contracted) || 0,
+        handed_over: parseInt(row.handed_over) || 0,
+        under_dispute: parseInt(row.under_dispute) || 0,
         sold: parseInt(row.sold) || 0
     };
 }

@@ -191,18 +191,31 @@ exports.processCancellation = async (req, res) => {
             WHERE deal_id = $1 AND tenant_id::text = $2::text AND status NOT IN ('Cancelled', 'Clawback')
         `, [deal.id, tenant_id]);
 
-        // 8. Release unit if requested
-        if (deal.unit_id && unit_action === 'release') {
-            await client.query(`
-                UPDATE re_units SET
-                    status = 'Available',
-                    reservation_expires_at = NULL,
-                    reservation_extended_at = NULL,
-                    reservation_extended_by = NULL,
-                    reservation_extension_count = 0,
-                    updated_at = NOW()
-                WHERE id::text = $1::text AND tenant_id::text = $2::text
-            `, [String(deal.unit_id), tenant_id]);
+        // 8. Handle Unit state transition according to cancellation policy
+        if (deal.unit_id) {
+            if (unit_action === 'dispute') {
+                await client.query(`
+                    UPDATE re_units SET
+                        status = 'Under Dispute',
+                        reservation_expires_at = NULL,
+                        reservation_extended_at = NULL,
+                        reservation_extended_by = NULL,
+                        reservation_extension_count = 0,
+                        updated_at = NOW()
+                    WHERE id::text = $1::text AND tenant_id::text = $2::text
+                `, [String(deal.unit_id), tenant_id]);
+            } else if (unit_action === 'release') {
+                await client.query(`
+                    UPDATE re_units SET
+                        status = 'Available',
+                        reservation_expires_at = NULL,
+                        reservation_extended_at = NULL,
+                        reservation_extended_by = NULL,
+                        reservation_extension_count = 0,
+                        updated_at = NOW()
+                    WHERE id::text = $1::text AND tenant_id::text = $2::text
+                `, [String(deal.unit_id), tenant_id]);
+            }
         }
 
         await client.query('COMMIT');
