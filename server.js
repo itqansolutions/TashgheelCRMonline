@@ -132,7 +132,18 @@ app.get('/api/me/subscription', authMiddleware, subscriptionGuard, plansControll
 app.use('/api/admin', adminPlanRoutes);
 
 // Serve Static Assets (PUBLIC — must be before auth guard)
-app.use(express.static(frontendPath));
+app.use(express.static(frontendPath, {
+  setHeaders: (res, filePath) => {
+    const normalized = filePath.replace(/\\/g, '/');
+    if (normalized.endsWith('/index.html') || normalized.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else if (normalized.includes('/assets/')) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  }
+}));
 
 // Global Subscription & Branch Guard (applies only to /api routes below)
 app.use('/api', authMiddleware, branchScope, subscriptionGuard);
@@ -264,6 +275,9 @@ app.get(/.*/, (req, res) => {
     console.warn(`⚠️ [API 404] Unmatched Route: ${req.method} ${req.url} | User: ${req.user?.email || 'Guest'}`);
     return res.status(404).json({ status: 'error', message: `API Endpoint ${req.url} not found` });
   }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
