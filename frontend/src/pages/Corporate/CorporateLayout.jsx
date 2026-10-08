@@ -1,23 +1,14 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import CorporateNavbar from './components/CorporateNavbar';
-import StickyConversionBar from './components/StickyConversionBar';
-import QuickLeadPopup from './components/QuickLeadPopup';
 
 const CorporateLayout = () => {
   return (
-    <div className="corporate-layout" style={{ 
-      minHeight: '100vh', 
-      backgroundColor: 'white',
-      paddingTop: '120px' // Height of navbar (80) + sticky bar (40)
-    }}>
-      <StickyConversionBar />
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased selection:bg-indigo-500 selection:text-white">
       <CorporateNavbar />
-      <main>
+      <main className="pt-20">
         <Outlet />
       </main>
-      <QuickLeadPopup />
-      {/* Footer will go here later */}
     </div>
   );
 };
