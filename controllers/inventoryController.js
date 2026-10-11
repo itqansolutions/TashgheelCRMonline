@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const movementService = require('../services/movementService');
+const inventoryStockService = require('../services/inventoryStockService');
 
 // Self-healing schema guard for lightweight warehouse and keeper extensions
 let schemaChecked = false;
@@ -62,35 +63,8 @@ exports.getStockList = async (req, res) => {
     const branch_id = req.branchId;
 
     try {
-        const result = await db.query(`
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                p.sku as product_sku,
-                p.unit as product_unit,
-                p.cost_price,
-                p.selling_price,
-                COALESCE(SUM(
-                    CASE 
-                        WHEN type IN ('in', 'adjustment') THEN quantity
-                        WHEN type = 'transfer' THEN quantity
-                        ELSE 0 
-                    END
-                ), 0) -
-                COALESCE(SUM(
-                    CASE 
-                        WHEN type IN ('out', 'adjustment') THEN quantity
-                        WHEN type = 'transfer' THEN quantity
-                        ELSE 0 
-                    END
-                ), 0) as current_stock
-            FROM stock_movements m
-            JOIN products p ON m.product_id = p.id
-            WHERE m.tenant_id::text = $1::text AND (m.branch_id::text = $2::text OR $2 IS NULL) AND m.status = 'approved'
-            GROUP BY p.id
-        `, [tenant_id, branch_id || null]);
-
-        res.json({ status: 'success', data: result.rows });
+        const rows = await inventoryStockService.getStockList(tenant_id, branch_id);
+        res.json({ status: 'success', data: rows });
     } catch (err) {
         console.error('getStock error:', err);
         res.status(500).json({ status: 'error', message: 'Failed to measure active stock.' });
@@ -343,55 +317,7 @@ exports.getWarehouseStock = async (req, res) => {
     }
 
     try {
-        // Query products with dynamic ledger balance for this warehouse
-        const result = await db.query(`
-            SELECT 
-                p.id as product_id,
-                p.name as product_name,
-                p.sku,
-                COALESCE(p.unit, 'piece') as unit,
-                COALESCE(p.cost_price, 0) as cost_price,
-                COALESCE(p.selling_price, 0) as selling_price,
-                p.category,
-                (
-                    COALESCE(SUM(
-                        CASE 
-                            WHEN m.type IN ('in', 'adjustment') AND m.to_warehouse_id = $1 THEN m.quantity
-                            WHEN m.type = 'transfer' AND m.to_warehouse_id = $1 THEN m.quantity
-                            ELSE 0 
-                        END
-                    ), 0) -
-                    COALESCE(SUM(
-                        CASE 
-                            WHEN m.type IN ('out', 'adjustment') AND m.from_warehouse_id = $1 THEN m.quantity
-                            WHEN m.type = 'transfer' AND m.from_warehouse_id = $1 THEN m.quantity
-                            ELSE 0 
-                        END
-                    ), 0)
-                )::numeric as quantity
-            FROM products p
-            LEFT JOIN stock_movements m 
-                ON p.id = m.product_id 
-                AND m.status = 'approved' 
-                AND (m.tenant_id::text = $2::text OR ($2 IS NULL AND m.tenant_id IS NULL))
-                AND (m.to_warehouse_id = $1 OR m.from_warehouse_id = $1)
-            WHERE (p.tenant_id::text = $2::text OR ($2 IS NULL AND p.tenant_id IS NULL))
-            GROUP BY p.id
-            ORDER BY p.name ASC
-        `, [warehouseId, tenant_id || null]);
-
-        const rowsWithValuation = result.rows.map(row => {
-            const qty = parseFloat(row.quantity) || 0;
-            const cost = parseFloat(row.cost_price) || 0;
-            return {
-                ...row,
-                quantity: qty,
-                cost_price: cost,
-                selling_price: parseFloat(row.selling_price) || 0,
-                total_value: qty * cost
-            };
-        });
-
+        const rowsWithValuation = await inventoryStockService.getWarehouseStockList(tenant_id, warehouseId);
         res.json({ status: 'success', data: rowsWithValuation });
     } catch (err) {
         console.error('getWarehouseStock error:', err.message);
@@ -409,58 +335,26 @@ exports.createTransfer = async (req, res) => {
     const branch_id = req.branchId || null;
     const { from_warehouse_id, to_warehouse_id, product_id, quantity, notes } = req.body;
 
-    const qty = parseFloat(quantity);
-    if (!qty || qty <= 0) {
-        return res.status(400).json({ status: 'error', message: 'Quantity must be greater than 0' });
-    }
-
-    if (!from_warehouse_id || !to_warehouse_id) {
-        return res.status(400).json({ status: 'error', message: 'Source and destination warehouses are required' });
-    }
-
-    if (String(from_warehouse_id) === String(to_warehouse_id)) {
-        return res.status(400).json({ status: 'error', message: 'Source and destination warehouses must be different' });
-    }
-
-    if (!product_id) {
-        return res.status(400).json({ status: 'error', message: 'Product is required' });
-    }
-
     try {
-        // 1. Check source stock
-        const currentSourceStock = await movementService.getStock(tenant_id, branch_id, product_id, from_warehouse_id);
-        if (currentSourceStock < qty) {
-            return res.status(400).json({
-                status: 'error',
-                message: `Insufficient stock in source warehouse. Available: ${currentSourceStock}, Requested: ${qty}`
-            });
-        }
-
-        // 2. Insert approved transfer movement directly (ACID movement)
-        const moveRes = await db.query(`
-            INSERT INTO stock_movements
-                (tenant_id, branch_id, product_id, from_warehouse_id, to_warehouse_id, type, quantity, reference_type, reference_id, created_by, approved_by, status)
-            VALUES ($1, $2, $3, $4, $5, 'transfer', $6, 'direct_transfer', $7, $8, $8, 'approved')
-            RETURNING *
-        `, [
-            tenant_id,
-            branch_id,
-            product_id,
-            from_warehouse_id,
-            to_warehouse_id,
-            qty,
-            notes || `Transfer to WH #${to_warehouse_id}`,
-            req.user.id
-        ]);
+        const transfer = await inventoryStockService.executeTransfer({
+            tenantId: tenant_id,
+            branchId: branch_id,
+            fromWarehouseId: from_warehouse_id,
+            toWarehouseId: to_warehouse_id,
+            productId: product_id,
+            quantity,
+            notes,
+            userId: req.user.id
+        });
 
         res.status(201).json({
             status: 'success',
             message: 'Stock transferred successfully',
-            data: moveRes.rows[0]
+            data: transfer
         });
     } catch (err) {
         console.error('createTransfer error:', err.message);
-        res.status(500).json({ status: 'error', message: err.message || 'Transfer failed' });
+        res.status(400).json({ status: 'error', message: err.message || 'Transfer failed' });
     }
 };
 
@@ -494,28 +388,22 @@ exports.recordStockTake = async (req, res) => {
 
             if (isNaN(actualQty) || actualQty < 0) continue;
 
-            // Compute system quantity inside transaction
-            const stockRes = await client.query(`
-                SELECT 
-                    COALESCE(SUM(
-                        CASE 
-                            WHEN type IN ('in', 'adjustment') AND to_warehouse_id = $1 THEN quantity
-                            WHEN type = 'transfer' AND to_warehouse_id = $1 THEN quantity
-                            ELSE 0 
-                        END
-                    ), 0) -
-                    COALESCE(SUM(
-                        CASE 
-                            WHEN type IN ('out', 'adjustment') AND from_warehouse_id = $1 THEN quantity
-                            WHEN type = 'transfer' AND from_warehouse_id = $1 THEN quantity
-                            ELSE 0 
-                        END
-                    ), 0) as current_stock
-                FROM stock_movements
-                WHERE product_id = $2 AND (tenant_id::text = $3::text OR ($3 IS NULL AND tenant_id IS NULL)) AND status = 'approved'
-            `, [warehouse_id, productId, tenant_id || null]);
+            // 1. Lock product row to serialize and skip non-inventory items
+            const pRes = await client.query(`
+                SELECT id, name, COALESCE(is_inventory_item, true) as is_inventory_item
+                FROM products
+                WHERE id = $1 AND (tenant_id::text = $2::text OR ($2 IS NULL AND tenant_id IS NULL))
+                FOR UPDATE
+            `, [productId, tenant_id || null]);
 
-            const systemQty = parseFloat(stockRes.rows[0]?.current_stock) || 0;
+            if (pRes.rows.length === 0 || pRes.rows[0].is_inventory_item === false) continue;
+
+            // 2. Compute system quantity inside transaction lock
+            const stockResult = await inventoryStockService.getProductStock(tenant_id, productId, {
+                warehouseId: warehouse_id,
+                client
+            });
+            const systemQty = stockResult.current_stock;
             const diff = actualQty - systemQty;
 
             if (diff > 0.0001) {

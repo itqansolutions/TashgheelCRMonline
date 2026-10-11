@@ -1462,7 +1462,7 @@ exports.receivePurchaseOrderItems = async (req, res) => {
 
     for (let i = 0; i < items.length; i++) {
       const itm = items[i];
-      const itemId = itm.item_id || itm.po_item_id || itm.id;
+      const itemId = itm.item_id || itm.po_item_id || itm.purchase_order_item_id || itm.id;
       let matchedPoi = null;
 
       if (itemId) {
@@ -1520,24 +1520,44 @@ exports.receivePurchaseOrderItems = async (req, res) => {
     const createdMovements = [];
 
     for (const v of validatedItems) {
-      // Create stock movement (Immediate physical stock arrival into destination warehouse)
-      const smRes = await client.query(
-        `INSERT INTO stock_movements (
-           tenant_id, branch_id, product_id, from_warehouse_id, to_warehouse_id,
-           type, quantity, reference_type, reference_id, status, created_by, approved_by, created_at
-         ) VALUES ($1, $2, $3, NULL, $4, 'in', $5, 'purchase_order', $6, 'approved', $7, $7, NOW())
-         RETURNING id, product_id, quantity, to_warehouse_id`,
-        [
-          tenantId,
-          po.branch_id || req.branchId || null,
-          v.poi.product_id,
-          targetWarehouseId,
-          v.receivedNow,
-          String(po.id),
-          req.user.id
-        ]
+      // Check whether product is a trackable inventory item
+      const prodRes = await client.query(
+        `SELECT id, name, COALESCE(is_inventory_item, true) as is_inventory_item
+         FROM products
+         WHERE id = $1 AND (tenant_id::text = $2::text OR ($2 IS NULL AND tenant_id IS NULL))`,
+        [v.poi.product_id, tenantId ? String(tenantId) : null]
       );
-      createdMovements.push(smRes.rows[0]);
+
+      if (prodRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: `Product (ID: ${v.poi.product_id}) not found or does not belong to this tenant.`
+        });
+      }
+
+      const isTrackable = prodRes.rows[0].is_inventory_item !== false;
+
+      if (isTrackable) {
+        // Create stock movement (Immediate physical stock arrival into destination warehouse)
+        const smRes = await client.query(
+          `INSERT INTO stock_movements (
+             tenant_id, branch_id, product_id, from_warehouse_id, to_warehouse_id,
+             type, quantity, reference_type, reference_id, status, created_by, approved_by, created_at
+           ) VALUES ($1, $2, $3, NULL, $4, 'in', $5, 'purchase_order', $6, 'approved', $7, $7, NOW())
+           RETURNING id, product_id, quantity, to_warehouse_id`,
+          [
+            tenantId,
+            po.branch_id || req.branchId || null,
+            v.poi.product_id,
+            targetWarehouseId,
+            v.receivedNow,
+            String(po.id),
+            req.user.id
+          ]
+        );
+        createdMovements.push(smRes.rows[0]);
+      }
 
       // Update PO item received quantity (constrained by po_id for defense in depth)
       await client.query(
@@ -1617,3 +1637,5 @@ exports.receivePurchaseOrderItems = async (req, res) => {
     client.release();
   }
 };
+
+exports.receiveItems = exports.receivePurchaseOrderItems;
