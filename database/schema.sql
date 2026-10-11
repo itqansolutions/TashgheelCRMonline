@@ -137,9 +137,14 @@ CREATE TABLE IF NOT EXISTS quotations (
     valid_until DATE,
     expiry_date TIMESTAMP WITH TIME ZONE DEFAULT (CURRENT_TIMESTAMP + INTERVAL '30 days'),
     notes TEXT,
+    number VARCHAR(50) NOT NULL,
     tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    branch_id VARCHAR(255),
+    unit_id VARCHAR(255),
+    client_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(tenant_id, number)
 );
 
 -- 7. Invoices Table

@@ -168,7 +168,7 @@ const QuotationPreview = ({ quotation }) => {
             <div className="quotation-title-block">
               <h1>Price Quotation</h1>
               <div className="quot-meta">
-                <div>Ref: {branding?.quotation_prefix || 'QUO-'}{quotation.id}</div>
+                <div>Ref: {quotation.number || `${branding?.quotation_prefix || 'QUO-'}${quotation.id}`}</div>
                 <div>Date: {new Date(quotation.created_at).toLocaleDateString()}</div>
               </div>
             </div>

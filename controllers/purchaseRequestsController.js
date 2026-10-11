@@ -173,6 +173,29 @@ exports.createPurchaseRequest = async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        // Validate warehouse belongs to tenant (if provided)
+        if (warehouse_id) {
+            const whRes = await client.query(
+                `SELECT id FROM warehouses WHERE id = $1 AND tenant_id::text = $2::text`,
+                [parseInt(warehouse_id), String(tenant_id)]
+            );
+            if (whRes.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ status: 'error', message: 'Warehouse not found or belongs to another tenant' });
+            }
+        }
+
+        // Validate all products belong to tenant
+        const pids = [...new Set(items.map(i => parseInt(i.product_id)))];
+        const pRes = await client.query(
+            `SELECT id FROM products WHERE id = ANY($1::int[]) AND tenant_id::text = $2::text`,
+            [pids, String(tenant_id)]
+        );
+        if (pRes.rows.length !== pids.length) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ status: 'error', message: 'One or more products not found or belong to another tenant' });
+        }
+
         // Generate unique server-side request number
         const request_number = await generateRequestNumber(client, tenant_id);
 
@@ -249,6 +272,33 @@ exports.updatePurchaseRequest = async (req, res) => {
         if (current.status !== 'draft') {
             await client.query('ROLLBACK');
             return res.status(400).json({ status: 'error', message: `Cannot modify a request with status '${current.status}'. Only drafts can be updated.` });
+        }
+
+        // Validate warehouse belongs to tenant if being updated
+        if (warehouse_id !== undefined && warehouse_id !== null && warehouse_id !== '') {
+            const whRes = await client.query(
+                `SELECT id FROM warehouses WHERE id = $1 AND tenant_id::text = $2::text`,
+                [parseInt(warehouse_id), String(tenant_id)]
+            );
+            if (whRes.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ status: 'error', message: 'Warehouse not found or belongs to another tenant' });
+            }
+        }
+
+        // Validate products belong to tenant if items provided
+        if (items && Array.isArray(items)) {
+            const pids = [...new Set(items.map(i => parseInt(i.product_id)).filter(p => !isNaN(p)))];
+            if (pids.length > 0) {
+                const pRes = await client.query(
+                    `SELECT id FROM products WHERE id = ANY($1::int[]) AND tenant_id::text = $2::text`,
+                    [pids, String(tenant_id)]
+                );
+                if (pRes.rows.length !== pids.length) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({ status: 'error', message: 'One or more products not found or belong to another tenant' });
+                }
+            }
         }
 
         // Update header

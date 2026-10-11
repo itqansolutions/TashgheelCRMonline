@@ -399,7 +399,7 @@ const FinanceDashboard = () => {
                         <tr><td colSpan="6" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No quotations found.</td></tr>
                     ) : filteredQuotations.map(q => (
                         <tr key={q.id}>
-                            <td style={{ fontWeight: 700 }}>QUO-{q.id}</td>
+                            <td style={{ fontWeight: 700 }}>{q.number || `QUO-${q.id}`}</td>
                             <td>
                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                                     <span style={{ fontWeight: 600 }}>{q.client_name || 'Customer'}</span>

@@ -148,7 +148,37 @@ exports.createPurchaseInvoice = async (req, res) => {
         await ensurePurchasesSchema();
         await client.query('BEGIN');
 
-        // 1. Calculate total purchase amount
+        // Validate vendor belongs to tenant
+        const vendorRes = await client.query(
+            `SELECT id FROM vendors WHERE id = $1 AND tenant_id::text = $2::text`,
+            [vendor_id, String(tenant_id)]
+        );
+        if (vendorRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ status: 'error', message: 'Vendor not found or belongs to another tenant' });
+        }
+
+        // Validate warehouse belongs to tenant
+        const whRes = await client.query(
+            `SELECT id FROM warehouses WHERE id = $1 AND tenant_id::text = $2::text`,
+            [warehouse_id, String(tenant_id)]
+        );
+        if (whRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ status: 'error', message: 'Warehouse not found or belongs to another tenant' });
+        }
+
+        // 1. Calculate total purchase amount and validate products
+        const pids = [...new Set(items.map(i => i.product_id).filter(Boolean))];
+        const pRes = await client.query(
+            `SELECT id FROM products WHERE id = ANY($1::int[]) AND tenant_id::text = $2::text`,
+            [pids, String(tenant_id)]
+        );
+        if (pRes.rows.length !== pids.length) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ status: 'error', message: 'One or more products not found or belong to another tenant' });
+        }
+
         let totalAmount = 0;
         const validItems = [];
         for (const item of items) {

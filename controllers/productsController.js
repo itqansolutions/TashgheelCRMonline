@@ -22,7 +22,7 @@ exports.getProducts = async (req, res) => {
   try {
     await ensureUnitColumn();
     const result = await db.query(
-      'SELECT id, name, sku, description, cost_price, selling_price, category, COALESCE(unit, \'piece\') as unit, COALESCE(is_inventory_item, true) as is_inventory_item, tenant_id, branch_id, created_at, updated_at FROM products WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR $2 IS NULL) ORDER BY name ASC',
+      'SELECT id, name, sku, description, cost_price, selling_price, category, COALESCE(unit, \'piece\') as unit, COALESCE(is_inventory_item, true) as is_inventory_item, tenant_id, branch_id, created_at, updated_at FROM products WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR branch_id IS NULL OR $2 IS NULL) ORDER BY name ASC',
       [tenant_id, branch_id || null]
     );
     res.json({ status: 'success', data: result.rows });

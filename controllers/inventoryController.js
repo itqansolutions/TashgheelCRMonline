@@ -158,7 +158,7 @@ exports.getWarehouses = async (req, res) => {
                     '[]'::json
                 ) as keepers
             FROM warehouses w
-            WHERE (w.tenant_id::text = $1::text OR ($1 IS NULL AND w.tenant_id IS NULL)) AND (w.branch_id::text = $2::text OR $2 IS NULL)
+            WHERE (w.tenant_id::text = $1::text OR ($1 IS NULL AND w.tenant_id IS NULL)) AND (w.branch_id::text = $2::text OR w.branch_id IS NULL OR $2 IS NULL)
             ORDER BY w.name ASC
         `, [tenant_id || null, branch_id || null]);
 

@@ -49,27 +49,30 @@ async function nextSequence(client, { tenantId, branchId = null, docType, fiscal
 
   const year = fiscalYear || new Date().getFullYear();
   const config = DOC_TYPE_CONFIG[docType];
+  const cleanBranchId = (branchId === null || branchId === undefined || branchId === 'null' || branchId === '') ? null : String(branchId);
 
-  // Lock the sequence row for this tenant+branch+docType+year
-  // (FOR UPDATE prevents concurrent requests from getting the same number)
-  const lockResult = await client.query(`
-    INSERT INTO document_sequences (tenant_id, branch_id, doc_type, fiscal_year, prefix, last_sequence)
-    VALUES ($1, $2, $3, $4, $5, 0)
-    ON CONFLICT (tenant_id, branch_id, doc_type, fiscal_year)
-    DO UPDATE SET last_sequence = document_sequences.last_sequence  -- no-op, just to lock
-    RETURNING *
-  `, [tenantId, branchId, docType, year, config.prefix]);
+  let updateResult;
 
-  // Now lock the row exclusively and increment
-  const updateResult = await client.query(`
-    UPDATE document_sequences
-    SET last_sequence = last_sequence + 1
-    WHERE tenant_id = $1
-      AND (branch_id = $2 OR (branch_id IS NULL AND $2 IS NULL))
-      AND doc_type = $3
-      AND fiscal_year = $4
-    RETURNING last_sequence, prefix
-  `, [tenantId, branchId, docType, year]);
+  if (cleanBranchId === null) {
+    // 1. Enterprise / Tenant-wide sequence (branch_id IS NULL)
+    // Atomic Upsert + Increment: INSERT with ON CONFLICT DO UPDATE SET last_sequence = last_sequence + 1
+    updateResult = await client.query(`
+      INSERT INTO document_sequences (tenant_id, branch_id, doc_type, fiscal_year, prefix, last_sequence)
+      VALUES ($1, NULL, $2, $3, $4, 1)
+      ON CONFLICT (tenant_id, doc_type, fiscal_year) WHERE branch_id IS NULL
+      DO UPDATE SET last_sequence = document_sequences.last_sequence + 1
+      RETURNING last_sequence, prefix
+    `, [String(tenantId), docType, year, config.prefix]);
+  } else {
+    // 2. Branch-specific sequence (branch_id IS NOT NULL)
+    updateResult = await client.query(`
+      INSERT INTO document_sequences (tenant_id, branch_id, doc_type, fiscal_year, prefix, last_sequence)
+      VALUES ($1, $2, $3, $4, $5, 1)
+      ON CONFLICT (tenant_id, branch_id, doc_type, fiscal_year) WHERE branch_id IS NOT NULL
+      DO UPDATE SET last_sequence = document_sequences.last_sequence + 1
+      RETURNING last_sequence, prefix
+    `, [String(tenantId), cleanBranchId, docType, year, config.prefix]);
+  }
 
   if (!updateResult.rows[0]) {
     throw new Error(`DocumentSequencer: failed to increment sequence for ${docType}`);
