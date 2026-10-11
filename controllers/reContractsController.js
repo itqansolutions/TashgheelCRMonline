@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const accessScopeService = require('../services/accessScopeService');
+const { nextSequence } = require('../src/infrastructure/sequencing/DocumentSequencer');
 
 /**
  * Real Estate Contracts Controller (Phase 2.2)
@@ -32,14 +33,6 @@ async function ensureContractColumns() {
     await run(`ALTER TABLE re_contracts ADD COLUMN IF NOT EXISTS expiry_reminder_sent_at TIMESTAMP NULL`);
     await run(`ALTER TABLE re_contracts ADD COLUMN IF NOT EXISTS expired_notified_at TIMESTAMP NULL`);
     contractColumnsEnsured = true;
-}
-
-// Generate human-readable contract number: REC-YYYYMM-XXXX
-function generateContractNumber() {
-    const d = new Date();
-    const yyyymm = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const rand = Math.floor(1000 + Math.random() * 9000);
-    return `REC-${yyyymm}-${rand}`;
 }
 
 const isValidDate = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}/.test(s) && !isNaN(new Date(s).getTime());
@@ -221,8 +214,14 @@ exports.createContract = async (req, res) => {
         return res.status(400).json({ status: 'error', message: 'Deal ID is required.' });
     }
 
+    const term = resolveTerm(req.body);
+    if (term.error) return res.status(400).json({ status: 'error', message: term.error });
+
+    await ensureContractColumns();
+
+    const client = await db.connect();
     try {
-        await ensureContractColumns();
+        await client.query('BEGIN');
 
         // 1. Fetch and validate Deal (tenant + row scope)
         const params = [parseInt(deal_id), tenant_id];
@@ -230,30 +229,35 @@ exports.createContract = async (req, res) => {
             user: req.user, tableAlias: 'd', assigneeCol: 'assigned_to', paramIndex: 3
         });
         params.push(...scope.params);
-        const dealRes = await db.query(`
+        const dealRes = await client.query(`
             SELECT d.id, d.title, d.value, d.pipeline_stage, d.client_id, d.unit_id, d.branch_id
             FROM deals d
             WHERE d.id = $1 AND d.tenant_id::text = $2::text AND (${scope.sql})
         `, params);
 
         if (dealRes.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized.' });
         }
 
         const deal = dealRes.rows[0];
         if (!deal.unit_id) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ status: 'error', message: 'A Real Estate Sales Contract requires a linked unit.' });
         }
 
         // A contract can only be prepared for a unit actively reserved for this sale.
-        const unitRes = await db.query(`
+        const unitRes = await client.query(`
             SELECT id, status FROM re_units
             WHERE id::text = $1::text AND tenant_id::text = $2::text
+            FOR UPDATE
         `, [String(deal.unit_id), tenant_id]);
         if (unitRes.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Linked unit not found or unauthorized.' });
         }
         if (String(unitRes.rows[0].status || '').toLowerCase() !== 'reserved') {
+            await client.query('ROLLBACK');
             return res.status(409).json({
                 status: 'error',
                 message: `A contract can only be created for a Reserved unit. This unit is currently ${unitRes.rows[0].status || 'unavailable'}.`
@@ -261,22 +265,19 @@ exports.createContract = async (req, res) => {
         }
 
         // 2. Prevent duplicate contract for same deal
-        const existingRes = await db.query(`
+        const existingRes = await client.query(`
             SELECT id, contract_number, status FROM re_contracts WHERE deal_id = $1 AND tenant_id::text = $2::text
         `, [deal.id, tenant_id]);
 
         if (existingRes.rows.length > 0) {
+            await client.query('ROLLBACK');
             return res.status(409).json({
                 status: 'error',
                 message: `A contract already exists for this deal (${existingRes.rows[0].contract_number}, status: ${existingRes.rows[0].status}).`
             });
         }
 
-        // 3. Term
-        const term = resolveTerm(req.body);
-        if (term.error) return res.status(400).json({ status: 'error', message: term.error });
-
-        // 4. Calculate Financials
+        // 3. Calculate Financials
         const totalValue = contract_value !== undefined && contract_value !== '' && !isNaN(Number(contract_value))
             ? Number(Number(contract_value).toFixed(2))
             : Number(Number(deal.value || 0).toFixed(2));
@@ -287,7 +288,7 @@ exports.createContract = async (req, res) => {
         } else {
             // Legacy fallback: down payment recorded on the old payment registry cache
             try {
-                const payRes = await db.query(`SELECT down_payment FROM re_payments_mvp WHERE deal_id::text = $1::text AND tenant_id::text = $2::text`, [String(deal.id), tenant_id]);
+                const payRes = await client.query(`SELECT down_payment FROM re_payments_mvp WHERE deal_id::text = $1::text AND tenant_id::text = $2::text`, [String(deal.id), tenant_id]);
                 if (payRes.rows.length > 0 && payRes.rows[0].down_payment) {
                     dp = Number(Number(payRes.rows[0].down_payment).toFixed(2));
                 }
@@ -295,10 +296,20 @@ exports.createContract = async (req, res) => {
         }
 
         const remaining = Math.max(0, Number((totalValue - dp).toFixed(2)));
-        const contractNumber = generateContractNumber();
         const dateVal = contract_date || new Date().toISOString().split('T')[0];
+        const fiscalYear = new Date(dateVal).getFullYear();
 
-        const insertRes = await db.query(`
+        // 4. Allocate unique, atomic contract number via DocumentSequencer
+        const effectiveBranchId = deal.branch_id || branch_id || null;
+        const contractNumber = await nextSequence(client, {
+            tenantId: tenant_id,
+            branchId: effectiveBranchId,
+            docType: 'REC',
+            fiscalYear
+        });
+
+        // 5. Insert Contract in same transaction
+        const insertRes = await client.query(`
             INSERT INTO re_contracts (
                 contract_number, deal_id, customer_id, unit_id, contract_date,
                 contract_value, down_payment, remaining_amount, status, notes,
@@ -316,17 +327,30 @@ exports.createContract = async (req, res) => {
             remaining,
             notes || null,
             tenant_id,
-            deal.branch_id || branch_id || null,
+            effectiveBranchId,
             req.user?.name || req.user?.id || 'SYSTEM',
             term.start_date,
             term.end_date,
             term.duration_months
         ]);
 
+        await client.query('COMMIT');
         res.status(201).json({ status: 'success', data: insertRes.rows[0] });
     } catch (err) {
+        try { await client.query('ROLLBACK'); } catch (rbErr) { /* ignore rollback failure */ }
+        if (err.code === '23505') {
+            if (err.constraint === 'uq_deal_contract' || err.detail?.includes('deal_id')) {
+                return res.status(409).json({ status: 'error', message: 'A contract already exists for this deal.' });
+            }
+            if (err.constraint === 'idx_re_contracts_tenant_number' || err.detail?.includes('contract_number')) {
+                return res.status(409).json({ status: 'error', message: 'Contract number collision. Please retry.' });
+            }
+            return res.status(409).json({ status: 'error', message: 'Duplicate record constraint violation.' });
+        }
         console.error('[Create Contract Error]:', err.message);
         res.status(500).json({ status: 'error', message: err.message });
+    } finally {
+        client.release();
     }
 };
 

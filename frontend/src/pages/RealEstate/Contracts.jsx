@@ -19,7 +19,6 @@ const NEXT_STEP = {
   Draft: { status: 'Generated', label: 'Generate', color: '#2563eb' },
   Generated: { status: 'Signed', label: 'Mark Signed', color: '#d97706' },
   Signed: { status: 'Active', label: 'Activate', color: '#16a34a' },
-  Active: { status: 'Completed', label: 'Complete', color: '#059669' },
 };
 const STATUS_COLOR = { Draft: 'gray', Generated: 'blue', Signed: 'amber', Active: 'green', Completed: 'teal', Cancelled: 'red' };
 
@@ -136,6 +135,7 @@ const Contracts = () => {
       key: 'actions', label: 'Actions', align: 'right', render: (_, c) => (
         <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
           {NEXT_STEP[c.status] && <ActionButton color={NEXT_STEP[c.status].color} onClick={() => transition(c, NEXT_STEP[c.status].status)}>{NEXT_STEP[c.status].label}</ActionButton>}
+          {c.status === 'Active' && <ActionButton color="#059669" onClick={() => navigate(`/realestate/handovers?deal_id=${c.deal_id}`)}>Proceed to Handover</ActionButton>}
           {!['Completed', 'Cancelled'].includes(c.status) && <ActionButton outline color="#334155" onClick={() => openEdit(c)}>Edit</ActionButton>}
           <ActionButton outline color="#2563eb" onClick={() => navigate(`/installments?deal_id=${c.deal_id}`)}>Installments</ActionButton>
           {!['Completed', 'Cancelled'].includes(c.status) && <ActionButton outline color="#b91c1c" onClick={() => transition(c, 'Cancelled')}>Cancel</ActionButton>}

@@ -29,6 +29,7 @@ const DOC_TYPE_CONFIG = {
   JE:  { prefix: 'JE',  label: 'Journal Entry' },
   QUO: { prefix: 'QUO', label: 'Quotation' },
   EXP: { prefix: 'EXP', label: 'Expense' },
+  REC: { prefix: 'REC', label: 'Real Estate Contract' },
 };
 
 /**
