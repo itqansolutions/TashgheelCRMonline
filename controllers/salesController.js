@@ -43,7 +43,9 @@ exports.confirmSalesOrder = async (req, res) => {
 exports.convertQuotation = async (req, res) => {
   try {
     const data = await SalesOrderService.convertQuotationToSalesOrder(req.user.tenant_id, req.branchId, req.params.quotationId, req.user.id);
-    res.status(201).json({ status: 'success', message: 'Quotation converted to Sales Order.', data });
+    const statusCode = data && data._alreadyConverted ? 200 : 201;
+    const message = data && data._alreadyConverted ? 'Quotation already converted to Sales Order.' : 'Quotation converted to Sales Order.';
+    res.status(statusCode).json({ status: 'success', message, data });
   } catch (err) {
     console.error('[salesController] convertQuotation error:', err.message);
     res.status(400).json({ status: 'error', message: err.message });
