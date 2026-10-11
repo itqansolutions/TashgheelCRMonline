@@ -259,6 +259,10 @@ exports.getRfqById = async (req, res) => {
  * - Route B: Direct RFQ with items
  */
 exports.createRfq = async (req, res) => {
+  return res.status(400).json({
+    success: false,
+    message: 'RFQ operational cycle is deprecated. Please use Direct PO or convert approved Purchase Requests directly to Purchase Order.'
+  });
   const client = await db.connect();
   try {
     const tenantId = req.user.tenant_id;
@@ -733,6 +737,10 @@ exports.removeVendorFromRfq = async (req, res) => {
  * - Status transitions RFQ to 'quotes_received'
  */
 exports.createVendorQuotation = async (req, res) => {
+  return res.status(400).json({
+    success: false,
+    message: 'Vendor quotation submission is deprecated in the operational workflow.'
+  });
   const client = await db.connect();
   try {
     const tenantId = req.user.tenant_id;
@@ -1061,6 +1069,10 @@ exports.compareQuotations = async (req, res) => {
  * - Zero inventory, zero payments, zero payables.
  */
 exports.awardQuotation = async (req, res) => {
+  return res.status(400).json({
+    success: false,
+    message: 'RFQ award is deprecated in the operational workflow. Please create a Direct Purchase Order.'
+  });
   // CRITICAL BACKEND AUTHORIZATION CHECK
   if (req.user.role !== 'admin' && req.user.role !== 'manager') {
     return res.status(403).json({

@@ -372,7 +372,8 @@ const PurchaseRequests = () => {
       approved:         { bg: '#f0fdf4', text: '#16a34a', label: 'Approved', icon: CheckCircle2 },
       rejected:         { bg: '#fef2f2', text: '#dc2626', label: 'Rejected', icon: XCircle },
       cancelled:        { bg: '#f8fafc', text: '#94a3b8', label: 'Cancelled', icon: AlertCircle },
-      converted_to_rfq: { bg: '#faf5ff', text: '#9333ea', label: 'In RFQ', icon: ArrowUpRight },
+      converted_to_rfq: { bg: '#faf5ff', text: '#9333ea', label: 'In RFQ (Historical)', icon: ArrowUpRight },
+      converted_to_po:  { bg: '#eff6ff', text: '#0284c7', label: 'Converted to PO', icon: CheckCircle2 },
     };
     const c = map[s] || map.draft;
     const IconComponent = c.icon;
@@ -527,7 +528,8 @@ const PurchaseRequests = () => {
               { id: 'submitted', label: 'Pending Approval' },
               { id: 'draft', label: 'Drafts' },
               { id: 'approved', label: 'Approved' },
-              { id: 'converted_to_rfq', label: 'In RFQ' },
+              { id: 'converted_to_po', label: 'Converted to PO' },
+              { id: 'converted_to_rfq', label: 'In RFQ (Historical)' },
               { id: 'rejected', label: 'Rejected' },
               { id: 'cancelled', label: 'Cancelled' },
             ].map(tab => (
@@ -1285,13 +1287,19 @@ const PurchaseRequests = () => {
 
                 {selectedRequest.status === 'approved' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#16a34a', fontSize: '13px', fontWeight: 700 }}>
-                    <CheckCircle2 size={16} /> Ready for RFQ / Direct PO
+                    <CheckCircle2 size={16} /> Approved — Ready for Direct Purchase Order
+                  </div>
+                )}
+
+                {selectedRequest.status === 'converted_to_po' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0284c7', fontSize: '13px', fontWeight: 700 }}>
+                    <CheckCircle2 size={16} /> Converted to Purchase Order — Locked
                   </div>
                 )}
 
                 {selectedRequest.status === 'converted_to_rfq' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#9333ea', fontSize: '13px', fontWeight: 700 }}>
-                    <ArrowUpRight size={16} /> Converted to RFQ — Locked for Procurement
+                    <ArrowUpRight size={16} /> Converted to RFQ (Historical) — Locked for Procurement
                   </div>
                 )}
               </div>

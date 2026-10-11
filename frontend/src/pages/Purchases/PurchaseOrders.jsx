@@ -5,7 +5,7 @@ import {
   FileText, Plus, Search, Trash2, Calendar, Building, 
   CheckCircle2, XCircle, AlertCircle, Clock, ChevronRight, X,
   ShieldCheck, User, Filter, ArrowUpRight, DollarSign,
-  Package, Edit3, Send, Truck, Printer, Eye, Award, ExternalLink
+  Package, Edit3, Send, Truck, Printer, Eye, Award, ExternalLink, ClipboardList
 } from 'lucide-react';
 import PurchasesSubNav from '../../components/Purchases/PurchasesSubNav';
 import { useAuth } from '../../context/AuthContext';
@@ -18,7 +18,6 @@ const PurchaseOrders = () => {
   const [warehouses, setWarehouses] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [products, setProducts] = useState([]);
-  const [awardedQuotations, setAwardedQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -29,7 +28,7 @@ const PurchaseOrders = () => {
 
   // Modals & Drawers
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createRoute, setCreateRoute] = useState('direct'); // Default to Direct PO (Simple Procurement)
+  const [createRoute, setCreateRoute] = useState('pr'); // 'pr' | 'direct'
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const [submittingAction, setSubmittingAction] = useState(false);
@@ -47,15 +46,16 @@ const PurchaseOrders = () => {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelTargetId, setCancelTargetId] = useState(null);
 
-  // Route A Form (from quotation)
-  const [routeAForm, setRouteAForm] = useState({
-    rfq_id: '',
-    vendor_quotation_id: '',
+  // Route 1 Form (From Approved Purchase Request)
+  const [fromPrForm, setFromPrForm] = useState({
+    purchase_request_id: '',
+    vendor_id: '',
     warehouse_id: '',
     expected_delivery_date: '',
     notes: ''
   });
-  const [selectedQuotePreview, setSelectedQuotePreview] = useState(null);
+  const [approvedRequests, setApprovedRequests] = useState([]);
+  const [selectedPrPreview, setSelectedPrPreview] = useState(null);
 
   // Route B Form (Direct PO)
   const emptyDirectForm = {
@@ -95,53 +95,23 @@ const PurchaseOrders = () => {
   // Fetch auxiliary data
   const fetchAuxData = async () => {
     try {
-      const [wRes, vRes, pRes, rfqRes] = await Promise.all([
+      const [wRes, vRes, pRes, prRes] = await Promise.all([
         api.get('/inventory/warehouses'),
         api.get('/vendors'),
         api.get('/products'),
-        api.get('/rfqs')
+        api.get('/purchase-requests', { params: { status: 'approved' } })
       ]);
 
       const whList = wRes.data?.data || [];
       setWarehouses(whList);
       setVendors(vRes.data?.data || []);
       setProducts(pRes.data?.data || []);
+      setApprovedRequests(prRes.data?.data || []);
 
       if (whList.length > 0) {
-        setRouteAForm(prev => ({ ...prev, warehouse_id: prev.warehouse_id || whList[0].id }));
+        setFromPrForm(prev => ({ ...prev, warehouse_id: prev.warehouse_id || whList[0].id }));
         setDirectForm(prev => ({ ...prev, warehouse_id: prev.warehouse_id || whList[0].id }));
       }
-
-      // Filter awarded RFQs with selected quotation
-      const rfqs = rfqRes.data?.data || [];
-      const awarded = [];
-      for (const rfq of rfqs) {
-        if (rfq.status === 'awarded') {
-          try {
-            const compRes = await api.get(`/rfqs/${rfq.id}/compare`);
-            const quotes = compRes.data?.data?.quotations || [];
-            const selectedQ = quotes.find(q => q.selection_status === 'selected');
-            if (selectedQ) {
-              awarded.push({
-                rfq_id: rfq.id,
-                rfq_number: rfq.rfq_number,
-                quotation_id: selectedQ.id,
-                quotation_number: selectedQ.quotation_number,
-                vendor_id: selectedQ.vendor_id,
-                vendor_name: selectedQ.vendor_name,
-                total_amount: selectedQ.total_amount,
-                payment_terms: selectedQ.payment_terms,
-                warranty_terms: selectedQ.warranty_terms,
-                delivery_time_days: selectedQ.delivery_time_days,
-                items: selectedQ.items || []
-              });
-            }
-          } catch (e) {
-            // ignore
-          }
-        }
-      }
-      setAwardedQuotations(awarded);
     } catch (err) {
       console.warn('Failed to load auxiliary procurement data');
     }
@@ -355,49 +325,53 @@ const PurchaseOrders = () => {
     }
   };
 
-  // Route A: Awarded Quotation Selection Change
-  const handleQuoteSelect = (quoteId) => {
-    const found = awardedQuotations.find(q => String(q.quotation_id) === String(quoteId));
+  // Route 1: Approved Purchase Request Selection Change
+  const handlePrSelect = (prId) => {
+    const found = approvedRequests.find(pr => String(pr.id) === String(prId));
     if (found) {
-      setRouteAForm(prev => ({
+      setFromPrForm(prev => ({
         ...prev,
-        rfq_id: found.rfq_id,
-        vendor_quotation_id: found.quotation_id,
-        expected_delivery_date: found.delivery_time_days ? 
-          new Date(Date.now() + found.delivery_time_days * 86400000).toISOString().split('T')[0] : prev.expected_delivery_date
+        purchase_request_id: found.id,
+        warehouse_id: found.warehouse_id || prev.warehouse_id || (warehouses[0]?.id || ''),
+        expected_delivery_date: found.required_date ?
+          new Date(found.required_date).toISOString().split('T')[0] : prev.expected_delivery_date
       }));
-      setSelectedQuotePreview(found);
+      setSelectedPrPreview(found);
     } else {
-      setRouteAForm(prev => ({ ...prev, rfq_id: '', vendor_quotation_id: '' }));
-      setSelectedQuotePreview(null);
+      setFromPrForm(prev => ({ ...prev, purchase_request_id: '' }));
+      setSelectedPrPreview(null);
     }
   };
 
-  // Submit Route A
-  const handleCreateRouteA = async (e) => {
+  // Submit Route 1 (From PR)
+  const handleCreateFromPr = async (e) => {
     e.preventDefault();
-    if (!routeAForm.vendor_quotation_id || !routeAForm.rfq_id) {
-      toast.error('Please select an awarded quotation');
+    if (!fromPrForm.purchase_request_id) {
+      toast.error('Please select an approved purchase request');
       return;
     }
-    if (!routeAForm.warehouse_id) {
+    if (!fromPrForm.vendor_id) {
+      toast.error('Please select a supplier / vendor');
+      return;
+    }
+    if (!fromPrForm.warehouse_id) {
       toast.error('Please select a delivery warehouse');
       return;
     }
 
     setSubmittingAction(true);
     try {
-      const res = await api.post('/purchase-orders', routeAForm);
-      toast.success(res.data?.message || 'Purchase order created successfully');
+      const res = await api.post('/purchase-orders', fromPrForm);
+      toast.success(res.data?.message || 'Purchase order created successfully from Purchase Request');
       setShowCreateModal(false);
-      setRouteAForm({
-        rfq_id: '',
-        vendor_quotation_id: '',
+      setFromPrForm({
+        purchase_request_id: '',
+        vendor_id: '',
         warehouse_id: warehouses[0]?.id || '',
         expected_delivery_date: '',
         notes: ''
       });
-      setSelectedQuotePreview(null);
+      setSelectedPrPreview(null);
       fetchOrders();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create purchase order');
@@ -994,7 +968,7 @@ const PurchaseOrders = () => {
                   Create Purchase Order / إنشاء أمر شراء
                 </h2>
                 <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
-                  Select route: generate contractually from an awarded quotation or direct entry.
+                  Select route: generate directly from an approved purchase request or direct entry.
                 </p>
               </div>
               <button
@@ -1012,15 +986,15 @@ const PurchaseOrders = () => {
             }}>
               <button
                 type="button"
-                onClick={() => setCreateRoute('quotation')}
+                onClick={() => setCreateRoute('pr')}
                 style={{
                   flex: 1, padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: 700,
                   border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                  background: createRoute === 'quotation' ? '#0284c7' : 'transparent',
-                  color: createRoute === 'quotation' ? 'white' : '#64748b'
+                  background: createRoute === 'pr' ? '#0284c7' : 'transparent',
+                  color: createRoute === 'pr' ? 'white' : '#64748b'
                 }}
               >
-                <Award size={16} /> Route A: From Awarded Quotation (المسار الموصى به)
+                <ClipboardList size={16} /> Route 1: From Approved PR (تحويل من طلب شراء معتمد)
               </button>
 
               <button
@@ -1036,55 +1010,55 @@ const PurchaseOrders = () => {
                   opacity: isManagerOrAdmin ? 1 : 0.6
                 }}
               >
-                <FileText size={16} /> Route B: Direct Purchase Order {!isManagerOrAdmin && '(Admin/Mgr only)'}
+                <FileText size={16} /> Route 2: Direct Purchase Order {!isManagerOrAdmin && '(Admin/Mgr only)'}
               </button>
             </div>
 
-            {/* ROUTE A FORM */}
-            {createRoute === 'quotation' && (
-              <form onSubmit={handleCreateRouteA}>
+            {/* ROUTE 1 FORM (FROM PR) */}
+            {createRoute === 'pr' && (
+              <form onSubmit={handleCreateFromPr}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '16px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                      Select Awarded Quotation * (عروض الأسعار المعتمدة)
+                      Select Approved Purchase Request * (طلبات الشراء المعتمدة)
                     </label>
                     <select
-                      value={routeAForm.vendor_quotation_id}
-                      onChange={(e) => handleQuoteSelect(e.target.value)}
+                      value={fromPrForm.purchase_request_id}
+                      onChange={(e) => handlePrSelect(e.target.value)}
                       required
                       style={{
                         width: '100%', padding: '10px 12px', borderRadius: '8px',
                         border: '1px solid #cbd5e1', fontSize: '13px'
                       }}
                     >
-                      <option value="">-- Choose an Awarded Quotation --</option>
-                      {awardedQuotations.map(q => (
-                        <option key={q.quotation_id} value={q.quotation_id}>
-                          {q.rfq_number} - {q.vendor_name} | {parseFloat(q.total_amount).toFixed(2)} EGP ({q.quotation_number})
+                      <option value="">-- Choose an Approved Purchase Request --</option>
+                      {approvedRequests.map(pr => (
+                        <option key={pr.id} value={pr.id}>
+                          {pr.request_number} — {pr.department || 'General'} ({pr.created_by_name || 'Requester'})
                         </option>
                       ))}
                     </select>
-                    {awardedQuotations.length === 0 && (
+                    {approvedRequests.length === 0 && (
                       <div style={{ fontSize: '12px', color: '#b45309', marginTop: '6px' }}>
-                        ⚠️ لا توجد عروض أسعار معتمدة حالياً. يمكنك اعتماد عرض سعر في شاشة RFQs & Bids أولاً.
+                        ⚠️ لا توجد طلبات شراء معتمدة حالياً. يرجى اعتماد طلب شراء أولاً.
                       </div>
                     )}
                   </div>
                 </div>
 
-                {selectedQuotePreview && (
+                {selectedPrPreview && (
                   <div style={{
                     background: '#f0f9ff', padding: '14px', borderRadius: '10px',
                     border: '1px solid #bae6fd', marginBottom: '16px'
                   }}>
                     <div style={{ fontWeight: 700, color: '#0369a1', fontSize: '13px', marginBottom: '6px' }}>
-                      Commercial Terms Snapshot (الملخص التجاري):
+                      Purchase Request Overview (ملخص طلب الشراء):
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', fontSize: '12px', color: '#334155' }}>
-                      <div><strong>Vendor:</strong> {selectedQuotePreview.vendor_name}</div>
-                      <div><strong>Total Amount:</strong> {parseFloat(selectedQuotePreview.total_amount).toFixed(2)} EGP</div>
-                      <div><strong>Payment Terms:</strong> {selectedQuotePreview.payment_terms || 'Standard'}</div>
-                      <div><strong>Warranty/Delivery:</strong> {selectedQuotePreview.warranty_terms || 'Standard'}</div>
+                      <div><strong>PR Number:</strong> {selectedPrPreview.request_number}</div>
+                      <div><strong>Department:</strong> {selectedPrPreview.department || 'General'}</div>
+                      <div><strong>Purpose:</strong> {selectedPrPreview.purpose || selectedPrPreview.notes || 'N/A'}</div>
+                      <div><strong>Required Date:</strong> {selectedPrPreview.required_date ? new Date(selectedPrPreview.required_date).toLocaleDateString() : 'Immediate'}</div>
                     </div>
                   </div>
                 )}
@@ -1092,11 +1066,31 @@ const PurchaseOrders = () => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                      Select Supplier / Vendor * (المورد)
+                    </label>
+                    <select
+                      value={fromPrForm.vendor_id}
+                      onChange={(e) => setFromPrForm({ ...fromPrForm, vendor_id: e.target.value })}
+                      required
+                      style={{
+                        width: '100%', padding: '10px 12px', borderRadius: '8px',
+                        border: '1px solid #cbd5e1', fontSize: '13px'
+                      }}
+                    >
+                      <option value="">-- Choose a Vendor --</option>
+                      {vendors.map(v => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
                       Delivery Warehouse * (مخزن الاستلام)
                     </label>
                     <select
-                      value={routeAForm.warehouse_id}
-                      onChange={(e) => setRouteAForm({ ...routeAForm, warehouse_id: e.target.value })}
+                      value={fromPrForm.warehouse_id}
+                      onChange={(e) => setFromPrForm({ ...fromPrForm, warehouse_id: e.target.value })}
                       required
                       style={{
                         width: '100%', padding: '10px 12px', borderRadius: '8px',
@@ -1108,15 +1102,17 @@ const PurchaseOrders = () => {
                       ))}
                     </select>
                   </div>
+                </div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '16px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
                       Expected Delivery Date (تاريخ التوريد المتوقع)
                     </label>
                     <input
                       type="date"
-                      value={routeAForm.expected_delivery_date}
-                      onChange={(e) => setRouteAForm({ ...routeAForm, expected_delivery_date: e.target.value })}
+                      value={fromPrForm.expected_delivery_date}
+                      onChange={(e) => setFromPrForm({ ...fromPrForm, expected_delivery_date: e.target.value })}
                       style={{
                         width: '100%', padding: '10px 12px', borderRadius: '8px',
                         border: '1px solid #cbd5e1', fontSize: '13px'
@@ -1131,8 +1127,8 @@ const PurchaseOrders = () => {
                   </label>
                   <textarea
                     rows={2}
-                    value={routeAForm.notes}
-                    onChange={(e) => setRouteAForm({ ...routeAForm, notes: e.target.value })}
+                    value={fromPrForm.notes}
+                    onChange={(e) => setFromPrForm({ ...fromPrForm, notes: e.target.value })}
                     placeholder="Enter any additional instructions for the vendor..."
                     style={{
                       width: '100%', padding: '10px 12px', borderRadius: '8px',
@@ -1154,7 +1150,7 @@ const PurchaseOrders = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={submittingAction || !routeAForm.vendor_quotation_id}
+                    disabled={submittingAction || !fromPrForm.purchase_request_id || !fromPrForm.vendor_id}
                     style={{
                       padding: '10px 22px', borderRadius: '8px', border: 'none',
                       background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
@@ -1162,7 +1158,7 @@ const PurchaseOrders = () => {
                       boxShadow: '0 4px 12px rgba(14,165,233,0.3)'
                     }}
                   >
-                    {submittingAction ? 'Creating...' : 'Create Purchase Order (Draft)'}
+                    {submittingAction ? 'Creating...' : 'Generate Purchase Order from PR'}
                   </button>
                 </div>
               </form>

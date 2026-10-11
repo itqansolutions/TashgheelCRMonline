@@ -497,6 +497,17 @@ const RFQs = () => {
       <PurchasesSubNav />
 
       <div style={{ padding: '0 24px' }}>
+        {/* Historical Archive Banner */}
+        <div style={{
+          background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '12px',
+          padding: '12px 18px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px'
+        }}>
+          <AlertCircle size={18} color="#d97706" />
+          <div style={{ fontSize: '13px', color: '#92400e', fontWeight: 600 }}>
+            أرشيف تاريخي للقراءة فقط: تم إيقاف إنشاء طلبات عروض الأسعار الجديدة واعتماد مسار أوامر الشراء المباشرة والتحويل من طلبات الشراء المعتمدة.
+          </div>
+        </div>
+
         {/* Header */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -508,27 +519,11 @@ const RFQs = () => {
               display: 'flex', alignItems: 'center', gap: '10px', margin: 0
             }}>
               <FileCheck size={26} color="#0284c7" />
-              RFQs & Vendor Quotations
+              RFQs & Vendor Quotations (Historical Archive)
             </h1>
             <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
-              Vendor solicitation, commercial bid evaluation & quotation comparison matrix (Phase 5B.2)
+              Historical procurement solicitations and commercial bid records (Read-Only Archive)
             </p>
-          </div>
-
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={handleOpenCreateModal}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px',
-                borderRadius: '10px', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                color: 'white', border: 'none', fontWeight: 700, fontSize: '14px',
-                cursor: 'pointer', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Plus size={18} />
-              New RFQ
-            </button>
           </div>
         </div>
 

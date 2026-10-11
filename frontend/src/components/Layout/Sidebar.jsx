@@ -264,9 +264,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // -------------------------------------------------------------
   const rawPurchasesItems = [
     { name: 'Purchase Request', icon: <FileText size={18} />,     path: '/purchases/requests' },
-    { name: 'Purchase Invoice', icon: <ShoppingCart size={18} />, path: '/purchases' },
-    { name: 'RFQs',             icon: <FileCheck size={18} />,    path: '/purchases/rfqs' },
-    { name: 'Purchase Order',   icon: <FileText size={18} />,     path: '/purchases/orders' }
+    { name: 'Purchase Order',   icon: <FileText size={18} />,     path: '/purchases/orders' },
+    { name: 'Purchase Invoice', icon: <ShoppingCart size={18} />, path: '/purchases' }
   ];
 
   const purchasesItems = (hasPurchasing || user?.role === 'admin')
