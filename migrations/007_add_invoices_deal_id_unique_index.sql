@@ -12,10 +12,18 @@ BEGIN
         -- Safely ensure deal_id column exists
         ALTER TABLE invoices ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255);
 
-        -- Create partial unique index on (tenant_id, deal_id) for active invoices
-        CREATE UNIQUE INDEX IF NOT EXISTS uq_invoices_active_deal 
-        ON invoices (tenant_id, deal_id) 
-        WHERE deal_id IS NOT NULL 
-          AND (status IS NULL OR status != 'cancelled');
+        -- Migration 007 is superseded by Migration 008 (uq_invoices_active_sales_order).
+        -- If Migration 008 is already recorded or uq_invoices_active_sales_order exists,
+        -- do not recreate uq_invoices_active_deal.
+        IF NOT EXISTS (
+            SELECT 1 FROM schema_migrations WHERE name = '008_align_general_invoice_uniqueness.sql'
+        ) AND NOT EXISTS (
+            SELECT 1 FROM pg_indexes WHERE tablename = 'invoices' AND indexname = 'uq_invoices_active_sales_order'
+        ) THEN
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_invoices_active_deal 
+            ON invoices (tenant_id, deal_id) 
+            WHERE deal_id IS NOT NULL 
+              AND (status IS NULL OR status != 'cancelled');
+        END IF;
     END IF;
 END $$;

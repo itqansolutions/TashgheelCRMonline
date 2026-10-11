@@ -3,15 +3,20 @@
 
 BEGIN;
 
--- 1. Evidence-Based Reconciliation of Historical Sold Units
--- Case A: Completed Handover -> Handed Over
+-- 1. Normalize casing of historical units (e.g. available -> Available)
+UPDATE re_units
+SET status = 'Available', updated_at = CURRENT_TIMESTAMP
+WHERE LOWER(status) = 'available' AND status != 'Available';
+
+-- 2. Evidence-Based Reconciliation of Historical Sold Units
+-- Case A: Completed Handover -> Handed Over (checks 'Handed Over' and 'Completed')
 UPDATE re_units
 SET status = 'Handed Over', updated_at = CURRENT_TIMESTAMP
 WHERE id IN (
   SELECT u.id 
   FROM re_units u
   JOIN re_handovers h ON h.unit_id::text = u.id::text AND h.tenant_id::text = u.tenant_id::text
-  WHERE LOWER(u.status) = 'sold' AND h.status = 'Handed Over'
+  WHERE LOWER(u.status) = 'sold' AND h.status IN ('Handed Over', 'Completed')
 );
 
 -- Case B: Active/Signed Contract without completed Handover -> Contracted
