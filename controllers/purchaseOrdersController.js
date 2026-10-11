@@ -53,6 +53,8 @@ exports.getPurchaseOrders = async (req, res) => {
       SELECT 
         po.id,
         po.po_number,
+        po.purchase_request_id,
+        pr.request_number AS purchase_request_number,
         po.rfq_id,
         r.rfq_number,
         po.vendor_quotation_id,
@@ -85,12 +87,14 @@ exports.getPurchaseOrders = async (req, res) => {
         COALESCE(SUM(poi.quantity), 0)::numeric(12, 3) AS total_ordered_qty,
         COALESCE(SUM(poi.received_quantity), 0)::numeric(12, 3) AS total_received_qty,
         CASE 
+          WHEN po.purchase_request_id IS NOT NULL THEN 'purchase_request'
           WHEN po.vendor_quotation_id IS NOT NULL THEN 'awarded_quotation'
           ELSE 'direct_po'
         END AS po_source
       FROM purchase_orders po
       LEFT JOIN vendors v ON v.id = po.vendor_id
       LEFT JOIN warehouses w ON w.id = po.warehouse_id
+      LEFT JOIN purchase_requests pr ON pr.id = po.purchase_request_id
       LEFT JOIN rfqs r ON r.id = po.rfq_id
       LEFT JOIN vendor_quotations vq ON vq.id = po.vendor_quotation_id
       LEFT JOIN users u ON u.id = po.approved_by
@@ -154,8 +158,8 @@ exports.getPurchaseOrders = async (req, res) => {
     }
 
     query += `
-      GROUP BY 
-        po.id, r.rfq_number, vq.quotation_number, 
+      GROUP BY
+        po.id, pr.request_number, r.rfq_number, vq.quotation_number,
         v.id, v.name, v.phone,
         w.name, u.name
       ORDER BY po.id DESC
@@ -194,16 +198,19 @@ exports.getPurchaseOrderById = async (req, res) => {
         COALESCE(v.contact_person, v.contact_name, '') AS vendor_contact,
         w.name AS warehouse_name,
         w.code AS warehouse_code,
+        pr.request_number AS purchase_request_number,
         r.rfq_number,
         vq.quotation_number,
         u.name AS approved_by_name,
         CASE 
+          WHEN po.purchase_request_id IS NOT NULL THEN 'purchase_request'
           WHEN po.vendor_quotation_id IS NOT NULL THEN 'awarded_quotation'
           ELSE 'direct_po'
         END AS po_source
        FROM purchase_orders po
        LEFT JOIN vendors v ON v.id = po.vendor_id
        LEFT JOIN warehouses w ON w.id = po.warehouse_id
+       LEFT JOIN purchase_requests pr ON pr.id = po.purchase_request_id
        LEFT JOIN rfqs r ON r.id = po.rfq_id
        LEFT JOIN vendor_quotations vq ON vq.id = po.vendor_quotation_id
        LEFT JOIN users u ON u.id = po.approved_by
@@ -255,6 +262,7 @@ exports.createPurchaseOrder = async (req, res) => {
     const tenantId = req.user.tenant_id;
     const branchId = req.branchId || req.user.branch_id || null;
     const {
+      purchase_request_id,
       rfq_id,
       vendor_quotation_id,
       vendor_id,
@@ -268,7 +276,7 @@ exports.createPurchaseOrder = async (req, res) => {
       items
     } = req.body;
 
-    // Check if received_quantity was attempted in any input
+    // Check if received_quantity or invoiced_quantity was attempted in any input
     if (items && Array.isArray(items)) {
       for (const item of items) {
         if (item.received_quantity !== undefined && item.received_quantity !== null && Number(item.received_quantity) !== 0) {
@@ -277,14 +285,20 @@ exports.createPurchaseOrder = async (req, res) => {
             message: 'received_quantity cannot be set during Purchase Order creation. Initial received quantity is strictly 0.000.'
           });
         }
+        if (item.invoiced_quantity !== undefined && item.invoiced_quantity !== null && Number(item.invoiced_quantity) !== 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'invoiced_quantity cannot be set during Purchase Order creation. Initial invoiced quantity is strictly 0.000.'
+          });
+        }
       }
     }
 
-    // Reject hybrid route: one of rfq_id / vendor_quotation_id without the other
-    if ((rfq_id && !vendor_quotation_id) || (!rfq_id && vendor_quotation_id)) {
+    // Deprecate new PO creation via RFQ / Vendor Quotation
+    if (rfq_id || vendor_quotation_id) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid parameters: Both rfq_id and vendor_quotation_id must be provided together for quotation-based PO, or neither for Direct PO.'
+        message: 'RFQ-based purchase order generation is deprecated in the operational workflow. Please create a Direct Purchase Order or convert an approved Purchase Request.'
       });
     }
 
@@ -406,11 +420,195 @@ exports.createPurchaseOrder = async (req, res) => {
         product_id: item.product_id,
         quantity: parseFloat(item.quantity),
         received_quantity: 0.000,
+        invoiced_quantity: 0.000,
         unit_price: round2(item.unit_price),
         discount_pct: round2(item.discount_pct || 0),
         tax_pct: round2(item.tax_pct || 0),
         subtotal: round2(item.subtotal)
       }));
+
+    } else if (purchase_request_id) {
+      // ─────────────────────────────────────────────────────────────
+      // ROUTE C: FROM APPROVED PURCHASE REQUEST (Phase 2.1 Reconnection)
+      // ─────────────────────────────────────────────────────────────
+      // 1. Lock and validate PR
+      const prRes = await client.query(
+        `SELECT * FROM purchase_requests
+         WHERE id = $1 AND tenant_id::text = $2::text
+         FOR UPDATE`,
+        [purchase_request_id, String(tenantId)]
+      );
+
+      if (prRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'Purchase request not found.' });
+      }
+
+      const pr = prRes.rows[0];
+
+      // Branch check
+      if (branchId && pr.branch_id && String(pr.branch_id) !== String(branchId)) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ success: false, message: 'Branch mismatch: Purchase Request belongs to another branch.' });
+      }
+
+      // PR must be 'approved'
+      if (pr.status !== 'approved') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: `Cannot create Purchase Order: Purchase Request status is '${pr.status}'. Only 'approved' purchase requests can be converted to a Purchase Order.`
+        });
+      }
+
+      // Idempotency: Enforce strictly 1 active PO per Purchase Request
+      const existingPoRes = await client.query(
+        `SELECT id, po_number FROM purchase_orders
+         WHERE purchase_request_id = $1 AND tenant_id::text = $2::text AND status != 'cancelled'
+         FOR UPDATE`,
+        [purchase_request_id, String(tenantId)]
+      );
+      if (existingPoRes.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: `A Purchase Order (${existingPoRes.rows[0].po_number}) has already been generated for this Purchase Request. Duplicate conversion is not allowed.`
+        });
+      }
+
+      // Vendor is required for purchasing from PR
+      if (!poVendorId) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: 'vendor_id is required when creating a Purchase Order from a Purchase Request.' });
+      }
+
+      const vRes = await client.query(
+        `SELECT id FROM vendors WHERE id = $1 AND tenant_id::text = $2::text`,
+        [poVendorId, String(tenantId)]
+      );
+      if (vRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'Vendor not found or does not belong to this organization.' });
+      }
+
+      // Warehouse: fallback to PR's warehouse if not explicitly provided
+      if (!poWarehouseId && pr.warehouse_id) {
+        poWarehouseId = pr.warehouse_id;
+      }
+      if (!poWarehouseId) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: 'warehouse_id is required to create a Purchase Order.' });
+      }
+
+      const whRes = await client.query(
+        `SELECT id FROM warehouses WHERE id = $1 AND tenant_id::text = $2::text`,
+        [poWarehouseId, String(tenantId)]
+      );
+      if (whRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'Warehouse not found or does not belong to this organization.' });
+      }
+
+      // Fetch PR line items
+      const prItemsRes = await client.query(
+        `SELECT pri.*, p.name AS product_name
+         FROM purchase_request_items pri
+         JOIN products p ON p.id = pri.product_id
+         WHERE pri.request_id = $1
+         ORDER BY pri.id ASC`,
+        [purchase_request_id]
+      );
+      if (prItemsRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: 'The referenced Purchase Request has no line items.' });
+      }
+
+      let sumNet = 0;
+      let sumDiscount = 0;
+      let sumTax = 0;
+
+      if (items && Array.isArray(items) && items.length > 0) {
+        // User provided specific pricing/items for the PR items
+        const prProductMap = new Map();
+        prItemsRes.rows.forEach(r => prProductMap.set(Number(r.product_id), r));
+
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          const qty = parseFloat(item.quantity);
+          const price = parseFloat(item.unit_price);
+          const discPct = parseFloat(item.discount_pct || 0);
+          const taxPct = parseFloat(item.tax_pct || 0);
+
+          if (!item.product_id || !prProductMap.has(Number(item.product_id))) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              success: false,
+              message: `Product ID ${item.product_id} at line ${i + 1} does not belong to the referenced Purchase Request.`
+            });
+          }
+          if (isNaN(qty) || qty <= 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: `Item at line ${i + 1} must have quantity > 0.` });
+          }
+          if (isNaN(price) || price < 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: `Item at line ${i + 1} must have unit_price >= 0.` });
+          }
+          if (isNaN(discPct) || discPct < 0 || discPct > 100) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: `Item at line ${i + 1} discount must be between 0% and 100%.` });
+          }
+          if (isNaN(taxPct) || taxPct < 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: `Item at line ${i + 1} tax_pct must be >= 0.` });
+          }
+
+          const gross = round2(qty * price);
+          const discount = round2(gross * (discPct / 100));
+          const net = round2(gross - discount);
+          const tax = round2(net * (taxPct / 100));
+          const itemSubtotal = round2(net + tax);
+
+          sumNet += net;
+          sumDiscount += discount;
+          sumTax += tax;
+
+          finalItems.push({
+            product_id: item.product_id,
+            quantity: qty,
+            received_quantity: 0.000,
+            invoiced_quantity: 0.000,
+            unit_price: round2(price),
+            discount_pct: round2(discPct),
+            tax_pct: round2(taxPct),
+            subtotal: itemSubtotal
+          });
+        }
+      } else {
+        // Automatically convert PR items with estimated prices
+        for (const pri of prItemsRes.rows) {
+          const qty = parseFloat(pri.quantity);
+          const price = parseFloat(pri.estimated_unit_price || 0);
+          const gross = round2(qty * price);
+          sumNet += gross;
+
+          finalItems.push({
+            product_id: pri.product_id,
+            quantity: qty,
+            received_quantity: 0.000,
+            invoiced_quantity: 0.000,
+            unit_price: round2(price),
+            discount_pct: 0.00,
+            tax_pct: 0.00,
+            subtotal: gross
+          });
+        }
+      }
+
+      poSubtotal = round2(sumNet);
+      poDiscountAmount = round2(sumDiscount);
+      poTaxAmount = round2(sumTax);
+      poTotalAmount = round2(poSubtotal + poTaxAmount + poShippingCost);
 
     } else {
       // ─────────────────────────────────────────────────────────────
@@ -537,6 +735,7 @@ exports.createPurchaseOrder = async (req, res) => {
     const insertPoQuery = `
       INSERT INTO purchase_orders (
         po_number,
+        purchase_request_id,
         rfq_id,
         vendor_quotation_id,
         vendor_id,
@@ -555,15 +754,16 @@ exports.createPurchaseOrder = async (req, res) => {
         tenant_id,
         branch_id
       ) VALUES (
-        $1, $2, $3, $4, $5, 
-        COALESCE($6, CURRENT_DATE), $7, $8, $9, $10, 
-        $11, $12, $13, $14, 'draft', $15, 
-        $16, $17
+        $1, $2, $3, $4, $5, $6,
+        COALESCE($7, CURRENT_DATE), $8, $9, $10, $11,
+        $12, $13, $14, $15, 'draft', $16,
+        $17, $18
       ) RETURNING *
     `;
 
     const poResult = await client.query(insertPoQuery, [
       poNumber,
+      purchase_request_id || null,
       rfq_id || null,
       vendor_quotation_id || null,
       poVendorId,
@@ -584,6 +784,16 @@ exports.createPurchaseOrder = async (req, res) => {
 
     const createdPo = poResult.rows[0];
 
+    // If converted from Purchase Request, update PR status to 'converted_to_po'
+    if (purchase_request_id) {
+      await client.query(
+        `UPDATE purchase_requests
+         SET status = 'converted_to_po', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [purchase_request_id]
+      );
+    }
+
     // Insert line items
     for (const item of finalItems) {
       await client.query(
@@ -592,11 +802,12 @@ exports.createPurchaseOrder = async (req, res) => {
           product_id,
           quantity,
           received_quantity,
+          invoiced_quantity,
           unit_price,
           discount_pct,
           tax_pct,
           subtotal
-        ) VALUES ($1, $2, $3, 0.000, $4, $5, $6, $7)`,
+        ) VALUES ($1, $2, $3, 0.000, 0.000, $4, $5, $6, $7)`,
         [
           createdPo.id,
           item.product_id,
@@ -648,7 +859,8 @@ exports.updatePurchaseOrder = async (req, res) => {
       notes,
       items,
       status,
-      received_quantity
+      received_quantity,
+      invoiced_quantity
     } = req.body;
 
     // Strict guard: received_quantity cannot be edited
@@ -656,6 +868,14 @@ exports.updatePurchaseOrder = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'received_quantity cannot be modified via Purchase Orders API. Initial quantity is strictly 0.000.'
+      });
+    }
+
+    // Strict guard: invoiced_quantity cannot be edited
+    if (invoiced_quantity !== undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'invoiced_quantity cannot be modified via Purchase Orders API. Initial quantity is strictly 0.000.'
       });
     }
 
@@ -673,6 +893,12 @@ exports.updatePurchaseOrder = async (req, res) => {
           return res.status(400).json({
             success: false,
             message: 'received_quantity cannot be modified via Purchase Orders API.'
+          });
+        }
+        if (it.invoiced_quantity !== undefined && it.invoiced_quantity !== null && Number(it.invoiced_quantity) !== 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'invoiced_quantity cannot be modified via Purchase Orders API.'
           });
         }
       }
@@ -818,8 +1044,8 @@ exports.updatePurchaseOrder = async (req, res) => {
       for (const it of updatedItems) {
         await client.query(
           `INSERT INTO purchase_order_items (
-            po_id, product_id, quantity, received_quantity, unit_price, discount_pct, tax_pct, subtotal
-          ) VALUES ($1, $2, $3, 0.000, $4, $5, $6, $7)`,
+            po_id, product_id, quantity, received_quantity, invoiced_quantity, unit_price, discount_pct, tax_pct, subtotal
+          ) VALUES ($1, $2, $3, 0.000, 0.000, $4, $5, $6, $7)`,
           [id, it.product_id, it.quantity, it.unit_price, it.discount_pct, it.tax_pct, it.subtotal]
         );
       }

@@ -11,6 +11,8 @@ router.use(branchScope);
 // Purchase Invoices
 router.get('/', purchasesController.getPurchaseInvoices);
 router.post('/', purchasesController.createPurchaseInvoice);
+router.post('/from-po/:id', purchasesController.createInvoiceFromPurchaseOrder);
+router.post('/from-purchase-order/:id', purchasesController.createInvoiceFromPurchaseOrder);
 
 // Vendor Statement & Balance (Simplified CRM)
 router.get('/vendors/:id/statement', purchasesController.getVendorStatement);

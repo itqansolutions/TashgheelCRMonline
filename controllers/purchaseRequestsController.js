@@ -550,7 +550,7 @@ exports.cancelPurchaseRequest = async (req, res) => {
         }
 
         const pr = checkRes.rows[0];
-        if (['approved', 'cancelled', 'converted_to_rfq'].includes(pr.status)) {
+        if (['approved', 'cancelled', 'converted_to_rfq', 'converted_to_po'].includes(pr.status)) {
             await client.query('ROLLBACK');
             return res.status(400).json({ status: 'error', message: `Cannot cancel a request that is already '${pr.status}'` });
         }

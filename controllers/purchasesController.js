@@ -25,19 +25,24 @@ async function ensurePurchasesSchema() {
             );
             ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS due_date DATE;
             ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS paid_amount DECIMAL(15, 2) NOT NULL DEFAULT 0.00;
+            ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS purchase_order_id INTEGER REFERENCES purchase_orders(id) ON DELETE SET NULL;
             CREATE INDEX IF NOT EXISTS idx_pinv_tenant ON purchase_invoices(tenant_id);
             CREATE INDEX IF NOT EXISTS idx_pinv_vendor ON purchase_invoices(vendor_id);
+            CREATE INDEX IF NOT EXISTS idx_pinv_po ON purchase_invoices(purchase_order_id);
 
             CREATE TABLE IF NOT EXISTS purchase_invoice_items (
                 id SERIAL PRIMARY KEY,
                 purchase_invoice_id INTEGER REFERENCES purchase_invoices(id) ON DELETE CASCADE,
                 product_id INTEGER REFERENCES products(id) ON DELETE RESTRICT,
+                po_item_id INTEGER REFERENCES purchase_order_items(id) ON DELETE SET NULL,
                 quantity DECIMAL(12, 3) NOT NULL,
                 unit_price DECIMAL(12, 2) NOT NULL,
                 subtotal DECIMAL(15, 2) NOT NULL,
                 tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE
             );
+            ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS po_item_id INTEGER REFERENCES purchase_order_items(id) ON DELETE SET NULL;
             CREATE INDEX IF NOT EXISTS idx_pinv_items ON purchase_invoice_items(purchase_invoice_id);
+            CREATE INDEX IF NOT EXISTS idx_pii_po_item ON purchase_invoice_items(po_item_id);
 
             CREATE TABLE IF NOT EXISTS finance_vouchers (
                 id SERIAL PRIMARY KEY,
@@ -81,6 +86,8 @@ exports.getPurchaseInvoices = async (req, res) => {
             SELECT 
                 pi.id,
                 pi.invoice_number,
+                pi.purchase_order_id,
+                po.po_number as purchase_order_number,
                 pi.invoice_date,
                 pi.total_amount,
                 pi.paid_amount,
@@ -97,6 +104,7 @@ exports.getPurchaseInvoices = async (req, res) => {
                     (
                         SELECT json_agg(json_build_object(
                             'id', pii.id,
+                            'po_item_id', pii.po_item_id,
                             'product_id', pii.product_id,
                             'product_name', p.name,
                             'product_sku', p.sku,
@@ -114,6 +122,7 @@ exports.getPurchaseInvoices = async (req, res) => {
             FROM purchase_invoices pi
             JOIN vendors v ON pi.vendor_id = v.id
             JOIN warehouses w ON pi.warehouse_id = w.id
+            LEFT JOIN purchase_orders po ON pi.purchase_order_id = po.id
             WHERE pi.tenant_id::text = $1::text AND (pi.branch_id::text = $2::text OR $2 IS NULL)
             ORDER BY pi.invoice_date DESC, pi.created_at DESC
         `, [tenant_id, branch_id || null]);
@@ -468,6 +477,273 @@ exports.recordVendorPayment = async (req, res) => {
         await client.query('ROLLBACK');
         console.error('recordVendorPayment error:', err.message);
         res.status(400).json({ status: 'error', message: err.message || 'Payment failed' });
+    } finally {
+        client.release();
+    }
+};
+
+// @desc    Create supplier invoice from received Purchase Order items (Subphase 2.1)
+// @route   POST /api/purchases/from-po/:id
+// @access  Private
+exports.createInvoiceFromPurchaseOrder = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    const branch_id = req.branchId || null;
+    const poId = req.params.id;
+    const { invoice_number, invoice_date, due_date, notes, items } = req.body;
+
+    const client = await db.pool.connect();
+    try {
+        await ensurePurchasesSchema();
+        await client.query('BEGIN');
+
+        // 1. Lock and validate Purchase Order
+        const poRes = await client.query(
+            `SELECT * FROM purchase_orders
+             WHERE id = $1 AND tenant_id::text = $2::text
+             FOR UPDATE`,
+            [poId, String(tenant_id)]
+        );
+
+        if (poRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ status: 'error', message: 'Purchase Order not found' });
+        }
+
+        const po = poRes.rows[0];
+
+        // Branch check
+        if (branch_id && po.branch_id && String(po.branch_id) !== String(branch_id)) {
+            await client.query('ROLLBACK');
+            return res.status(403).json({ status: 'error', message: 'Branch mismatch: Purchase Order belongs to another branch' });
+        }
+
+        // PO status validation: Must have received items
+        if (po.status === 'draft' || po.status === 'approved' || po.status === 'sent_to_vendor') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+                status: 'error',
+                message: `Cannot invoice Purchase Order with status '${po.status}'. Goods must be received before creating a supplier invoice.`
+            });
+        }
+
+        if (po.status === 'cancelled') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+                status: 'error',
+                message: 'Cannot create an invoice for a cancelled Purchase Order.'
+            });
+        }
+
+        // 2. Lock and fetch PO line items
+        const poiRes = await client.query(
+            `SELECT * FROM purchase_order_items
+             WHERE po_id = $1
+             ORDER BY id ASC
+             FOR UPDATE`,
+            [poId]
+        );
+
+        if (poiRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ status: 'error', message: 'Purchase Order has no items' });
+        }
+
+        const poiRows = poiRes.rows;
+        const poiMap = new Map();
+        poiRows.forEach(row => {
+            poiMap.set(Number(row.id), row);
+            poiMap.set(`prod_${row.product_id}`, row);
+        });
+
+        // 3. Determine items to invoice and validate against received & uninvoiced quantities
+        const itemsToInvoice = [];
+        let totalInvoiceAmount = 0;
+
+        if (items && Array.isArray(items) && items.length > 0) {
+            // Partial or specified invoicing
+            for (let i = 0; i < items.length; i++) {
+                const reqItem = items[i];
+                const poiId = reqItem.po_item_id || reqItem.item_id || reqItem.id;
+                let matchedPoi = null;
+
+                if (poiId && poiMap.has(Number(poiId))) {
+                    matchedPoi = poiMap.get(Number(poiId));
+                } else if (reqItem.product_id && poiMap.has(`prod_${reqItem.product_id}`)) {
+                    matchedPoi = poiMap.get(`prod_${reqItem.product_id}`);
+                }
+
+                if (!matchedPoi) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        status: 'error',
+                        message: `Item at line ${i + 1} does not belong to this Purchase Order`
+                    });
+                }
+
+                const invoiceQty = parseFloat(reqItem.quantity ?? reqItem.invoice_quantity);
+                if (isNaN(invoiceQty) || invoiceQty <= 0) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        status: 'error',
+                        message: `Quantity for item #${matchedPoi.id} must be greater than zero`
+                    });
+                }
+
+                const receivedQty = parseFloat(matchedPoi.received_quantity || 0);
+                const invoicedQty = parseFloat(matchedPoi.invoiced_quantity || 0);
+                const remainingUninvoiced = Math.round((receivedQty - invoicedQty + Number.EPSILON) * 1000) / 1000;
+
+                if (remainingUninvoiced <= 0) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        status: 'error',
+                        message: `Item #${matchedPoi.id} is already fully invoiced for all received quantities.`
+                    });
+                }
+
+                if (invoiceQty > remainingUninvoiced) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({
+                        status: 'error',
+                        message: `Cannot invoice ${invoiceQty} units for item #${matchedPoi.id}. Maximum uninvoiced received quantity is ${remainingUninvoiced}.`
+                    });
+                }
+
+                // Pricing calculation from PO item contract
+                const unitPrice = parseFloat(matchedPoi.unit_price);
+                const discPct = parseFloat(matchedPoi.discount_pct || 0);
+                const taxPct = parseFloat(matchedPoi.tax_pct || 0);
+
+                const gross = Math.round((invoiceQty * unitPrice + Number.EPSILON) * 100) / 100;
+                const discount = Math.round((gross * (discPct / 100) + Number.EPSILON) * 100) / 100;
+                const net = Math.round((gross - discount + Number.EPSILON) * 100) / 100;
+                const tax = Math.round((net * (taxPct / 100) + Number.EPSILON) * 100) / 100;
+                const itemSubtotal = Math.round((net + tax + Number.EPSILON) * 100) / 100;
+
+                totalInvoiceAmount += itemSubtotal;
+                itemsToInvoice.push({
+                    po_item_id: matchedPoi.id,
+                    product_id: matchedPoi.product_id,
+                    quantity: invoiceQty,
+                    unit_price: unitPrice,
+                    subtotal: itemSubtotal
+                });
+            }
+        } else {
+            // Full invoicing of all remaining received uninvoiced quantities
+            for (const poi of poiRows) {
+                const receivedQty = parseFloat(poi.received_quantity || 0);
+                const invoicedQty = parseFloat(poi.invoiced_quantity || 0);
+                const remainingUninvoiced = Math.round((receivedQty - invoicedQty + Number.EPSILON) * 1000) / 1000;
+
+                if (remainingUninvoiced > 0) {
+                    const unitPrice = parseFloat(poi.unit_price);
+                    const discPct = parseFloat(poi.discount_pct || 0);
+                    const taxPct = parseFloat(poi.tax_pct || 0);
+
+                    const gross = Math.round((remainingUninvoiced * unitPrice + Number.EPSILON) * 100) / 100;
+                    const discount = Math.round((gross * (discPct / 100) + Number.EPSILON) * 100) / 100;
+                    const net = Math.round((gross - discount + Number.EPSILON) * 100) / 100;
+                    const tax = Math.round((net * (taxPct / 100) + Number.EPSILON) * 100) / 100;
+                    const itemSubtotal = Math.round((net + tax + Number.EPSILON) * 100) / 100;
+
+                    totalInvoiceAmount += itemSubtotal;
+                    itemsToInvoice.push({
+                        po_item_id: poi.id,
+                        product_id: poi.product_id,
+                        quantity: remainingUninvoiced,
+                        unit_price: unitPrice,
+                        subtotal: itemSubtotal
+                    });
+                }
+            }
+        }
+
+        if (itemsToInvoice.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+                status: 'error',
+                message: `No uninvoiced received items found for Purchase Order ${po.po_number}. Either no items have been received, or all received items have already been invoiced.`
+            });
+        }
+
+        totalInvoiceAmount = Math.round((totalInvoiceAmount + Number.EPSILON) * 100) / 100;
+
+        // 4. Generate unique invoice number
+        const invNumber = invoice_number || `PINV-${Date.now().toString().slice(-6)}`;
+        const invDate = invoice_date || new Date().toISOString().split('T')[0];
+        let calcDueDate = due_date;
+        if (!calcDueDate) {
+            const d = new Date(invDate);
+            d.setDate(d.getDate() + 30);
+            calcDueDate = d.toISOString().split('T')[0];
+        }
+
+        // 5. Insert purchase_invoices header
+        const invRes = await client.query(`
+            INSERT INTO purchase_invoices
+                (invoice_number, vendor_id, warehouse_id, purchase_order_id, invoice_date, due_date, total_amount, paid_amount, status, notes, tenant_id, branch_id, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'unpaid', $8, $9, $10, $11)
+            RETURNING *
+        `, [
+            invNumber,
+            po.vendor_id,
+            po.warehouse_id,
+            po.id,
+            invDate,
+            calcDueDate,
+            totalInvoiceAmount,
+            notes || null,
+            tenant_id,
+            po.branch_id || branch_id,
+            req.user.id
+        ]);
+
+        const createdInvoice = invRes.rows[0];
+
+        // 6. Insert line items & update purchase_order_items.invoiced_quantity
+        // STRICT RULE: ZERO stock movements generated here! Stock arrival occurred exclusively in receivePurchaseOrderItems.
+        for (const item of itemsToInvoice) {
+            await client.query(`
+                INSERT INTO purchase_invoice_items
+                    (purchase_invoice_id, product_id, po_item_id, quantity, unit_price, subtotal, tenant_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            `, [
+                createdInvoice.id,
+                item.product_id,
+                item.po_item_id,
+                item.quantity,
+                item.unit_price,
+                item.subtotal,
+                tenant_id
+            ]);
+
+            await client.query(`
+                UPDATE purchase_order_items
+                SET invoiced_quantity = invoiced_quantity + $1
+                WHERE id = $2 AND po_id = $3
+            `, [item.quantity, item.po_item_id, po.id]);
+
+            // Keep product cost_price updated
+            await client.query(`
+                UPDATE products
+                SET cost_price = $1, updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2 AND tenant_id::text = $3::text
+            `, [item.unit_price, item.product_id, String(tenant_id)]);
+        }
+
+        await client.query('COMMIT');
+
+        createdInvoice.items = itemsToInvoice;
+        return res.status(201).json({
+            status: 'success',
+            message: `Purchase invoice ${invNumber} generated successfully from Purchase Order ${po.po_number}.`,
+            data: createdInvoice
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('[createInvoiceFromPurchaseOrder] Error:', err.message);
+        return res.status(500).json({ status: 'error', message: err.message || 'Failed to create invoice from purchase order' });
     } finally {
         client.release();
     }

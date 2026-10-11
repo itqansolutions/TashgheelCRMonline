@@ -68,7 +68,7 @@ async function ensureProcurementTables() {
             required_date       DATE,
             notes               TEXT,
             status              VARCHAR(30) NOT NULL DEFAULT 'draft'
-                                CHECK (status IN ('draft', 'submitted', 'approved', 'rejected', 'cancelled', 'converted_to_rfq')),
+                                CHECK (status IN ('draft', 'submitted', 'approved', 'rejected', 'cancelled', 'converted_to_rfq', 'converted_to_po')),
             rejection_reason    TEXT,
             approved_by         INTEGER REFERENCES users(id) ON DELETE SET NULL,
             approved_at         TIMESTAMP WITH TIME ZONE,
@@ -189,6 +189,7 @@ async function ensureProcurementTables() {
         CREATE TABLE IF NOT EXISTS purchase_orders (
             id                     SERIAL PRIMARY KEY,
             po_number              VARCHAR(50) NOT NULL,
+            purchase_request_id    INTEGER REFERENCES purchase_requests(id) ON DELETE SET NULL,
             rfq_id                 INTEGER REFERENCES rfqs(id) ON DELETE SET NULL,
             vendor_quotation_id    INTEGER REFERENCES vendor_quotations(id) ON DELETE SET NULL,
             vendor_id              INTEGER NOT NULL REFERENCES vendors(id) ON DELETE RESTRICT,
@@ -212,8 +213,11 @@ async function ensureProcurementTables() {
             created_at             TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at             TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
+        ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS purchase_request_id INTEGER REFERENCES purchase_requests(id) ON DELETE SET NULL;
         CREATE UNIQUE INDEX IF NOT EXISTS idx_po_tenant_ponum ON purchase_orders (tenant_id, po_number);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_po_tenant_quotation ON purchase_orders (tenant_id, vendor_quotation_id) WHERE vendor_quotation_id IS NOT NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_po_tenant_pr ON purchase_orders (tenant_id, purchase_request_id) WHERE purchase_request_id IS NOT NULL AND status != 'cancelled';
+        CREATE INDEX IF NOT EXISTS idx_po_purchase_request ON purchase_orders (purchase_request_id);
         CREATE INDEX IF NOT EXISTS idx_po_tenant_status ON purchase_orders (tenant_id, status);
         CREATE INDEX IF NOT EXISTS idx_po_tenant_branch ON purchase_orders (tenant_id, branch_id);
         CREATE INDEX IF NOT EXISTS idx_po_vendor ON purchase_orders (vendor_id);
@@ -226,6 +230,7 @@ async function ensureProcurementTables() {
             product_id        INTEGER NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
             quantity          DECIMAL(12, 3) NOT NULL CHECK (quantity > 0),
             received_quantity DECIMAL(12, 3) NOT NULL DEFAULT 0.000 CHECK (received_quantity >= 0),
+            invoiced_quantity DECIMAL(12, 3) NOT NULL DEFAULT 0.000 CHECK (invoiced_quantity >= 0),
             unit_price        DECIMAL(14, 2) NOT NULL DEFAULT 0.00 CHECK (unit_price >= 0),
             discount_pct      DECIMAL(5, 2) NOT NULL DEFAULT 0.00 CHECK (discount_pct >= 0 AND discount_pct <= 100),
             tax_pct           DECIMAL(5, 2) NOT NULL DEFAULT 0.00 CHECK (tax_pct >= 0),
@@ -233,6 +238,7 @@ async function ensureProcurementTables() {
             created_at        TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT chk_poi_received_qty CHECK (received_quantity <= quantity)
         );
+        ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS invoiced_quantity DECIMAL(12, 3) NOT NULL DEFAULT 0.000;
         CREATE INDEX IF NOT EXISTS idx_poi_po ON purchase_order_items (po_id);
         CREATE INDEX IF NOT EXISTS idx_poi_product ON purchase_order_items (product_id);
     `);
