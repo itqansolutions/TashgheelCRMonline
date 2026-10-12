@@ -26,7 +26,11 @@ exports.getUnits = async (req, res) => {
                 dev.name as developer_name,
                 COALESCE(proj.name, ru.project_name) as project_name,
                 phase.name as phase_name,
-                bld.name as building_name
+                bld.name as building_name,
+                pflm.publication_status as pf_publication_status,
+                pflm.external_listing_id as pf_external_listing_id,
+                pflm.portal_url as pf_portal_url,
+                pflm.rejection_reason as pf_rejection_reason
             FROM re_units ru
             LEFT JOIN customers c ON ru.vendor_id::text = c.id::text
             LEFT JOIN users u ON ru.responsible_person_id::text = u.id::text
@@ -35,6 +39,7 @@ exports.getUnits = async (req, res) => {
             LEFT JOIN re_projects proj ON ru.project_id::text = proj.id::text AND proj.tenant_id::text = ru.tenant_id::text
             LEFT JOIN re_phases phase ON ru.phase_id::text = phase.id::text AND phase.tenant_id::text = ru.tenant_id::text
             LEFT JOIN re_buildings bld ON ru.building_id::text = bld.id::text AND bld.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN property_finder_listing_mappings pflm ON ru.id = pflm.unit_id AND pflm.tenant_id::text = ru.tenant_id::text
             WHERE ru.tenant_id::text = $1::text
             AND ($2::text IS NULL OR ru.status = 'Available' OR ru.branch_id::text = $2::text OR ru.branch_id IS NULL)
         `;

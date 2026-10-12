@@ -125,10 +125,62 @@ exports.deleteTarget = async (req, res) => {
 
 exports.getSalesmen = async (req, res) => {
   const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId || req.user?.branch_id || null;
+  const userRole = req.user.role;
 
   try {
-    const salesmen = await reTargetService.getSalesmen({ tenant_id, branch_id });
+    // 1. Strict Branch Scope Validation
+    let effectiveBranchId = null;
+    if (userRole === 'admin') {
+      if (req.query.branch_id) {
+        const bCheck = await db.query(
+          `SELECT id FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+          [req.query.branch_id, tenant_id]
+        );
+        if (bCheck.rows.length === 0) {
+          return res.status(404).json({ status: 'error', message: 'Requested branch not found or unauthorized.' });
+        }
+        effectiveBranchId = bCheck.rows[0].id;
+      }
+    } else {
+      const enforcedBranchId = req.branchId || req.user?.branch_id || null;
+      if (req.query.branch_id) {
+        if (enforcedBranchId && String(req.query.branch_id).trim() !== String(enforcedBranchId).trim()) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Unauthorized branch access: You cannot query data outside your assigned branch.',
+            code: 'UNAUTHORIZED_BRANCH_ACCESS'
+          });
+        }
+        effectiveBranchId = req.query.branch_id;
+      } else {
+        effectiveBranchId = enforcedBranchId;
+      }
+    }
+
+    // 2. Department & RBAC Scoping
+    let accessibleDeptIds = null;
+    let restrictToUserId = null;
+
+    if (userRole === 'admin') {
+      // Unrestricted
+    } else if (userRole === 'manager' || userRole === 'supervisor') {
+      accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+      if (!accessibleDeptIds || accessibleDeptIds.length === 0) {
+        // Fail-closed: Manager with no assigned departments is strictly restricted to self
+        restrictToUserId = req.user.id;
+      }
+    } else {
+      // Sales / Agent / Employee: Strictly view only self by default
+      restrictToUserId = req.user.id;
+    }
+
+    const salesmen = await reTargetService.getSalesmen({
+      tenant_id,
+      branch_id: effectiveBranchId,
+      accessible_dept_ids: accessibleDeptIds,
+      restrict_user_id: restrictToUserId,
+      current_user_id: req.user.id
+    });
     res.json({ status: 'success', data: salesmen });
   } catch (err) {
     console.error('[reTargetController] getSalesmen error:', err.message);
@@ -147,14 +199,36 @@ exports.getSalesmanPerformance = async (req, res) => {
   }
 
   try {
-    // Check access permissions
-    if (['sales', 'agent', 'employee'].includes(userRole) && targetUserId !== req.user.id) {
-      return res.status(403).json({ status: 'error', message: 'You can only view your own performance.' });
-    } else if (userRole !== 'admin' && targetUserId !== req.user.id) {
-      const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
-      const uRes = await db.query('SELECT department_id FROM users WHERE id = $1 AND tenant_id::text = $2::text', [targetUserId, tenant_id]);
-      if (uRes.rows.length === 0 || !accessibleDeptIds.includes(uRes.rows[0].department_id)) {
-        return res.status(403).json({ status: 'error', message: 'You are not authorized to view this user performance.' });
+    // 1. Strict Branch Scope Verification for Non-Admin
+    const enforcedBranchId = req.branchId || req.user?.branch_id || null;
+    if (userRole !== 'admin') {
+      const uRes = await db.query(
+        'SELECT id, department_id, branch_id FROM users WHERE id = $1 AND tenant_id::text = $2::text',
+        [targetUserId, tenant_id]
+      );
+      if (uRes.rows.length === 0) {
+        return res.status(404).json({ status: 'error', message: 'Target user not found or unauthorized.' });
+      }
+
+      const targetUser = uRes.rows[0];
+
+      // Branch Check
+      if (enforcedBranchId && targetUser.branch_id && String(targetUser.branch_id).trim() !== String(enforcedBranchId).trim()) {
+        return res.status(403).json({
+          status: 'error',
+          message: 'Unauthorized branch access: You cannot view performance of a user outside your assigned branch.',
+          code: 'UNAUTHORIZED_BRANCH_ACCESS'
+        });
+      }
+
+      // Role & Department Check
+      if (['sales', 'agent', 'employee'].includes(userRole) && targetUserId !== req.user.id) {
+        return res.status(403).json({ status: 'error', message: 'You can only view your own performance.' });
+      } else if (targetUserId !== req.user.id) {
+        const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+        if (!accessibleDeptIds || !accessibleDeptIds.includes(targetUser.department_id)) {
+          return res.status(403).json({ status: 'error', message: 'You are not authorized to view this user performance.' });
+        }
       }
     }
 
@@ -162,7 +236,7 @@ exports.getSalesmanPerformance = async (req, res) => {
       tenant_id,
       user_id: targetUserId,
       period,
-      branch_id: req.branchId || req.user?.branch_id || null
+      branch_id: enforcedBranchId
     });
 
     res.json({ status: 'success', data: detail });

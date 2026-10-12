@@ -80,6 +80,9 @@ async function ensureWhatsAppTable() {
     await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS waba_id VARCHAR(255) DEFAULT '';`, 'alter settings waba_id');
     await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS meta_app_secret TEXT;`, 'alter settings meta_app_secret');
     await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS meta_webhook_verify_token TEXT;`, 'alter settings meta_webhook_verify_token');
+    await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS connection_type VARCHAR(30) NOT NULL DEFAULT 'cloud_api';`, 'settings col connection_type');
+    await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS coexistence_status VARCHAR(50) DEFAULT 'unlinked';`, 'settings col coexistence_status');
+    await safeExec(`ALTER TABLE whatsapp_settings ADD COLUMN IF NOT EXISTS coexistence_metadata JSONB DEFAULT '{}'::jsonb;`, 'settings col coexistence_metadata');
     await safeExec(`CREATE INDEX IF NOT EXISTS idx_whatsapp_settings_tenant_id ON whatsapp_settings(tenant_id);`, 'index settings tenant');
 
     // 2. WhatsApp Campaigns Table
@@ -147,8 +150,12 @@ async function ensureWhatsAppTable() {
       END $$;
     `, 'unique constraint whatsapp_accounts');
 
+    await safeExec(`ALTER TABLE whatsapp_accounts ADD COLUMN IF NOT EXISTS connection_type VARCHAR(30) NOT NULL DEFAULT 'cloud_api';`, 'accounts col connection_type');
+    await safeExec(`ALTER TABLE whatsapp_accounts ADD COLUMN IF NOT EXISTS coexistence_status VARCHAR(50) DEFAULT 'unlinked';`, 'accounts col coexistence_status');
+    await safeExec(`ALTER TABLE whatsapp_accounts ADD COLUMN IF NOT EXISTS coexistence_metadata JSONB DEFAULT '{}'::jsonb;`, 'accounts col coexistence_metadata');
     await safeExec(`CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_phone_id ON whatsapp_accounts(phone_number_id);`, 'index accounts phone_id');
     await safeExec(`CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_tenant ON whatsapp_accounts(tenant_id);`, 'index accounts tenant');
+    await safeExec(`CREATE INDEX IF NOT EXISTS idx_whatsapp_accounts_connection_type ON whatsapp_accounts(tenant_id, connection_type);`, 'index accounts connection_type');
 
     // 5. WhatsApp Conversations Table
     await safeExec(`
@@ -350,6 +357,9 @@ exports.getWhatsAppSettings = async (req, res) => {
          auto_greeting_triggers,
          auto_greeting_template,
          auto_greeting_language,
+         COALESCE(connection_type, 'cloud_api') AS connection_type,
+         coexistence_status,
+         coexistence_metadata,
          (access_token IS NOT NULL AND access_token <> '') AS has_access_token
        FROM whatsapp_settings
        WHERE tenant_id::text = $1::text`,
@@ -371,6 +381,9 @@ exports.getWhatsAppSettings = async (req, res) => {
           is_active: false,
           has_access_token: false,
           token_preview: '',
+          connection_type: 'cloud_api',
+          coexistence_status: 'unlinked',
+          coexistence_metadata: {},
           auto_greeting_enabled: false,
           auto_greeting_triggers: ['meta_lead'],
           auto_greeting_template: '',
@@ -900,7 +913,10 @@ exports.getWhatsAppAccounts = async (req, res) => {
   try {
     const result = await db.query(`
       SELECT id, tenant_id, branch_id, phone_number_id, display_phone_number,
-             verified_name, label, is_default, is_active, quality_rating, created_at, updated_at
+             verified_name, label, is_default, is_active, quality_rating,
+             COALESCE(connection_type, 'cloud_api') AS connection_type,
+             coexistence_status, coexistence_metadata,
+             created_at, updated_at
       FROM whatsapp_accounts
       WHERE tenant_id::text = $1::text
       ORDER BY is_default DESC, id ASC
@@ -1529,7 +1545,8 @@ exports.handleWebhookEvent = async (req, res) => {
     for (const entry of body.entry) {
       const changes = entry.changes || [];
       for (const change of changes) {
-        if (change.field !== 'messages') continue;
+        const SUPPORTED_FIELDS = ['messages', 'smb_message_echoes', 'history', 'smb_app_state_sync'];
+        if (!SUPPORTED_FIELDS.includes(change.field)) continue;
         const value = change.value || {};
         const metadata = value.metadata || {};
         const phoneNumberId = metadata.phone_number_id ? String(metadata.phone_number_id).trim() : null;
@@ -1544,7 +1561,9 @@ exports.handleWebhookEvent = async (req, res) => {
             COALESCE(a.tenant_id, s.tenant_id) AS tenant_id,
             a.branch_id,
             COALESCE(a.access_token, s.access_token) AS access_token,
-            s.meta_app_secret
+            s.meta_app_secret,
+            COALESCE(a.connection_type, s.connection_type, 'cloud_api') AS connection_type,
+            a.display_phone_number
           FROM whatsapp_accounts a
           FULL OUTER JOIN whatsapp_settings s ON a.tenant_id::text = s.tenant_id::text
           WHERE (TRIM(COALESCE(a.phone_number_id, '')) = TRIM($1) OR TRIM(COALESCE(s.phone_number_id, '')) = TRIM($1))
@@ -1558,7 +1577,9 @@ exports.handleWebhookEvent = async (req, res) => {
         } else {
           // Fallback to active tenant in settings if phone_number_id not directly matched
           const sRes = await db.query(`
-            SELECT NULL AS account_id, tenant_id, NULL AS branch_id, access_token, meta_app_secret
+            SELECT NULL AS account_id, tenant_id, NULL AS branch_id, access_token, meta_app_secret,
+                   COALESCE(connection_type, 'cloud_api') AS connection_type,
+                   NULL AS display_phone_number
             FROM whatsapp_settings
             WHERE access_token IS NOT NULL
             LIMIT 1
@@ -1574,7 +1595,7 @@ exports.handleWebhookEvent = async (req, res) => {
           continue;
         }
 
-        const { account_id, tenant_id, branch_id, access_token, meta_app_secret } = tenantRow;
+        const { account_id, tenant_id, branch_id, access_token, meta_app_secret, connection_type } = tenantRow;
 
         // 2. Defensive HMAC Signature verification if secret configured
         if (meta_app_secret && String(meta_app_secret).trim()) {
@@ -1587,6 +1608,57 @@ exports.handleWebhookEvent = async (req, res) => {
           }
         }
 
+        // 2.1 Coexistence Historical Batch Processing (History Sync)
+        if (change.field === 'history') {
+          try {
+            const historyMessages = value.history || value.messages || [];
+            const { recordCoexistenceHistoryBatch } = require('../services/whatsappCoexistenceService');
+            await recordCoexistenceHistoryBatch({
+              tenantId,
+              account: tenantRow,
+              historyMessages
+            });
+          } catch (histErr) {
+            console.warn('[WhatsApp Coexistence History Error]', histErr.message);
+          }
+          continue;
+        }
+
+        // 2.2 Coexistence App State Sync
+        if (change.field === 'smb_app_state_sync') {
+          try {
+            const { recordCoexistenceAppStateSync } = require('../services/whatsappCoexistenceService');
+            await recordCoexistenceAppStateSync({
+              tenantId,
+              account: tenantRow,
+              stateSyncData: value
+            });
+          } catch (syncErr) {
+            console.warn('[WhatsApp Coexistence State Sync Error]', syncErr.message);
+          }
+          continue;
+        }
+
+        // 2.3 Coexistence Dedicated Echoes Channel (smb_message_echoes)
+        if (change.field === 'smb_message_echoes') {
+          try {
+            const echoMessages = value.messages || value.echoes || [];
+            const { recordCoexistenceAppEcho } = require('../services/whatsappCoexistenceService');
+            for (const echoMsg of echoMessages) {
+              await recordCoexistenceAppEcho({
+                tenantId,
+                account: tenantRow,
+                message: echoMsg,
+                rawToPhone: echoMsg.recipient_id || echoMsg.to || echoMsg.from,
+                bodyText: echoMsg.text?.body || (echoMsg.type ? `[${echoMsg.type} message]` : '[Mobile App Message]')
+              });
+            }
+          } catch (echoErr) {
+            console.warn('[WhatsApp Coexistence Echo Channel Error]', echoErr.message);
+          }
+          continue;
+        }
+
         // 3. Inbound Messages Pipeline
         const messages = value.messages || [];
         const contacts = value.contacts || [];
@@ -1594,6 +1666,30 @@ exports.handleWebhookEvent = async (req, res) => {
         for (const msg of messages) {
           const wamid = msg.id;
           const rawFrom = String(msg.from || '').trim();
+
+          // 2.5 Coexistence App Echo Interception
+          // In Coexistence, messages sent via the WhatsApp Business mobile app fire webhook echoes.
+          // Ingest as outbound message without triggering bot or customer lead auto-creation.
+          if (connection_type === 'coexistence') {
+            try {
+              const { isCoexistenceAppEcho, recordCoexistenceAppEcho } = require('../services/whatsappCoexistenceService');
+              if (isCoexistenceAppEcho({ message: msg, account: tenantRow })) {
+                const echoBody = msg.text?.body || (msg.type ? `[${msg.type} message]` : '[Mobile App Message]');
+                await recordCoexistenceAppEcho({
+                  tenantId,
+                  account: tenantRow,
+                  message: msg,
+                  rawToPhone: msg.recipient_id || msg.to || rawFrom,
+                  bodyText: echoBody
+                });
+                console.log(`📱 [WhatsApp Coexistence Webhook] Handled mobile app echo for account #${account_id}`);
+                continue;
+              }
+            } catch (echoErr) {
+              console.warn('[WhatsApp Coexistence Echo Handling Warning]', echoErr.message);
+            }
+          }
+
           const fromPhone = normalisePhone(rawFrom) || `+${rawFrom}`;
           const profileContact = contacts.find(c => c.wa_id === rawFrom);
           const contactProfileName = profileContact?.profile?.name;
@@ -1827,6 +1923,93 @@ exports.handleWebhookEvent = async (req, res) => {
     }
   } catch (err) {
     console.error('[WhatsApp Webhook Event Error]', err.message);
+  }
+};
+
+// ===========================================================================
+// COEXISTENCE INTEGRATION HANDLERS (Feature Flag Guarded)
+// ===========================================================================
+
+// @desc    Onboard a WhatsApp Coexistence Account
+// @route   POST /api/whatsapp/coexistence/onboard
+// @access  Private (Admin)
+exports.onboardCoexistenceAccount = async (req, res) => {
+  await ensureWhatsAppTable();
+  const tenantId = req.user.tenant_id;
+  const { isCoexistenceEnabled, onboardCoexistenceAccount } = require('../services/whatsappCoexistenceService');
+
+  if (!isCoexistenceEnabled()) {
+    return res.status(403).json({
+      status: 'error',
+      code: 'COEXISTENCE_FEATURE_DISABLED',
+      message: 'WhatsApp Coexistence feature is currently disabled. Please enable ENABLE_WHATSAPP_COEXISTENCE.'
+    });
+  }
+
+  const {
+    code,
+    access_token,
+    phone_number_id,
+    waba_id,
+    display_phone_number,
+    verified_name,
+    label,
+    branch_id,
+    metadata,
+    skip_meta_verification = false
+  } = req.body;
+
+  if (!phone_number_id) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'phone_number_id is required'
+    });
+  }
+
+  const { processEmbeddedSignupAuthorization } = require('../services/whatsappCoexistenceService');
+
+  try {
+    const account = await processEmbeddedSignupAuthorization({
+      tenantId,
+      branchId: branch_id || req.user.branch_id || null,
+      code,
+      accessToken: access_token,
+      phoneNumberId: phone_number_id,
+      wabaId: waba_id,
+      label: label || 'Coexistence WhatsApp',
+      metadata,
+      skipMetaVerification: skip_meta_verification
+    });
+
+    res.json({
+      status: 'success',
+      message: 'WhatsApp Coexistence account onboarded successfully',
+      data: account
+    });
+  } catch (err) {
+    console.error('[WhatsApp onboardCoexistenceAccount]', err.message);
+    res.status(400).json({ status: 'error', message: err.message });
+  }
+};
+
+// @desc    Get Coexistence Account Status
+// @route   GET /api/whatsapp/coexistence/status/:id
+// @access  Private (Admin)
+exports.getCoexistenceStatus = async (req, res) => {
+  await ensureWhatsAppTable();
+  const tenantId = req.user.tenant_id;
+  const accountId = req.params.id;
+  const { getCoexistenceAccountStatus } = require('../services/whatsappCoexistenceService');
+
+  try {
+    const status = await getCoexistenceAccountStatus(tenantId, accountId);
+    if (!status) {
+      return res.status(404).json({ status: 'error', message: 'WhatsApp account not found' });
+    }
+    res.json({ status: 'success', data: status });
+  } catch (err) {
+    console.error('[WhatsApp getCoexistenceStatus]', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
   }
 };
 

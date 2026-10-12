@@ -13,34 +13,40 @@ exports.uploadFile = async (req, res) => {
 
   const { linked_type, linked_id } = req.body;
   
-  const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId || req.user?.branch_id;
+  const tenant_id = req.user?.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id || null;
   
   console.log('[UPLOAD DEBUG] Metadata:', { linked_type, linked_id, tenant_id, branch_id, userId: req.user?.id });
 
-  if (!linked_type || linked_id === undefined || linked_id === null) {
+  if (!tenant_id) {
+    if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    return res.status(401).json({ status: 'error', message: 'Tenant context is missing.' });
+  }
+
+  if (!linked_type || linked_id === undefined || linked_id === null || String(linked_id).trim() === '') {
     console.error(`[Upload] Missing metadata: Type=${linked_type}, ID=${linked_id}`);
     if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     return res.status(400).json({ status: 'error', message: 'Entity linkage information (type/id) is missing.' });
   }
 
-  try {
-    // Defensive check: Ensure table columns exist (Self-healing)
-    await db.query('ALTER TABLE attachments ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255)');
-    await db.query('ALTER TABLE attachments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255)');
+  // Store normalized relative path to uploads root (e.g. "uploads/<tenantId>/<filename>")
+  const uploadsRootDir = path.resolve(__dirname, '..', 'uploads');
+  const normalizedRelativePath = path.relative(uploadsRootDir, req.file.path).replace(/\\/g, '/');
+  const storedFilePath = `uploads/${normalizedRelativePath}`;
 
+  try {
     const result = await db.query(
       'INSERT INTO attachments (filename, original_name, mime_type, file_path, linked_type, linked_id, uploaded_by, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
       [
         req.file.filename, 
         req.file.originalname, 
         req.file.mimetype, 
-        req.file.path, 
+        storedFilePath, 
         linked_type, 
-        linked_id, 
+        String(linked_id), 
         req.user?.id || null, 
-        tenant_id || null, 
-        branch_id || null
+        tenant_id, 
+        branch_id
       ]
     );
 
@@ -68,8 +74,13 @@ exports.uploadFile = async (req, res) => {
 // @access  Private
 exports.getAttachments = async (req, res) => {
   const { entityType, entityId } = req.params;
-  const tenant_id = req.user.tenant_id;
+  const tenant_id = req.user?.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
+
+  if (!tenant_id) {
+    return res.status(401).json({ status: 'error', message: 'Tenant context is missing.' });
+  }
+
   try {
     const result = await db.query(
       'SELECT * FROM attachments WHERE linked_type = $1 AND linked_id = $2 AND tenant_id::text = $3::text AND (branch_id::text = $4::text OR branch_id IS NULL) ORDER BY created_at DESC',
@@ -86,28 +97,47 @@ exports.getAttachments = async (req, res) => {
 // @route   DELETE /api/files/:id
 // @access  Private (Admin or Owner)
 exports.deleteAttachment = async (req, res) => {
-  const tenant_id = req.user.tenant_id;
+  const tenant_id = req.user?.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
+
+  if (!tenant_id) {
+    return res.status(401).json({ status: 'error', message: 'Tenant context is missing.' });
+  }
+
   try {
     // 1. Get file details AND enforce Tenant isolation
-    const fileResult = await db.query('SELECT * FROM attachments WHERE id = $1 AND tenant_id::text = $2::text AND (branch_id::text = $3::text OR branch_id IS NULL)', [req.params.id, tenant_id, branch_id]);
+    const fileResult = await db.query(
+      'SELECT * FROM attachments WHERE id = $1 AND tenant_id::text = $2::text AND (branch_id::text = $3::text OR branch_id IS NULL)',
+      [req.params.id, tenant_id, branch_id]
+    );
     if (fileResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'File not found' });
     }
 
     const file = fileResult.rows[0];
 
-    // 2. Check permissions (Simple check for now)
+    // 2. Check permissions
     if (req.user.role !== 'admin' && req.user.id !== file.uploaded_by) {
       return res.status(403).json({ status: 'error', message: 'Not authorized' });
     }
 
-    // 3. Delete from DB
-    await db.query('DELETE FROM attachments WHERE id = $1', [req.params.id]);
+    // 3. Delete from DB with strict tenant isolation
+    await db.query('DELETE FROM attachments WHERE id = $1 AND tenant_id::text = $2::text', [req.params.id, tenant_id]);
 
-    // 4. Delete from Disk
-    if (fs.existsSync(file.file_path)) {
-      fs.unlinkSync(file.file_path);
+    // 4. Delete from Disk (resolving stored path or tenant uploads directory)
+    const uploadsRootDir = path.resolve(__dirname, '..', 'uploads');
+    const diskPath = path.isAbsolute(file.file_path)
+      ? file.file_path
+      : path.resolve(__dirname, '..', file.file_path);
+
+    if (fs.existsSync(diskPath)) {
+      fs.unlinkSync(diskPath);
+    } else {
+      // Fallback: check in tenant-specific subfolder
+      const tenantSpecificPath = path.resolve(uploadsRootDir, String(tenant_id), file.filename);
+      if (fs.existsSync(tenantSpecificPath)) {
+        fs.unlinkSync(tenantSpecificPath);
+      }
     }
 
     res.json({ status: 'success', message: 'File deleted successfully' });
@@ -121,10 +151,18 @@ exports.deleteAttachment = async (req, res) => {
 // @route   GET /api/files
 // @access  Private
 exports.getFiles = async (req, res) => {
-  const tenant_id = req.user.tenant_id;
+  const tenant_id = req.user?.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
+
+  if (!tenant_id) {
+    return res.status(401).json({ status: 'error', message: 'Tenant context is missing.' });
+  }
+
   try {
-    const result = await db.query('SELECT * FROM attachments WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR branch_id IS NULL) ORDER BY created_at DESC', [tenant_id, branch_id]);
+    const result = await db.query(
+      'SELECT * FROM attachments WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR branch_id IS NULL) ORDER BY created_at DESC',
+      [tenant_id, branch_id]
+    );
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
     console.error(err.message);

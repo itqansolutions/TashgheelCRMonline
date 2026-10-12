@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { 
@@ -21,6 +22,7 @@ const TABS = [
 
 const Settings = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const fileInputRef = useRef(null);
   
   const [activeTab, setActiveTab] = useState('Branding & Identity');
@@ -867,7 +869,37 @@ const Settings = () => {
       {/* Tab 7: Integrations */}
       {activeTab === 'Integrations' && (
         <div className="settings-layout full-width">
-          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Property Finder Card */}
+            <div className="settings-card" style={{ border: '1px solid #bae6fd', background: 'linear-gradient(to bottom, #f0f9ff, #ffffff)' }}>
+              <div className="card-header" style={{ borderBottom: '1px solid #e0f2fe' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0369a1', margin: 0 }}>
+                    <Building2 size={18} color="#0284c7" /> Property Finder Integration (Egypt Portal)
+                  </h3>
+                  <span style={{ fontSize: '11px', fontWeight: 600, padding: '4px 10px', background: '#e0f2fe', color: '#0369a1', borderRadius: '12px' }}>
+                    Enterprise Real Estate
+                  </span>
+                </div>
+              </div>
+              <div className="card-body">
+                <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px', lineHeight: '1.5' }}>
+                  Connect your Property Finder account to import existing listings, publish eligible units, synchronize prices & statuses bidirectionally, and receive customer inquiries directly into your Tashgheel CRM sales pipeline.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/integrations/property-finder')}
+                  style={{
+                    padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#0284c7',
+                    color: 'white', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px'
+                  }}
+                >
+                  Configure Property Finder Connection <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* ETA Card */}
             <div className="settings-card">
               <div className="card-header">
                 <h3><ShieldCheck size={16} color="#059669" /> Egyptian Tax Authority (ETA) E-Invoicing SDK</h3>

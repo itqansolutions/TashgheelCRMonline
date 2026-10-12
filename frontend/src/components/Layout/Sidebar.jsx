@@ -168,10 +168,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   ];
 
   const reDirectItems = [
-    { name: 'Units',        icon: <Key size={18} />,         path: '/units-registry' },
-    { name: 'Reservations', icon: <CheckSquare size={18} />, path: '/reservations' },
-    { name: 'Contracts',    icon: <FileText size={18} />,    path: '/contracts' },
-    { name: 'Installments', icon: <CreditCard size={18} />,  path: '/installments' }
+    { name: 'Units',           icon: <Key size={18} />,         path: '/units-registry' },
+    { name: 'Reservations',    icon: <CheckSquare size={18} />, path: '/reservations' },
+    { name: 'Contracts',       icon: <FileText size={18} />,    path: '/contracts' },
+    { name: 'Installments',    icon: <CreditCard size={18} />,  path: '/installments' },
+    { name: 'Property Finder', icon: <Globe size={18} />,       path: '/integrations/property-finder', roleGuard: ['admin', 'manager'] }
   ];
 
   // -------------------------------------------------------------
@@ -618,6 +619,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                 <NavLink to="/integrations/meta-forms" className={() => isItemActive('/integrations/meta-forms') ? 'active' : ''}>
                   <FileText size={17} />
                   <span>Meta Forms</span>
+                </NavLink>
+              )}
+              {(user?.role === 'admin' || user?.role === 'manager') && (
+                <NavLink to="/integrations/property-finder" className={() => isItemActive('/integrations/property-finder') ? 'active' : ''}>
+                  <Globe size={17} />
+                  <span>Property Finder</span>
                 </NavLink>
               )}
 

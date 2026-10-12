@@ -38,6 +38,12 @@ router.post('/test', authorize(['admin']), whatsappController.sendTestWhatsApp);
 router.get('/phone-numbers', authorize(['admin']), whatsappController.fetchPhoneNumbersFromMeta);
 router.get('/diagnose', authorize(['admin']), whatsappController.diagnoseWhatsApp);
 
+// ===========================================================================
+// COEXISTENCE INTEGRATION (Isolated — feature flag guarded)
+// ===========================================================================
+router.post('/coexistence/onboard', authorize(['admin']), whatsappController.onboardCoexistenceAccount);
+router.get('/coexistence/status/:id', authorize(['admin']), whatsappController.getCoexistenceStatus);
+
 const chatbotController = require('../controllers/chatbotController');
 
 // Human Takeover action (Any agent can take over an active bot chat)

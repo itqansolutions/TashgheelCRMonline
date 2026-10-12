@@ -176,7 +176,17 @@ exports.getTargets = async (req, res) => {
       if (req.query.branch_id) {
         filterBranchId = req.query.branch_id;
       }
-    } else if (userRole === 'manager' || userRole === 'supervisor') {
+    } else {
+      if (req.query.branch_id && branch_id && String(req.query.branch_id).trim() !== String(branch_id).trim()) {
+        return res.status(403).json({
+          status: 'error',
+          message: 'Unauthorized branch access: You cannot query data outside your assigned branch.',
+          code: 'UNAUTHORIZED_BRANCH_ACCESS'
+        });
+      }
+    }
+    
+    if (userRole === 'manager' || userRole === 'supervisor') {
       // Manager / Supervisor: Restricted to accessible departments within branch
       const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
       if (department_id) {
@@ -485,25 +495,123 @@ exports.deletePriceTier = async (req, res) => {
 
 exports.getSalesmen = async (req, res) => {
   const tenant_id = req.user.tenant_id;
+  const userRole = req.user.role;
+  const requestedUserId = req.query.user_id ? parseInt(req.query.user_id, 10) : null;
+
   try {
-    const usersRes = await db.query(`
-      SELECT u.id, u.name, u.email, u.phone, u.role, u.is_working,
-             COALESCE(SUM(CASE WHEN d.pipeline_stage = 'won' THEN d.value ELSE 0 END), 0) as total_sales,
-             COUNT(d.id) FILTER (WHERE d.pipeline_stage != 'won' AND d.pipeline_stage != 'lost') as active_deals
+    // 1. Strict Branch Scope Validation
+    let effectiveBranchId = null;
+    if (userRole === 'admin') {
+      if (req.query.branch_id) {
+        const bCheck = await db.query(
+          `SELECT id FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+          [req.query.branch_id, tenant_id]
+        );
+        if (bCheck.rows.length === 0) {
+          return res.status(404).json({ status: 'error', message: 'Requested branch not found or unauthorized.' });
+        }
+        effectiveBranchId = bCheck.rows[0].id;
+      }
+    } else {
+      const enforcedBranchId = req.branchId || req.user?.branch_id || null;
+      if (req.query.branch_id) {
+        if (enforcedBranchId && String(req.query.branch_id).trim() !== String(enforcedBranchId).trim()) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Unauthorized branch access: You cannot query data outside your assigned branch.',
+            code: 'UNAUTHORIZED_BRANCH_ACCESS'
+          });
+        }
+        effectiveBranchId = req.query.branch_id;
+      } else {
+        effectiveBranchId = enforcedBranchId;
+      }
+    }
+
+    let whereConditions = [
+      `u.tenant_id::text = $1::text`,
+      `u.role IN ('sales', 'agent', 'manager', 'supervisor', 'employee')`,
+      `COALESCE(u.is_working, true) = true`
+    ];
+    let queryParams = [tenant_id];
+
+    // Branch scoping
+    if (effectiveBranchId) {
+      queryParams.push(String(effectiveBranchId));
+      whereConditions.push(`(u.branch_id::text = $${queryParams.length}::text OR u.branch_id IS NULL)`);
+    }
+
+    // Role-based Access Control (RBAC)
+    if (userRole === 'admin') {
+      if (requestedUserId) {
+        queryParams.push(requestedUserId);
+        whereConditions.push(`u.id = $${queryParams.length}`);
+      }
+    } else if (userRole === 'manager' || userRole === 'supervisor') {
+      const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+      if (requestedUserId) {
+        if (requestedUserId !== req.user.id) {
+          if (!accessibleDeptIds || accessibleDeptIds.length === 0) {
+            return res.status(403).json({ status: 'error', message: 'You have no managed departments to view other users.' });
+          }
+          const uCheck = await db.query(
+            `SELECT id, department_id FROM users WHERE id = $1 AND tenant_id::text = $2::text`,
+            [requestedUserId, tenant_id]
+          );
+          if (uCheck.rows.length === 0 || !accessibleDeptIds.includes(uCheck.rows[0].department_id)) {
+            return res.status(403).json({ status: 'error', message: 'You are not authorized to view this user.' });
+          }
+        }
+        queryParams.push(requestedUserId);
+        whereConditions.push(`u.id = $${queryParams.length}`);
+      } else {
+        if (accessibleDeptIds && accessibleDeptIds.length > 0) {
+          queryParams.push(accessibleDeptIds);
+          queryParams.push(req.user.id);
+          whereConditions.push(`(u.department_id = ANY($${queryParams.length - 1}::int[]) OR u.id = $${queryParams.length})`);
+        } else {
+          // Fail-closed: Manager with no assigned departments is strictly restricted to self
+          queryParams.push(req.user.id);
+          whereConditions.push(`u.id = $${queryParams.length}`);
+        }
+      }
+    } else {
+      // Sales / Agent / Employee: Strictly view only self by default
+      if (requestedUserId && requestedUserId !== req.user.id) {
+        return res.status(403).json({ status: 'error', message: 'You can only view your own details.' });
+      }
+      queryParams.push(req.user.id);
+      whereConditions.push(`u.id = $${queryParams.length}`);
+    }
+
+    const sql = `
+      SELECT
+        u.id, u.name, u.email, u.phone, u.role, u.is_working,
+        u.branch_id, b.name as branch_name,
+        u.department_id, dep.name as department_name,
+        COALESCE(SUM(CASE WHEN d.pipeline_stage = 'won' THEN d.value ELSE 0 END), 0) as total_sales,
+        COUNT(d.id) FILTER (WHERE d.pipeline_stage NOT IN ('won', 'lost')) as active_deals
       FROM users u
+      LEFT JOIN branches b ON u.branch_id = b.id
+      LEFT JOIN departments dep ON u.department_id = dep.id
       LEFT JOIN deals d ON d.assigned_to = u.id AND d.tenant_id::text = u.tenant_id::text
-      WHERE u.tenant_id::text = $1::text
-      GROUP BY u.id, u.name, u.email, u.phone, u.role, u.is_working
+      WHERE ${whereConditions.join(' AND ')}
+      GROUP BY u.id, u.name, u.email, u.phone, u.role, u.is_working, u.branch_id, b.name, u.department_id, dep.name
       ORDER BY total_sales DESC, u.name ASC
-    `, [tenant_id]);
+    `;
+
+    const usersRes = await db.query(sql, queryParams);
 
     const salesmen = usersRes.rows.map(u => ({
       id: u.id,
       name: u.name,
       email: u.email,
       phone: u.phone || 'N/A',
-      territory: 'Assigned Territory',
-      commission_rate: 3.5,
+      role: u.role,
+      branch_id: u.branch_id,
+      branch_name: u.branch_name || null,
+      department_id: u.department_id,
+      department_name: u.department_name || null,
       total_sales: parseFloat(u.total_sales || 0),
       active_deals: parseInt(u.active_deals || 0),
       is_active: u.is_working !== false

@@ -76,11 +76,12 @@ test('Phase 3.3C: Sales Commissions & Earnings Lifecycle Suite', async (t) => {
     deptSales = deptRes.rows[0].id;
 
     // 5. Seed Users
+    const runId = Date.now();
     const uRes = await pool.query(
       `INSERT INTO users (name, email, password_hash, role, tenant_id, department_id)
-       VALUES ('Rep Alpha', 'repA-33c@test.com', 'hashed', 'sales', $1, $2),
-              ('Rep Beta', 'repB-33c@test.com', 'hashed', 'sales', $1, $2),
-              ('Sales Manager', 'mgr-33c@test.com', 'hashed', 'manager', $1, $2)
+       VALUES ('Rep Alpha', 'repA-33c-${runId}@test.com', 'hashed', 'sales', $1, $2),
+              ('Rep Beta', 'repB-33c-${runId}@test.com', 'hashed', 'sales', $1, $2),
+              ('Sales Manager', 'mgr-33c-${runId}@test.com', 'hashed', 'manager', $1, $2)
        RETURNING id, name, email, role`,
       [tenantA, deptSales]
     );

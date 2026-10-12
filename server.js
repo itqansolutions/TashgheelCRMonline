@@ -24,7 +24,7 @@ app.use(express.json({
   verify: (req, res, buffer) => {
     // Meta signs the exact request body. Keep the raw bytes only for its
     // webhook endpoints so the controller can verify X-Hub-Signature-256.
-    if (req.originalUrl.startsWith('/api/meta/webhook') || req.originalUrl.startsWith('/api/whatsapp/webhook')) {
+    if (req.originalUrl.startsWith('/api/meta/webhook') || req.originalUrl.startsWith('/api/whatsapp/webhook') || req.originalUrl.startsWith('/api/propertyfinder/webhook')) {
       req.rawBody = Buffer.from(buffer);
     }
   }
@@ -125,6 +125,11 @@ const whatsappController = require('./controllers/whatsappController');
 app.get('/api/whatsapp/webhook', whatsappController.handleWebhookVerification);
 app.post('/api/whatsapp/webhook', whatsappController.handleWebhookEvent);
 
+// Public Property Finder Webhook Inbound Receiver (HMAC-SHA256 authenticated)
+const propertyFinderController = require('./controllers/propertyFinderController');
+app.post('/api/propertyfinder/webhook', propertyFinderController.handleWebhook);
+app.post('/api/propertyfinder/webhook/:tenantId', propertyFinderController.handleWebhook);
+
 // Protected SaaS subscription endpoint
 app.get('/api/me/subscription', authMiddleware, subscriptionGuard, plansController.getMySubscription);
 
@@ -194,6 +199,7 @@ app.use('/api/re-commissions',   templateGuard('real_estate'), require('./routes
 app.use('/api/re-cancellations', templateGuard('real_estate'), require('./routes/reCancellationRoutes'));
 app.use('/api/re-handovers',     templateGuard('real_estate'), require('./routes/reHandoverRoutes'));
 app.use('/api/re-targets',       templateGuard('real_estate'), require('./routes/reTargetRoutes'));
+app.use('/api/propertyfinder',   require('./routes/propertyFinderRoutes'));
 
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/activities', activityRoutes);
@@ -284,6 +290,14 @@ app.get(/.*/, (req, res) => {
 
 // Error handling middleware (Production grade)
 app.use((err, req, res, next) => {
+  if (err && (err.name === 'MulterError' || (err.message && err.message.includes('File type not supported')))) {
+    return res.status(400).json({
+      status: 'error',
+      message: err.message || 'File upload error',
+      code: err.code || 'UPLOAD_ERROR'
+    });
+  }
+
   console.error('🔥 [Internal Server Error]:', {
     path: req.url,
     message: err.message,
@@ -617,6 +631,31 @@ app.listen(PORT, '0.0.0.0', async () => {
     await execSql(`ALTER TABLE activities ALTER COLUMN entity_type DROP NOT NULL;`, 'activities.entity_type drop NOT NULL');
     await execSql(`ALTER TABLE activities ALTER COLUMN tenant_id DROP NOT NULL;`, 'activities.tenant_id drop NOT NULL');
     await execSql(`CREATE INDEX IF NOT EXISTS idx_activities_entity_full ON activities(tenant_id, entity_type, entity_id);`, 'idx_activities_entity_full');
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // ── Attachments Table Schema Reconciliation & Multi-Tenant Indexes ─────────
+    await execSql(`
+      CREATE TABLE IF NOT EXISTS attachments (
+        id SERIAL PRIMARY KEY,
+        filename VARCHAR(255) NOT NULL,
+        original_name VARCHAR(255) NOT NULL,
+        mime_type VARCHAR(100),
+        file_path TEXT NOT NULL,
+        linked_type VARCHAR(50) NOT NULL,
+        linked_id VARCHAR(255) NOT NULL,
+        uploaded_by INTEGER,
+        tenant_id VARCHAR(255),
+        branch_id VARCHAR(255),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `, 'attachments table');
+    await execSql(`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255);`, 'attachments.tenant_id');
+    await execSql(`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`, 'attachments.branch_id');
+    await execSql(`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS uploaded_by INTEGER;`, 'attachments.uploaded_by');
+    await execSql(`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;`, 'attachments.created_at');
+    await execSql(`CREATE INDEX IF NOT EXISTS idx_attachments_tenant ON attachments(tenant_id);`, 'idx_attachments_tenant');
+    await execSql(`CREATE INDEX IF NOT EXISTS idx_attachments_tenant_linked ON attachments(tenant_id, linked_type, linked_id);`, 'idx_attachments_tenant_linked');
+    await execSql(`CREATE INDEX IF NOT EXISTS idx_attachments_filename ON attachments(filename);`, 'idx_attachments_filename');
     // ─────────────────────────────────────────────────────────────────────────
 
     // Registration Requests table (public self-signup pending HUD approval)

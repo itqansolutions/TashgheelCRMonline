@@ -795,23 +795,44 @@ class ReTargetService {
    * @param {Object} options
    * @returns {Promise<Array>}
    */
-  async getSalesmen({ tenant_id, branch_id = null, client = null }) {
+  async getSalesmen({
+    tenant_id,
+    branch_id = null,
+    accessible_dept_ids = null,
+    restrict_user_id = null,
+    current_user_id = null,
+    client = null
+  }) {
     const runner = client || db;
     let sql = `
-      SELECT id, name, email, role, department_id, branch_id
-      FROM users
-      WHERE tenant_id::text = $1::text
-        AND role IN ('sales', 'agent', 'employee', 'manager', 'supervisor')
-        AND is_working = true
+      SELECT u.id, u.name, u.email, u.phone, u.role,
+             u.department_id, dep.name as department_name,
+             u.branch_id, b.name as branch_name,
+             u.is_working
+      FROM users u
+      LEFT JOIN branches b ON u.branch_id = b.id
+      LEFT JOIN departments dep ON u.department_id = dep.id
+      WHERE u.tenant_id::text = $1::text
+        AND u.role IN ('sales', 'agent', 'employee', 'manager', 'supervisor')
+        AND COALESCE(u.is_working, true) = true
     `;
     const params = [tenant_id];
 
     if (branch_id) {
       params.push(String(branch_id));
-      sql += ` AND (branch_id::text = $${params.length}::text OR branch_id IS NULL)`;
+      sql += ` AND (u.branch_id::text = $${params.length}::text OR u.branch_id IS NULL)`;
     }
 
-    sql += ` ORDER BY name ASC`;
+    if (restrict_user_id) {
+      params.push(restrict_user_id);
+      sql += ` AND u.id = $${params.length}`;
+    } else if (accessible_dept_ids && accessible_dept_ids.length > 0) {
+      params.push(accessible_dept_ids);
+      params.push(current_user_id);
+      sql += ` AND (u.department_id = ANY($${params.length - 1}::int[]) OR u.id = $${params.length})`;
+    }
+
+    sql += ` ORDER BY u.name ASC`;
     const res = await runner.query(sql, params);
     return res.rows;
   }

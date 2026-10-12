@@ -94,6 +94,7 @@ import PriceTiers from './pages/Sales/PriceTiers';
 import EInvoice from './pages/Integrations/EInvoice';
 import MetaForms from './pages/Integrations/MetaForms';
 import WhatsAppSettings from './pages/Integrations/WhatsAppSettings';
+import PropertyFinderSettings from './pages/Integrations/PropertyFinderSettings';
 import WhatsAppCampaigns from './pages/Marketing/WhatsAppCampaigns';
 import WhatsAppChat from './pages/Marketing/WhatsAppChat';
 import WhatsAppChatbots from './pages/Marketing/WhatsAppChatbots';
@@ -227,6 +228,18 @@ function App() {
                         <WhatsAppSettings />
                       </ProtectedRoute>
                     }
+                  />
+                  <Route
+                    path="integrations/property-finder"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <PropertyFinderSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="settings/integrations/property-finder"
+                    element={<Navigate to="/integrations/property-finder" replace />}
                   />
                   <Route
                     path="whatsapp-chat"

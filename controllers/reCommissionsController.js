@@ -10,11 +10,46 @@ const accessScopeService = require('../services/accessScopeService');
 // @route   GET /api/re-commissions
 exports.getCommissions = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
+    const userRole = req.user.role;
     const { deal_id, contract_id, beneficiary_user_id, status } = req.query;
 
     try {
         let whereClause = `WHERE rc.tenant_id::text = $1::text`;
         const params = [tenant_id];
+
+        // 1. RBAC Check on requested beneficiary_user_id
+        if (beneficiary_user_id) {
+            const targetBeneficiaryId = parseInt(beneficiary_user_id, 10);
+            if (['sales', 'agent', 'employee'].includes(userRole) && targetBeneficiaryId !== req.user.id) {
+                return res.status(403).json({
+                    status: 'error',
+                    message: 'Unauthorized: You can only view your own commissions.'
+                });
+            } else if (userRole !== 'admin' && targetBeneficiaryId !== req.user.id) {
+                const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+                const uRes = await db.query(
+                    'SELECT department_id FROM users WHERE id = $1 AND tenant_id::text = $2::text',
+                    [targetBeneficiaryId, tenant_id]
+                );
+                if (uRes.rows.length === 0 || !accessibleDeptIds || !accessibleDeptIds.includes(uRes.rows[0].department_id)) {
+                    return res.status(403).json({
+                        status: 'error',
+                        message: 'You are not authorized to view commissions for this user.'
+                    });
+                }
+            }
+            params.push(targetBeneficiaryId);
+            whereClause += ` AND rc.beneficiary_user_id = $${params.length}`;
+        }
+
+        // 2. Strict Branch Scope for Non-Admin
+        if (userRole !== 'admin') {
+            const enforcedBranchId = req.branchId || req.user?.branch_id || null;
+            if (enforcedBranchId) {
+                params.push(String(enforcedBranchId));
+                whereClause += ` AND (rc.branch_id::text = $${params.length}::text OR rc.branch_id IS NULL)`;
+            }
+        }
 
         if (deal_id) {
             params.push(parseInt(deal_id));
@@ -23,10 +58,6 @@ exports.getCommissions = async (req, res) => {
         if (contract_id) {
             params.push(contract_id);
             whereClause += ` AND rc.contract_id::text = $${params.length}::text`;
-        }
-        if (beneficiary_user_id) {
-            params.push(parseInt(beneficiary_user_id));
-            whereClause += ` AND rc.beneficiary_user_id = $${params.length}`;
         }
         if (status) {
             params.push(status);

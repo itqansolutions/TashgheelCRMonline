@@ -5,6 +5,7 @@ const { authorize } = require('../middleware/roleMiddleware');
 
 router.get('/my-progress', controller.getMyTargetProgress);
 router.get('/salesmen', authorize(['admin', 'manager', 'supervisor', 'sales', 'agent', 'employee']), controller.getSalesmen);
+router.get('/salesmen/:userId/performance', authorize(['admin', 'manager', 'supervisor', 'sales', 'agent', 'employee']), controller.getSalesmanPerformance);
 router.get('/performance/:userId', authorize(['admin', 'manager', 'supervisor', 'sales', 'agent', 'employee']), controller.getSalesmanPerformance);
 router.get('/', authorize(['admin', 'manager', 'supervisor', 'sales', 'agent', 'employee']), controller.getTargets);
 

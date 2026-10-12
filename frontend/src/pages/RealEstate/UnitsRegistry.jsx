@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, MapPin, FileText, KeyRound, AlertTriangle } from 'lucide-react';
+import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink } from 'lucide-react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -1090,6 +1090,74 @@ const UnitsRegistry = () => {
                                                     ✓ Currently: {selectedUnit.assigned_to_name || users.find(u => String(u.id) === String(selectedUnit.assigned_to))?.name || 'Assigned'}
                                                 </div>
                                             )}
+                                        </div>
+
+                                        {/* Property Finder Integration Panel */}
+                                        <div style={{ background: '#f0f9ff', padding: '16px', borderRadius: '12px', border: '1px solid #bae6fd', marginBottom: '16px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                <div style={{ fontSize: '11px', color: '#0369a1', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <Globe size={13}/> Property Finder (Egypt)
+                                                </div>
+                                                <span style={{
+                                                    fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px',
+                                                    background: selectedUnit.pf_publication_status === 'published' ? '#dcfce7' : selectedUnit.pf_publication_status === 'rejected' ? '#fee2e2' : selectedUnit.pf_publication_status === 'pending_publication' ? '#fef3c7' : '#f1f5f9',
+                                                    color: selectedUnit.pf_publication_status === 'published' ? '#15803d' : selectedUnit.pf_publication_status === 'rejected' ? '#b91c1c' : selectedUnit.pf_publication_status === 'pending_publication' ? '#b45309' : '#64748b'
+                                                }}>
+                                                    {selectedUnit.pf_publication_status ? selectedUnit.pf_publication_status.replace(/_/g, ' ').toUpperCase() : 'NOT PUBLISHED'}
+                                                </span>
+                                            </div>
+                                            {selectedUnit.pf_rejection_reason && (
+                                                <div style={{ fontSize: '11px', color: '#b91c1c', marginBottom: '8px', padding: '6px 8px', background: '#fef2f2', borderRadius: '6px' }}>
+                                                    ⚠️ Rejection: {selectedUnit.pf_rejection_reason}
+                                                </div>
+                                            )}
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        try {
+                                                            await api.post(`/propertyfinder/units/${selectedUnit.id}/publish`);
+                                                            toast.success('Submitted to Property Finder successfully!');
+                                                            fetchUnits();
+                                                            setSelectedUnit(prev => ({ ...prev, pf_publication_status: 'pending_publication' }));
+                                                        } catch (err) {
+                                                            toast.error(err.response?.data?.message || 'Publishing failed');
+                                                        }
+                                                    }}
+                                                    style={{ flex: 1, padding: '8px 12px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                                                >
+                                                    <UploadCloud size={13}/> {selectedUnit.pf_publication_status === 'published' ? 'Update on PF' : 'Publish to PF'}
+                                                </button>
+                                                {selectedUnit.pf_publication_status === 'published' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={async () => {
+                                                            try {
+                                                                await api.post(`/propertyfinder/units/${selectedUnit.id}/unpublish`);
+                                                                toast.success('Unpublished from Property Finder.');
+                                                                fetchUnits();
+                                                                setSelectedUnit(prev => ({ ...prev, pf_publication_status: 'unpublished' }));
+                                                            } catch (err) {
+                                                                toast.error(err.response?.data?.message || 'Unpublishing failed');
+                                                            }
+                                                        }}
+                                                        style={{ padding: '8px 12px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                                                    >
+                                                        Unpublish
+                                                    </button>
+                                                )}
+                                                {selectedUnit.pf_portal_url && (
+                                                    <a
+                                                        href={selectedUnit.pf_portal_url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        style={{ padding: '8px 12px', background: '#e0f2fe', color: '#0369a1', borderRadius: '8px', fontWeight: 700, fontSize: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+                                                        title="Open in Property Finder"
+                                                    >
+                                                        <ExternalLink size={13}/>
+                                                    </a>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div style={{ display: 'flex', gap: '12px' }}>

@@ -54,8 +54,34 @@ exports.getCommissions = async (req, res) => {
 
   try {
     let targetUserId = user_id ? parseInt(user_id, 10) : null;
+    let effectiveBranchId = null;
 
-    if (userRole !== 'admin' && userRole !== 'finance_manager') {
+    if (userRole === 'admin' || userRole === 'finance_manager') {
+      if (branch_id) {
+        const bCheck = await db.query(
+          'SELECT id FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text',
+          [branch_id, tenant_id]
+        );
+        if (bCheck.rows.length === 0) {
+          return res.status(404).json({ status: 'error', message: 'Requested branch not found or unauthorized.' });
+        }
+        effectiveBranchId = bCheck.rows[0].id;
+      }
+    } else {
+      const enforcedBranchId = req.branchId || req.user?.branch_id || null;
+      if (branch_id) {
+        if (enforcedBranchId && String(branch_id).trim() !== String(enforcedBranchId).trim()) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Unauthorized branch access: You cannot query data outside your assigned branch.',
+            code: 'UNAUTHORIZED_BRANCH_ACCESS'
+          });
+        }
+        effectiveBranchId = branch_id;
+      } else {
+        effectiveBranchId = enforcedBranchId;
+      }
+
       if (!targetUserId) {
         // Default to self for non-managers
         if (userRole === 'sales' || userRole === 'employee') {
@@ -65,7 +91,7 @@ exports.getCommissions = async (req, res) => {
         // If viewing another user, verify manager has access to that user's department
         const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
         const uRes = await db.query('SELECT department_id FROM users WHERE id = $1 AND tenant_id::text = $2::text', [targetUserId, tenant_id]);
-        if (uRes.rows.length === 0 || !accessibleDeptIds.includes(uRes.rows[0].department_id)) {
+        if (uRes.rows.length === 0 || !accessibleDeptIds || !accessibleDeptIds.includes(uRes.rows[0].department_id)) {
           return res.status(403).json({ status: 'error', message: 'You are not authorized to view this user commissions.' });
         }
       }
@@ -73,7 +99,7 @@ exports.getCommissions = async (req, res) => {
 
     const list = await salesCommissionService.getCommissions({
       tenant_id,
-      branch_id: branch_id || null,
+      branch_id: effectiveBranchId,
       user_id: targetUserId,
       period: period || null,
       status: status || null
@@ -93,8 +119,34 @@ exports.getSettlements = async (req, res) => {
 
   try {
     let targetUserId = user_id ? parseInt(user_id, 10) : null;
+    let effectiveBranchId = null;
 
-    if (userRole !== 'admin' && userRole !== 'finance_manager') {
+    if (userRole === 'admin' || userRole === 'finance_manager') {
+      if (branch_id) {
+        const bCheck = await db.query(
+          'SELECT id FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text',
+          [branch_id, tenant_id]
+        );
+        if (bCheck.rows.length === 0) {
+          return res.status(404).json({ status: 'error', message: 'Requested branch not found or unauthorized.' });
+        }
+        effectiveBranchId = bCheck.rows[0].id;
+      }
+    } else {
+      const enforcedBranchId = req.branchId || req.user?.branch_id || null;
+      if (branch_id) {
+        if (enforcedBranchId && String(branch_id).trim() !== String(enforcedBranchId).trim()) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'Unauthorized branch access: You cannot query data outside your assigned branch.',
+            code: 'UNAUTHORIZED_BRANCH_ACCESS'
+          });
+        }
+        effectiveBranchId = branch_id;
+      } else {
+        effectiveBranchId = enforcedBranchId;
+      }
+
       if (!targetUserId) {
         if (userRole === 'sales' || userRole === 'employee') {
           targetUserId = req.user.id;
@@ -102,7 +154,7 @@ exports.getSettlements = async (req, res) => {
       } else if (targetUserId !== req.user.id) {
         const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
         const uRes = await db.query('SELECT department_id FROM users WHERE id = $1 AND tenant_id::text = $2::text', [targetUserId, tenant_id]);
-        if (uRes.rows.length === 0 || !accessibleDeptIds.includes(uRes.rows[0].department_id)) {
+        if (uRes.rows.length === 0 || !accessibleDeptIds || !accessibleDeptIds.includes(uRes.rows[0].department_id)) {
           return res.status(403).json({ status: 'error', message: 'You are not authorized to view this user settlements.' });
         }
       }
@@ -110,7 +162,7 @@ exports.getSettlements = async (req, res) => {
 
     const list = await salesCommissionService.getSettlements({
       tenant_id,
-      branch_id: branch_id || null,
+      branch_id: effectiveBranchId,
       user_id: targetUserId,
       period: period || null,
       status: status || null

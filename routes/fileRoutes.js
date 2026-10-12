@@ -5,13 +5,25 @@ const path = require('path');
 const filesController = require('../controllers/filesController');
 const authMiddleware = require('../middleware/auth');
 
-// Multer Storage Configuration
+const fs = require('fs');
+
+// Multer Storage Configuration (Tenant Isolated Directory)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, './uploads/');
+    try {
+      const tenantId = (req.user && req.user.tenant_id) ? String(req.user.tenant_id) : 'common';
+      const uploadDirPath = path.join(__dirname, '..', 'uploads', tenantId);
+      if (!fs.existsSync(uploadDirPath)) {
+        fs.mkdirSync(uploadDirPath, { recursive: true });
+      }
+      cb(null, uploadDirPath);
+    } catch (err) {
+      cb(err);
+    }
   },
   filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    const sanitizedOriginal = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    cb(null, `${Date.now()}-${sanitizedOriginal}`);
   }
 });
 

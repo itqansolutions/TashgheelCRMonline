@@ -112,10 +112,26 @@ function secureUploads(uploadsDir) {
         return res.sendFile(filePath);
       }
 
-      // Attachments isolation: Verify tenant_id matches
+      // Tenant directory-level isolation check: /uploads/:tenantId/*
+      if (parts.length >= 2 && parts[0] !== 'whatsapp') {
+        const pathTenantId = parts[0];
+        // If the path is under a specific tenant UUID/identifier, verify match
+        if (userTenantId && pathTenantId !== 'common' && String(pathTenantId).toLowerCase() !== String(userTenantId).toLowerCase()) {
+          // If it's a public tenant logo, allow read access
+          const isTenantLogo = attachmentRecord && String(attachmentRecord.linked_type).toLowerCase() === 'tenant';
+          if (!isTenantLogo) {
+            return res.status(403).json({ status: 'error', message: 'Access denied: File belongs to another organization.' });
+          }
+        }
+      }
+
+      // Attachments DB record isolation: Verify tenant_id matches
       if (attachmentRecord && attachmentRecord.tenant_id && userTenantId) {
         if (String(attachmentRecord.tenant_id).toLowerCase() !== String(userTenantId).toLowerCase()) {
-          return res.status(403).json({ status: 'error', message: 'Access denied: File belongs to another organization.' });
+          const isTenantLogo = String(attachmentRecord.linked_type).toLowerCase() === 'tenant';
+          if (!isTenantLogo) {
+            return res.status(403).json({ status: 'error', message: 'Access denied: File belongs to another organization.' });
+          }
         }
       }
 
