@@ -26,6 +26,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'payroll.run', 'payroll.view_own',
     'fiscal.manage', 'opening.post',
     'voucher.cancel',
+    'commission.manage', 'commission.approve', 'commission.pay',
   ]),
   finance_manager: new Set([
     'gl.view', 'journal.create', 'journal.post', 'journal.reverse',
@@ -36,6 +37,7 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'grn.create', 'grn.approve',
     'payment.create', 'payment.approve',
     'payroll.run', 'payroll.view_own',
+    'commission.manage', 'commission.approve', 'commission.pay',
   ]),
   manager: new Set([
     'reports.operational',
@@ -45,18 +47,21 @@ const ROLE_DEFAULT_PERMISSIONS = {
     'payment.create',
     'stock.adjust', 'stock.approve',
     'payroll.view_own',
+    'commission.approve',
   ]),
   accountant: new Set([
     'gl.view', 'journal.create',
     'reports.financial', 'reports.operational',
     'payment.create',
     'payroll.view_own',
+    'commission.pay',
   ]),
   employee: new Set([
     'reports.operational',
     'pr.create',
     'grn.create',
     'payroll.view_own',
+    'commission.view_own',
   ]),
 };
 

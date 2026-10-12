@@ -784,6 +784,14 @@ const recordPaymentInternal = async ({
             paymentRecord.voucher_id = voucherData.id;
         }
 
+        // Phase 3.3C: Accrue sales commission atomically with payment
+        try {
+            const salesCommissionService = require('../services/salesCommissionService');
+            await salesCommissionService.accruePaymentCommission(paymentRecord.id, tenant_id, client);
+        } catch (commErr) {
+            console.warn('[recordPaymentInternal] Sales commission accrual notice:', commErr.message);
+        }
+
         if (shouldManageTx) {
             await client.query('COMMIT');
         }
@@ -1327,6 +1335,14 @@ exports.deleteVoucher = async (req, res) => {
                      WHERE id = $2 AND tenant_id::text = $3::text`,
                     [req.user.id, targetPaymentId, tenant_id]
                 );
+
+                // Phase 3.3C: Reversal or adjustment of sales commission
+                try {
+                    const salesCommissionService = require('../services/salesCommissionService');
+                    await salesCommissionService.processPaymentCancellation(targetPaymentId, tenant_id, req.user, client);
+                } catch (commCancelErr) {
+                    console.warn('[cancelVoucher] Sales commission cancellation notice:', commCancelErr.message);
+                }
 
                 // Recompute invoice paid_amount and status
                 const invRes = await client.query(

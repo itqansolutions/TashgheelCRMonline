@@ -52,4 +52,16 @@ router.get('/salesmen', controller.getSalesmen);
 // ── Documents Hub ──
 router.get('/documents', controller.getSalesDocuments);
 
+// ── Sales Commissions & Earnings Lifecycle (Phase 3.3C) ──
+const commController = require('../controllers/salesCommissionController');
+router.get('/commissions/my-commissions', commController.getMyCommissions);
+router.get('/commissions/my-settlements', commController.getMySettlements);
+router.get('/commissions', authorize(['admin', 'finance_manager', 'manager', 'supervisor', 'sales', 'employee']), commController.getCommissions);
+router.get('/commissions/settlements', authorize(['admin', 'finance_manager', 'manager', 'supervisor', 'sales', 'employee']), commController.getSettlements);
+router.post('/commissions/settlements/generate', authorize(['admin', 'finance_manager', 'manager']), commController.generateSettlement);
+router.put('/commissions/settlements/:id/approve', requirePermission('commission.approve'), commController.approveSettlement);
+router.post('/commissions/settlements/:id/payout', requirePermission('commission.pay'), commController.payoutSettlement);
+router.post('/commissions/rules', requirePermission('commission.manage'), commController.createRule);
+router.post('/commissions/rules/:id/tiers', requirePermission('commission.manage'), commController.setRuleTiers);
+
 module.exports = router;
