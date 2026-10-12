@@ -34,10 +34,11 @@ router.post('/from-deal/:dealId', invoicesController.createInvoiceFromDeal);
 // @access  Private
 router.post('/from-sales-order/:orderId', invoicesController.createInvoiceFromSalesOrder);
 
-// @route   POST api/invoices/:id/payments
+// @route   POST api/invoices/:id/payments or /:id/payment
 // @desc    Add Payment to Invoice
 // @access  Private
 router.post('/:id/payments', requirePermission('payment.create'), invoicesController.addPayment);
+router.post('/:id/payment', requirePermission('payment.create'), invoicesController.addPayment);
 
 // @route   DELETE api/invoices/:id
 // @desc    Delete invoice (Admin only)

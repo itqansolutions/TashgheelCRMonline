@@ -564,116 +564,258 @@ exports.createInvoiceFromDeal = async (req, res) => {
     }
 };
 
-// Internal reusable helper for payments
-const recordPaymentInternal = async ({ tenant_id, branch_id, invoice_id, amount, payment_method, notes, user_id, req, treasury_account_id, existing_voucher_id }) => {
+// Internal reusable helper for payments (Atomic ACID & Concurrency Safe)
+const recordPaymentInternal = async ({
+    tenant_id,
+    branch_id,
+    invoice_id,
+    amount,
+    payment_method,
+    notes,
+    user_id,
+    req,
+    treasury_account_id,
+    existing_voucher_id,
+    client: externalClient
+}) => {
     await ensureInvoicesTable();
-    const invRes = await db.query(
-        'SELECT total_amount, invoice_number, client_id, customer_id FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) FOR UPDATE',
-        [invoice_id, tenant_id, branch_id ? String(branch_id) : null]
-    );
-    if (invRes.rows.length === 0) throw new Error('Invoice not found or unauthorized');
-    
-    const invoice = invRes.rows[0];
-    const invoiceTotal = parseFloat(invoice.total_amount);
+    await ensureVouchersTable();
 
-    const paidRes = await db.query("SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE invoice_id = $1 AND tenant_id::text = $2::text AND (COALESCE(status, 'active') != 'cancelled')", [invoice_id, tenant_id]);
-    const currentlyPaid = parseFloat(paidRes.rows[0].total_paid);
-    const newTotalPaid = currentlyPaid + parseFloat(amount);
-
-    if (newTotalPaid > (invoiceTotal + 0.01)) {
-        throw new Error(`Payment amount exceeds remaining balance. Max allowed: ${(invoiceTotal - currentlyPaid).toFixed(2)}`);
+    // 1. Amount validation
+    const payAmount = parseFloat(amount);
+    if (isNaN(payAmount) || payAmount <= 0) {
+        const err = new Error('Payment amount must be greater than zero');
+        err.status = 400;
+        throw err;
     }
 
-    // Resolve treasury_account_id: use provided value, else fallback to default for this method
-    let resolvedTreasuryId = treasury_account_id || null;
-    if (!resolvedTreasuryId) {
-        try {
-            const accountType = (payment_method === 'bank_transfer' || payment_method === 'card' || payment_method === 'check')
-                ? 'bank' : 'cash';
-            const taRes = await db.query(`
-                SELECT id FROM treasury_accounts
-                WHERE tenant_id::text = $1::text
-                  AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
-                  AND type = $3
-                  AND is_default = true
-                  AND is_active = true
-                LIMIT 1
-            `, [tenant_id, branch_id ? String(branch_id) : null, accountType]);
-            if (taRes.rows.length > 0) resolvedTreasuryId = taRes.rows[0].id;
-        } catch (_) { /* treasury_accounts table may not exist yet — degrade gracefully */ }
+    if (!invoice_id) {
+        const err = new Error('Invoice ID is required');
+        err.status = 400;
+        throw err;
     }
 
-    const payRes = await db.query(`
-        INSERT INTO payments (invoice_id, amount, payment_method, notes, tenant_id, branch_id, treasury_account_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
-    `, [invoice_id, amount, payment_method || 'cash', notes || null, tenant_id, branch_id ? String(branch_id) : null, resolvedTreasuryId]);
+    const client = externalClient || (db.connect ? await db.connect() : await db.pool.connect());
+    const shouldManageTx = !externalClient;
 
+    try {
+        if (shouldManageTx) {
+            await client.query('BEGIN');
+        }
 
-    let newStatus = 'unpaid';
-    if (newTotalPaid >= (invoiceTotal - 0.01)) {
-        newStatus = 'paid';
-    } else if (newTotalPaid > 0) {
-        newStatus = 'partial';
-    }
+        // 2. Lock invoice row with FOR UPDATE and verify tenant scoping
+        const invRes = await client.query(
+            `SELECT id, total_amount, invoice_number, client_id, customer_id, branch_id
+             FROM invoices
+             WHERE id = $1 AND tenant_id::text = $2::text
+             FOR UPDATE`,
+            [invoice_id, tenant_id]
+        );
 
-    await db.query(`UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [newStatus, invoice_id]);
+        if (invRes.rows.length === 0) {
+            const err = new Error('Invoice not found or unauthorized');
+            err.status = 404;
+            throw err;
+        }
 
-    // Link to voucher: if existing_voucher_id was passed, link directly; otherwise auto-generate receipt voucher
-    let voucherData = null;
-    if (existing_voucher_id && payRes.rows.length > 0) {
-        await db.query(`UPDATE payments SET voucher_id = $1 WHERE id = $2`, [existing_voucher_id, payRes.rows[0].id]);
-    } else {
-        try {
-            await ensureVouchersTable();
-            const voucherNumber = await generateVoucherNumber(tenant_id, branch_id, 'receipt');
-            
+        const invoice = invRes.rows[0];
+        const invoiceTotal = parseFloat(invoice.total_amount || 0);
+        const invBranchId = branch_id || invoice.branch_id || null;
+
+        // 3. Compute currently paid amount and check for overpayment
+        const paidRes = await client.query(
+            `SELECT COALESCE(SUM(amount), 0) as total_paid
+             FROM payments
+             WHERE invoice_id = $1 AND tenant_id::text = $2::text AND (COALESCE(status, 'active') != 'cancelled')`,
+            [invoice_id, tenant_id]
+        );
+        const currentlyPaid = parseFloat(paidRes.rows[0].total_paid || 0);
+        const remainingBalance = Number(Math.max(0, invoiceTotal - currentlyPaid).toFixed(2));
+
+        if (payAmount > (remainingBalance + 0.001)) {
+            const err = new Error(`Payment amount (${payAmount}) exceeds remaining balance (${remainingBalance}). Overpayment is not allowed.`);
+            err.status = 400;
+            throw err;
+        }
+
+        const newTotalPaid = Number((currentlyPaid + payAmount).toFixed(2));
+
+        // 4. Resolve & Validate Treasury Account
+        const method = (payment_method || 'cash').toLowerCase();
+        let resolvedTreasuryId = treasury_account_id ? parseInt(treasury_account_id, 10) : null;
+
+        if (resolvedTreasuryId && !isNaN(resolvedTreasuryId)) {
+            // Verify explicitly provided treasury account
+            const taCheck = await client.query(
+                `SELECT id, name, type, is_active, branch_id
+                 FROM treasury_accounts
+                 WHERE id = $1 AND tenant_id::text = $2::text`,
+                [resolvedTreasuryId, tenant_id]
+            );
+
+            if (taCheck.rows.length === 0) {
+                const err = new Error('Specified treasury account not found or unauthorized');
+                err.status = 400;
+                throw err;
+            }
+
+            const acc = taCheck.rows[0];
+            if (!acc.is_active) {
+                const err = new Error(`Specified treasury account '${acc.name}' is inactive`);
+                err.status = 400;
+                throw err;
+            }
+
+            if (invBranchId && acc.branch_id && String(acc.branch_id) !== String(invBranchId)) {
+                const err = new Error('Specified treasury account belongs to another branch');
+                err.status = 400;
+                throw err;
+            }
+        } else {
+            // Rule 1: Card and check require explicit settlement account selection and NEVER auto-fallback
+            if (method === 'card' || method === 'check') {
+                const err = new Error(`Payment method '${method}' requires explicit treasury_account_id selection. Automatic fallback is not permitted for card/check.`);
+                err.status = 400;
+                throw err;
+            }
+
+            // Rule 2: Determine required type strictly for standard cash/bank methods
+            const requiredType = (method === 'bank_transfer' || method === 'bank') ? 'bank' : 'cash';
+
+            // Rule 3: Only match active DEFAULT accounts (is_default = true) - ZERO random fallback
+            const defRes = await client.query(
+                `SELECT id FROM treasury_accounts
+                 WHERE tenant_id::text = $1::text
+                   AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+                   AND type = $3
+                   AND is_default = true
+                   AND is_active = true
+                 ORDER BY (CASE WHEN branch_id::text = $2::text THEN 0 ELSE 1 END) ASC
+                 LIMIT 1`,
+                [tenant_id, invBranchId ? String(invBranchId) : null, requiredType]
+            );
+
+            if (defRes.rows.length > 0) {
+                resolvedTreasuryId = defRes.rows[0].id;
+            } else {
+                const err = new Error(`No active default ${requiredType} treasury account found for this branch/tenant. Please specify a treasury account or configure a default account in Finance Settings.`);
+                err.status = 400;
+                throw err;
+            }
+        }
+
+        // 5. Insert payment record
+        const payRes = await client.query(`
+            INSERT INTO payments (invoice_id, amount, payment_method, notes, tenant_id, branch_id, treasury_account_id, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
+            RETURNING *
+        `, [
+            invoice_id,
+            payAmount,
+            method,
+            notes || null,
+            tenant_id,
+            invBranchId ? String(invBranchId) : null,
+            resolvedTreasuryId
+        ]);
+        const paymentRecord = payRes.rows[0];
+
+        // 6. Update invoice status
+        let newStatus = 'unpaid';
+        if (newTotalPaid >= (invoiceTotal - 0.01)) {
+            newStatus = 'paid';
+        } else if (newTotalPaid > 0) {
+            newStatus = 'partial';
+        }
+
+        await client.query(
+            `UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text`,
+            [newStatus, invoice_id, tenant_id]
+        );
+
+        // 7. Link / Generate receipt voucher
+        let voucherData = null;
+        if (existing_voucher_id) {
+            await client.query(`UPDATE payments SET voucher_id = $1 WHERE id = $2`, [existing_voucher_id, paymentRecord.id]);
+            await client.query(
+                `UPDATE finance_vouchers SET treasury_account_id = COALESCE(treasury_account_id, $1) WHERE id = $2 AND tenant_id::text = $3::text`,
+                [resolvedTreasuryId, existing_voucher_id, tenant_id]
+            );
+            paymentRecord.voucher_id = existing_voucher_id;
+        } else {
+            const voucherNumber = await generateVoucherNumber(tenant_id, invBranchId, 'receipt', client);
+
             let clientName = 'عميل';
             const targetCustId = invoice.customer_id || invoice.client_id;
             if (targetCustId) {
-                const cRes = await db.query('SELECT name FROM customers WHERE id::text = $1::text', [String(targetCustId)]);
-                if (cRes.rows.length > 0) clientName = cRes.rows[0].name;
+                const cRes = await client.query(
+                    'SELECT name FROM customers WHERE id::text = $1::text AND tenant_id::text = $2::text',
+                    [String(targetCustId), tenant_id]
+                );
+                if (cRes.rows.length > 0 && cRes.rows[0].name) {
+                    clientName = cRes.rows[0].name;
+                }
             }
 
-            const vRes = await db.query(`
+            const vRes = await client.query(`
                 INSERT INTO finance_vouchers (
                     voucher_number, voucher_type, party_type, party_name, customer_id, invoice_id,
-                    amount, payment_method, treasury_account_id, notes, voucher_date, created_by, tenant_id, branch_id
-                ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, $8, CURRENT_DATE, $9, $10, $11)
+                    amount, payment_method, treasury_account_id, notes, voucher_date, created_by, tenant_id, branch_id, status
+                ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, $8, CURRENT_DATE, $9, $10, $11, 'active')
                 RETURNING *
             `, [
-                voucherNumber, clientName, targetCustId ? String(targetCustId) : null, invoice_id, amount,
-                payment_method || 'cash', resolvedTreasuryId, notes ? `${notes} (سداد فاتورة ${invoice.invoice_number})` : `سداد فاتورة رقم ${invoice.invoice_number}`,
-                user_id || null, tenant_id, branch_id ? String(branch_id) : null
+                voucherNumber,
+                clientName,
+                targetCustId ? String(targetCustId) : null,
+                invoice_id,
+                payAmount,
+                method,
+                resolvedTreasuryId,
+                notes ? `${notes} (سداد فاتورة ${invoice.invoice_number})` : `سداد فاتورة رقم ${invoice.invoice_number}`,
+                user_id || null,
+                tenant_id,
+                invBranchId ? String(invBranchId) : null
             ]);
             voucherData = vRes.rows[0];
-            if (voucherData && payRes.rows.length > 0) {
-                await db.query(`UPDATE payments SET voucher_id = $1 WHERE id = $2`, [voucherData.id, payRes.rows[0].id]);
+
+            await client.query(`UPDATE payments SET voucher_id = $1 WHERE id = $2`, [voucherData.id, paymentRecord.id]);
+            paymentRecord.voucher_id = voucherData.id;
+        }
+
+        if (shouldManageTx) {
+            await client.query('COMMIT');
+        }
+
+        // Post-commit side effects: audit log
+        try {
+            if (req) {
+                logAction({ req, action: ACTIONS.PAYMENT, entityType: 'Invoice', entityId: invoice_id, details: { amount: payAmount, newStatus, method, treasury_account_id: resolvedTreasuryId } });
             }
-        } catch (vErr) {
-            console.warn('[Auto Voucher Warning]: Could not auto-create receipt voucher:', vErr.message);
+        } catch (logErr) {
+            console.warn('[recordPaymentInternal] Audit log notice:', logErr.message);
+        }
+
+        return { payment: paymentRecord, newStatus, voucher: voucherData };
+    } catch (err) {
+        if (shouldManageTx) {
+            try { await client.query('ROLLBACK'); } catch (_) {}
+        }
+        throw err;
+    } finally {
+        if (shouldManageTx) {
+            client.release();
         }
     }
-
-    // Phase G-1 Architectural Boundary:
-    // Physical stock deductions are strictly governed by DeliveryNoteService upon delivery confirmation.
-    // Invoices are financial obligation documents and must never move warehouse stock on settlement.
-
-    if (req) {
-        logAction({ req, action: ACTIONS.PAYMENT, entityType: 'Invoice', entityId: invoice_id, details: { amount, newStatus } });
-    }
-
-    return { payment: payRes.rows[0], newStatus, voucher: voucherData };
 };
 
 // @desc    Register a new payment against an invoice (Partial Payment Support)
 // @route   POST /api/finance/payments
 exports.createPayment = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
-    const { invoice_id, amount, payment_method, notes } = req.body;
+    const branch_id = req.branchId || req.user?.branch_id || null;
+    const { invoice_id, amount, payment_method, notes, treasury_account_id } = req.body;
 
     try {
-        await db.query('BEGIN');
         const result = await recordPaymentInternal({
             tenant_id,
             branch_id,
@@ -682,32 +824,40 @@ exports.createPayment = async (req, res) => {
             payment_method,
             notes,
             user_id: req.user.id,
-            req
+            req,
+            treasury_account_id
         });
-        await db.query('COMMIT');
 
         res.status(201).json({
             status: 'success',
             data: result.payment,
             voucher: result.voucher,
+            invoiceStatus: result.newStatus,
             message: `Payment registered. Invoice status updated to ${result.newStatus}`
         });
     } catch (err) {
-        await db.query('ROLLBACK');
         console.error('createPayment Error:', err.message);
-        res.status(400).json({ status: 'error', message: err.message });
+        const statusCode = err.status || ((err.message && (
+            err.message.includes('exceeds remaining') ||
+            err.message.includes('not found') ||
+            err.message.includes('unauthorized') ||
+            err.message.includes('treasury') ||
+            err.message.includes('greater than zero') ||
+            err.message.includes('positive') ||
+            err.message.includes('Invalid')
+        )) ? 400 : 500);
+        res.status(statusCode).json({ status: 'error', message: err.message });
     }
 };
 
 // @desc    Register payment from nested route: POST /api/finance/invoices/:id/payments
 exports.createInvoicePaymentDirect = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
+    const branch_id = req.branchId || req.user?.branch_id || null;
     const invoice_id = req.params.id;
-    const { amount, payment_method, notes } = req.body;
+    const { amount, payment_method, notes, treasury_account_id } = req.body;
 
     try {
-        await db.query('BEGIN');
         const result = await recordPaymentInternal({
             tenant_id,
             branch_id,
@@ -716,20 +866,29 @@ exports.createInvoicePaymentDirect = async (req, res) => {
             payment_method,
             notes,
             user_id: req.user.id,
-            req
+            req,
+            treasury_account_id
         });
-        await db.query('COMMIT');
 
         res.status(201).json({
             status: 'success',
             data: result.payment,
             voucher: result.voucher,
+            invoiceStatus: result.newStatus,
             message: `Payment registered. Invoice status updated to ${result.newStatus}`
         });
     } catch (err) {
-        await db.query('ROLLBACK');
         console.error('createInvoicePaymentDirect Error:', err.message);
-        res.status(400).json({ status: 'error', message: err.message });
+        const statusCode = err.status || ((err.message && (
+            err.message.includes('exceeds remaining') ||
+            err.message.includes('not found') ||
+            err.message.includes('unauthorized') ||
+            err.message.includes('treasury') ||
+            err.message.includes('greater than zero') ||
+            err.message.includes('positive') ||
+            err.message.includes('Invalid')
+        )) ? 400 : 500);
+        res.status(statusCode).json({ status: 'error', message: err.message });
     }
 };
 
@@ -2851,6 +3010,7 @@ exports.ensureInvoicesTable = ensureInvoicesTable;
 exports.ensureVouchersTable = ensureVouchersTable;
 exports.generateVoucherNumber = generateVoucherNumber;
 exports.generateInvoiceNumber = generateInvoiceNumber;
+exports.recordPaymentInternal = recordPaymentInternal;
 
 
 
