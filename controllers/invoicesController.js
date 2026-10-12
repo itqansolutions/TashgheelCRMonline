@@ -53,12 +53,16 @@ exports.getInvoiceById = async (req, res) => {
 exports.createInvoiceFromQuotation = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   try {
-    const invoice = await salesService.convertQuotationToInvoice(req.params.quotationId, tenant_id);
+    const invoice = await salesService.convertQuotationToInvoice(req.params.quotationId, tenant_id, {
+      userId: req.user.id,
+      branchId: req.branchId || null
+    });
     
     // Log Billing Event
     logAction({ req, action: ACTIONS.BILLING, entityType: 'Invoice', entityId: invoice.id, details: { source: 'quotation', sourceId: req.params.quotationId } });
 
-    res.status(201).json({ status: 'success', data: invoice });
+    const statusCode = invoice && (invoice._alreadyConverted || invoice._alreadyExists) ? 200 : 201;
+    res.status(statusCode).json({ status: 'success', data: invoice });
   } catch (err) {
     console.error(err.message);
     res.status(400).json({ status: 'error', message: err.message });

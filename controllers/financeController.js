@@ -239,14 +239,16 @@ const ensureInvoicesTable = async () => {
     }
 };
 
-// Helper to generate Invoice Number (collision-free & multi-tenant safe)
-const generateInvoiceNumber = async (tenant_id, branch_id) => {
-    await ensureInvoicesTable();
+const generateInvoiceNumber = async (tenant_id, branch_id, queryClient = null) => {
+    if (!queryClient) {
+        await ensureInvoicesTable();
+    }
+    const executor = queryClient || db;
     let prefix = 'INV-';
 
     if (branch_id) {
         try {
-            const branchRes = await db.query(
+            const branchRes = await executor.query(
                 'SELECT invoice_prefix FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text',
                 [branch_id, tenant_id]
             );
@@ -262,7 +264,7 @@ const generateInvoiceNumber = async (tenant_id, branch_id) => {
     // Get the maximum sequential number for this prefix in this tenant
     let maxSeq = 0;
     try {
-        const seqRes = await db.query(
+        const seqRes = await executor.query(
             `SELECT invoice_number FROM invoices 
              WHERE tenant_id::text = $1::text AND invoice_number LIKE $2
              ORDER BY id DESC LIMIT 100`,
@@ -285,7 +287,7 @@ const generateInvoiceNumber = async (tenant_id, branch_id) => {
     // Loop check to guarantee absolute uniqueness (no duplicate key exception ever)
     let attempts = 0;
     while (attempts < 100) {
-        const exists = await db.query(
+        const exists = await executor.query(
             `SELECT id FROM invoices WHERE tenant_id::text = $1::text AND invoice_number = $2 LIMIT 1`,
             [tenant_id, invoiceNumber]
         );

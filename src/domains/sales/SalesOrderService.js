@@ -87,95 +87,117 @@ async function createSalesOrder(tenantId, branchId, data, userId) {
 }
 
 /**
+ * Internal helper to convert Quotation to Sales Order.
+ */
+async function _convertQuotationToSalesOrderInternal(client, { tenantId, branchId, quotationId, userId }) {
+  // 1. Row-level lock on the Quotation record scoped to tenant
+  const qRes = await client.query(
+    `SELECT * FROM quotations
+     WHERE id = $1 AND tenant_id::text = $2::text
+     FOR UPDATE`,
+    [quotationId, String(tenantId)]
+  );
+  if (qRes.rows.length === 0) throw new Error('Quotation not found.');
+
+  const quo = qRes.rows[0];
+
+  // Real estate isolation: general sales cycle cannot convert quotations linked to real estate units
+  if (quo.unit_id) {
+    throw new Error('Quotation is linked to a Real Estate unit and cannot be converted through the general sales order workflow.');
+  }
+
+  // Branch isolation: if caller specifies branchId and quotation is bound to another branch, reject
+  if (branchId && quo.branch_id && String(branchId) !== String(quo.branch_id)) {
+    throw new Error(`Branch isolation violation: Quotation belongs to branch '${quo.branch_id}', unauthorized from branch '${branchId}'`);
+  }
+
+  // 2. Validate Quotation status: must be 'approved' or 'converted_to_so' (if prior SO was cancelled)
+  if (quo.status !== 'approved' && quo.status !== 'converted_to_so') {
+    throw new Error(`Cannot convert Quotation: Current status is '${quo.status}'. Quotation must be 'approved' to convert to Sales Order.`);
+  }
+
+  // 3. Idempotency Check: check if an active (non-cancelled) Sales Order already exists for this quotation
+  const existingSoRes = await client.query(
+    `SELECT * FROM sales_orders
+     WHERE quotation_id = $1
+       AND tenant_id::text = $2::text
+       AND (status IS NULL OR status != 'cancelled')
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [quotationId, String(tenantId)]
+  );
+
+  if (existingSoRes.rows.length > 0) {
+    return {
+      ...existingSoRes.rows[0],
+      _alreadyConverted: true
+    };
+  }
+
+  // 4. Validate customer association
+  const customerId = quo.client_id ? (parseInt(quo.client_id, 10) || null) : null;
+  if (!customerId) {
+    throw new Error('Quotation must have a valid customer associated to convert to Sales Order.');
+  }
+
+  // 5. Fetch quotation items
+  const itemsRes = await client.query(
+    `SELECT * FROM quotation_items
+     WHERE quotation_id = $1
+     ORDER BY id ASC`,
+    [quotationId]
+  );
+
+  if (itemsRes.rows.length === 0) {
+    throw new Error('Quotation contains no items to convert to Sales Order.');
+  }
+
+  const soData = {
+    customer_id: customerId,
+    deal_id: quo.deal_id ? (parseInt(quo.deal_id, 10) || null) : null,
+    quotation_id: quo.id,
+    notes: `Converted from Quotation #${quo.number || quo.id}. ${quo.notes || ''}`.trim(),
+    items: itemsRes.rows.map(i => ({
+      product_id: i.product_id ? (parseInt(i.product_id, 10) || null) : null,
+      description: i.description,
+      quantity: i.quantity,
+      unit_price: i.unit_price,
+    }))
+  };
+
+  // 6. Create Sales Order atomically using the SAME transaction client (no nested transaction)
+  const salesOrder = await _createSalesOrderInternal(client, {
+    tenantId,
+    branchId: branchId || quo.branch_id || null,
+    data: soData,
+    userId
+  });
+
+  // 7. Update Quotation status to converted_to_so within the same transaction
+  await client.query(
+    `UPDATE quotations
+     SET status = 'converted_to_so', updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1 AND tenant_id::text = $2::text`,
+    [quotationId, String(tenantId)]
+  );
+
+  return salesOrder;
+}
+
+/**
  * Convert an approved Quotation into a Sales Order.
  * Executes inside a single connected database transaction with row-level locking.
+ * Can reuse an external client (clientOverride) for composite transactions.
  */
-async function convertQuotationToSalesOrder(tenantId, branchId, quotationId, userId) {
+async function convertQuotationToSalesOrder(tenantId, branchId, quotationId, userId, clientOverride = null) {
+  if (clientOverride) {
+    return await _convertQuotationToSalesOrderInternal(clientOverride, { tenantId, branchId, quotationId, userId });
+  }
   return await TransactionEngine.executeTransaction(async (client) => {
-    // 1. Row-level lock on the Quotation record scoped to tenant
-    const qRes = await client.query(
-      `SELECT * FROM quotations
-       WHERE id = $1 AND tenant_id::text = $2::text
-       FOR UPDATE`,
-      [quotationId, String(tenantId)]
-    );
-    if (qRes.rows.length === 0) throw new Error('Quotation not found.');
-
-    const quo = qRes.rows[0];
-
-    // 2. Validate Quotation status: must be 'approved' or 'converted_to_so' (if prior SO was cancelled)
-    if (quo.status !== 'approved' && quo.status !== 'converted_to_so') {
-      throw new Error(`Cannot convert Quotation: Current status is '${quo.status}'. Quotation must be 'approved' to convert to Sales Order.`);
-    }
-
-    // 3. Idempotency Check: check if an active (non-cancelled) Sales Order already exists for this quotation
-    const existingSoRes = await client.query(
-      `SELECT * FROM sales_orders
-       WHERE quotation_id = $1
-         AND tenant_id::text = $2::text
-         AND (status IS NULL OR status != 'cancelled')
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [quotationId, String(tenantId)]
-    );
-
-    if (existingSoRes.rows.length > 0) {
-      return {
-        ...existingSoRes.rows[0],
-        _alreadyConverted: true
-      };
-    }
-
-    // 4. Validate customer association
-    const customerId = quo.client_id ? (parseInt(quo.client_id, 10) || null) : null;
-    if (!customerId) {
-      throw new Error('Quotation must have a valid customer associated to convert to Sales Order.');
-    }
-
-    // 5. Fetch quotation items
-    const itemsRes = await client.query(
-      `SELECT * FROM quotation_items
-       WHERE quotation_id = $1
-       ORDER BY id ASC`,
-      [quotationId]
-    );
-
-    if (itemsRes.rows.length === 0) {
-      throw new Error('Quotation contains no items to convert to Sales Order.');
-    }
-
-    const soData = {
-      customer_id: customerId,
-      deal_id: quo.deal_id ? (parseInt(quo.deal_id, 10) || null) : null,
-      quotation_id: quo.id,
-      notes: `Converted from Quotation #${quo.number || quo.id}. ${quo.notes || ''}`.trim(),
-      items: itemsRes.rows.map(i => ({
-        product_id: i.product_id ? (parseInt(i.product_id, 10) || null) : null,
-        description: i.description,
-        quantity: i.quantity,
-        unit_price: i.unit_price,
-      }))
-    };
-
-    // 6. Create Sales Order atomically using the SAME transaction client (no nested transaction)
-    const salesOrder = await _createSalesOrderInternal(client, {
-      tenantId,
-      branchId: branchId || quo.branch_id || null,
-      data: soData,
-      userId
-    });
-
-    // 7. Update Quotation status to converted_to_so within the same transaction
-    await client.query(
-      `UPDATE quotations
-       SET status = 'converted_to_so', updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND tenant_id::text = $2::text`,
-      [quotationId, String(tenantId)]
-    );
-
-    return salesOrder;
+    return await _convertQuotationToSalesOrderInternal(client, { tenantId, branchId, quotationId, userId });
   });
 }
+
 
 /**
  * Confirm a Sales Order.

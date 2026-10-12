@@ -1,32 +1,129 @@
 const db = require('../config/db');
+const SalesOrderService = require('../src/domains/sales/SalesOrderService');
 
 /**
- * Converts a Quotation into an Invoice
- * @param {number} quotationId
+ * Converts a Quotation into an Invoice via the authoritative Sales Order workflow.
+ * Executes inside a SINGLE database transaction with row-level locks, ensuring full ACID atomicity.
+ *
+ * Flow:
+ * 1. Locks quotation (FOR UPDATE), validates status ('approved' or 'converted_to_so').
+ * 2. Blocks real estate quotations (unit_id).
+ * 3. Resolves or atomically creates Sales Order with all items.
+ * 4. Resolves or atomically creates Invoice with all items from the Sales Order.
+ * 5. Handles repeated calls (Idempotent) returning the existing invoice linked to the Sales Order.
+ *
+ * @param {number|string} quotationId
  * @param {string} tenant_id
- * @returns {Promise<object>} The new invoice
+ * @param {object} [options] - optional { userId, branchId }
+ * @returns {Promise<object>} The invoice
  */
-exports.convertQuotationToInvoice = async (quotationId, tenant_id) => {
-  // 1. Get quotation details with isolation check
-  const quoteResult = await db.query('SELECT * FROM quotations WHERE id = $1 AND tenant_id = $2', [quotationId, tenant_id]);
-  if (quoteResult.rows.length === 0) throw new Error('Quotation not found or unauthorized');
+exports.convertQuotationToInvoice = async (quotationId, tenant_id, options = {}) => {
+  const { ensureInvoicesTable } = require('../controllers/financeController');
+  await ensureInvoicesTable();
 
-  const quotation = quoteResult.rows[0];
-  if (quotation.status !== 'approved') throw new Error('Quotation must be approved before invoicing');
+  const { userId = 1, branchId = null } = options;
+  const client = db.connect ? await db.connect() : await db.pool.connect();
 
-  // 2. Create Invoice with tenant context
-  const invoiceNumber = `INV-${Date.now()}`;
-  const invoiceResult = await db.query(
-    'INSERT INTO invoices (quotation_id, client_id, invoice_number, total_amount, due_date, status, tenant_id, branch_id, deal_id) VALUES ($1, $2, $3, $4, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\', $5, $6, $7) RETURNING *',
-    [quotationId, quotation.client_id, invoiceNumber, quotation.total_amount, tenant_id, quotation.branch_id, quotation.deal_id || null]
-  );
+  try {
+    await client.query('BEGIN');
 
-  const invoice = invoiceResult.rows[0];
+    // 1. Row-level lock on Quotation
+    const qRes = await client.query(
+      `SELECT * FROM quotations
+       WHERE id = $1 AND tenant_id::text = $2::text
+       FOR UPDATE`,
+      [quotationId, String(tenant_id)]
+    );
+    if (qRes.rows.length === 0) {
+      throw new Error('Quotation not found or unauthorized');
+    }
 
-  // 3. Update Quotation Status with isolation
-  await db.query('UPDATE quotations SET status = $1 WHERE id = $2 AND tenant_id = $3', ['invoiced', quotationId, tenant_id]);
+    const quo = qRes.rows[0];
 
-  return invoice;
+    // 2. Strict Real Estate Isolation
+    if (quo.unit_id) {
+      throw new Error('Quotation is linked to a Real Estate unit and cannot be converted through the general sales order/invoice workflow.');
+    }
+
+    // 2b. Strict Branch Isolation
+    if (branchId && quo.branch_id && String(branchId) !== String(quo.branch_id)) {
+      throw new Error(`Branch isolation violation: Quotation belongs to branch '${quo.branch_id}', unauthorized from branch '${branchId}'`);
+    }
+
+    // 3. Status Validation
+    if (quo.status !== 'approved' && quo.status !== 'converted_to_so' && quo.status !== 'invoiced') {
+      throw new Error(`Quotation must be approved before invoicing (current status: '${quo.status}')`);
+    }
+
+    // 4. Check for existing Sales Order linked to this quotation
+    const existingSoRes = await client.query(
+      `SELECT * FROM sales_orders
+       WHERE quotation_id = $1
+         AND tenant_id::text = $2::text
+         AND (status IS NULL OR status != 'cancelled')
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [quotationId, String(tenant_id)]
+    );
+
+    let salesOrder;
+    if (existingSoRes.rows.length > 0) {
+      salesOrder = existingSoRes.rows[0];
+    } else {
+      // Convert quotation to sales order atomically using the SAME database client
+      salesOrder = await SalesOrderService.convertQuotationToSalesOrder(
+        tenant_id,
+        branchId || quo.branch_id || null,
+        quotationId,
+        userId,
+        client
+      );
+    }
+
+    // 5. Idempotency Check: check if active invoice already exists for this sales_order_id
+    const existingInvRes = await client.query(
+      `SELECT * FROM invoices
+       WHERE sales_order_id::text = $1::text
+         AND tenant_id::text = $2::text
+         AND (status IS NULL OR status != 'cancelled')
+       LIMIT 1`,
+      [String(salesOrder.id), String(tenant_id)]
+    );
+
+    if (existingInvRes.rows.length > 0) {
+      // Mark quotation as invoiced if not already
+      await client.query(
+        `UPDATE quotations SET status = 'invoiced', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND tenant_id::text = $2::text`,
+        [quotationId, String(tenant_id)]
+      );
+
+      await client.query('COMMIT');
+      return {
+        ...existingInvRes.rows[0],
+        _alreadyConverted: true,
+        _alreadyExists: true
+      };
+    }
+
+    // 6. Convert Sales Order to Invoice atomically using the SAME database client
+    const invoice = await exports.convertSalesOrderToInvoice(salesOrder.id, tenant_id, client);
+
+    // 7. Update Quotation Status to 'invoiced'
+    await client.query(
+      `UPDATE quotations SET status = 'invoiced', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND tenant_id::text = $2::text`,
+      [quotationId, String(tenant_id)]
+    );
+
+    await client.query('COMMIT');
+    return invoice;
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 /**
@@ -35,14 +132,19 @@ exports.convertQuotationToInvoice = async (quotationId, tenant_id) => {
  * @param {string} tenant_id
  * @returns {Promise<object>} The new or existing invoice
  */
-exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id) => {
+exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id, clientOverride = null) => {
   const { ensureInvoicesTable, generateInvoiceNumber } = require('../controllers/financeController');
-  await ensureInvoicesTable();
+  if (!clientOverride) {
+    await ensureInvoicesTable();
+  }
 
-  const client = db.connect ? await db.connect() : await db.pool.connect();
+  const isExternalClient = !!clientOverride;
+  const client = clientOverride || (db.connect ? await db.connect() : await db.pool.connect());
 
   try {
-    await client.query('BEGIN');
+    if (!isExternalClient) {
+      await client.query('BEGIN');
+    }
 
     // 1. FOR UPDATE lock on the Sales Order scoped to tenant
     const soRes = await client.query(
@@ -116,7 +218,7 @@ exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id) => {
     }
 
     // 4. Generate deterministic, collision-free invoice number
-    const invoiceNumber = await generateInvoiceNumber(tenant_id, so.branch_id);
+    const invoiceNumber = await generateInvoiceNumber(tenant_id, so.branch_id, client);
 
     // 5. Insert Invoice Header with sales_order_id
     const finalAmount = itemsToInvoice.length > 0 ? totalInvoiceAmount : (parseFloat(so.total_amount) || 0);
@@ -181,13 +283,19 @@ exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id) => {
       [newSoStatus, salesOrderId, String(tenant_id)]
     );
 
-    await client.query('COMMIT');
+    if (!isExternalClient) {
+      await client.query('COMMIT');
+    }
     return invoice;
   } catch (err) {
-    try { await client.query('ROLLBACK'); } catch (_) {}
+    if (!isExternalClient) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+    }
     throw err;
   } finally {
-    client.release();
+    if (!isExternalClient) {
+      client.release();
+    }
   }
 };
 
