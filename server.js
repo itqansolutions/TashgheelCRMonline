@@ -193,6 +193,7 @@ app.use('/api/re-installments',  templateGuard('real_estate'), require('./routes
 app.use('/api/re-commissions',   templateGuard('real_estate'), require('./routes/reCommissionRoutes'));
 app.use('/api/re-cancellations', templateGuard('real_estate'), require('./routes/reCancellationRoutes'));
 app.use('/api/re-handovers',     templateGuard('real_estate'), require('./routes/reHandoverRoutes'));
+app.use('/api/re-targets',       templateGuard('real_estate'), require('./routes/reTargetRoutes'));
 
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/activities', activityRoutes);
@@ -288,8 +289,8 @@ app.use((err, req, res, next) => {
     message: err.message,
     stack: err.stack
   });
-  res.status(err.status || 500).json({ 
-    status: 'error', 
+  res.status(err.status || 500).json({
+    status: 'error',
     message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
     debug: err.message
   });
@@ -304,7 +305,7 @@ const promoteOnStartup = async () => {
     try {
       const SYSTEM_DEFAULT_TENANT = '00000000-0000-0000-0000-000000000000';
       console.log(`🚀 [SaaS OS] Attempting Cloud-Promotion for: ${emailToPromote}`);
-      
+
       // Ensure System Tenant exists
       await db.query(`
         INSERT INTO tenants (id, name, slug, plan, status)
@@ -650,7 +651,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     // 📦 Auto-run Database Migrations on Startup (Idempotent)
     const runMigrations = require('./src/infrastructure/database/migrationRunner');
     await runMigrations();
-    
+
     // 🚀 Initialize Enterprise Event Bus, Event Store & Outbox Engine
     eventBus.setEventStore(eventStoreRepository);
     registerGlobalSubscribers(eventBus);
