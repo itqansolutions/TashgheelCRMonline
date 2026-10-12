@@ -3,6 +3,7 @@ const router = express.Router();
 const controller = require('../controllers/salesController');
 const { requirePermission } = require('../middleware/financialPermission');
 const { sodGuard, loadDocument } = require('../middleware/sodGuard');
+const { authorize } = require('../middleware/roleMiddleware');
 
 // ── Sales Orders ──
 router.get('/orders', controller.getSalesOrders);
@@ -33,10 +34,11 @@ router.put('/returns/:id/confirm',
 );
 
 // ── Sales Targets ──
-router.get('/targets', controller.getTargets);
-router.post('/targets', controller.createTarget);
-router.put('/targets/:id', controller.updateTarget);
-router.delete('/targets/:id', controller.deleteTarget);
+router.get('/targets/my-progress', controller.getMyTargetProgress);
+router.get('/targets', authorize(['admin', 'manager', 'supervisor', 'sales', 'employee']), controller.getTargets);
+router.post('/targets', authorize(['admin', 'manager', 'supervisor']), controller.createTarget);
+router.put('/targets/:id', authorize(['admin', 'manager', 'supervisor']), controller.updateTarget);
+router.delete('/targets/:id', authorize(['admin', 'manager', 'supervisor']), controller.deleteTarget);
 
 // ── Price Tiers ──
 router.get('/price-tiers', controller.getPriceTiers);

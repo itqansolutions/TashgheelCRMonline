@@ -7,6 +7,8 @@ const SalesOrderService = require('../src/domains/sales/SalesOrderService');
 const DeliveryNoteService = require('../src/domains/sales/DeliveryNoteService');
 const SalesReturnService = require('../src/domains/sales/SalesReturnService');
 const salesService = require('../services/salesService');
+const salesTargetService = require('../services/salesTargetService');
+const accessScopeService = require('../services/accessScopeService');
 
 // ── SALES ORDERS ──
 
@@ -138,146 +140,249 @@ exports.getDeliveryNoteNetDelivered = async (req, res) => {
 
 // ── SALES TARGETS ──
 
-exports.getTargets = async (req, res) => {
+exports.getMyTargetProgress = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const { period } = req.query;
 
   try {
-    let query = `
-      SELECT st.*, u.name as salesman_name, u.email as salesman_email, u.phone as salesman_phone
-      FROM sales_targets st
-      JOIN users u ON st.user_id = u.id
-      WHERE st.tenant_id::text = $1::text
-    `;
-    const params = [tenant_id];
+    const targets = await salesTargetService.getTargetsWithProgress({
+      tenant_id,
+      user_id: req.user.id,
+      period: period || null
+    });
+    res.json({ status: 'success', data: targets });
+  } catch (err) {
+    console.error('[salesController] getMyTargetProgress error:', err.message);
+    res.status(err.statusCode || 500).json({ status: 'error', message: err.message });
+  }
+};
 
-    if (period) {
-      query += ` AND st.period = $2`;
-      params.push(period);
+exports.getTargets = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id;
+  const { period, target_scope, user_id, department_id } = req.query;
+  const userRole = req.user.role;
+
+  try {
+    let filterUserId = user_id ? parseInt(user_id, 10) : null;
+    let filterDeptIds = null;
+    let filterBranchId = branch_id;
+
+    if (userRole === 'admin') {
+      // Admin: Unrestricted scope, can filter by any requested parameters
+      if (department_id) {
+        filterDeptIds = [parseInt(department_id, 10)];
+      }
+      if (req.query.branch_id) {
+        filterBranchId = req.query.branch_id;
+      }
+    } else if (userRole === 'manager' || userRole === 'supervisor') {
+      // Manager / Supervisor: Restricted to accessible departments within branch
+      const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+      if (department_id) {
+        const requestedDeptId = parseInt(department_id, 10);
+        if (accessibleDeptIds && !accessibleDeptIds.includes(requestedDeptId)) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'You are not authorized to view targets for this department.'
+          });
+        }
+        filterDeptIds = [requestedDeptId];
+      } else {
+        filterDeptIds = accessibleDeptIds;
+      }
+    } else {
+      // Sales / Employee: Strictly own individual targets
+      filterUserId = req.user.id;
     }
 
-    query += ` ORDER BY st.created_at DESC`;
-
-    const result = await db.query(query, params);
-
-    // Calculate actual achieved revenue per target from closed deals & confirmed sales orders
-    const targets = await Promise.all(result.rows.map(async (t) => {
-      const dealsRes = await db.query(
-        `SELECT COALESCE(SUM(value), 0) as closed_val
-         FROM deals
-         WHERE assigned_to = $1 AND tenant_id::text = $2::text AND pipeline_stage = 'won'`,
-        [t.user_id, tenant_id]
-      );
-      const ordersRes = await db.query(
-        `SELECT COALESCE(SUM(total_amount), 0) as orders_val
-         FROM sales_orders
-         WHERE assigned_to = $1 AND tenant_id::text = $2::text AND status IN ('confirmed', 'delivered', 'invoiced')`,
-        [t.user_id, tenant_id]
-      );
-
-      const achievedFromDB = parseFloat(dealsRes.rows[0].closed_val) + parseFloat(ordersRes.rows[0].orders_val);
-      const finalAchieved = achievedFromDB > 0 ? achievedFromDB : parseFloat(t.achieved_amount || 0);
-      const commRate = parseFloat(t.commission_rate || 0);
-      const commissionEarned = Math.round((finalAchieved * commRate) / 100);
-
-      return {
-        ...t,
-        target_amount: parseFloat(t.target_amount || 0),
-        achieved_amount: finalAchieved,
-        commission_earned: commissionEarned,
-        bonus_threshold: parseFloat(t.bonus_threshold || 0)
-      };
-    }));
+    const targets = await salesTargetService.getTargetsWithProgress({
+      tenant_id,
+      branch_id: filterBranchId,
+      period: period || null,
+      target_scope: target_scope || null,
+      user_id: filterUserId,
+      department_ids: filterDeptIds
+    });
 
     res.json({ status: 'success', data: targets });
   } catch (err) {
     console.error('[salesController] getTargets error:', err.message);
-    res.status(500).json({ status: 'error', message: err.message });
+    res.status(err.statusCode || 500).json({ status: 'error', message: err.message });
   }
 };
 
 exports.createTarget = async (req, res) => {
   const tenant_id = req.user.tenant_id;
-  const branch_id = req.branchId || req.user?.branch_id;
-  const { user_id, period, target_amount, commission_rate, bonus_threshold, notes } = req.body;
-
-  if (!user_id) return res.status(400).json({ status: 'error', message: 'Sales representative is required' });
-  if (!period) return res.status(400).json({ status: 'error', message: 'Target period is required' });
-  if (!target_amount || parseFloat(target_amount) <= 0) return res.status(400).json({ status: 'error', message: 'Valid target amount is required' });
+  const branch_id = req.body.branch_id || req.branchId || req.user?.branch_id;
+  const userRole = req.user.role;
+  const {
+    user_id,
+    department_id,
+    target_scope = 'individual',
+    period,
+    target_amount,
+    commission_rate,
+    bonus_threshold,
+    notes
+  } = req.body;
 
   try {
-    const result = await db.query(`
-      INSERT INTO sales_targets
-        (tenant_id, branch_id, user_id, period, target_amount, commission_rate, bonus_threshold, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *
-    `, [
-      tenant_id,
-      branch_id || null,
-      parseInt(user_id),
-      period.trim(),
-      parseFloat(target_amount),
-      parseFloat(commission_rate) || 0,
-      parseFloat(bonus_threshold) || 0,
-      notes || null
-    ]);
+    // Role-based scope authorization checks for managers
+    if (userRole !== 'admin') {
+      const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
 
-    res.status(201).json({ status: 'success', data: result.rows[0] });
+      if (target_scope === 'department') {
+        const targetDeptId = parseInt(department_id, 10);
+        if (!accessibleDeptIds || !accessibleDeptIds.includes(targetDeptId)) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'You are not authorized to create targets for this department.'
+          });
+        }
+      } else if (target_scope === 'individual') {
+        const targetUserId = parseInt(user_id, 10);
+        // Verify user belongs to manager's accessible department
+        const uCheck = await db.query(
+          `SELECT id, department_id, branch_id FROM users WHERE id = $1 AND tenant_id::text = $2::text`,
+          [targetUserId, tenant_id]
+        );
+        if (uCheck.rows.length === 0) {
+          return res.status(404).json({ status: 'error', message: 'Target user not found.' });
+        }
+        const targetUser = uCheck.rows[0];
+        if (
+          targetUser.id !== req.user.id &&
+          (!accessibleDeptIds || !accessibleDeptIds.includes(targetUser.department_id))
+        ) {
+          return res.status(403).json({
+            status: 'error',
+            message: 'You are not authorized to set targets for an employee outside your managed departments.'
+          });
+        }
+      } else if (target_scope === 'branch' || target_scope === 'company') {
+        return res.status(403).json({
+          status: 'error',
+          message: 'Only tenant administrators can set company or branch targets.'
+        });
+      }
+    }
+
+    const newTarget = await salesTargetService.createTarget(
+      {
+        tenant_id,
+        branch_id: branch_id || null,
+        target_scope,
+        user_id,
+        department_id,
+        period,
+        target_amount,
+        commission_rate,
+        bonus_threshold,
+        notes
+      },
+      req.user
+    );
+
+    res.status(201).json({ status: 'success', data: newTarget });
   } catch (err) {
     console.error('[salesController] createTarget error:', err.message);
-    res.status(500).json({ status: 'error', message: err.message });
+    const statusCode = err.statusCode || 400;
+    res.status(statusCode).json({ status: 'error', message: err.message });
   }
 };
 
 exports.updateTarget = async (req, res) => {
   const tenant_id = req.user.tenant_id;
-  const { user_id, period, target_amount, achieved_amount, commission_rate, bonus_threshold, notes } = req.body;
+  const targetId = parseInt(req.params.id, 10);
+  const userRole = req.user.role;
 
   try {
-    const result = await db.query(`
-      UPDATE sales_targets SET
-        user_id = COALESCE($1, user_id),
-        period = COALESCE($2, period),
-        target_amount = COALESCE($3, target_amount),
-        achieved_amount = COALESCE($4, achieved_amount),
-        commission_rate = COALESCE($5, commission_rate),
-        bonus_threshold = COALESCE($6, bonus_threshold),
-        notes = $7,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = $8 AND tenant_id::text = $9::text
-      RETURNING *
-    `, [
-      user_id ? parseInt(user_id) : null,
-      period || null,
-      target_amount !== undefined ? parseFloat(target_amount) : null,
-      achieved_amount !== undefined ? parseFloat(achieved_amount) : null,
-      commission_rate !== undefined ? parseFloat(commission_rate) : null,
-      bonus_threshold !== undefined ? parseFloat(bonus_threshold) : null,
-      notes || null,
-      req.params.id,
-      tenant_id
-    ]);
+    // If manager, check if target is within accessible scope
+    if (userRole !== 'admin') {
+      const targetRes = await db.query(
+        `SELECT st.*, u.department_id as user_dept_id
+         FROM sales_targets st
+         LEFT JOIN users u ON st.user_id = u.id
+         WHERE st.id = $1 AND st.tenant_id::text = $2::text AND st.deleted_at IS NULL`,
+        [targetId, tenant_id]
+      );
+      if (targetRes.rows.length === 0) {
+        return res.status(404).json({ status: 'error', message: 'Target not found.' });
+      }
+      const t = targetRes.rows[0];
+      const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
 
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Target not found' });
-    res.json({ status: 'success', data: result.rows[0] });
+      if (t.target_scope === 'branch' || t.target_scope === 'company') {
+        return res.status(403).json({ status: 'error', message: 'Only administrators can modify company or branch targets.' });
+      }
+      if (t.target_scope === 'department' && (!accessibleDeptIds || !accessibleDeptIds.includes(t.department_id))) {
+        return res.status(403).json({ status: 'error', message: 'You are not authorized to modify this department target.' });
+      }
+      if (t.target_scope === 'individual') {
+        if (t.user_id !== req.user.id && (!accessibleDeptIds || !accessibleDeptIds.includes(t.user_dept_id))) {
+          return res.status(403).json({ status: 'error', message: 'You are not authorized to modify this employee target.' });
+        }
+      }
+    }
+
+    const updated = await salesTargetService.updateTarget({
+      target_id: targetId,
+      tenant_id,
+      updateData: req.body,
+      actor: req.user
+    });
+
+    res.json({ status: 'success', data: updated });
   } catch (err) {
     console.error('[salesController] updateTarget error:', err.message);
-    res.status(500).json({ status: 'error', message: err.message });
+    res.status(err.statusCode || 500).json({ status: 'error', message: err.message });
   }
 };
 
 exports.deleteTarget = async (req, res) => {
   const tenant_id = req.user.tenant_id;
+  const targetId = parseInt(req.params.id, 10);
+  const userRole = req.user.role;
+
   try {
-    const result = await db.query(
-      `DELETE FROM sales_targets WHERE id = $1 AND tenant_id::text = $2::text RETURNING id`,
-      [req.params.id, tenant_id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Target not found' });
-    res.json({ status: 'success', message: 'Target deleted successfully' });
+    if (userRole !== 'admin') {
+      const targetRes = await db.query(
+        `SELECT st.*, u.department_id as user_dept_id
+         FROM sales_targets st
+         LEFT JOIN users u ON st.user_id = u.id
+         WHERE st.id = $1 AND st.tenant_id::text = $2::text AND st.deleted_at IS NULL`,
+        [targetId, tenant_id]
+      );
+      if (targetRes.rows.length === 0) {
+        return res.status(404).json({ status: 'error', message: 'Target not found.' });
+      }
+      const t = targetRes.rows[0];
+      const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+
+      if (t.target_scope === 'branch' || t.target_scope === 'company') {
+        return res.status(403).json({ status: 'error', message: 'Only administrators can deactivate company or branch targets.' });
+      }
+      if (t.target_scope === 'department' && (!accessibleDeptIds || !accessibleDeptIds.includes(t.department_id))) {
+        return res.status(403).json({ status: 'error', message: 'You are not authorized to deactivate this department target.' });
+      }
+      if (t.target_scope === 'individual') {
+        if (t.user_id !== req.user.id && (!accessibleDeptIds || !accessibleDeptIds.includes(t.user_dept_id))) {
+          return res.status(403).json({ status: 'error', message: 'You are not authorized to deactivate this employee target.' });
+        }
+      }
+    }
+
+    await salesTargetService.softDeleteTarget({
+      target_id: targetId,
+      tenant_id,
+      actor: req.user
+    });
+
+    res.json({ status: 'success', message: 'Target deactivated successfully' });
   } catch (err) {
     console.error('[salesController] deleteTarget error:', err.message);
-    res.status(500).json({ status: 'error', message: err.message });
+    res.status(err.statusCode || 500).json({ status: 'error', message: err.message });
   }
 };
 
