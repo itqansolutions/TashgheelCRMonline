@@ -8,7 +8,7 @@ import {
   Building, ShieldCheck, ArrowLeftRight, Scale,
   Share2, FileCheck, Send, MessageCircle,
   ShoppingCart, ArrowDownLeft, Calendar, Award, Key, Layers, Activity, UserCheck, Clock,
-  Folder, HelpCircle, Bot, Sparkles, CheckCircle2, ListTree
+  Folder, HelpCircle, Bot, Sparkles, CheckCircle2, ListTree, Globe
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useModule } from '../../hooks/useModule';
