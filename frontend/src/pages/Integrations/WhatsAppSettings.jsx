@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import {
   MessageCircle, Save, Send, Eye, EyeOff, Globe, Phone,
   FileText, ToggleLeft, ToggleRight, CheckCircle, AlertCircle, Info, ShieldCheck,
-  Star, RefreshCw, ExternalLink, Sparkles, Bot, Check, Plus, Trash2
+  Star, RefreshCw, ExternalLink, Sparkles, Bot, Check, Plus, Trash2, Smartphone
 } from 'lucide-react';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 
@@ -50,12 +50,83 @@ const WhatsAppSettings = () => {
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [syncingAccounts, setSyncingAccounts] = useState(false);
 
+  // WhatsApp Business Coexistence & Embedded Signup State
+  const [metaAppId, setMetaAppId] = useState('');
+  const [embeddedSignupConfigId, setEmbeddedSignupConfigId] = useState('');
+  const [coexistenceEnabled, setCoexistenceEnabled] = useState(false);
+  const [isConnectingCoexistence, setIsConnectingCoexistence] = useState(false);
+  const [coexistenceSession, setCoexistenceSession] = useState({ phoneNumberId: '', wabaId: '' });
+
   // -------------------------------------------------------------------
   // Load settings & accounts on mount
   // -------------------------------------------------------------------
   useEffect(() => {
     fetchSettings();
     fetchAccounts();
+  }, []);
+
+  // Dynamically load Meta Facebook JavaScript SDK when metaAppId is provided
+  useEffect(() => {
+    if (!metaAppId) return;
+
+    if (!document.getElementById('facebook-jssdk')) {
+      window.fbAsyncInit = function () {
+        if (window.FB) {
+          window.FB.init({
+            appId: metaAppId,
+            cookie: true,
+            xfbml: true,
+            version: 'v21.0'
+          });
+        }
+      };
+      const js = document.createElement('script');
+      js.id = 'facebook-jssdk';
+      js.src = 'https://connect.facebook.net/en_US/sdk.js';
+      js.async = true;
+      js.defer = true;
+      document.body.appendChild(js);
+    } else if (window.FB) {
+      try {
+        window.FB.init({
+          appId: metaAppId,
+          cookie: true,
+          xfbml: true,
+          version: 'v21.0'
+        });
+      } catch (err) {
+        // SDK already initialized or harmless warning
+      }
+    }
+  }, [metaAppId]);
+
+  // Listen for Meta Embedded Signup session messages
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (typeof event.origin === 'string' && !event.origin.endsWith('facebook.com') && !event.origin.endsWith('meta.com')) {
+        return;
+      }
+      try {
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data && data.type === 'WA_EMBEDDED_SIGNUP') {
+          if (data.event === 'FINISH' || data.data?.phone_number_id) {
+            setCoexistenceSession(prev => ({
+              ...prev,
+              phoneNumberId: data.data?.phone_number_id || prev.phoneNumberId,
+              wabaId: data.data?.waba_id || prev.wabaId
+            }));
+          } else if (data.event === 'CANCEL') {
+            setIsConnectingCoexistence(false);
+            toast('تم إلغاء نافذة ربط Meta من قبل المستخدم');
+          }
+        }
+      } catch {
+        // Ignore non-json messages
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   const fetchSettings = async () => {
@@ -74,6 +145,9 @@ const WhatsAppSettings = () => {
           token_preview: d.token_preview || '',
           variable_mapping: vMap
         }));
+        setMetaAppId(d.meta_app_id || '');
+        setEmbeddedSignupConfigId(d.embedded_signup_config_id || '');
+        setCoexistenceEnabled(Boolean(d.coexistence_feature_enabled));
       }
     } catch {
       toast.error('Failed to load WhatsApp settings');
@@ -279,6 +353,73 @@ const WhatsAppSettings = () => {
     }
   };
 
+  // -------------------------------------------------------------------
+  // Connect WhatsApp Business Coexistence (Mobile App + Cloud API)
+  // -------------------------------------------------------------------
+  const handleConnectCoexistence = () => {
+    if (!coexistenceEnabled) {
+      toast.error('ميزة Coexistence معطلة حالياً (Feature Flag: ENABLE_WHATSAPP_COEXISTENCE=false). قم بتفعيلها في متغيرات البيئة بـ Staging.', { duration: 6000 });
+      return;
+    }
+    if (!metaAppId) {
+      toast.error('معرّف تطبيق Meta (META_APP_ID) غير مضبوط في متغيرات بيئة السيرفر.', { duration: 6000 });
+      return;
+    }
+    if (!embeddedSignupConfigId) {
+      toast.error('معرّف الإعداد (META_EMBEDDED_SIGNUP_CONFIG_ID) غير مضبوط في متغيرات بيئة السيرفر.', { duration: 6000 });
+      return;
+    }
+    if (!window.FB) {
+      toast.error('جاري تحميل Meta Facebook SDK، يرجى المحاولة بعد قليل أو التأكد من عدم حجب نطاق Meta في المتصفح.', { duration: 6000 });
+      return;
+    }
+
+    setIsConnectingCoexistence(true);
+    try {
+      window.FB.login((response) => {
+        if (response.authResponse?.code) {
+          completeCoexistenceOnboarding(response.authResponse.code);
+        } else if (response.authResponse?.accessToken) {
+          completeCoexistenceOnboarding(null, response.authResponse.accessToken);
+        } else {
+          setIsConnectingCoexistence(false);
+          toast.error('لم يتم إكمال تفويض حساب Meta بنجاح');
+        }
+      }, {
+        config_id: embeddedSignupConfigId,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          sessionInfoVersion: '2'
+        }
+      });
+    } catch (err) {
+      setIsConnectingCoexistence(false);
+      toast.error(err.message || 'فشل فتح نافذة Meta Embedded Signup');
+    }
+  };
+
+  const completeCoexistenceOnboarding = async (code, accessToken = null) => {
+    try {
+      toast.loading('جاري التحقق من الحساب وتسجيل Coexistence...', { id: 'coex-onboard' });
+      const payload = {
+        code,
+        access_token: accessToken,
+        phone_number_id: coexistenceSession?.phoneNumberId,
+        waba_id: coexistenceSession?.wabaId
+      };
+      const res = await api.post('/whatsapp/coexistence/onboard', payload);
+      toast.success(res.data?.message || 'تم ربط رقم WhatsApp Business بنجاح في وضع Coexistence!', { id: 'coex-onboard' });
+      fetchAccounts();
+      fetchSettings();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل إتمام ربط Coexistence مع Meta', { id: 'coex-onboard', duration: 8000 });
+    } finally {
+      setIsConnectingCoexistence(false);
+    }
+  };
+
   const handleChange = (field, value) => {
     setSettings(prev => ({ ...prev, [field]: value }));
   };
@@ -434,7 +575,7 @@ const WhatsAppSettings = () => {
                 {accounts.map(acc => (
                   <tr key={acc.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '12px 14px', fontWeight: 700, color: '#0f172a' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span>{acc.display_phone_number || acc.phone_number_id}</span>
                         {acc.is_default && (
                           <span style={{
@@ -442,6 +583,23 @@ const WhatsAppSettings = () => {
                             padding: '1px 7px', borderRadius: 12, fontWeight: 700
                           }}>
                             ★ Primary Default
+                          </span>
+                        )}
+                        {acc.connection_type === 'coexistence' ? (
+                          <span style={{
+                            background: '#dcfce7', color: '#15803d', fontSize: 11,
+                            padding: '1px 7px', borderRadius: 12, fontWeight: 700,
+                            display: 'inline-flex', alignItems: 'center', gap: 3
+                          }}>
+                            📱 Coexistence
+                          </span>
+                        ) : (
+                          <span style={{
+                            background: '#f1f5f9', color: '#475569', fontSize: 11,
+                            padding: '1px 7px', borderRadius: 12, fontWeight: 600,
+                            display: 'inline-flex', alignItems: 'center', gap: 3
+                          }}>
+                            ☁️ Cloud API
                           </span>
                         )}
                       </div>
@@ -497,7 +655,191 @@ const WhatsAppSettings = () => {
         )}
       </div>
 
-      <form onSubmit={handleSave}>
+      {/* ── Choose Connection Method (Dual Options) ── */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 14 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
+            طريقة ربط واتساب (WhatsApp Connection Method)
+          </h3>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>
+            اختر الطريقة المناسبة لعملك: الاحتفاظ بتطبيق WhatsApp Business على الموبايل (Coexistence) أو الربط السحابي المباشر (Cloud API).
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+          {/* Card 1: Coexistence (Mobile App + CRM) */}
+          <div style={{
+            background: '#fff',
+            border: '2px solid #25D366',
+            borderRadius: 12,
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            position: 'relative',
+            boxShadow: '0 4px 12px rgba(37,211,102,0.08)'
+          }}>
+            <div style={{
+              position: 'absolute', top: 12, right: 12,
+              background: '#ecfdf5', color: '#15803d',
+              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: 4
+            }}>
+              <Sparkles size={12} /> ميزة جديدة (Hybrid)
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10,
+                  background: 'linear-gradient(135deg, #25D366, #128C7E)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <Smartphone size={22} color="#fff" />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                    ربط واتساب بيزنس بالموبايل (Coexistence)
+                  </h4>
+                  <span style={{ fontSize: 12, color: '#64748b' }}>WhatsApp Business Mobile App + Cloud API</span>
+                </div>
+              </div>
+
+              <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.6, margin: '0 0 14px' }}>
+                احتفظ باستخدام تطبيق WhatsApp Business على هاتفك للمحادثات اليدوية، واربطه بالـ CRM في نفس الوقت لمزامنة الرسائل والرسائل الترحيبية التلقائية.
+              </p>
+
+              <div style={{
+                background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
+                padding: '10px 12px', marginBottom: 16, fontSize: 12, color: '#475569'
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Info size={14} color="#0284c7" /> حالة الجاهزية (Meta Readiness):
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.5 }}>
+                  <li>
+                    Meta App ID: {metaAppId ? <span style={{ color: '#16a34a', fontWeight: 600 }}>جاهز ({metaAppId})</span> : <span style={{ color: '#dc2626', fontWeight: 600 }}>غير مضبوط في البيئة</span>}
+                  </li>
+                  <li>
+                    Config ID: {embeddedSignupConfigId ? <span style={{ color: '#16a34a', fontWeight: 600 }}>جاهز</span> : <span style={{ color: '#dc2626', fontWeight: 600 }}>غير مضبوط في البيئة</span>}
+                  </li>
+                  <li>
+                    Feature Flag: {coexistenceEnabled ? <span style={{ color: '#16a34a', fontWeight: 600 }}>مفعّل</span> : <span style={{ color: '#eab308', fontWeight: 600 }}>معطّل افتراضياً لحماية الإنتاج</span>}
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={handleConnectCoexistence}
+                disabled={isConnectingCoexistence}
+                style={{
+                  width: '100%',
+                  padding: '12px 18px',
+                  background: 'linear-gradient(135deg, #25D366, #128C7E)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: isConnectingCoexistence ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  boxShadow: '0 2px 8px rgba(37,211,102,0.25)',
+                  opacity: isConnectingCoexistence ? 0.7 : 1
+                }}
+              >
+                <Smartphone size={16} />
+                {isConnectingCoexistence ? 'جاري الاتصال بـ Meta...' : 'Connect WhatsApp Business'}
+              </button>
+              <span style={{ display: 'block', textAlign: 'center', fontSize: 11, color: '#94a3b8', marginTop: 6 }}>
+                يتطلب إعداد Meta Embedded Signup والتحقق من أهلية الحساب قبل نجاح الربط
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: Cloud API (Existing - Preserved) */}
+          <div style={{
+            background: '#fff',
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            padding: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            position: 'relative'
+          }}>
+            <div style={{
+              position: 'absolute', top: 12, right: 12,
+              background: '#eff6ff', color: '#1d4ed8',
+              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: 4
+            }}>
+              <ShieldCheck size={12} /> الحالي — يُحافظ عليه
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10,
+                  background: '#f1f5f9',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <Globe size={22} color="#475569" />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>
+                    الربط التقليدي — Cloud API
+                  </h4>
+                  <span style={{ fontSize: 12, color: '#64748b' }}>Meta Cloud API Direct Credentials</span>
+                </div>
+              </div>
+
+              <p style={{ fontSize: 13, color: '#334155', lineHeight: 1.6, margin: '0 0 14px' }}>
+                إدخال Phone Number ID وAccess Token يدويًا ومزامنة الأرقام من لوحة Meta Developers. الخيار الأنسب للأرقام المخصصة للبوتات فقط بدون استخدام تطبيق الهاتف.
+              </p>
+
+              <div style={{
+                background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
+                padding: '10px 12px', marginBottom: 16, fontSize: 12, color: '#475569'
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                  الحالة: {settings.has_access_token ? '✅ التوكن محفوظ ومتصل' : '⚠️ بانتظار إدخال البيانات'}
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>
+                  {settings.phone_number_id ? `رقم الهاتف: ${settings.phone_number_id}` : 'لم يتم ربط رقم افتراضي بعد'}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <a
+                href="#cloud-api-form"
+                style={{
+                  display: 'block',
+                  textAlign: 'center',
+                  padding: '10px 16px',
+                  background: '#f8fafc',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 8,
+                  color: '#334155',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  textDecoration: 'none'
+                }}
+              >
+                تعديل إعدادات Cloud API بالأسفل ↓
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSave} id="cloud-api-form">
         {/* ── Section 1: Account Credentials ── */}
         <div style={{
           background: '#fff', border: '1px solid var(--border)',

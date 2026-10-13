@@ -400,11 +400,30 @@ exports.getWhatsAppSettings = async (req, res) => {
 
     delete row.access_token; // Mask full token from API responses
 
+    // Resolve public Meta App ID & Config ID for Embedded Signup SDK initialization
+    let metaAppId = process.env.META_APP_ID || '';
+    if (!metaAppId) {
+      try {
+        const metaRes = await db.query(
+          `SELECT meta_app_id FROM meta_integration_settings WHERE tenant_id::text = $1::text LIMIT 1`,
+          [tenantId]
+        );
+        metaAppId = metaRes.rows[0]?.meta_app_id || '';
+      } catch (mErr) {
+        // non-fatal
+      }
+    }
+    const embeddedSignupConfigId = process.env.META_EMBEDDED_SIGNUP_CONFIG_ID || '';
+    const coexistenceFeatureEnabled = process.env.ENABLE_WHATSAPP_COEXISTENCE === 'true';
+
     res.json({
       status: 'success',
       data: {
         ...row,
-        token_preview: tokenPreview
+        token_preview: tokenPreview,
+        meta_app_id: metaAppId,
+        embedded_signup_config_id: embeddedSignupConfigId,
+        coexistence_feature_enabled: coexistenceFeatureEnabled
       }
     });
   } catch (err) {
