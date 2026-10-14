@@ -124,6 +124,33 @@ test('Treasury: date filter limits displayed rows ONLY, not the current balance'
   assert.equal(res.body.account.current_balance, 1300, 'balance unchanged by an empty filter window');
 });
 
+test('Treasury: future-dated transactions appear in list when requested by filter but do not affect balance', async () => {
+  setDefaults();
+  // Simulate future transaction returned by the transaction query
+  handlers.txns = () => ({
+    rows: [{
+      source_id: 'fv-999',
+      txn_type: 'Payment Voucher',
+      direction: 'out',
+      txn_date: '2026-12-31',
+      reference: 'PV-999',
+      description: 'Payment Voucher — Future Consultant',
+      amount: '5000.00',
+      payment_method: 'bank_transfer',
+      notes: 'Future post-dated payment'
+    }]
+  });
+  reset();
+  const res = mkRes();
+  await finance.getTreasuryAccountTransactions(req({ query: { date_from: '2026-12-01', date_to: '2026-12-31' } }), res);
+  assert.equal(res.statusCode, 200);
+  // Transaction is visible in the filtered window
+  assert.equal(res.body.transactions.length, 1);
+  assert.equal(res.body.transactions[0].txn_date, '2026-12-31');
+  // Current balance remains strictly based on balance query (<= CURRENT_DATE), unaffected by the future row
+  assert.equal(res.body.account.current_balance, 1300);
+});
+
 test('Treasury: tenant isolation (other tenant => 404, no transaction/balance query)', async () => {
   setDefaults();
   reset();
