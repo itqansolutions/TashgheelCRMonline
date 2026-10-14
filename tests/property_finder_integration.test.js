@@ -13,7 +13,9 @@ const originalDbQuery = db.query;
 test('Property Finder Enterprise Integration Test Suite', async (suite) => {
 
   suite.after(() => {
-    db.query = originalDbQuery;
+    // Never restore the real pool here: late JobEngine retries would hit the configured remote database.
+    db.query = async () => { throw new Error('Real database access blocked in tests'); };
+    db.connect = async () => { throw new Error('Real database access blocked in tests'); };
   });
 
   // --------------------------------------------------------------------------
@@ -157,6 +159,8 @@ test('Property Finder Enterprise Integration Test Suite', async (suite) => {
     const leadMappings = [];
     const customers = [];
 
+    // ingestLead runs inside a transaction on a pooled client: route it through the same mock (never the real pool).
+    db.connect = async () => ({ query: (sql, params) => db.query(sql, params), release() {} });
     db.query = async (sql, params) => {
       if (sql.includes('SELECT * FROM property_finder_lead_mappings')) {
         const existing = leadMappings.filter(m => m.external_lead_id === params[1]);

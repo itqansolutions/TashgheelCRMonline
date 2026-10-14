@@ -288,6 +288,26 @@ exports.triggerImport = async (req, res) => {
   }
 };
 
+// 5b. Trigger Lead Poll (GET /leads) - complements webhooks
+exports.triggerLeadSync = async (req, res) => {
+  const tenantId = req.user?.tenant_id ? String(req.user.tenant_id) : null;
+  if (!tenantId) {
+    return res.status(400).json({ status: 'error', message: 'Tenant context missing.' });
+  }
+
+  try {
+    const stats = await propertyFinderSyncService.pullLeads(tenantId, { fullBackfill: Boolean(req.body?.fullBackfill) });
+    res.json({
+      status: 'success',
+      message: `Lead sync completed: ${stats.created} new, ${stats.duplicates} already imported, ${stats.errors.length} errors.`,
+      data: stats
+    });
+  } catch (err) {
+    console.error('[PF Lead Sync Error]:', err.message);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 // 6. Publish Unit to Property Finder
 exports.publishUnit = async (req, res) => {
   const tenantId = req.user?.tenant_id ? String(req.user.tenant_id) : null;
@@ -424,8 +444,16 @@ exports.handleWebhook = async (req, res) => {
     const encryptedSecret = settingsRes.rows[0].webhook_secret_encrypted;
     const webhookSecret = encryptedSecret ? decrypt(encryptedSecret) : null;
 
-    // 2. Mandatory Signature Validation when secret is configured
-    if (webhookSecret) {
+    // 2. Mandatory authentication. Fail closed: with no secret configured we cannot authenticate the
+    //    sender, so the request is rejected rather than allowing unauthenticated lead injection.
+    // NOTE: HMAC-SHA256 over the raw body is OUR implemented scheme. We could not verify (docs are
+    // partner-gated) that Property Finder signs deliveries this way or which header it uses; confirm at
+    // the live smoke test and adjust here (header names / algorithm) if the provider differs.
+    if (!webhookSecret) {
+      console.warn(`[Property Finder Webhook] Rejected: no webhook secret configured for tenant ${tenantId}`);
+      return res.status(401).json({ status: 'error', message: 'Webhook secret is not configured for this tenant.' });
+    }
+    {
       if (!providerSignature) {
         console.warn(`[Property Finder Webhook] Missing signature header rejected for tenant ${tenantId}`);
         return res.status(401).json({ status: 'error', message: 'Missing required webhook signature header.' });

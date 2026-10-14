@@ -8,9 +8,17 @@ const { decrypt } = require('../utils/encryption');
  * RFC 7807 error parsing, rate limiting, and zero-leakage logging.
  */
 
-const AUTH_URL_PRODUCTION = 'https://auth.propertyfinder.com/auth/oauth/v1/token';
-const API_BASE_PRODUCTION = 'https://api.propertyfinder.com/v1';
-const API_BASE_SANDBOX = 'https://api.sandbox.propertyfinder.com/v1';
+// Per the Enterprise API docs excerpt supplied by the product owner:
+//   POST https://atlas.propertyfinder.com/v1/auth/token  { apiKey, apiSecret }
+// NOTE: the official docs portal returned HTTP 403 to our tooling (partner-gated),
+// so this has NOT been independently verified by the engineer; confirm at live smoke test.
+const AUTH_URL_PRODUCTION = process.env.PF_AUTH_URL || 'https://atlas.propertyfinder.com/v1/auth/token';
+const API_BASE_PRODUCTION = process.env.PF_API_BASE_URL || 'https://atlas.propertyfinder.com/v1';
+// Sandbox host is not documented in our excerpt: must be provided via env, else falls back to production host.
+const API_BASE_SANDBOX = process.env.PF_SANDBOX_API_BASE_URL || API_BASE_PRODUCTION;
+
+const MAX_PER_PAGE = 50;
+const MAX_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000; // createdAtFrom cannot be older than ~3 months
 
 // In-memory token cache: Map<cacheKey, { accessToken, expiresAt }>
 const tokenCache = new Map();
@@ -74,18 +82,12 @@ class PropertyFinderClient {
       return cached.accessToken;
     }
 
-    const basicAuth = Buffer.from(`${this.apiKey}:${this.apiSecret}`).toString('base64');
-
     try {
       const response = await axios.post(
         this.authUrl,
-        {
-          grant_type: 'client_credentials',
-          scope: 'openid'
-        },
+        { apiKey: this.apiKey, apiSecret: this.apiSecret },
         {
           headers: {
-            'Authorization': `Basic ${basicAuth}`,
             'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
@@ -94,11 +96,11 @@ class PropertyFinderClient {
       );
 
       const data = response.data || {};
-      const accessToken = data.access_token;
-      const expiresIn = Number(data.expires_in) || 3600; // default 1 hour
+      const accessToken = data.accessToken || data.access_token || data.token;
+      const expiresIn = Number(data.expiresIn || data.expires_in) || 1800; // conservative default if not returned
 
       if (!accessToken) {
-        throw new Error('OAuth token response did not contain an access_token.');
+        throw new Error('Token response did not contain an access token.');
       }
 
       tokenCache.set(cacheKey, {
@@ -294,10 +296,17 @@ class PropertyFinderClient {
   /**
    * Query leads for the account.
    */
-  async getLeads({ page = 1, limit = 50, createdAfter = null, listingId = null } = {}) {
-    const params = { page, limit, country: this.countryCode };
-    if (createdAfter) params.created_after = createdAfter;
-    if (listingId) params.listing_id = listingId;
+  async getLeads({ page = 1, perPage = MAX_PER_PAGE, createdAtFrom = null } = {}) {
+    const params = {
+      page: Math.max(1, Number(page) || 1),
+      perPage: Math.min(MAX_PER_PAGE, Math.max(1, Number(perPage) || MAX_PER_PAGE))
+    };
+    if (createdAtFrom) {
+      // The API rejects createdAtFrom older than 3 months: clamp (with a 1-day safety margin).
+      const floor = Date.now() - MAX_LOOKBACK_MS + 24 * 60 * 60 * 1000;
+      const requested = new Date(createdAtFrom).getTime();
+      params.createdAtFrom = new Date(Number.isFinite(requested) ? Math.max(requested, floor) : floor).toISOString();
+    }
 
     return this.request({
       method: 'GET',
@@ -305,6 +314,30 @@ class PropertyFinderClient {
       params
     });
   }
+
+  /**
+   * Extract the lead array from a response regardless of envelope naming (unverified schema).
+   */
+  static extractLeads(response) {
+    if (Array.isArray(response)) return response;
+    const r = response || {};
+    for (const key of ['data', 'results', 'leads', 'items']) {
+      if (Array.isArray(r[key])) return r[key];
+    }
+    return [];
+  }
+
+  /**
+   * Determine whether another page exists (supports several pagination envelope shapes).
+   */
+  static hasNextPage(response, page, leadsOnPage, perPage) {
+    const p = response?.pagination || response?.meta || {};
+    const totalPages = Number(p.totalPages || p.total_pages || p.lastPage || p.last_page);
+    if (Number.isFinite(totalPages) && totalPages > 0) return page < totalPages;
+    if (p.nextPage || p.next_page || response?.next) return true;
+    return leadsOnPage >= perPage; // fall back: a full page implies there may be more
+  }
+
 
   /**
    * Retrieve single lead by ID.

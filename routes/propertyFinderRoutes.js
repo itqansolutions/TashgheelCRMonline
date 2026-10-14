@@ -48,6 +48,14 @@ router.post(
   propertyFinderController.triggerImport
 );
 
+router.post(
+  '/sync/leads',
+  authMiddleware,
+  roleGuard(['admin', 'manager']),
+  propertyFinderController.triggerLeadSync
+);
+
+
 // Real Estate Unit Publishing Lifecycle
 router.get(
   '/units/:unitId/status',

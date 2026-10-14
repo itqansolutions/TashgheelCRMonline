@@ -15,6 +15,7 @@ const PropertyFinderSettings = () => {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [syncingLeads, setSyncingLeads] = useState(false);
   const [activeTab, setActiveTab] = useState('settings'); // 'settings' | 'logs'
 
   // Settings State
@@ -140,6 +141,21 @@ const PropertyFinderSettings = () => {
       setImporting(false);
     }
   };
+
+  const handleSyncLeads = async () => {
+    try {
+      setSyncingLeads(true);
+      const res = await api.post('/propertyfinder/sync/leads');
+      const s = res.data?.data || {};
+      toast.success(`Lead sync: ${s.created || 0} new, ${s.duplicates || 0} already imported, ${(s.errors || []).length} errors.`);
+      fetchSettings();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Lead sync failed.');
+    } finally {
+      setSyncingLeads(false);
+    }
+  };
+
 
   const handleDisconnect = async () => {
     if (!window.confirm('Are you sure you want to disconnect Property Finder? Your existing local properties and leads will remain intact.')) {
@@ -390,6 +406,18 @@ const PropertyFinderSettings = () => {
                 >
                   <DownloadCloud size={16} /> {importing ? 'Importing Listings...' : 'Import Listings from PF'}
                 </button>
+                <button
+                  type="button"
+                  onClick={handleSyncLeads}
+                  disabled={syncingLeads || !settings.is_connected}
+                  style={{
+                    padding: '10px 18px', borderRadius: '8px', border: 'none', background: '#0284c7',
+                    color: 'white', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                  }}
+                >
+                  <DownloadCloud size={16} /> {syncingLeads ? 'Syncing Leads...' : 'Sync Leads from PF'}
+                </button>
+
               </div>
             </div>
           </div>
@@ -419,7 +447,7 @@ const PropertyFinderSettings = () => {
               </button>
             </div>
             <div style={{ display: 'flex', gap: '16px', marginTop: '12px', fontSize: '12px', color: '#64748b' }}>
-              <span>🔐 Signature Validation: <strong>HMAC-SHA256</strong></span>
+              <span>🔐 Signature Validation: <strong>HMAC-SHA256 (Tashgheel implementation; provider scheme pending confirmation)</strong></span>
               <span>⚡ Delivery: <strong>Asynchronous Background Queue</strong></span>
               <span>🛡️ Protection: <strong>Replay & Duplicate Filtered</strong></span>
             </div>

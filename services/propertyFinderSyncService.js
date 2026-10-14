@@ -441,196 +441,382 @@ async function unpublishUnit(tenantId, unitId) {
   return { success: true, unitId, publicationStatus: 'unpublished' };
 }
 
+const LEAD_OVERLAP_MS = 60 * 60 * 1000; // re-read the last hour on every poll; external-ID dedup makes this safe
+const MAX_LEAD_PAGES = 200;              // runaway-pagination guard (200 * 50 = 10k leads per run)
+
+const pick = (...vals) => {
+  for (const v of vals) {
+    if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+  }
+  return '';
+};
+
 /**
- * Ingests a Property Finder lead and maps it into Tashgheel customers pipeline.
- * Deduplicates by external_lead_id, resolves associated unit, and prevents duplicate contacts.
+ * Normalizes a Property Finder lead (API item or webhook payload) into a flat shape.
+ * The official schema is partner-gated and was NOT verifiable by us, so this accepts the
+ * common naming variants (camelCase / snake_case / nested objects) and fails safe.
+ */
+function normalizeLead(raw) {
+  const root = raw && typeof raw === 'object' ? raw : {};
+  // Webhook envelopes: { event, data: {...} } or { lead: {...} }
+  const r = (root.data && typeof root.data === 'object' && !Array.isArray(root.data)) ? root.data : root;
+  const lead = (r.lead && typeof r.lead === 'object') ? r.lead : {};
+  const sender = (r.sender && typeof r.sender === 'object') ? r.sender : ((r.contact && typeof r.contact === 'object') ? r.contact : {});
+  const listing = (r.listing && typeof r.listing === 'object') ? r.listing : {};
+  const project = (r.project && typeof r.project === 'object') ? r.project : {};
+
+  const rawChannel = pick(r.channel, r.contactChannel, r.contact_channel, r.source_channel, lead.channel).toLowerCase();
+  let channel = 'form';
+  if (rawChannel.includes('whatsapp')) channel = 'whatsapp';
+  else if (rawChannel.includes('call') || rawChannel.includes('phone')) channel = 'phone';
+  else if (rawChannel.includes('mail')) channel = 'email';
+
+  const rawType = pick(r.type, r.leadType, r.lead_type, lead.type).toLowerCase();
+  let leadType = 'listing';
+  if (rawType.includes('project') || pick(r.projectId, r.project_id, project.id)) leadType = 'project';
+  else if (rawType.includes('seller')) leadType = 'seller';
+
+  return {
+    externalLeadId: pick(r.id, r.leadId, r.lead_id, lead.id),
+    externalListingId: pick(r.listingId, r.listing_id, listing.id, r.propertyId, r.property_id) || null,
+    externalProjectId: pick(r.projectId, r.project_id, project.id) || null,
+    leadType,
+    channel,
+    name: pick(r.contact_name, r.name, r.sender_name, r.senderName, sender.name, sender.fullName, lead.name,
+      [sender.firstName, sender.lastName].filter(Boolean).join(' ')) || 'Property Finder Lead',
+    phone: pick(r.contact_phone, r.phone, r.mobile, r.senderPhone, sender.phone, sender.mobile, sender.phoneNumber, lead.phone),
+    email: pick(r.contact_email, r.email, r.senderEmail, sender.email, lead.email).toLowerCase(),
+    message: pick(r.enquiry_message, r.message, r.notes, r.comment, lead.message),
+    assignedExternalAgent: pick(r.agentId, r.agent_id, r.assignedTo, r.assigned_to) || null
+  };
+}
+
+/**
+ * Ingests a Property Finder lead into the EXISTING Tashgheel model:
+ *   customers (status='lead', source='Property Finder', source_id -> lead_sources)
+ *   + deals   (Lead stage, source_type='property_finder', source_id=<external lead id>, unit_id)
+ * plus property_finder_lead_mappings for idempotency/audit. No parallel lead store.
+ *
+ * Concurrency model: the whole ingest runs in ONE database transaction guarded by transaction-scoped
+ * advisory locks (released automatically on COMMIT/ROLLBACK):
+ *   1. per (tenant, external lead id)  -> webhook vs poll vs retry for the same lead serialize; the
+ *      loser re-checks the mapping AFTER acquiring the lock and returns 'duplicate' having written nothing.
+ *   2. per (tenant, phone/email)       -> two different leads from the same person cannot both miss each
+ *      other's customer and create two customers (customers has no unique constraint on phone/email).
+ *   3. per tenant lead-source creation -> avoids unique violations on lead_sources(name, tenant_id).
+ * Locks are always taken in this order (and contact keys sorted), so they cannot deadlock.
+ * Any failure rolls back everything (no orphan customer, nothing is ever DELETEd), and the error is
+ * surfaced so a webhook retry / next poll reprocesses the lead.
+ * Residual risk: customers created by OTHER code paths (manual UI, Meta, chatbot) do not take these locks.
  */
 async function ingestLead(tenantId, rawLead) {
   if (!tenantId || !rawLead) {
     throw new Error('Tenant ID and lead payload are required.');
   }
 
-  const extLeadId = String(rawLead.id || rawLead.lead_id || '').trim();
+  const n = normalizeLead(rawLead);
+  const extLeadId = n.externalLeadId;
   if (!extLeadId) {
     throw new Error('Lead payload must contain a valid external lead ID.');
   }
 
-  // 1. Check idempotency: Lead mapping table check
-  const existingMapping = await db.query(
-    `SELECT * FROM property_finder_lead_mappings WHERE tenant_id::text = $1::text AND external_lead_id = $2`,
-    [tenantId, extLeadId]
-  );
+  const { channel, name: contactName, phone: contactPhone, email: contactEmail, message: enquiryMessage } = n;
+  const extListingId = n.externalListingId;
 
-  if (existingMapping.rows.length > 0) {
-    return {
-      status: 'duplicate',
-      customerId: existingMapping.rows[0].customer_id,
-      leadId: extLeadId
-    };
-  }
+  const client = await db.connect();
+  let result;
+  try {
+    await client.query('BEGIN');
+    const q = (sql, params) => client.query(sql, params);
+    const lock = (key) => q('SELECT pg_advisory_xact_lock(hashtext($1))', [key]);
 
-  // 2. Fetch tenant settings for defaults (lead source, assigned agent)
-  const settingsRes = await db.query(
-    `SELECT * FROM property_finder_settings WHERE tenant_id::text = $1::text`,
-    [tenantId]
-  );
-  const settings = settingsRes.rows[0] || {};
+    // Lock 1: this external lead
+    await lock(`pf:lead:${tenantId}:${extLeadId}`);
 
-  // 3. Resolve lead source (Default: 'Property Finder')
-  let sourceId = settings.default_lead_source_id;
-  if (!sourceId) {
-    try {
-      const srcCheck = await db.query(
-        `SELECT id FROM lead_sources 
+    // 1. Idempotency (checked under the lock, so a concurrent winner is always visible here)
+    const existingMapping = await q(
+      `SELECT * FROM property_finder_lead_mappings WHERE tenant_id::text = $1::text AND external_lead_id = $2`,
+      [tenantId, extLeadId]
+    );
+    if (existingMapping.rows.length > 0) {
+      await client.query('COMMIT');
+      return { status: 'duplicate', customerId: existingMapping.rows[0].customer_id, leadId: extLeadId };
+    }
+
+    // 2. Tenant settings
+    const settingsRes = await q(
+      `SELECT * FROM property_finder_settings WHERE tenant_id::text = $1::text`,
+      [tenantId]
+    );
+    const settings = settingsRes.rows[0] || {};
+    if (settings.lead_sync_enabled === false) {
+      await client.query('COMMIT');
+      return { status: 'skipped', reason: 'lead_sync_disabled', leadId: extLeadId };
+    }
+
+    // Lock 2: the contact (phone and/or email), sorted for a stable acquisition order
+    const contactKeys = [contactPhone && `pf:contact:${tenantId}:p:${contactPhone}`,
+      contactEmail && `pf:contact:${tenantId}:e:${contactEmail}`].filter(Boolean).sort();
+    for (const k of contactKeys) await lock(k);
+
+    // 3. Lead source (existing lead_sources table); Lock 3 serialises first-time creation per tenant
+    let sourceId = settings.default_lead_source_id;
+    if (!sourceId) {
+      await lock(`pf:source:${tenantId}`);
+      const srcCheck = await q(
+        `SELECT id FROM lead_sources
          WHERE tenant_id::text = $1::text AND LOWER(TRIM(name)) = 'property finder' LIMIT 1`,
         [tenantId]
       );
       if (srcCheck.rows.length > 0) {
         sourceId = srcCheck.rows[0].id;
       } else {
-        const newSrc = await db.query(
+        const newSrc = await q(
           `INSERT INTO lead_sources (name, tenant_id) VALUES ('Property Finder', $1::uuid) RETURNING id`,
           [tenantId]
         );
-        sourceId = newSrc.rows[0].id;
+        sourceId = newSrc.rows[0]?.id;
       }
-    } catch (e) {
-      console.warn('[Lead Source Resolution Warning]', e.message);
     }
-  }
 
-  // 4. Extract lead information
-  const contactName = (rawLead.contact_name || rawLead.name || rawLead.sender_name || 'Property Finder Lead').trim();
-  const contactPhone = (rawLead.contact_phone || rawLead.phone || rawLead.mobile || '').trim();
-  const contactEmail = (rawLead.contact_email || rawLead.email || '').trim();
-  const rawChannel = (rawLead.channel || 'form').toLowerCase();
-  const channel = ['whatsapp', 'phone', 'email', 'form'].includes(rawChannel) ? rawChannel : 'form';
-  const enquiryMessage = rawLead.enquiry_message || rawLead.message || rawLead.notes || '';
-  const extListingId = rawLead.listing_id ? String(rawLead.listing_id).trim() : null;
+    const channelLabel = channel === 'whatsapp'
+      ? 'WhatsApp contact channel (enquiry received via Property Finder; NOT a WhatsApp conversation)'
+      : channel;
+    const noteLine = `[${new Date().toISOString()}] Property Finder ${n.leadType} enquiry via ${channelLabel}: ${enquiryMessage} (Listing: ${extListingId || n.externalProjectId || 'General'}, PF Lead: ${extLeadId})`;
 
-  // 5. Match associated unit in Tashgheel
-  let associatedUnitId = null;
-  if (extListingId) {
-    const listMap = await db.query(
-      `SELECT unit_id FROM property_finder_listing_mappings 
-       WHERE tenant_id::text = $1::text AND external_listing_id = $2`,
-      [tenantId, extListingId]
-    );
-    if (listMap.rows.length > 0) {
-      associatedUnitId = listMap.rows[0].unit_id;
-    }
-  }
-
-  // 6. Duplicate contact check: find existing customer by phone or email
-  let customerId = null;
-  if (contactPhone || contactEmail) {
-    const custCheck = await db.query(
-      `SELECT id, name, notes FROM customers 
-       WHERE tenant_id::text = $1::text 
-         AND (
-           ($2::text <> '' AND phone = $2) 
-           OR ($3::text <> '' AND email = $3)
-         ) LIMIT 1`,
-      [tenantId, contactPhone, contactEmail]
-    );
-
-    if (custCheck.rows.length > 0) {
-      customerId = custCheck.rows[0].id;
-      // Append inquiry note to existing customer
-      const existingNotes = custCheck.rows[0].notes || '';
-      const updatedNotes = `${existingNotes}\n[${new Date().toISOString()}] Property Finder Inquiry (${channel}): ${enquiryMessage} (Listing: ${extListingId || 'General'})`.trim();
-      await db.query(
-        `UPDATE customers SET notes = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-        [updatedNotes, customerId]
+    // 4. Map external listing -> internal unit (tenant-scoped). Unmapped listings are kept, unit stays NULL.
+    let associatedUnitId = null;
+    if (extListingId) {
+      const listMap = await q(
+        `SELECT unit_id FROM property_finder_listing_mappings
+         WHERE tenant_id::text = $1::text AND external_listing_id = $2`,
+        [tenantId, extListingId]
       );
+      if (listMap.rows.length > 0) associatedUnitId = listMap.rows[0].unit_id;
     }
-  }
 
-  // 7. If customer does not exist, create new lead record in customers
-  if (!customerId) {
-    const newNotes = `[${new Date().toISOString()}] Property Finder Inquiry (${channel}): ${enquiryMessage} (Listing: ${extListingId || 'General'})`;
-    const custInsert = await db.query(
-      `INSERT INTO customers (
-        tenant_id, name, phone, email, source, source_id, assigned_to, status, notes
-       ) VALUES (
-        $1::uuid, $2, $3, $4, 'Property Finder', $5, $6, 'lead', $7
-       ) RETURNING id`,
-      [
-        tenantId,
-        contactName,
-        contactPhone || null,
-        contactEmail || null,
-        sourceId || null,
-        settings.default_assigned_to || null,
-        newNotes
-      ]
+    // 5. Customer upsert by phone/email within the tenant. Missing contact info => new customer, never a false merge.
+    let customerId = null;
+    let customerCreated = false;
+    if (contactPhone || contactEmail) {
+      const custCheck = await q(
+        `SELECT id, name, notes FROM customers
+         WHERE tenant_id::text = $1::text
+           AND (
+             ($2::text <> '' AND phone = $2)
+             OR ($3::text <> '' AND LOWER(email) = $3)
+           ) LIMIT 1`,
+        [tenantId, contactPhone, contactEmail]
+      );
+      if (custCheck.rows.length > 0) {
+        customerId = custCheck.rows[0].id;
+        const updatedNotes = `${custCheck.rows[0].notes || ''}\n${noteLine}`.trim();
+        await q(
+          `UPDATE customers
+              SET notes = $1,
+                  phone = COALESCE(NULLIF(phone, ''), NULLIF($4, '')),
+                  email = COALESCE(NULLIF(email, ''), NULLIF($5, '')),
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2 AND tenant_id::text = $3::text`,
+          [updatedNotes, customerId, tenantId, contactPhone, contactEmail]
+        );
+      }
+    }
+
+    if (!customerId) {
+      const custInsert = await q(
+        `INSERT INTO customers (
+          tenant_id, name, phone, email, source, source_id, assigned_to, status, notes
+         ) VALUES (
+          $1::uuid, $2, $3, $4, 'Property Finder', $5, $6, 'lead', $7
+         ) RETURNING id`,
+        [tenantId, contactName, contactPhone || null, contactEmail || null, sourceId || null,
+          settings.default_assigned_to || null, noteLine]
+      );
+      customerId = custInsert.rows[0].id;
+      customerCreated = true;
+    }
+
+    // 6. Mapping row (unique per tenant + external lead id: final safety net behind the advisory lock).
+    //    rowCount 0 means something bypassed the lock: roll EVERYTHING back atomically (no manual DELETE).
+    const mapRes = await q(
+      `INSERT INTO property_finder_lead_mappings (
+        tenant_id, customer_id, external_lead_id, external_listing_id, unit_id, channel, raw_enquiry_details
+       ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (tenant_id, external_lead_id) DO NOTHING`,
+      [tenantId, customerId, extLeadId, extListingId, associatedUnitId, channel, JSON.stringify(rawLead)]
     );
-    customerId = custInsert.rows[0].id;
+    if (mapRes && mapRes.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return { status: 'duplicate', customerId: null, leadId: extLeadId };
+    }
+
+    // 7. Sales pipeline: one deal per external lead id, at the tenant template's first stage (Kanban-visible).
+    //    A failure here rolls back the whole ingest so the lead is retried instead of silently losing its deal.
+    let dealId = null;
+    const dupDeal = await q(
+      `SELECT id FROM deals
+        WHERE tenant_id::text = $1::text AND source_type = 'property_finder' AND source_id = $2 LIMIT 1`,
+      [tenantId, extLeadId]
+    );
+    if (dupDeal.rows.length > 0) {
+      dealId = dupDeal.rows[0].id;
+    } else {
+      let stage = 'discovery';
+      let isRealEstate = false;
+      const tpl = await q(`SELECT template_name FROM tenants WHERE id::text = $1::text`, [tenantId]);
+      if (tpl.rows[0]?.template_name === 'real_estate') { stage = 'Lead'; isRealEstate = true; }
+
+      let dealValue = 0;
+      let dealTitle = `Property Finder: ${contactName}`;
+      if (associatedUnitId) {
+        const u = await q(
+          `SELECT unit_number, name, price FROM re_units WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+          [associatedUnitId, tenantId]
+        );
+        if (u.rows[0]) {
+          dealValue = Number(u.rows[0].price) || 0;
+          dealTitle = `Property Finder: ${contactName} - ${u.rows[0].unit_number || u.rows[0].name || ''}`.trim();
+        }
+      }
+      const dealIns = await q(
+        `INSERT INTO deals (title, value, pipeline_stage, client_id, assigned_to, tenant_id, unit_id, source_type, source_id, custom_fields)
+         VALUES ($1, $2, $3, $4, $5, $6::uuid, $7, 'property_finder', $8, $9) RETURNING id`,
+        [dealTitle, dealValue, stage, customerId, settings.default_assigned_to || null, tenantId,
+          isRealEstate ? (associatedUnitId ? String(associatedUnitId) : null) : null, extLeadId,
+          JSON.stringify({ channel, lead_type: n.leadType, pf_listing_id: extListingId, pf_project_id: n.externalProjectId })]
+      );
+      dealId = dealIns.rows[0]?.id || null;
+    }
+
+    await client.query('COMMIT');
+    result = {
+      status: 'created',
+      customerId,
+      customerCreated,
+      dealId,
+      leadId: extLeadId,
+      channel,
+      leadType: n.leadType,
+      unitId: associatedUnitId
+    };
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) { /* connection may already be gone */ }
+    throw err;
+  } finally {
+    client.release();
   }
 
-  // 8. Create lead mapping record
-  await db.query(
-    `INSERT INTO property_finder_lead_mappings (
-      tenant_id, customer_id, external_lead_id, external_listing_id, unit_id, channel, raw_enquiry_details
-     ) VALUES (
-      $1::uuid, $2, $3, $4, $5, $6, $7
-     )
-     ON CONFLICT (tenant_id, external_lead_id) DO NOTHING`,
-    [
-      tenantId,
-      customerId,
-      extLeadId,
-      extListingId,
-      associatedUnitId,
-      channel,
-      JSON.stringify(rawLead)
-    ]
-  );
-
+  // Audit log after commit (best-effort, never affects the ingest outcome)
   await logIntegrationEvent(
     tenantId,
     'ingest_lead',
-    `Lead ingested from Property Finder: ${contactName} (Lead ID: ${extLeadId}, Channel: ${channel}, Customer ID: ${customerId}).`,
-    { extLeadId, customerId, channel, extListingId }
+    `Lead ingested from Property Finder (Lead ID: ${extLeadId}, Type: ${n.leadType}, Channel: ${channel}, Customer ID: ${result.customerId}, Unit mapped: ${result.unitId ? 'yes' : 'no'}).`,
+    { extLeadId, customerId: result.customerId, channel, extListingId, leadType: n.leadType, unitMapped: Boolean(result.unitId), dealId: result.dealId }
   );
 
-  return {
-    status: 'created',
-    customerId,
-    leadId: extLeadId,
-    channel,
-    unitId: associatedUnitId
-  };
+  return result;
 }
+
+/**
+ * Polling sync via GET /leads. Complements webhooks (project leads / missed deliveries).
+ * Incremental: persistent watermark (property_finder_settings.last_lead_sync_at) minus an overlap window;
+ * duplicates are neutralised by external-lead-id idempotency in ingestLead.
+ */
+async function pullLeads(tenantId, { fullBackfill = false } = {}) {
+  const { client, settings } = await getClientForTenant(tenantId);
+  if (!settings.is_enabled) throw new Error('Property Finder integration is currently disabled for this tenant.');
+  if (settings.lead_sync_enabled === false) throw new Error('Lead sync is disabled for this tenant.');
+
+  const startedAt = new Date();
+  const watermark = settings.last_lead_sync_at ? new Date(settings.last_lead_sync_at) : null;
+  // No watermark (or explicit backfill) => request the maximum allowed window; the client clamps to 3 months.
+  const createdAtFrom = (!fullBackfill && watermark)
+    ? new Date(watermark.getTime() - LEAD_OVERLAP_MS).toISOString()
+    : new Date(0).toISOString();
+
+  const stats = { fetched: 0, created: 0, duplicates: 0, skipped: 0, errors: [], pages: 0 };
+  let page = 1;
+  let allPagesRead = true;
+
+  while (true) {
+    if (page > MAX_LEAD_PAGES) { allPagesRead = false; break; }
+    const response = await client.getLeads({ page, perPage: 50, createdAtFrom });
+    const leads = PropertyFinderClient.extractLeads(response);
+    stats.pages++;
+    stats.fetched += leads.length;
+
+    for (const lead of leads) {
+      try {
+        const r = await ingestLead(tenantId, lead);
+        if (r.status === 'created') stats.created++;
+        else if (r.status === 'duplicate') stats.duplicates++;
+        else stats.skipped++;
+      } catch (e) {
+        stats.errors.push({ leadId: lead?.id || lead?.leadId || null, error: e.message });
+      }
+    }
+
+    if (!PropertyFinderClient.hasNextPage(response, page, leads.length, 50)) break;
+    page++;
+  }
+
+  // Advance the watermark only if every page was read and nothing failed, so failures are retried next run.
+  if (allPagesRead && stats.errors.length === 0) {
+    try {
+      await db.query(
+        `UPDATE property_finder_settings SET last_lead_sync_at = $1, updated_at = CURRENT_TIMESTAMP WHERE tenant_id::text = $2::text`,
+        [startedAt.toISOString(), tenantId]
+      );
+    } catch (e) {
+      stats.watermarkWarning = 'last_lead_sync_at column missing: run migrations/023_pf_lead_sync_watermark.sql';
+    }
+  }
+
+  await logIntegrationEvent(tenantId, 'pull_leads',
+    `Lead poll: ${stats.fetched} fetched, ${stats.created} created, ${stats.duplicates} duplicates, ${stats.errors.length} errors.`,
+    { ...stats, errors: stats.errors.slice(0, 10) }, stats.errors.length ? 'warn' : 'info');
+
+  return stats;
+}
+
 
 /**
  * Inbound webhook processor with idempotency protection.
  */
 async function processWebhookEvent(tenantId, providerEventId, eventType, payload) {
-  // 1. Check duplicate delivery
+  const evType = String(eventType || '').toLowerCase();
+
+  // 1. Duplicate delivery. Only 'processed' events are final: a provider retry of a 'failed'/'received'
+  //    event must be re-run (safe because ingestLead is idempotent per external lead id).
   const existing = await db.query(
     `SELECT * FROM property_finder_webhook_events WHERE tenant_id::text = $1::text AND provider_event_id = $2`,
     [tenantId, providerEventId]
   );
 
-  if (existing.rows.length > 0) {
+  if (existing.rows.length > 0 && !['failed', 'received'].includes(existing.rows[0].status)) {
     return { status: 'duplicate', eventId: providerEventId };
   }
 
-  // 2. Persist event
-  await db.query(
-    `INSERT INTO property_finder_webhook_events (tenant_id, provider_event_id, event_type, status, payload_summary)
-     VALUES ($1::uuid, $2, $3, 'received', $4)`,
-    [tenantId, providerEventId, eventType, JSON.stringify(payload)]
-  );
+  // 2. Persist event (atomic: concurrent deliveries of the same event id cannot double-insert)
+  if (existing.rows.length === 0) {
+    await db.query(
+      `INSERT INTO property_finder_webhook_events (tenant_id, provider_event_id, event_type, status, payload_summary)
+       VALUES ($1::uuid, $2, $3, 'received', $4)
+       ON CONFLICT (tenant_id, provider_event_id) DO NOTHING`,
+      [tenantId, providerEventId, evType || 'unknown', JSON.stringify(payload)]
+    );
+  }
 
   // 3. Process asynchronously via JobEngine
   JobEngine.enqueue(`pf_webhook_${providerEventId}`, async () => {
     try {
-      if (eventType.includes('lead')) {
+      // lead.created / lead.updated / lead.assigned (and legacy leads.create) all go through the same
+      // idempotent ingestion: a lead first seen via update/assign (e.g. project leads) is still captured.
+      if (evType.includes('lead')) {
         await ingestLead(tenantId, payload);
-      } else if (eventType.includes('listing')) {
-        const listingId = payload.listing_id || payload.id;
+      } else if (evType.includes('listing')) {
+        const listingId = payload.listing_id || payload.listingId || payload.id;
         const newStatus = mapExternalStatus(payload.status);
         if (listingId) {
           await db.query(
@@ -668,6 +854,9 @@ module.exports = {
   publishUnit,
   unpublishUnit,
   ingestLead,
+  pullLeads,
+  normalizeLead,
   processWebhookEvent,
   logIntegrationEvent
 };
+
