@@ -39,6 +39,8 @@ async function run() {
         apiSecret = decrypt(res.rows[0].api_secret_encrypted);
         environment = res.rows[0].environment || 'production';
         console.log(`✅ Loaded credentials from database for environment: [${environment}]`);
+        console.log(`   🔑 API Key length: ${apiKey.length} | Format: "${apiKey.slice(0, 3)}...${apiKey.slice(-3)}"`);
+        console.log(`   🔒 API Secret length: ${apiSecret.length} | Format: "${apiSecret.slice(0, 2)}...${apiSecret.slice(-2)}"`);
       }
     } catch (dbErr) {
       console.warn(`⚠️ Could not query local database: ${dbErr.message}`);
