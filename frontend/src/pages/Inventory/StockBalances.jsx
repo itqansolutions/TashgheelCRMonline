@@ -3,8 +3,10 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Scale, Search, ArrowRightLeft, ClipboardCheck, Building, RefreshCw, X, AlertCircle } from 'lucide-react';
 import WarehouseSubNav from '../../components/Warehouse/WarehouseSubNav';
+import { useLanguage } from '../../context/LanguageContext';
 
 const StockBalances = () => {
+  const { t, isRTL } = useLanguage();
   const [warehouses, setWarehouses] = useState([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [stockItems, setStockItems] = useState([]);
@@ -45,7 +47,7 @@ const StockBalances = () => {
         setLoading(false);
       }
     } catch (err) {
-      toast.error('Failed to load warehouses');
+      toast.error(t('inventory.warehouses.loadError'));
       setLoading(false);
     }
   };
@@ -62,7 +64,7 @@ const StockBalances = () => {
       const res = await api.get(`/inventory/warehouses/${id}/stock`);
       setStockItems(res.data?.data || []);
     } catch (err) {
-      toast.error('Failed to load warehouse stock');
+      toast.error(t('inventory.balances.loading'));
     } finally {
       setLoading(false);
     }
@@ -89,24 +91,24 @@ const StockBalances = () => {
   const handleTransferSubmit = async (e) => {
     e.preventDefault();
     if (!transferForm.from_warehouse_id || !transferForm.to_warehouse_id) {
-      return toast.error('Source and destination warehouses are required');
+      return toast.error(t('inventory.balances.transferModal.reqSourceDest'));
     }
     if (transferForm.from_warehouse_id === transferForm.to_warehouse_id) {
-      return toast.error('Destination must be different from source warehouse');
+      return toast.error(t('inventory.balances.transferModal.destMustDiffer'));
     }
     const qty = parseFloat(transferForm.quantity);
     if (!qty || qty <= 0) {
-      return toast.error('Please enter a valid quantity greater than 0');
+      return toast.error(t('inventory.balances.transferModal.validQty'));
     }
 
     setTransferSubmitting(true);
     try {
       await api.post('/inventory/transfers', transferForm);
-      toast.success('Stock transferred successfully!');
+      toast.success(t('inventory.balances.transferModal.success'));
       setShowTransferModal(false);
       fetchStock(selectedWarehouseId);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Transfer failed');
+      toast.error(err.response?.data?.message || t('inventory.balances.transferModal.failed'));
     } finally {
       setTransferSubmitting(false);
     }
@@ -132,16 +134,17 @@ const StockBalances = () => {
 
     setStockTakeSubmitting(true);
     try {
+      const formattedDate = new Date().toLocaleDateString('en-GB');
       const res = await api.post('/inventory/stock-take', {
         warehouse_id: parseInt(selectedWarehouseId),
         items: itemsPayload,
-        notes: `Physical Stock Count on ${new Date().toLocaleDateString()}`
+        notes: t('inventory.balances.stockTakeModal.defaultNotes', { date: formattedDate })
       });
-      toast.success(res.data?.message || 'Stock adjustments applied!');
+      toast.success(res.data?.message || t('inventory.balances.stockTakeModal.success'));
       setShowStockTakeModal(false);
       fetchStock(selectedWarehouseId);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Stock count adjustment failed');
+      toast.error(err.response?.data?.message || t('inventory.balances.stockTakeModal.failed'));
     } finally {
       setStockTakeSubmitting(false);
     }
@@ -156,6 +159,7 @@ const StockBalances = () => {
   const totalQuantity = filtered.reduce((acc, item) => acc + (item.quantity || 0), 0);
 
   const selectedWhObj = warehouses.find(w => String(w.id) === String(selectedWarehouseId));
+  const currencyLabel = t('common.currency', 'EGP');
 
   const modalStyle = {
     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -169,17 +173,17 @@ const StockBalances = () => {
   };
 
   return (
-    <div>
+    <div dir={isRTL ? 'rtl' : 'ltr'}>
       <WarehouseSubNav />
       <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Scale size={24} style={{ color: '#0ea5e9' }} /> Warehouse Stock Balances
+              <Scale size={24} style={{ color: '#0ea5e9' }} /> {t('inventory.balances.title')}
             </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
-              Live inventory levels, valuation, direct transfers, and physical stock taking
+              {t('inventory.balances.subtitle')}
             </p>
           </div>
 
@@ -193,7 +197,7 @@ const StockBalances = () => {
                 borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
               }}
             >
-              <ArrowRightLeft size={16} /> Direct Transfer
+              <ArrowRightLeft size={16} /> {t('inventory.balances.directTransfer')}
             </button>
 
             <button
@@ -204,7 +208,7 @@ const StockBalances = () => {
                 borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
               }}
             >
-              <ClipboardCheck size={16} /> Stock Taking
+              <ClipboardCheck size={16} /> {t('inventory.balances.stockTaking')}
             </button>
 
             <button
@@ -214,6 +218,7 @@ const StockBalances = () => {
                 background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1',
                 borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
               }}
+              title={t('inventory.balances.refresh')}
             >
               <RefreshCw size={16} />
             </button>
@@ -235,10 +240,10 @@ const StockBalances = () => {
               <Building size={32} />
             </div>
             <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: '0 0 8px' }}>
-              No Warehouses Found
+              {t('inventory.balances.noWarehousesTitle')}
             </h3>
             <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 24px', lineHeight: 1.5 }}>
-              Please create at least one warehouse first to manage inventory levels, stock transfers, and physical stock counts.
+              {t('inventory.balances.noWarehousesDesc')}
             </p>
             <a
               href="/inventory/warehouses"
@@ -256,7 +261,7 @@ const StockBalances = () => {
                 boxShadow: '0 4px 12px rgba(14, 165, 233, 0.3)'
               }}
             >
-              <Building size={16} /> Go to Warehouses
+              <Building size={16} /> {t('inventory.balances.goToWarehouses')}
             </a>
           </div>
         ) : (
@@ -265,7 +270,7 @@ const StockBalances = () => {
             <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '280px' }}>
                 <Building size={20} style={{ color: '#0ea5e9' }} />
-                <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155' }}>Warehouse:</label>
+                <label style={{ fontSize: '13px', fontWeight: 800, color: '#334155' }}>{t('inventory.balances.warehouse')}</label>
                 <select
                   value={selectedWarehouseId}
                   onChange={e => {
@@ -281,106 +286,110 @@ const StockBalances = () => {
                 </select>
               </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
-            <Search size={18} style={{ color: '#94a3b8' }} />
-            <input
-              type="text"
-              placeholder="Search product name or SKU..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', fontWeight: 600, color: '#1e293b' }}
-            />
-          </div>
-        </div>
-
-        {/* KPI Summary */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-          <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>Active Warehouse</span>
-            <span style={{ fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>{selectedWhObj?.name || 'Loading...'}</span>
-            <span style={{ fontSize: '12px', color: '#94a3b8' }}>{selectedWhObj?.location || 'General'}</span>
-          </div>
-
-          <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>Total Units in Stock</span>
-            <span style={{ fontSize: '24px', fontWeight: 800, color: '#10b981' }}>{totalQuantity.toLocaleString()} Units</span>
-          </div>
-
-          <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>Total Stock Valuation (Cost)</span>
-            <span style={{ fontSize: '24px', fontWeight: 800, color: '#0ea5e9' }}>{totalValuation.toLocaleString(undefined, { minimumFractionDigits: 2 })} EGP</span>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-          {loading ? (
-            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>Loading stock balances...</div>
-          ) : filtered.length === 0 ? (
-            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
-              <Scale size={44} style={{ opacity: 0.3, marginBottom: '12px' }} />
-              <p style={{ fontWeight: 700, margin: 0 }}>No products found in this warehouse</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
+                <Search size={18} style={{ color: '#94a3b8' }} />
+                <input
+                  type="text"
+                  placeholder={t('inventory.balances.searchPlaceholder')}
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', fontWeight: 600, color: '#1e293b' }}
+                />
+              </div>
             </div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Product Name</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>SKU</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Unit</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Quantity on Hand</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Unit Cost</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Total Value</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569', textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(item => (
-                  <tr key={item.product_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '14px 18px', fontWeight: 800, color: '#1e293b' }}>
-                      {item.product_name}
-                    </td>
-                    <td style={{ padding: '14px 18px', fontFamily: 'monospace', fontSize: '13px', color: '#64748b' }}>
-                      {item.sku || '—'}
-                    </td>
-                    <td style={{ padding: '14px 18px', fontSize: '13px', color: '#475569' }}>
-                      <span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700 }}>
-                        {item.unit || 'piece'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '14px 18px', fontWeight: 900, fontSize: '15px', color: item.quantity > 0 ? '#10b981' : '#ef4444' }}>
-                      {item.quantity.toLocaleString()}
-                    </td>
-                    <td style={{ padding: '14px 18px', fontWeight: 700, color: '#475569' }}>
-                      {item.cost_price.toLocaleString(undefined, { minimumFractionDigits: 2 })} EGP
-                    </td>
-                    <td style={{ padding: '14px 18px', fontWeight: 800, color: '#0ea5e9' }}>
-                      {item.total_value.toLocaleString(undefined, { minimumFractionDigits: 2 })} EGP
-                    </td>
-                    <td style={{ padding: '14px 18px', textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleOpenTransfer(item)}
-                        style={{ padding: '6px 12px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
-                      >
-                        Transfer
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-        </>
+
+            {/* KPI Summary */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>{t('inventory.balances.activeWarehouse')}</span>
+                <span style={{ fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>{selectedWhObj?.name || '…'}</span>
+                <span style={{ fontSize: '12px', color: '#94a3b8', display: 'block' }}>{selectedWhObj?.location || t('inventory.balances.general')}</span>
+              </div>
+
+              <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>{t('inventory.balances.totalUnitsInStock')}</span>
+                <span style={{ fontSize: '24px', fontWeight: 800, color: '#10b981' }}>
+                  <span className="num-en">{totalQuantity.toLocaleString()}</span> {t('inventory.balances.units')}
+                </span>
+              </div>
+
+              <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>{t('inventory.balances.totalValuation')}</span>
+                <span style={{ fontSize: '24px', fontWeight: 800, color: '#0ea5e9' }}>
+                  <span className="num-en">{totalValuation.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span> {currencyLabel}
+                </span>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+              {loading ? (
+                <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>{t('inventory.balances.loading')}</div>
+              ) : filtered.length === 0 ? (
+                <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+                  <Scale size={44} style={{ opacity: 0.3, marginBottom: '12px' }} />
+                  <p style={{ fontWeight: 700, margin: 0 }}>{t('inventory.balances.noProducts')}</p>
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                      <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('inventory.balances.columns.productName')}</th>
+                      <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('inventory.balances.columns.sku')}</th>
+                      <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('inventory.balances.columns.unit')}</th>
+                      <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('inventory.balances.columns.quantityOnHand')}</th>
+                      <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('inventory.balances.columns.unitCost')}</th>
+                      <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('inventory.balances.columns.totalValue')}</th>
+                      <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569', textAlign: 'center' }}>{t('inventory.balances.columns.actions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(item => (
+                      <tr key={item.product_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '14px 18px', fontWeight: 800, color: '#1e293b' }}>
+                          {item.product_name}
+                        </td>
+                        <td style={{ padding: '14px 18px', fontFamily: 'monospace', fontSize: '13px', color: '#64748b' }}>
+                          <span className="num-en">{item.sku || '—'}</span>
+                        </td>
+                        <td style={{ padding: '14px 18px', fontSize: '13px', color: '#475569' }}>
+                          <span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 700 }}>
+                            {item.unit || t('inventory.products.piece')}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 18px', fontWeight: 900, fontSize: '15px', color: item.quantity > 0 ? '#10b981' : '#ef4444' }}>
+                          <span className="num-en">{item.quantity.toLocaleString()}</span>
+                        </td>
+                        <td style={{ padding: '14px 18px', fontWeight: 700, color: '#475569' }}>
+                          <span className="num-en">{item.cost_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span> {currencyLabel}
+                        </td>
+                        <td style={{ padding: '14px 18px', fontWeight: 800, color: '#0ea5e9' }}>
+                          <span className="num-en">{item.total_value.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span> {currencyLabel}
+                        </td>
+                        <td style={{ padding: '14px 18px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => handleOpenTransfer(item)}
+                            style={{ padding: '6px 12px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                          >
+                            {t('inventory.balances.columns.transfer')}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
         )}
 
         {/* ── TRANSFER MODAL ── */}
         {showTransferModal && (
-          <div style={modalStyle}>
+          <div style={modalStyle} dir={isRTL ? 'rtl' : 'ltr'}>
             <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '500px', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #10b981, #059669)' }}>
                 <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ArrowRightLeft size={20} /> Direct Warehouse Transfer
+                  <ArrowRightLeft size={20} /> {t('inventory.balances.transferModal.title')}
                 </h3>
                 <button onClick={() => setShowTransferModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>
                   <X size={18} />
@@ -389,7 +398,9 @@ const StockBalances = () => {
 
               <form onSubmit={handleTransferSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Source Warehouse (From) *</label>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+                    {t('inventory.balances.transferModal.fromWarehouse')}
+                  </label>
                   <select
                     value={transferForm.from_warehouse_id}
                     onChange={e => setTransferForm({ ...transferForm, from_warehouse_id: e.target.value })}
@@ -403,14 +414,16 @@ const StockBalances = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Destination Warehouse (To) *</label>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+                    {t('inventory.balances.transferModal.toWarehouse')}
+                  </label>
                   <select
                     value={transferForm.to_warehouse_id}
                     onChange={e => setTransferForm({ ...transferForm, to_warehouse_id: e.target.value })}
                     style={inputStyle}
                     required
                   >
-                    <option value="">Select Destination...</option>
+                    <option value="">{t('inventory.balances.transferModal.selectDestination')}</option>
                     {warehouses
                       .filter(w => String(w.id) !== String(transferForm.from_warehouse_id))
                       .map(w => (
@@ -420,41 +433,48 @@ const StockBalances = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Product to Move *</label>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+                    {t('inventory.balances.transferModal.product')}
+                  </label>
                   <select
                     value={transferForm.product_id}
                     onChange={e => setTransferForm({ ...transferForm, product_id: e.target.value })}
                     style={inputStyle}
                     required
                   >
-                    <option value="">Select Product...</option>
+                    <option value="">{t('inventory.balances.transferModal.selectProduct')}</option>
                     {stockItems.map(p => (
                       <option key={p.product_id} value={p.product_id}>
-                        {p.product_name} (Available: {p.quantity} {p.unit})
+                        {p.product_name} ({t('inventory.balances.transferModal.available', { qty: p.quantity, unit: p.unit || t('inventory.products.piece') })})
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Quantity to Transfer *</label>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+                    {t('inventory.balances.transferModal.quantity')}
+                  </label>
                   <input
                     type="number"
                     step="any"
                     min="0.001"
-                    placeholder="Enter quantity..."
+                    placeholder={t('inventory.balances.transferModal.enterQuantity')}
                     value={transferForm.quantity}
                     onChange={e => setTransferForm({ ...transferForm, quantity: e.target.value })}
                     style={inputStyle}
+                    className="num-en"
                     required
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Notes / Reason (Optional)</label>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
+                    {t('inventory.balances.transferModal.notes')}
+                  </label>
                   <input
                     type="text"
-                    placeholder="e.g. Branch replenishment"
+                    placeholder={t('inventory.balances.transferModal.notesPlaceholder')}
                     value={transferForm.notes}
                     onChange={e => setTransferForm({ ...transferForm, notes: e.target.value })}
                     style={inputStyle}
@@ -463,10 +483,10 @@ const StockBalances = () => {
 
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
                   <button type="button" onClick={() => setShowTransferModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                   <button type="submit" disabled={transferSubmitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: transferSubmitting ? 'not-allowed' : 'pointer', opacity: transferSubmitting ? 0.7 : 1 }}>
-                    {transferSubmitting ? 'Transferring...' : 'Confirm Transfer'}
+                    {transferSubmitting ? t('inventory.balances.transferModal.transferring') : t('inventory.balances.transferModal.confirmTransfer')}
                   </button>
                 </div>
               </form>
@@ -476,15 +496,15 @@ const StockBalances = () => {
 
         {/* ── STOCK TAKING / ADJUSTMENT MODAL ── */}
         {showStockTakeModal && (
-          <div style={modalStyle}>
+          <div style={modalStyle} dir={isRTL ? 'rtl' : 'ltr'}>
             <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '750px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}>
                 <div>
                   <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <ClipboardCheck size={20} /> Stock Taking & Physical Count
+                    <ClipboardCheck size={20} /> {t('inventory.balances.stockTakeModal.title')}
                   </h3>
                   <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>
-                    Warehouse: <strong>{selectedWhObj?.name}</strong>. Enter actual counted quantities to auto-apply adjustments.
+                    {t('inventory.balances.stockTakeModal.warehouseSubtitle', { warehouse: selectedWhObj?.name || '' })}
                   </p>
                 </div>
                 <button onClick={() => setShowStockTakeModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>
@@ -493,13 +513,13 @@ const StockBalances = () => {
               </div>
 
               <form onSubmit={handleStockTakeSubmit} style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: isRTL ? 'right' : 'left' }}>
                   <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-                      <th style={{ padding: '10px' }}>Product</th>
-                      <th style={{ padding: '10px' }}>System Qty</th>
-                      <th style={{ padding: '10px' }}>Actual Counted Qty</th>
-                      <th style={{ padding: '10px' }}>Difference</th>
+                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                      <th style={{ padding: '10px' }}>{t('inventory.balances.stockTakeModal.productCol')}</th>
+                      <th style={{ padding: '10px' }}>{t('inventory.balances.stockTakeModal.systemQtyCol')}</th>
+                      <th style={{ padding: '10px' }}>{t('inventory.balances.stockTakeModal.actualQtyCol')}</th>
+                      <th style={{ padding: '10px' }}>{t('inventory.balances.stockTakeModal.diffCol')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -510,15 +530,18 @@ const StockBalances = () => {
                         <tr key={item.product_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '10px', fontWeight: 700 }}>
                             {item.product_name}
-                            <span style={{ display: 'block', fontSize: '11px', color: '#94a3b8' }}>{item.sku || 'No SKU'}</span>
+                            <span className="num-en" style={{ display: 'block', fontSize: '11px', color: '#94a3b8' }}>
+                              {item.sku || t('inventory.balances.stockTakeModal.noSku')}
+                            </span>
                           </td>
                           <td style={{ padding: '10px', fontWeight: 700, color: '#64748b' }}>
-                            {item.quantity} {item.unit}
+                            <span className="num-en">{item.quantity}</span> {item.unit || t('inventory.products.piece')}
                           </td>
                           <td style={{ padding: '10px', width: '150px' }}>
                             <input
                               type="number"
                               step="any"
+                              className="num-en"
                               value={stockTakeCounts[item.product_id] ?? item.quantity}
                               onChange={e => {
                                 const val = e.target.value;
@@ -528,7 +551,9 @@ const StockBalances = () => {
                             />
                           </td>
                           <td style={{ padding: '10px', fontWeight: 800, color: diff > 0 ? '#10b981' : diff < 0 ? '#ef4444' : '#94a3b8' }}>
-                            {diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : '0'}
+                            <span className="num-en">
+                              {diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : '0'}
+                            </span>
                           </td>
                         </tr>
                       );
@@ -538,10 +563,10 @@ const StockBalances = () => {
 
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
                   <button type="button" onClick={() => setShowStockTakeModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                   <button type="submit" disabled={stockTakeSubmitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #7c3aed, #6d28d9)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: stockTakeSubmitting ? 'not-allowed' : 'pointer', opacity: stockTakeSubmitting ? 0.7 : 1 }}>
-                    {stockTakeSubmitting ? 'Applying Adjustments...' : 'Apply Stock Adjustments'}
+                    {stockTakeSubmitting ? t('inventory.balances.stockTakeModal.applying') : t('inventory.balances.stockTakeModal.applyAdjustments')}
                   </button>
                 </div>
               </form>
