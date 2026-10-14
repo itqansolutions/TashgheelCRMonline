@@ -285,6 +285,9 @@ test('Client: GET /leads uses perPage<=50 and clamps createdAtFrom to the 3-mont
   assert.ok(ageDays < 90, `createdAtFrom must be inside 3 months, got ${ageDays}d`);
   assert.deepEqual(PropertyFinderClient.extractLeads({ results: [1] }), [1]);
   assert.deepEqual(PropertyFinderClient.extractLeads(null), []);
+  assert.deepEqual(PropertyFinderClient.extractListings({ results: [1, 2] }), [1, 2]);
+  assert.deepEqual(PropertyFinderClient.extractListings({ data: [3] }), [3]);
+  assert.deepEqual(PropertyFinderClient.extractListings(null), []);
 });
 
 function webhookReq(tenant, secret, body, eventId, { sign = true } = {}) {

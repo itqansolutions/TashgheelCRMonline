@@ -328,6 +328,19 @@ class PropertyFinderClient {
   }
 
   /**
+   * Extract the listings array from a response regardless of envelope naming.
+   * Atlas GET /listings returns { results: [ ... ], pagination: { ... } }.
+   */
+  static extractListings(response) {
+    if (Array.isArray(response)) return response;
+    const r = response || {};
+    for (const key of ['results', 'data', 'listings', 'items']) {
+      if (Array.isArray(r[key])) return r[key];
+    }
+    return [];
+  }
+
+  /**
    * Determine whether another page exists (supports several pagination envelope shapes).
    */
   static hasNextPage(response, page, leadsOnPage, perPage) {

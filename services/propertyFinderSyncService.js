@@ -107,7 +107,7 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
 
   try {
     const response = await client.getListings({ page, limit });
-    const listings = response.data || [];
+    const listings = PropertyFinderClient.extractListings(response);
     stats.totalFetched = listings.length;
 
     for (const listing of listings) {
