@@ -1,13 +1,17 @@
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
-const EmptyState = ({ message = 'No activity recorded yet for this period.', actionText, onAction, compact = false }) => {
+const EmptyState = ({ message, actionText, onAction, compact = false }) => {
+  const { t } = useLanguage();
+  const displayMessage = message || t('common.noData');
+
   return (
     <div className={`dashboard-empty-state ${compact ? 'compact-state' : ''}`}>
       <div className="empty-icon-box">
         <AlertCircle size={compact ? 16 : 20} />
       </div>
-      <p className="empty-message">{message}</p>
+      <p className="empty-message">{displayMessage}</p>
       {actionText && onAction && (
         <button className="empty-action-btn" onClick={onAction}>
           {actionText}

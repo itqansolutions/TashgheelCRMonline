@@ -139,16 +139,17 @@ exports.createQuotation = async (req, res) => {
       }
     }
 
-    // D. Validate General Products (if items supplied)
+    // D. Validate General Products & Classifications (if items supplied)
+    const productMap = new Map();
     if (items && Array.isArray(items) && items.length > 0) {
       const productIds = items
         .map(i => i.product_id)
         .filter(pid => pid !== null && pid !== undefined && pid !== '');
 
       if (productIds.length > 0) {
-        const uniquePids = [...new Set(productIds)];
+        const uniquePids = [...new Set(productIds.map(p => parseInt(p, 10)).filter(p => !isNaN(p) && p > 0))];
         const prodRes = await client.query(
-          'SELECT id FROM products WHERE id = ANY($1::int[]) AND tenant_id::text = $2::text',
+          'SELECT id, is_inventory_item FROM products WHERE id = ANY($1::int[]) AND tenant_id::text = $2::text',
           [uniquePids, String(tenant_id)]
         );
 
@@ -159,6 +160,90 @@ exports.createQuotation = async (req, res) => {
             message: 'One or more products not found or belong to another tenant'
           });
         }
+        for (const row of prodRes.rows) {
+          productMap.set(String(row.id), row);
+        }
+      }
+    }
+
+    // E. Pre-validate each quotation item and resolve its item_type
+    const validatedItems = [];
+    if (items && Array.isArray(items)) {
+      let rowIdx = 0;
+      for (const item of items) {
+        rowIdx++;
+        let resolvedItemType = item.item_type ? String(item.item_type).trim().toLowerCase() : null;
+
+        if (resolvedItemType === 'legacy_unclassified') {
+          await client.query('ROLLBACK');
+          return res.status(400).json({
+            status: 'error',
+            message: `Item #${rowIdx}: 'legacy_unclassified' is restricted to historical records and cannot be assigned to new quotation items.`
+          });
+        }
+
+        const pid = (item.product_id !== null && item.product_id !== undefined && item.product_id !== '')
+          ? String(item.product_id)
+          : null;
+
+        if (pid) {
+          const prod = productMap.get(pid);
+          if (!prod) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              status: 'error',
+              message: `Item #${rowIdx}: Product ID ${pid} not found in this company's catalog.`
+            });
+          }
+
+          if (prod.is_inventory_item === true) {
+            // Verified physical inventory product inherits 'inventory'
+            if (resolvedItemType && resolvedItemType !== 'inventory') {
+              await client.query('ROLLBACK');
+              return res.status(400).json({
+                status: 'error',
+                message: `Item #${rowIdx}: Product ID ${pid} is a physical inventory product; cannot be classified as '${resolvedItemType}'.`
+              });
+            }
+            resolvedItemType = 'inventory';
+          } else {
+            // Non-inventory catalog product requires explicit classification: 'service' or 'non_inventory'
+            if (!resolvedItemType || !['service', 'non_inventory'].includes(resolvedItemType)) {
+              await client.query('ROLLBACK');
+              return res.status(400).json({
+                status: 'error',
+                message: `Item #${rowIdx}: Product ID ${pid} is a non-inventory catalog product; explicit item_type ('service' or 'non_inventory') is required.`
+              });
+            }
+          }
+        } else {
+          // Custom item without product requires explicit classification from user ('service' or 'non_inventory')
+          if (!resolvedItemType || !['service', 'non_inventory'].includes(resolvedItemType)) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              status: 'error',
+              message: `Item #${rowIdx}: Custom line item requires an explicit item_type ('service' or 'non_inventory').`
+            });
+          }
+          if (!item.description || String(item.description).trim() === '') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+              status: 'error',
+              message: `Item #${rowIdx}: Line item requires a descriptive name or description.`
+            });
+          }
+        }
+
+        const qty = parseFloat(item.quantity) || 1;
+        const price = parseFloat(item.unit_price) || 0;
+        validatedItems.push({
+          product_id: pid ? parseInt(pid, 10) : null,
+          description: item.description ? String(item.description).trim() : '',
+          item_type: resolvedItemType,
+          quantity: qty,
+          unit_price: price,
+          subtotal: qty * price
+        });
       }
     }
 
@@ -192,24 +277,23 @@ exports.createQuotation = async (req, res) => {
     const quotation = result.rows[0];
 
     // ── 4. Insert Items (if any) ─────────────────────────────────────────────
-    if (items && Array.isArray(items)) {
-      for (const item of items) {
-        await client.query(
-          `INSERT INTO quotation_items
-            (quotation_id, product_id, description, quantity, unit_price, subtotal, tenant_id, branch_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            quotation.id,
-            item.product_id || null,
-            item.description || '',
-            item.quantity || 1,
-            item.unit_price || 0,
-            (item.quantity || 1) * (item.unit_price || 0),
-            tenant_id,
-            branch_id ? String(branch_id) : null
-          ]
-        );
-      }
+    for (const item of validatedItems) {
+      await client.query(
+        `INSERT INTO quotation_items
+          (quotation_id, product_id, description, item_type, quantity, unit_price, subtotal, tenant_id, branch_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          quotation.id,
+          item.product_id || null,
+          item.description || '',
+          item.item_type,
+          item.quantity,
+          item.unit_price,
+          item.subtotal,
+          tenant_id,
+          branch_id ? String(branch_id) : null
+        ]
+      );
     }
 
     await client.query('COMMIT');

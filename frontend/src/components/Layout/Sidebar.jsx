@@ -11,11 +11,13 @@ import {
   Folder, HelpCircle, Bot, Sparkles, CheckCircle2, ListTree, Globe
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { useModule } from '../../hooks/useModule';
 import { safeArray } from '../../utils/dataUtils';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { user } = useAuth();
+  const { lang, t, isRTL } = useLanguage();
   const { can, planName, trialDaysLeft } = useModule();
   const navigate = useNavigate();
   const location = useLocation();
@@ -115,18 +117,19 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   };
 
   // -------------------------------------------------------------
+  // -------------------------------------------------------------
   // 1. MY PROFILE ITEMS (All direct siblings)
   // -------------------------------------------------------------
   const rawProfileItems = [
-    { name: 'My Attendance',    icon: <Clock size={16} />,        path: '/my-attendance' },
-    { name: 'My Requests',      icon: <FileText size={16} />,     path: '/my-requests' },
-    { name: 'Approvals',        icon: <ShieldCheck size={16} />,  path: '/approvals', roleGuard: ['admin', 'manager'] },
-    { name: 'My Payroll',       icon: <DollarSign size={16} />,   path: '/my-payroll' },
-    { name: 'Activity Balance', icon: <Wallet size={16} />,       path: '/activity-balance' },
-    { name: 'Deals',            icon: <Handshake size={16} />,    path: '/deals' },
-    { name: 'Tasks',            icon: <CheckSquare size={16} />,  path: '/tasks' },
-    { name: 'Customers',        icon: <Users size={16} />,        path: '/customers' },
-    ...(isRealEstate ? [{ name: 'Units', icon: <Key size={16} />, path: '/units-registry' }] : [])
+    { name: 'My Attendance',    labelKey: 'sidebar.myAttendance',    icon: <Clock size={16} />,        path: '/my-attendance' },
+    { name: 'My Requests',      labelKey: 'sidebar.myRequests',      icon: <FileText size={16} />,     path: '/my-requests' },
+    { name: 'Approvals',        labelKey: 'sidebar.approvals',       icon: <ShieldCheck size={16} />,  path: '/approvals', roleGuard: ['admin', 'manager'] },
+    { name: 'My Payroll',       labelKey: 'sidebar.myPayroll',       icon: <DollarSign size={16} />,   path: '/my-payroll' },
+    { name: 'Activity Balance', labelKey: 'sidebar.activityBalance', icon: <Wallet size={16} />,       path: '/activity-balance' },
+    { name: 'Deals',            labelKey: 'sidebar.deals',            icon: <Handshake size={16} />,    path: '/deals' },
+    { name: 'Tasks',            labelKey: 'sidebar.tasks',            icon: <CheckSquare size={16} />,  path: '/tasks' },
+    { name: 'Customers',        labelKey: 'sidebar.customers',        icon: <Users size={16} />,        path: '/customers' },
+    ...(isRealEstate ? [{ name: 'Units', labelKey: 'sidebar.units', icon: <Key size={16} />, path: '/units-registry' }] : [])
   ];
 
   const profileItems = rawProfileItems.filter(item => {
@@ -138,13 +141,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // 2. CONTACTS ITEMS
   // -------------------------------------------------------------
   const contactsDirectItems = [
-    { name: 'Customers / Tenants', icon: <Users size={18} />, path: '/customers' },
-    { name: 'Vendors',           icon: <Truck size={18} />, path: '/contacts/vendors' }
+    { name: 'Customers / Tenants', labelKey: 'sidebar.customersTenants', icon: <Users size={18} />, path: '/customers' },
+    { name: 'Vendors',             labelKey: 'sidebar.vendors',          icon: <Truck size={18} />, path: '/contacts/vendors' }
   ];
 
   const employeeSubItems = [
-    { name: 'Departments', icon: <Building size={16} />,  path: '/contacts/employees?tab=departments' },
-    { name: 'Job Titles',  icon: <Briefcase size={16} />, path: '/contacts/employees?tab=jobtitles' }
+    { name: 'Departments', labelKey: 'sidebar.departments', icon: <Building size={16} />,  path: '/contacts/employees?tab=departments' },
+    { name: 'Job Titles',  labelKey: 'sidebar.jobTitles',   icon: <Briefcase size={16} />, path: '/contacts/employees?tab=jobtitles' }
   ];
 
   const hasPurchasing = can('purchasing') || can('inventory');
@@ -162,76 +165,77 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // 3. REAL ESTATE ITEMS (REAL ESTATE TEMPLATE ONLY)
   // -------------------------------------------------------------
   const reDefinitionsSubItems = [
-    { name: 'Projects',   icon: <Building size={16} />,  path: '/units-registry?tab=projects' },
-    { name: 'Developers', icon: <Building2 size={16} />, path: '/units-registry?tab=developers' },
-    { name: 'Phases',     icon: <Layers size={16} />,    path: '/units-registry?tab=phases' }
+    { name: 'Projects',   labelKey: 'sidebar.projects',   icon: <Building size={16} />,  path: '/units-registry?tab=projects' },
+    { name: 'Developers', labelKey: 'sidebar.developers', icon: <Building2 size={16} />, path: '/units-registry?tab=developers' },
+    { name: 'Phases',     labelKey: 'sidebar.phases',     icon: <Layers size={16} />,    path: '/units-registry?tab=phases' }
   ];
 
   const reDirectItems = [
-    { name: 'Units',           icon: <Key size={18} />,         path: '/units-registry' },
-    { name: 'Reservations',    icon: <CheckSquare size={18} />, path: '/reservations' },
-    { name: 'Contracts',       icon: <FileText size={18} />,    path: '/contracts' },
-    { name: 'Installments',    icon: <CreditCard size={18} />,  path: '/installments' },
-    { name: 'Property Finder', icon: <Globe size={18} />,       path: '/integrations/property-finder', roleGuard: ['admin', 'manager'] }
+    { name: 'Units',           labelKey: 'sidebar.units',          icon: <Key size={18} />,         path: '/units-registry' },
+    { name: 'Reservations',    labelKey: 'sidebar.reservations',   icon: <CheckSquare size={18} />, path: '/reservations' },
+    { name: 'Contracts',       labelKey: 'sidebar.contracts',      icon: <FileText size={18} />,    path: '/contracts' },
+    { name: 'Installments',    labelKey: 'sidebar.installments',   icon: <CreditCard size={18} />,  path: '/installments' },
+    { name: 'Property Finder', labelKey: 'sidebar.propertyFinder', icon: <Globe size={18} />,       path: '/integrations/property-finder', roleGuard: ['admin', 'manager'] }
   ];
 
   // -------------------------------------------------------------
   // 4. SALES ITEMS (BOTH TEMPLATES; Commissions & Handover are Real Estate workspaces)
   // -------------------------------------------------------------
   const rawSalesItems = [
-    { name: 'Quotations',     icon: <FileText size={18} />,     path: '/finance?tab=Quotations' },
-    { name: 'Sales Orders',   icon: <ShoppingCart size={18} />, path: '/sales/orders' },
-    { name: 'Documents Hub',  icon: <FileCheck size={18} />,    path: '/sales/documents' },
-    { name: 'Price Tiers',    icon: <DollarSign size={18} />,   path: '/sales/price-tiers' },
-    { name: 'Salesmen',       icon: <Users size={18} />,        path: '/sales/salesmen' },
-    { name: 'Targets',        icon: <Award size={18} />,        path: '/sales/target' },
+    { name: 'Quotations',     labelKey: 'sidebar.quotations',    icon: <FileText size={18} />,     path: '/finance?tab=Quotations' },
+    { name: 'Sales Orders',   labelKey: 'sidebar.salesOrders',   icon: <ShoppingCart size={18} />, path: '/sales/orders' },
+    { name: 'Documents Hub',  labelKey: 'sidebar.documentsHub',  icon: <FileCheck size={18} />,    path: '/sales/documents' },
+    { name: 'Price Tiers',    labelKey: 'sidebar.priceTiers',    icon: <DollarSign size={18} />,   path: '/sales/price-tiers' },
+    { name: 'Salesmen',       labelKey: 'sidebar.salesmen',      icon: <Users size={18} />,        path: '/sales/salesmen' },
+    { name: 'Targets',        labelKey: 'sidebar.targets',       icon: <Award size={18} />,        path: '/sales/target' },
     ...(isRealEstate ? [
-      { name: 'Commissions',  icon: <DollarSign size={18} />,   path: '/commissions' },
-      { name: 'Handover',     icon: <Key size={18} />,          path: '/handover' }
+      { name: 'Commissions',  labelKey: 'sidebar.commissions',   icon: <DollarSign size={18} />,   path: '/commissions' },
+      { name: 'Handover',     labelKey: 'sidebar.handover',      icon: <Key size={18} />,          path: '/handover' }
     ] : [])
   ];
   const salesItems = filterByAllowed(rawSalesItems);
 
   // -------------------------------------------------------------
+  // -------------------------------------------------------------
   // 5. WAREHOUSE & INVENTORY ITEMS
   // -------------------------------------------------------------
   const rawWarehouseItems = [
-    { name: 'Products',           icon: <Package size={18} />,        path: '/products' },
-    { name: 'Warehouses',         icon: <Building size={18} />,       path: '/inventory/warehouses' },
-    { name: 'Keepers',            icon: <ShieldCheck size={18} />,    path: '/inventory/keepers' },
-    { name: 'Stock Balances',     icon: <Scale size={18} />,          path: '/inventory/balances' },
-    { name: 'Stock Movements',    icon: <ArrowLeftRight size={18} />,  path: '/inventory/movements' },
-    { name: 'Transaction Impact', icon: <Activity size={18} />,       path: '/inventory/transaction-impact' },
-    { name: 'Item Card',          icon: <CreditCard size={18} />,     path: '/inventory/item-card' }
+    { name: 'Products',           labelKey: 'sidebar.products',          icon: <Package size={18} />,        path: '/products' },
+    { name: 'Warehouses',         labelKey: 'sidebar.warehouses',        icon: <Building size={18} />,       path: '/inventory/warehouses' },
+    { name: 'Keepers',            labelKey: 'sidebar.keepers',           icon: <ShieldCheck size={18} />,    path: '/inventory/keepers' },
+    { name: 'Stock Balances',     labelKey: 'sidebar.stockBalances',     icon: <Scale size={18} />,          path: '/inventory/balances' },
+    { name: 'Stock Movements',    labelKey: 'sidebar.stockMovements',    icon: <ArrowLeftRight size={18} />,  path: '/inventory/movements' },
+    { name: 'Transaction Impact', labelKey: 'sidebar.transactionImpact', icon: <Activity size={18} />,       path: '/inventory/transaction-impact' },
+    { name: 'Item Card',          labelKey: 'sidebar.itemCard',          icon: <CreditCard size={18} />,     path: '/inventory/item-card' }
   ];
   const hasInventory = can('inventory') || can('purchasing') || user?.role === 'admin';
   const inventoryItems = hasInventory ? filterByAllowed(rawWarehouseItems) : [];
   const warehouseItems = inventoryItems;
 
   // -------------------------------------------------------------
-  // 5. FINANCE ITEMS (ALL 9 OPERATIONS - BOTH TEMPLATES)
+  // 6. FINANCE ITEMS (ALL 9 OPERATIONS - BOTH TEMPLATES)
   // -------------------------------------------------------------
   const rawFinanceItems = [
-    { name: 'Overview',          icon: <LayoutDashboard size={18} />, path: '/finance?tab=Overview' },
-    { name: 'Invoices',          icon: <FileText size={18} />,        path: '/finance?tab=Invoices' },
-    { name: 'Receipts',          icon: <ArrowDownLeft size={18} />,   path: '/finance?tab=Receipts' },
-    { name: 'Payments',          icon: <CreditCard size={18} />,      path: '/finance?tab=Payments' },
-    { name: 'Expenses',          icon: <DollarSign size={18} />,      path: '/finance?tab=Expenses' },
-    { name: 'Customer Accounts', icon: <Users size={18} />,           path: '/finance?tab=Customers' },
-    { name: 'Vendor Accounts',   icon: <Building2 size={18} />,       path: '/finance?tab=Vendors' },
-    { name: 'Treasury',          icon: <Wallet size={18} />,          path: '/finance?tab=Treasury' },
-    { name: 'Reports',           icon: <BarChart3 size={18} />,       path: '/finance?tab=Reports' }
+    { name: 'Overview',          labelKey: 'sidebar.overview',         icon: <LayoutDashboard size={18} />, path: '/finance?tab=Overview' },
+    { name: 'Invoices',          labelKey: 'sidebar.invoices',         icon: <FileText size={18} />,        path: '/finance?tab=Invoices' },
+    { name: 'Receipts',          labelKey: 'sidebar.receipts',         icon: <ArrowDownLeft size={18} />,   path: '/finance?tab=Receipts' },
+    { name: 'Payments',          labelKey: 'sidebar.payments',         icon: <CreditCard size={18} />,      path: '/finance?tab=Payments' },
+    { name: 'Expenses',          labelKey: 'sidebar.expenses',         icon: <DollarSign size={18} />,      path: '/finance?tab=Expenses' },
+    { name: 'Customer Accounts', labelKey: 'sidebar.customerAccounts', icon: <Users size={18} />,           path: '/finance?tab=Customers' },
+    { name: 'Vendor Accounts',   labelKey: 'sidebar.vendorAccounts',   icon: <Building2 size={18} />,       path: '/finance?tab=Vendors' },
+    { name: 'Treasury',          labelKey: 'sidebar.treasury',         icon: <Wallet size={18} />,          path: '/finance?tab=Treasury' },
+    { name: 'Reports',           labelKey: 'sidebar.reports',          icon: <BarChart3 size={18} />,       path: '/finance?tab=Reports' }
   ];
   const financeItems = filterByAllowed(rawFinanceItems);
 
   // -------------------------------------------------------------
-  // 6. MARKETING ITEMS
+  // 7. MARKETING ITEMS
   // -------------------------------------------------------------
   const rawWhatsappSubItems = [
-    { name: 'WhatsApp Campaigns', icon: <Send size={16} />,          path: '/marketing/whatsapp-campaigns' },
-    { name: 'WhatsApp Chat',      icon: <MessageCircle size={16} />, path: '/whatsapp-chat' },
-    { name: 'WhatsApp Chatbot',   icon: <Bot size={16} />,           path: '/marketing/whatsapp-chatbots' },
-    { name: 'WhatsApp Settings',  icon: <AdminSettingsIcon size={16} />, path: '/integrations/whatsapp', roleGuard: ['admin'] }
+    { name: 'WhatsApp Campaigns', labelKey: 'sidebar.whatsappCampaigns', icon: <Send size={16} />,          path: '/marketing/whatsapp-campaigns' },
+    { name: 'WhatsApp Chat',      labelKey: 'sidebar.whatsappChat',      icon: <MessageCircle size={16} />, path: '/whatsapp-chat' },
+    { name: 'WhatsApp Chatbot',   labelKey: 'sidebar.whatsappChatbot',   icon: <Bot size={16} />,           path: '/marketing/whatsapp-chatbots' },
+    { name: 'WhatsApp Settings',  labelKey: 'sidebar.whatsappSettings',  icon: <AdminSettingsIcon size={16} />, path: '/integrations/whatsapp', roleGuard: ['admin'] }
   ];
 
   const whatsappSubItems = rawWhatsappSubItems.filter(item => {
@@ -242,15 +246,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const canAccessMetaForms = isPathAllowed('/integrations/meta-forms');
 
   // -------------------------------------------------------------
-  // 7. HR ITEMS (ADMINISTRATION & SYSTEM HR)
+  // 8. HR ITEMS (ADMINISTRATION & SYSTEM HR)
   // -------------------------------------------------------------
   const rawHrItems = [
-    { name: 'Dashboard for HR',    icon: <UserCheck size={18} />, path: '/hr/dashboard', roleGuard: ['admin', 'manager'] },
-    { name: 'Payroll',             icon: <DollarSign size={18} />, path: '/hr/payroll', roleGuard: ['admin', 'manager'] },
-    { name: 'Activity Definition', icon: <FileText size={18} />,   path: '/hr/activity-definition', roleGuard: ['admin', 'manager'] },
-    { name: 'Activity Balance',    icon: <Scale size={18} />,      path: '/hr/activity-balance', roleGuard: ['admin', 'manager'] },
-    { name: 'Shifts',              icon: <Calendar size={18} />,   path: '/hr/shifts', roleGuard: ['admin', 'manager'] },
-    { name: 'Attendance Device',   icon: <Clock size={18} />,      path: '/hr/devices', roleGuard: ['admin', 'manager'] }
+    { name: 'Dashboard for HR',    labelKey: 'sidebar.hrDashboard',       icon: <UserCheck size={18} />, path: '/hr/dashboard', roleGuard: ['admin', 'manager'] },
+    { name: 'Payroll',             labelKey: 'sidebar.payroll',           icon: <DollarSign size={18} />, path: '/hr/payroll', roleGuard: ['admin', 'manager'] },
+    { name: 'Activity Definition', labelKey: 'sidebar.activityDefinition', icon: <FileText size={18} />,   path: '/hr/activity-definition', roleGuard: ['admin', 'manager'] },
+    { name: 'Activity Balance',    labelKey: 'sidebar.activityBalance',    icon: <Scale size={18} />,      path: '/hr/activity-balance', roleGuard: ['admin', 'manager'] },
+    { name: 'Shifts',              labelKey: 'sidebar.shifts',             icon: <Calendar size={18} />,   path: '/hr/shifts', roleGuard: ['admin', 'manager'] },
+    { name: 'Attendance Device',   labelKey: 'sidebar.devices',            icon: <Clock size={18} />,      path: '/hr/devices', roleGuard: ['admin', 'manager'] }
   ];
 
   const hrItems = (hasHr || user?.role === 'admin')
@@ -261,12 +265,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     : [];
 
   // -------------------------------------------------------------
-  // 8. PURCHASES ITEMS
+  // 9. PURCHASES ITEMS
   // -------------------------------------------------------------
   const rawPurchasesItems = [
-    { name: 'Purchase Request', icon: <FileText size={18} />,     path: '/purchases/requests' },
-    { name: 'Purchase Order',   icon: <FileText size={18} />,     path: '/purchases/orders' },
-    { name: 'Purchase Invoice', icon: <ShoppingCart size={18} />, path: '/purchases' }
+    { name: 'Purchase Request', labelKey: 'sidebar.purchaseRequest', icon: <FileText size={18} />,     path: '/purchases/requests' },
+    { name: 'Purchase Order',   labelKey: 'sidebar.purchaseOrder',   icon: <FileText size={18} />,     path: '/purchases/orders' },
+    { name: 'Purchase Invoice', labelKey: 'sidebar.purchaseInvoice', icon: <ShoppingCart size={18} />, path: '/purchases' }
   ];
 
   const purchasesItems = (hasPurchasing || user?.role === 'admin')
@@ -274,24 +278,24 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     : [];
 
   // -------------------------------------------------------------
-  // 9. REPORTS ITEMS (ERP REPORTS DORMANT/HIDDEN)
+  // 10. REPORTS ITEMS (ERP REPORTS DORMANT/HIDDEN)
   // -------------------------------------------------------------
   const rawReportsItems = [
-    { name: 'General Reports', icon: <BarChart3 size={18} />, path: '/reports' },
-    { name: 'Finance Reports', icon: <Wallet size={18} />,    path: '/finance?tab=Reports' }
+    { name: 'General Reports', labelKey: 'sidebar.generalReports', icon: <BarChart3 size={18} />, path: '/reports' },
+    { name: 'Finance Reports', labelKey: 'sidebar.financeReports', icon: <Wallet size={18} />,    path: '/finance?tab=Reports' }
     // NOTE: ERP Reports is intentionally hidden for now until explicit ERP navigation activation
   ];
   const reportsItems = filterByAllowed(rawReportsItems);
 
   // -------------------------------------------------------------
-  // 10. ADMIN ITEMS
+  // 11. ADMIN ITEMS
   // -------------------------------------------------------------
   const rawAdminItems = [
-    { name: 'Files',            icon: <FileText size={18} />,          path: '/files' },
-    { name: 'Logs',             icon: <History size={18} />,           path: '/logs', roleGuard: ['admin'] },
-    { name: 'Settings',         icon: <AdminSettingsIcon size={18} />, path: '/settings', roleGuard: ['admin'] },
-    { name: 'Company Settings', icon: <Building2 size={18} />,         path: '/settings/company', roleGuard: ['admin'] },
-    { name: 'Billing',          icon: <CreditCard size={18} />,        path: '/billing' }
+    { name: 'Files',            labelKey: 'sidebar.files',           icon: <FileText size={18} />,          path: '/files' },
+    { name: 'Logs',             labelKey: 'sidebar.logs',            icon: <History size={18} />,           path: '/logs', roleGuard: ['admin'] },
+    { name: 'Settings',         labelKey: 'sidebar.settings',        icon: <AdminSettingsIcon size={18} />, path: '/settings', roleGuard: ['admin'] },
+    { name: 'Company Settings', labelKey: 'sidebar.companySettings', icon: <Building2 size={18} />,         path: '/settings/company', roleGuard: ['admin'] },
+    { name: 'Billing',          labelKey: 'sidebar.billing',         icon: <CreditCard size={18} />,        path: '/billing' }
   ];
 
   const adminItems = rawAdminItems.filter(item => {
@@ -317,12 +321,39 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           display: flex; flex-direction: column;
           border-right: 1px solid var(--glass-border, #e2e8f0);
           box-shadow: 10px 0 30px rgba(0,0,0,0.03);
-          font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          font-family: inherit;
         }
         .sidebar.closed { width: 68px; }
+
+        /* RTL Directional Rules */
+        [dir='rtl'] .sidebar {
+          left: auto;
+          right: 0;
+          border-right: none;
+          border-left: 1px solid var(--glass-border, #e2e8f0);
+          box-shadow: -10px 0 30px rgba(0,0,0,0.03);
+        }
+        [dir='rtl'] .sidebar-nav a:hover {
+          transform: translateX(-2px);
+        }
+        [dir='rtl'] .group-sub-items {
+          padding-left: 0;
+          padding-right: 8px;
+        }
+        [dir='rtl'] .group-sub-items.nested {
+          padding-left: 0;
+          padding-right: 12px;
+          border-left: none;
+          border-right: 1.5px solid rgba(79,70,229,0.12);
+          margin-left: 0;
+          margin-right: 12px;
+        }
+
         @media (max-width: 768px) {
           .sidebar.closed { transform: translateX(-100%); width: var(--sidebar-w, 240px); }
           .sidebar.open { transform: translateX(0); width: var(--sidebar-w, 240px); }
+          [dir='rtl'] .sidebar.closed { transform: translateX(100%); }
+          [dir='rtl'] .sidebar.open { transform: translateX(0); }
         }
         .sidebar-header {
           height: var(--header-h, 56px); display: flex; align-items: center;
@@ -392,8 +423,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           padding: 6px 10px;
           font-size: 12.5px !important;
         }
-        .sidebar.closed .group-sub-items { padding-left: 0; }
-        .sidebar.closed .group-sub-items.nested { border-left: none; margin-left: 0; }
+        .sidebar.closed .group-sub-items { padding-left: 0; padding-right: 0; }
+        .sidebar.closed .group-sub-items.nested { border-left: none; border-right: none; margin-left: 0; margin-right: 0; }
 
         .trial-banner {
           margin: 0 8px 8px; border-radius: 8px; padding: 8px 10px;
@@ -419,7 +450,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       <div className="sidebar-header">
         <h2>Tashgheel</h2>
         <button label="toggle" className="toggle-btn" onClick={toggleSidebar}>
-          {isOpen ? <ChevronLeft size={20}/> : <ChevronRight size={20}/>}
+          {isRTL ? (isOpen ? <ChevronRight size={20}/> : <ChevronLeft size={20}/>) : (isOpen ? <ChevronLeft size={20}/> : <ChevronRight size={20}/>)}
         </button>
       </div>
 
@@ -430,23 +461,23 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         {isPathAllowed('/dashboard') && (
           <NavLink to="/dashboard" className={() => isItemActive('/dashboard') ? 'active' : ''}>
             <LayoutDashboard size={18} />
-            <span>Dashboard</span>
+            <span>{t('sidebar.dashboard')}</span>
           </NavLink>
         )}
 
         {/* 1. MY PROFILE GROUP */}
         {profileItems.length > 0 && (
           <>
-            <div className="group-header" onClick={() => isOpen && setProfileOpen(prev => !prev)} title={!isOpen ? 'My Profile' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setProfileOpen(prev => !prev)} title={!isOpen ? t('sidebar.myProfile') : undefined}>
               <UserCircle size={18} className="main-icon" />
-              <span className="group-label">My Profile</span>
+              <span className="group-label">{t('sidebar.myProfile')}</span>
               {isOpen && (profileOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && profileOpen ? 'expanded' : 'collapsed'}`}>
               {profileItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
-                  <span>{item.name}</span>
+                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
                 </NavLink>
               ))}
             </div>
@@ -456,16 +487,16 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         {/* 2. CONTACTS GROUP */}
         {(visibleContactsDirect.length > 0 || canAccessEmployees) && (
           <>
-            <div className="group-header" onClick={() => isOpen && setContactsOpen(prev => !prev)} title={!isOpen ? 'Contacts' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setContactsOpen(prev => !prev)} title={!isOpen ? t('sidebar.contacts') : undefined}>
               <Users size={18} className="main-icon" />
-              <span className="group-label">Contacts</span>
+              <span className="group-label">{t('sidebar.contacts')}</span>
               {isOpen && (contactsOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && contactsOpen ? 'expanded' : 'collapsed'}`}>
               {visibleContactsDirect.map(item => (
                 <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
-                  <span>{item.name}</span>
+                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
                 </NavLink>
               ))}
 
@@ -479,7 +510,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                       className={() => (location.pathname === '/contacts/employees' && (!location.search || location.search.includes('tab=employees')) ? 'active' : '')}
                     >
                       <Briefcase size={17} />
-                      <span>Employees</span>
+                      <span>{t('sidebar.employees')}</span>
                     </NavLink>
                     {isOpen && (
                       <span 
@@ -495,7 +526,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                     {employeeSubItems.map(subItem => (
                       <NavLink key={subItem.name} to={subItem.path} className={() => isItemActive(subItem.path) ? 'active' : ''}>
                         {subItem.icon}
-                        <span>{subItem.name}</span>
+                        <span>{subItem.labelKey ? t(subItem.labelKey) : subItem.name}</span>
                       </NavLink>
                     ))}
                   </div>
@@ -508,9 +539,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         {/* 3. REAL ESTATE GROUP (VISIBLE ONLY WHEN template === 'real_estate') */}
         {isRealEstate && isPathAllowed('/units-registry') && (
           <>
-            <div className="group-header" onClick={() => isOpen && setRealEstateOpen(prev => !prev)} title={!isOpen ? 'Real Estate' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setRealEstateOpen(prev => !prev)} title={!isOpen ? t('sidebar.realEstate') : undefined}>
               <Building2 size={18} className="main-icon" />
-              <span className="group-label">Real Estate</span>
+              <span className="group-label">{t('sidebar.realEstate')}</span>
               {isOpen && (realEstateOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && realEstateOpen ? 'expanded' : 'collapsed'}`}>
@@ -519,17 +550,17 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               <div 
                 className="group-header sub-group-header" 
                 onClick={() => isOpen && setReDefinitionsOpen(prev => !prev)}
-                title={!isOpen ? 'Definitions' : undefined}
+                title={!isOpen ? t('sidebar.definitions') : undefined}
               >
                 <Layers size={16} className="main-icon" />
-                <span className="group-label">Definitions</span>
+                <span className="group-label">{t('sidebar.definitions')}</span>
                 {isOpen && (reDefinitionsOpen ? <ChevronDown size={13} className="group-chevron" /> : <ChevronUp size={13} className="group-chevron" />)}
               </div>
               <div className={`group-sub-items nested ${isOpen && reDefinitionsOpen ? 'expanded' : 'collapsed'}`}>
                 {reDefinitionsSubItems.map(subItem => (
                   <NavLink key={subItem.name} to={subItem.path} className={() => isItemActive(subItem.path) ? 'active' : ''}>
                     {subItem.icon}
-                    <span>{subItem.name}</span>
+                    <span>{subItem.labelKey ? t(subItem.labelKey) : subItem.name}</span>
                   </NavLink>
                 ))}
               </div>
@@ -538,7 +569,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               {reDirectItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
-                  <span>{item.name}</span>
+                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
                 </NavLink>
               ))}
             </div>
@@ -548,16 +579,16 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         {/* 4. SALES GROUP (Quotations, Salesmen, Targets, Commissions, Handover) */}
         {salesItems.length > 0 && (
           <>
-            <div className="group-header" onClick={() => isOpen && setSalesOpen(prev => !prev)} title={!isOpen ? 'Sales' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setSalesOpen(prev => !prev)} title={!isOpen ? t('sidebar.sales') : undefined}>
               <ShoppingBag size={18} className="main-icon" />
-              <span className="group-label">Sales</span>
+              <span className="group-label">{t('sidebar.sales')}</span>
               {isOpen && (salesOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && salesOpen ? 'expanded' : 'collapsed'}`}>
               {salesItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
-                  <span>{item.name}</span>
+                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
                 </NavLink>
               ))}
             </div>
@@ -567,16 +598,16 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         {/* 5. WAREHOUSE GROUP (Products, Warehouses, Keepers, Stock Balances, Stock Movements, Transaction Impact, Item Card) */}
         {hasInventory && inventoryItems.length > 0 && (
           <>
-            <div className="group-header" onClick={() => isOpen && setWarehouseOpen(prev => !prev)} title={!isOpen ? 'Warehouse' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setWarehouseOpen(prev => !prev)} title={!isOpen ? t('sidebar.warehouse') : undefined}>
               <Package size={18} className="main-icon" />
-              <span className="group-label">Warehouse</span>
+              <span className="group-label">{t('sidebar.warehouse')}</span>
               {isOpen && (warehouseOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && warehouseOpen ? 'expanded' : 'collapsed'}`}>
               {warehouseItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
-                  <span>{item.name}</span>
+                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
                 </NavLink>
               ))}
             </div>
@@ -586,9 +617,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         {/* 6. FINANCE GROUP (ALL 9 OPERATIONS - Overview, Invoices, Receipts, Payments, Expenses, Customer Accounts, Vendor Accounts, Treasury, Reports) */}
         {financeItems.length > 0 && (
           <>
-            <div className="group-header" onClick={() => isOpen && setFinanceOpen(prev => !prev)} title={!isOpen ? 'Finance' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setFinanceOpen(prev => !prev)} title={!isOpen ? t('sidebar.finance') : undefined}>
               <Wallet size={18} className="main-icon" />
-              <span className="group-label">Finance</span>
+              <span className="group-label">{t('sidebar.finance')}</span>
               {isOpen && (financeOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && financeOpen ? 'expanded' : 'collapsed'}`}>
@@ -599,32 +630,32 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                   className={() => isItemActive(item.path) ? 'active' : ''}
                 >
                   {item.icon}
-                  <span>{item.name}</span>
+                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
                 </NavLink>
               ))}
             </div>
           </>
         )}
 
-        {/* 6. MARKETING GROUP (Meta Forms + WhatsApp: Campaigns, Chat, Chatbot, Settings) */}
+        {/* 7. MARKETING GROUP (Meta Forms + WhatsApp: Campaigns, Chat, Chatbot, Settings) */}
         {(canAccessMetaForms || whatsappSubItems.length > 0) && (
           <>
-            <div className="group-header" onClick={() => isOpen && setMarketingOpen(prev => !prev)} title={!isOpen ? 'Marketing' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setMarketingOpen(prev => !prev)} title={!isOpen ? t('sidebar.marketing') : undefined}>
               <Share2 size={18} className="main-icon" />
-              <span className="group-label">Marketing</span>
+              <span className="group-label">{t('sidebar.marketing')}</span>
               {isOpen && (marketingOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && marketingOpen ? 'expanded' : 'collapsed'}`}>
               {canAccessMetaForms && (
                 <NavLink to="/integrations/meta-forms" className={() => isItemActive('/integrations/meta-forms') ? 'active' : ''}>
                   <FileText size={17} />
-                  <span>Meta Forms</span>
+                  <span>{t('sidebar.metaForms')}</span>
                 </NavLink>
               )}
               {(user?.role === 'admin' || user?.role === 'manager') && (
                 <NavLink to="/integrations/property-finder" className={() => isItemActive('/integrations/property-finder') ? 'active' : ''}>
                   <Globe size={17} />
-                  <span>Property Finder</span>
+                  <span>{t('sidebar.propertyFinder')}</span>
                 </NavLink>
               )}
 
@@ -633,17 +664,17 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                   <div 
                     className="group-header sub-group-header" 
                     onClick={() => isOpen && setMarketingWhatsappOpen(prev => !prev)}
-                    title={!isOpen ? 'WhatsApp' : undefined}
+                    title={!isOpen ? t('sidebar.whatsapp') : undefined}
                   >
                     <MessageCircle size={16} className="main-icon" />
-                    <span className="group-label">WhatsApp</span>
+                    <span className="group-label">{t('sidebar.whatsapp')}</span>
                     {isOpen && (marketingWhatsappOpen ? <ChevronDown size={13} className="group-chevron" /> : <ChevronUp size={13} className="group-chevron" />)}
                   </div>
                   <div className={`group-sub-items nested ${isOpen && marketingWhatsappOpen ? 'expanded' : 'collapsed'}`}>
                     {whatsappSubItems.map(subItem => (
                       <NavLink key={subItem.name} to={subItem.path} className={() => isItemActive(subItem.path) ? 'active' : ''}>
                         {subItem.icon}
-                        <span>{subItem.name}</span>
+                        <span>{subItem.labelKey ? t(subItem.labelKey) : subItem.name}</span>
                       </NavLink>
                     ))}
                   </div>
@@ -653,76 +684,76 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </>
         )}
 
-        {/* 7. HR GROUP (Dashboard for HR, Payroll, Activity Definition, Activity Balance, Shifts, Attendance Device) */}
+        {/* 8. HR GROUP (Dashboard for HR, Payroll, Activity Definition, Activity Balance, Shifts, Attendance Device) */}
         {hrItems.length > 0 && (
           <>
-            <div className="group-header" onClick={() => isOpen && setHrOpen(prev => !prev)} title={!isOpen ? 'HR' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setHrOpen(prev => !prev)} title={!isOpen ? t('sidebar.hr') : undefined}>
               <UserCheck size={18} className="main-icon" />
-              <span className="group-label">HR</span>
+              <span className="group-label">{t('sidebar.hr')}</span>
               {isOpen && (hrOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && hrOpen ? 'expanded' : 'collapsed'}`}>
               {hrItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
-                  <span>{item.name}</span>
+                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
                 </NavLink>
               ))}
             </div>
           </>
         )}
 
-        {/* 8. PURCHASES GROUP (Purchase Request, Purchase Invoice, RFQs, Purchase Order) */}
+        {/* 9. PURCHASES GROUP (Purchase Request, Purchase Invoice, RFQs, Purchase Order) */}
         {hasPurchasing && purchasingItems.length > 0 && (
           <>
-            <div className="group-header" onClick={() => isOpen && setPurchasesOpen(prev => !prev)} title={!isOpen ? 'Purchases' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setPurchasesOpen(prev => !prev)} title={!isOpen ? t('sidebar.purchases') : undefined}>
               <ShoppingCart size={18} className="main-icon" />
-              <span className="group-label">Purchases</span>
+              <span className="group-label">{t('sidebar.purchases')}</span>
               {isOpen && (purchasesOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && purchasesOpen ? 'expanded' : 'collapsed'}`}>
               {purchasesItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
-                  <span>{item.name}</span>
+                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
                 </NavLink>
               ))}
             </div>
           </>
         )}
 
-        {/* 9. REPORTS GROUP (General Reports, Finance Reports) */}
+        {/* 10. REPORTS GROUP (General Reports, Finance Reports) */}
         {reportsItems.length > 0 && (
           <>
-            <div className="group-header" onClick={() => isOpen && setReportsOpen(prev => !prev)} title={!isOpen ? 'Reports' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setReportsOpen(prev => !prev)} title={!isOpen ? t('sidebar.reports') : undefined}>
               <BarChart3 size={18} className="main-icon" />
-              <span className="group-label">Reports</span>
+              <span className="group-label">{t('sidebar.reports')}</span>
               {isOpen && (reportsOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && reportsOpen ? 'expanded' : 'collapsed'}`}>
               {reportsItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
-                  <span>{item.name}</span>
+                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
                 </NavLink>
               ))}
             </div>
           </>
         )}
 
-        {/* 10. ADMIN GROUP (Files, Logs, Settings, Company Settings, Billing) */}
+        {/* 11. ADMIN GROUP (Files, Logs, Settings, Company Settings, Billing) */}
         {adminItems.length > 0 && (
           <>
-            <div className="group-header" onClick={() => isOpen && setAdminOpen(prev => !prev)} title={!isOpen ? 'Admin' : undefined}>
+            <div className="group-header" onClick={() => isOpen && setAdminOpen(prev => !prev)} title={!isOpen ? t('sidebar.admin') : undefined}>
               <AdminSettingsIcon size={18} className="main-icon" />
-              <span className="group-label">Admin</span>
+              <span className="group-label">{t('sidebar.admin')}</span>
               {isOpen && (adminOpen ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && adminOpen ? 'expanded' : 'collapsed'}`}>
               {adminItems.map(item => (
                 <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
                   {item.icon}
-                  <span>{item.name}</span>
+                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
                 </NavLink>
               ))}
             </div>
@@ -737,12 +768,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           <div className="tb-row">
             <span className="tb-icon">⏳</span>
             <span className="tb-title" style={{ color: trialColor }}>
-              {trialDaysLeft <= 0 ? 'Trial Expired' : `${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} left`}
+              {trialDaysLeft <= 0 ? t('sidebar.trialExpired') : t('sidebar.trialDaysLeft', { count: trialDaysLeft })}
             </span>
-            <ArrowRight size={13} style={{ color: trialColor, flexShrink: 0 }}/>
+            <ArrowRight size={13} style={{ color: trialColor, flexShrink: 0, transform: isRTL ? 'rotate(180deg)' : 'none' }}/>
           </div>
           <div className="tb-sub" style={{ color: trialColor, opacity: 0.75 }}>
-            {trialDaysLeft <= 0 ? 'Upgrade to restore access' : 'Free trial active · Upgrade now'}
+            {trialDaysLeft <= 0 ? t('sidebar.upgradeAccess') : t('sidebar.trialActiveNow')}
           </div>
         </div>
       )}

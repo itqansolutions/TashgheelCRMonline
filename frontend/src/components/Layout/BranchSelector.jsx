@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useBranch } from '../../context/BranchContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { MapPin, ChevronDown, Check, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -7,6 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 const BranchSelector = () => {
   const { currentBranch, branches, selectBranch } = useBranch();
   const { user } = useAuth();
+  const { t, isRTL } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!branches || branches.length === 0) return null;
@@ -27,6 +29,10 @@ const BranchSelector = () => {
           border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
           padding: 8px; z-index: 1000; animation: slideDown 0.2s ease-out;
         }
+        [dir='rtl'] .branch-dropdown {
+          right: auto;
+          left: 0;
+        }
         @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .branch-option {
           display: flex; align-items: center; justify-content: space-between;
@@ -40,7 +46,7 @@ const BranchSelector = () => {
 
       <button className="branch-trigger" onClick={() => setIsOpen(!isOpen)}>
         <MapPin size={14} className="text-secondary" />
-        <span style={{ fontSize: '13px', fontWeight: '700' }}>{currentBranch?.name || 'Select Branch'}</span>
+        <span style={{ fontSize: '13px', fontWeight: '700' }}>{currentBranch?.name || t('common.selectBranch')}</span>
         <ChevronDown size={14} style={{ opacity: 0.5 }} />
       </button>
 
@@ -49,7 +55,7 @@ const BranchSelector = () => {
           <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setIsOpen(false)} />
           <div className="branch-dropdown">
             <div style={{ padding: '4px 12px 8px', fontSize: '10px', fontWeight: '800', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Switch Workspace
+              {t('common.switchWorkspace')}
             </div>
             {branches.map((branch) => (
               <div 
@@ -57,7 +63,7 @@ const BranchSelector = () => {
                 className={`branch-option ${currentBranch?.id === branch.id ? 'active' : ''}`}
                 onClick={() => {
                   if (currentBranch?.id !== branch.id) {
-                    toast.success(`Switched workspace to ${branch.name}`);
+                    toast.success(t('common.switchedWorkspace', { name: branch.name }) || `Switched workspace to ${branch.name}`);
                     selectBranch(branch);
                     setIsOpen(false);
                     // Short timeout to allow toast to render before reload
@@ -85,7 +91,7 @@ const BranchSelector = () => {
               >
                 <div className="branch-name">
                   <Plus size={12} />
-                  Add/Manage Branches
+                  {t('common.manageBranches')}
                 </div>
               </div>
             )}

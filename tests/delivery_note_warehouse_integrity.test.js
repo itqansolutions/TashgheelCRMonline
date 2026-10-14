@@ -41,7 +41,7 @@ test('Delivery Note warehouse integrity', async (t) => {
           }] };
         }
         if (sql.includes('FROM warehouses')) return { rows: [{ id: 'wh-1' }] };
-        if (sql.includes('FROM products') && sql.includes('FOR UPDATE')) return { rows: [{ avg_cost: 12 }] };
+        if (sql.includes('FROM products') && sql.includes('FOR UPDATE')) return { rows: [{ avg_cost: 12, is_inventory_item: true }] };
         if (sql.includes('AS current_stock')) return { rows: [{ current_stock: 2 }] };
         return { rows: [] };
       }
@@ -64,9 +64,9 @@ test('Delivery Note warehouse integrity', async (t) => {
           }] };
         }
         if (sql.includes('FROM warehouses')) return { rows: [{ id: 'wh-2' }] };
-        if (sql.includes('FROM products') && sql.includes('FOR UPDATE')) return { rows: [{ avg_cost: 12 }] };
+        if (sql.includes('FROM products') && sql.includes('FOR UPDATE')) return { rows: [{ avg_cost: 12, is_inventory_item: true }] };
         if (sql.includes('AS current_stock')) return { rows: [{ current_stock: 3 }] };
-        if (sql.includes('FROM sales_order_items') && sql.includes('FOR UPDATE')) return { rows: [{ quantity: 3, quantity_delivered: 0 }] };
+        if (sql.includes('FROM sales_order_items') && sql.includes('FOR UPDATE')) return { rows: [{ quantity: 3, quantity_delivered: 0, item_type: 'inventory' }] };
         if (sql.includes('INSERT INTO stock_movements')) { movement = { sql, params }; return { rows: [] }; }
         if (sql.includes('UPDATE delivery_notes')) return { rows: [{ id: 'dn-2', status: 'delivered' }] };
         return { rows: [] };
@@ -89,9 +89,9 @@ test('Delivery Note warehouse integrity', async (t) => {
           }] };
         }
         if (sql.includes('FROM warehouses')) return { rows: [{ id: 'wh-3' }] };
-        if (sql.includes('FROM products') && sql.includes('FOR UPDATE')) return { rows: [{ avg_cost: 10 }] };
+        if (sql.includes('FROM products') && sql.includes('FOR UPDATE')) return { rows: [{ avg_cost: 10, is_inventory_item: true }] };
         if (sql.includes('AS current_stock')) return { rows: [{ current_stock: 10 }] };
-        if (sql.includes('FROM sales_order_items') && sql.includes('FOR UPDATE')) return { rows: [{ quantity: 5, quantity_delivered: 4 }] };
+        if (sql.includes('FROM sales_order_items') && sql.includes('FOR UPDATE')) return { rows: [{ quantity: 5, quantity_delivered: 4, item_type: 'inventory' }] };
         return { rows: [] };
       }
     };
@@ -102,25 +102,24 @@ test('Delivery Note warehouse integrity', async (t) => {
     ));
   });
 
-  await t.test('a service Delivery Note confirms without a stock movement or warehouse', async () => {
-    let stockMovementCreated = false;
+  await t.test('confirmation strictly rejects a non-inventory or unclassified item', async () => {
     const mockClient = {
       query: async (sql) => {
         if (sql.includes('FROM delivery_notes dn')) {
           return { rows: [{
-            id: 'dn-service', sales_order_id: 'so-service', warehouse_id: null, branch_id: 'branch-1', status: 'draft',
+            id: 'dn-service', sales_order_id: 'so-service', warehouse_id: 'wh-1', branch_id: 'branch-1', status: 'draft',
             items_json: [{ id: 'dni-service', sales_order_item_id: 'soi-service', product_id: 40, quantity_delivered: 1 }]
           }] };
         }
         if (sql.includes('FROM products') && sql.includes('FOR UPDATE')) return { rows: [{ avg_cost: 0, is_inventory_item: false }] };
-        if (sql.includes('FROM sales_order_items') && sql.includes('FOR UPDATE')) return { rows: [{ quantity: 1, quantity_delivered: 0 }] };
-        if (sql.includes('INSERT INTO stock_movements')) stockMovementCreated = true;
-        if (sql.includes('UPDATE delivery_notes')) return { rows: [{ id: 'dn-service', status: 'delivered' }] };
+        if (sql.includes('FROM sales_order_items') && sql.includes('FOR UPDATE')) return { rows: [{ quantity: 1, quantity_delivered: 0, item_type: 'service' }] };
         return { rows: [] };
       }
     };
 
-    await withTransaction(mockClient, () => DeliveryNoteService.confirmDeliveryNote('tenant-1', 'branch-1', 'dn-service', 9));
-    assert.equal(stockMovementCreated, false);
+    await withTransaction(mockClient, () => assert.rejects(
+      () => DeliveryNoteService.confirmDeliveryNote('tenant-1', 'branch-1', 'dn-service', 9),
+      /is not an inventory item; cannot confirm delivery/
+    ));
   });
 });

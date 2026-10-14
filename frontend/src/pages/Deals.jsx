@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
+import { useLanguage } from '../context/LanguageContext';
 import api from '../services/api';
 import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRight, MapPin, Coins, Ruler, Building2, Layers, Zap, Clock, AlertCircle, FileText, CheckCircle2, XCircle, CreditCard, Award, Key } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
@@ -11,11 +12,48 @@ import ActivityTimeline from '../components/Common/ActivityTimeline';
 import { useAuth } from '../context/AuthContext';
 
 const Deals = () => {
+  const { t, isRTL } = useLanguage();
   const { user, hasFinancialPermission } = useAuth();
   const { deals, fetchDeals, customers, fetchCustomers, products, fetchProducts, users, fetchUsers, templateConfig, loading } = useData();
   const isRealEstate = user?.template_name === 'real_estate';
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const getStageLabel = (stage) => {
+    const raw = (stage || '').toLowerCase().replace(/[\s-]/g, '_');
+    return t(`deals.stages.${raw}`, stage || 'Unknown');
+  };
+
+  const getReservationStatusLabel = (status) => {
+    const raw = (status || '').toLowerCase();
+    return t(`deals.reservationStatuses.${raw}`, status || t('deals.reservationStatuses.reserved', 'Reserved'));
+  };
+
+  const getContractStatusLabel = (status) => {
+    const raw = (status || '').toLowerCase();
+    return t(`deals.contractStatuses.${raw}`, status || 'Active');
+  };
+
+  const getRefundStatusLabel = (status) => {
+    const raw = (status || '').toLowerCase();
+    return t(`deals.refundStatuses.${raw}`, status || 'Pending');
+  };
+
+  const getVisitResultLabel = (result) => {
+    const map = {
+      'Scheduled': 'scheduled',
+      'Completed - Highly Interested': 'completedInterested',
+      'Completed - Considering Offer': 'completedConsidering',
+      'Completed - Unit Unsuitable': 'completedUnsuitable',
+      'Client Postponed': 'postponed',
+      'Postponed': 'postponed',
+      'Cancelled': 'cancelled',
+      'Client No-Show': 'noShow',
+      'No-Show': 'noShow'
+    };
+    const key = map[result] || result;
+    return t(`deals.visitResults.${key}`, result);
+  };
   // Legacy /deals?tab=X URLs → standalone workspaces (Deals no longer hosts inner tabs)
   const legacyTab = searchParams.get('tab');
   useEffect(() => {
@@ -144,10 +182,10 @@ const Deals = () => {
         down_payment: 0,
         notes: `Sales contract for deal #${editingDeal.id}`
       });
-      toast.success(res.data.message || 'Contract created successfully');
+      toast.success(res.data.message || t('deals.contractCreated', 'Contract created successfully'));
       fetchDealContract(editingDeal.id);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create contract');
+      toast.error(err.response?.data?.message || t('deals.failedCreateContract', 'Failed to create contract'));
     }
   };
 
@@ -172,7 +210,7 @@ const Deals = () => {
   const handleProcessCancellation = async () => {
     if (!editingDeal?.id) return;
     if (!cancelFormData.reason.trim()) {
-      toast.error('Please enter a cancellation reason');
+      toast.error(t('deals.enterCancellationReason', 'Please enter a cancellation reason'));
       return;
     }
     try {
@@ -182,14 +220,14 @@ const Deals = () => {
         deduction_amount: parseFloat(cancelFormData.deduction_amount) || 0,
         unit_action: cancelFormData.unit_action
       });
-      toast.success(res.data.message || 'Deal cancelled and unit released');
+      toast.success(res.data.message || t('deals.dealCancelledSuccess', 'Deal cancelled and unit released'));
       setShowCancelForm(false);
       fetchDeals(false);
       if (isRealEstate) fetchReUnits();
       fetchCancellation(editingDeal.id);
       fetchDealContract(editingDeal.id);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Cancellation failed');
+      toast.error(err.response?.data?.message || t('deals.cancellationFailed', 'Cancellation failed'));
     }
   };
 
@@ -198,10 +236,10 @@ const Deals = () => {
       const res = await api.patch(`/re-cancellations/${cancellationId}/refund`, {
         refund_status: newStatus
       });
-      toast.success(res.data.message || 'Refund status updated');
+      toast.success(res.data.message || t('deals.refundUpdated', 'Refund status updated'));
       fetchCancellation(editingDeal.id);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Refund update failed');
+      toast.error(err.response?.data?.message || t('deals.refundUpdateFailed', 'Refund update failed'));
     }
   };
 
@@ -283,28 +321,28 @@ const Deals = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.client_id) return toast.error('Please select a customer');
+    if (!formData.client_id) return toast.error(t('deals.selectCustomerReq', 'Please select a customer'));
 
     try {
       if (editingDeal) {
         await api.put(`/deals/${editingDeal.id}`, formData);
-        toast.success('Deal updated');
+        toast.success(t('deals.dealUpdated', 'Deal updated'));
       } else {
         await api.post('/deals', formData);
-        toast.success('Deal created');
+        toast.success(t('deals.dealCreated', 'Deal created'));
       }
       fetchDeals(false);
       if (isRealEstate) fetchReUnits(); // Refresh availability
       setIsModalOpen(false);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save deal');
+      toast.error(err.response?.data?.message || t('deals.failedToSave', 'Failed to save deal'));
     }
   };
 
   const handleExtendReservation = async (dealId, hours) => {
     try {
       const res = await api.post(`/deals/${dealId}/extend-reservation`, { extension_hours: hours });
-      toast.success(res.data.message || `Reservation extended by ${hours} hours`);
+      toast.success(res.data.message || t('deals.reservationExtendedSuccess', 'Reservation extended by {hours} hours').replace('{hours}', hours));
       fetchDeals(false);
       if (editingDeal && editingDeal.id === dealId) {
         setEditingDeal(prev => ({
@@ -315,31 +353,31 @@ const Deals = () => {
         }));
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to extend reservation');
+      toast.error(err.response?.data?.message || t('deals.failedExtendReservation', 'Failed to extend reservation'));
     }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Delete this deal?')) {
+    if (window.confirm(t('deals.confirmDelete', 'Delete this deal?'))) {
       try {
         await api.delete(`/deals/${id}`);
-        toast.success('Deal deleted');
+        toast.success(t('deals.dealDeleted', 'Deal deleted'));
         fetchDeals(false);
         if (isRealEstate) fetchReUnits();
       } catch (err) {
-        toast.error(err.response?.data?.message || 'Failed to delete');
+        toast.error(err.response?.data?.message || t('deals.failedToDelete', 'Failed to delete'));
       }
     }
   };
 
   const handleGenerateInvoice = async (dealId) => {
-    if (window.confirm('Generate an invoice for this deal? This will mark the deal as Won.')) {
+    if (window.confirm(t('deals.confirmGenerateInvoice', 'Generate an invoice for this deal? This will mark the deal as Won.'))) {
       try {
         await api.post(`/finance/invoices/from-deal/${dealId}`);
-        toast.success('Invoice generated successfully');
+        toast.success(t('deals.invoiceGenerated', 'Invoice generated successfully'));
         navigate('/finance');
       } catch (err) {
-        toast.error('Failed to generate invoice');
+        toast.error(t('deals.failedGenerateInvoice', 'Failed to generate invoice'));
       }
     }
   };
@@ -347,7 +385,7 @@ const Deals = () => {
   const columns = [
     { 
       key: 'title', 
-      label: 'Deal Title',
+      label: t('deals.dealTitle', 'Deal Title'),
       render: (val, item) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -359,14 +397,14 @@ const Deals = () => {
 
           {/* REAL ESTATE UNIT BADGE */}
           {isRealEstate && item.unit_id && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginLeft: '30px', marginTop: '4px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', [isRTL ? 'marginRight' : 'marginLeft']: '30px', marginTop: '4px' }}>
                    <div style={{ 
                         display: 'flex', alignItems: 'center', gap: '6px', 
                         fontSize: '11px', color: '#0ea5e9', background: '#f0f9ff',
                         padding: '2px 10px', borderRadius: '6px', border: '1px solid #bae6fd',
                         fontWeight: 800
                    }}>
-                        <Building2 size={12} /> {item.unit_project} • Unit {item.unit_number}
+                        <Building2 size={12} /> {item.unit_project} • {t('deals.unitProject', 'Unit')} <span className="num-en">{item.unit_number}</span>
                    </div>
                    
                    {/* RESERVATION STATUS / EXPIRATION BADGE */}
@@ -380,8 +418,8 @@ const Deals = () => {
                             border: `1px solid ${new Date(item.unit_reservation_expires_at) < new Date() ? '#fecaca' : '#bbf7d0'}`,
                             fontWeight: 700
                        }}>
-                            <Clock size={11} /> {new Date(item.unit_reservation_expires_at) < new Date() ? 'EXPIRED' : `Expires ${new Date(item.unit_reservation_expires_at).toLocaleDateString()}`}
-                            {item.unit_reservation_extension_count > 0 && <span style={{ opacity: 0.8 }}>({item.unit_reservation_extension_count}x)</span>}
+                            <Clock size={11} /> {new Date(item.unit_reservation_expires_at) < new Date() ? t('deals.expired', 'EXPIRED') : `${t('deals.expiresOn', 'Expires {date}').replace('{date}', new Date(item.unit_reservation_expires_at).toLocaleDateString('en-GB'))}`}
+                            {item.unit_reservation_extension_count > 0 && <span style={{ opacity: 0.8 }}>(<span className="num-en">{item.unit_reservation_extension_count}</span>x)</span>}
                        </div>
                    )}
 
@@ -393,8 +431,8 @@ const Deals = () => {
                             padding: '2px 8px', borderRadius: '6px', border: '1px solid #d8b4fe',
                             fontWeight: 700
                        }}>
-                            <MapPin size={11} /> Visit: {new Date(item.custom_fields.visit_date).toLocaleDateString()}
-                            {item.custom_fields.visit_result ? ` • ${item.custom_fields.visit_result}` : ''}
+                            <MapPin size={11} /> {t('deals.visit', 'Visit')}: <span className="num-en">{new Date(item.custom_fields.visit_date).toLocaleDateString('en-GB')}</span>
+                            {item.custom_fields.visit_result ? ` • ${getVisitResultLabel(item.custom_fields.visit_result)}` : ''}
                        </div>
                    )}
 
@@ -412,7 +450,7 @@ const Deals = () => {
                                        padding: '2px 10px', borderRadius: '6px', border: '1px solid #fecaca',
                                        fontWeight: 800, animation: 'pulse 2s infinite'
                                    }}>
-                                       <Clock size={12} /> DUE SOON: {dueDate.toLocaleDateString()}
+                                       <Clock size={12} /> {t('deals.dueSoon', 'DUE SOON')}: <span className="num-en">{dueDate.toLocaleDateString('en-GB')}</span>
                                    </div>
                                );
                            }
@@ -424,7 +462,7 @@ const Deals = () => {
 
           {/* VISUAL CARDS FOR CUSTOM FIELDS (Polish Sprint) */}
           {item.custom_fields && Object.keys(item.custom_fields).length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px', marginLeft: '30px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px', [isRTL ? 'marginRight' : 'marginLeft']: '30px' }}>
               {(templateConfig?.deal_fields || []).map(field => (
                 item.custom_fields?.[field.key] && (
                   <div key={field.key} style={{ 
@@ -441,8 +479,8 @@ const Deals = () => {
             </div>
           )}
           {item.source_type === 'task' && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', background: '#f1f5f9', color: '#475569', padding: '2px 6px', borderRadius: '4px', marginLeft: '30px', marginTop: '4px' }}>
-                  Converted from Task
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', background: '#f1f5f9', color: '#475569', padding: '2px 6px', borderRadius: '4px', [isRTL ? 'marginRight' : 'marginLeft']: '30px', marginTop: '4px' }}>
+                  {t('deals.convertedFromTask', 'Converted from Task')}
               </div>
           )}
         </div>
@@ -450,17 +488,17 @@ const Deals = () => {
     },
     !isRealEstate && { 
       key: 'product_name', 
-      label: 'Product',
-      render: (val, item) => (val || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>General Service</span>)
+      label: t('deals.product', 'Product'),
+      render: (val, item) => (val || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>{t('deals.generalService', 'General Service')}</span>)
     },
     { 
       key: 'value', 
-      label: 'Value',
-      render: (val) => <span style={{ fontWeight: '700', color: 'var(--primary)' }}>{val} EGP</span>
+      label: t('deals.value', 'Value'),
+      render: (val) => <span style={{ fontWeight: '700', color: 'var(--primary)' }}><span className="num-en">{Number(val || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</span>
     },
     { 
       key: 'pipeline_stage', 
-      label: 'Stage',
+      label: t('deals.stage', 'Stage'),
       render: (val) => {
         const colors = {
           discovery: '#eff6ff', proposal: '#fdf4ff', negotiation: '#fff7ed', won: '#f0fdf4', lost: '#fef2f2',
@@ -473,23 +511,23 @@ const Deals = () => {
         const normalizedVal = (val || '').toLowerCase();
         return (
           <span className="status-badge" style={{ background: colors[normalizedVal] || '#f1f5f9', color: textColors[normalizedVal] || '#475569' }}>
-            {val || 'Unknown'}
+            {getStageLabel(val)}
           </span>
         );
       }
     },
     { 
       key: 'client_name', 
-      label: 'Customer',
-      render: (val, item) => item.client_name || 'Unassigned'
+      label: t('deals.customer', 'Customer'),
+      render: (val, item) => item.client_name || t('deals.unassigned', 'Unassigned')
     },
     { 
       key: 'assigned_to_name', 
-      label: 'Deal Owner',
+      label: t('deals.dealOwner', 'Deal Owner'),
       render: (val) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <User size={14} style={{ opacity: 0.6 }} />
-          <span>{val || 'Unassigned'}</span>
+          <span>{val || t('deals.unassigned', 'Unassigned')}</span>
         </div>
       )
     }
@@ -497,7 +535,7 @@ const Deals = () => {
 
   return (
     <div>
-      <div className="deals-page">
+      <div className="deals-page" style={{ direction: isRTL ? 'rtl' : 'ltr' }}>
       <style>{`
         .btn-add { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; transition: background 0.2s; }
         .btn-add:hover { background-color: var(--primary-hover); }
@@ -516,30 +554,30 @@ const Deals = () => {
         <div>
           <div className="industry-tag" style={{ background: templateConfig?.name === 'Real Estate' ? '#4f46e5' : '#f1f5f9', color: templateConfig?.name === 'Real Estate' ? 'white' : '#475569', border: 'none' }}>
             {templateConfig?.name === 'Real Estate' ? <Zap size={14} /> : <Target size={14} />}
-            {templateConfig?.name?.toUpperCase() || 'GENERAL'} MODE
+            {templateConfig?.name === 'Real Estate' ? t('deals.realEstateMode', 'REAL ESTATE MODE') : t('deals.generalMode', 'GENERAL MODE')}
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Deals</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Track your deals from first contact to closing.</p>
+          <h2 style={{ fontSize: '24px', fontWeight: '800' }}>{t('deals.title', 'Deals')}</h2>
+          <p style={{ color: 'var(--text-muted)' }}>{t('deals.subtitle', 'Track your deals from first contact to closing.')}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
                 <button onClick={() => setViewMode('kanban')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: viewMode === 'kanban' ? 'white' : 'transparent', color: viewMode === 'kanban' ? 'var(--primary)' : '#64748b', fontWeight: 700, boxShadow: viewMode === 'kanban' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer', transition: 'all 0.2s' }}>
-                    Kanban
+                    {t('deals.kanban', 'Kanban')}
                 </button>
                 <button onClick={() => setViewMode('table')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: viewMode === 'table' ? 'white' : 'transparent', color: viewMode === 'table' ? 'var(--primary)' : '#64748b', fontWeight: 700, boxShadow: viewMode === 'table' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer', transition: 'all 0.2s' }}>
-                    List
+                    {t('deals.list', 'List')}
                 </button>
             </div>
             <button label="add deal control" className="btn-add" onClick={() => handleOpenModal()}>
                 <Plus size={20} />
-                Create Deal
+                {t('deals.createDeal', 'Create Deal')}
             </button>
         </div>
       </div>
 
       {viewMode === 'table' ? (
         <DataTable 
-          title="Deals"
+          title={t('deals.title', 'Deals')}
           columns={columns.filter(Boolean)}
           data={deals || []}
           loading={loading}
@@ -547,12 +585,12 @@ const Deals = () => {
           onDelete={handleDelete}
           actions={(row) => (
             <button 
-              title="Generate Invoice" 
+              title={t('deals.generateInvoice', 'Generate Invoice')} 
               onClick={() => handleGenerateInvoice(row.id)}
               style={{ padding: '6px', borderRadius: '6px', background: '#f0fdf4', color: '#16a34a', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
             >
               <Receipt size={16} />
-              <span style={{ fontSize: '12px', fontWeight: '600' }}>Bill</span>
+              <span style={{ fontSize: '12px', fontWeight: '600' }}>{t('deals.bill', 'Bill')}</span>
             </button>
           )}
         />
@@ -567,31 +605,31 @@ const Deals = () => {
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)}
-        title={editingDeal ? 'Update Deal' : 'New Sales Deal'}
+        title={editingDeal ? t('deals.updateDeal', 'Update Deal') : t('deals.newSalesDeal', 'New Sales Deal')}
         footer={
           <>
-            <button label="cancel addition" className="btn-cancel" onClick={() => setIsModalOpen(false)}>Cancel</button>
+            <button label="cancel addition" className="btn-cancel" onClick={() => setIsModalOpen(false)}>{t('common.cancel', 'Cancel')}</button>
             <button label="save addition" className="btn-save" onClick={handleSubmit}>
-              {editingDeal ? 'Update Deal' : 'Create Deal'}
+              {editingDeal ? t('deals.updateDeal', 'Update Deal') : t('deals.createDeal', 'Create Deal')}
             </button>
           </>
         }
       >
-        <form className="form-grid">
+        <form className="form-grid" style={{ direction: isRTL ? 'rtl' : 'ltr' }}>
           {isDealLocked && (
             <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '8px', background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', fontWeight: 700 }}>
               <AlertCircle size={16} />
               {isFinalDealStage
-                ? `This deal is ${editingDeal?.pipeline_stage}. Customer, unit, value, owner and commercial terms are locked.`
-                : `This deal has an active contract (${dealContract?.contract_number}). Customer, unit, value, owner and commercial terms are locked.`}
-              {isRealEstate && ' Use "Cancel Deal & Refund" to reverse it.'}
+                ? t('deals.dealLockedFinalStage', 'This deal is {stage}...').replace('{stage}', getStageLabel(editingDeal?.pipeline_stage))
+                : t('deals.dealLockedContract', 'This deal has an active contract ({contractNumber})...').replace('{contractNumber}', dealContract?.contract_number)}
+              {isRealEstate && ` ${t('deals.dealLockedReversalHint', 'Use "Cancel Deal & Refund" to reverse it.')}`}
             </div>
           )}
           <div className="form-group full">
-            <label>Deal Title</label>
+            <label>{t('deals.dealTitle', 'Deal Title')}</label>
             <input 
               type="text" 
-              placeholder="e.g. Website Overhaul Project"
+              placeholder={t('deals.dealTitlePlaceholder', 'e.g. Website Overhaul Project')}
               value={formData.title}
               onChange={(e) => setFormData({...formData, title: e.target.value})}
               required
@@ -602,7 +640,7 @@ const Deals = () => {
           {isRealEstate && (
             <div className="unit-select-card">
                 <label style={{ color: '#0369a1', fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                    <Building2 size={14} /> SELECT PROPERTY UNIT (REAL ESTATE)
+                    <Building2 size={14} /> {t('deals.selectPropertyUnit', 'SELECT PROPERTY UNIT (REAL ESTATE)')}
                 </label>
                 <select 
                     className="ap-input" 
@@ -611,14 +649,14 @@ const Deals = () => {
                     disabled={!!editingDeal}
                     onChange={(e) => handleUnitChange(e.target.value)}
                 >
-                    <option value="">-- Select Available Unit --</option>
+                    <option value="">{t('deals.selectAvailableUnit', '-- Select Available Unit --')}</option>
                     {(reUnits || []).filter(u => u.status === 'Available' || u.id === formData.unit_id).map(u => (
                         <option key={u.id} value={u.id}>
-                            {u.project_name} | Unit {u.unit_number} ({u.area}m²) - {Number(u.price).toLocaleString()} EGP
+                            {u.project_name} | Unit {u.unit_number} ({u.area}m²) - {Number(u.price).toLocaleString('en-US')} {t('common.currency', 'EGP')}
                         </option>
                     ))}
                 </select>
-                <p style={{ fontSize: '11px', color: '#0284c7', marginTop: '6px' }}>Selecting a unit will automatically set the deal value and reserve the unit.</p>
+                <p style={{ fontSize: '11px', color: '#0284c7', marginTop: '6px' }}>{t('deals.unitAutoValueHint', 'Selecting a unit will automatically set the deal value and reserve the unit.')}</p>
             </div>
           )}
 
@@ -641,36 +679,36 @@ const Deals = () => {
 
           {!isRealEstate && (
             <div className="form-group">
-                <label>Select Product (Optional)</label>
+                <label>{t('deals.selectProductOptional', 'Select Product (Optional)')}</label>
                 <select 
                 value={formData.product_id}
                 disabled={isDealLocked}
                 onChange={(e) => handleProductChange(e.target.value)}
                 >
-                <option value="">-- No Specific Product --</option>
+                <option value="">{t('deals.noSpecificProduct', '-- No Specific Product --')}</option>
                 {(products || []).map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.selling_price} EGP)</option>
+                    <option key={p.id} value={p.id}>{p.name} ({Number(p.selling_price || 0).toLocaleString('en-US')} {t('common.currency', 'EGP')})</option>
                 ))}
                 </select>
             </div>
           )}
           
           <div className="form-group">
-            <label>Link to Customer</label>
+            <label>{t('deals.linkToCustomer', 'Link to Customer')}</label>
             <select 
               value={formData.client_id}
               disabled={isDealLocked}
               onChange={(e) => setFormData({...formData, client_id: e.target.value})}
               required
             >
-              <option value="">-- Select Customer --</option>
+              <option value="">{t('deals.selectCustomer', '-- Select Customer --')}</option>
               {(customers || []).map(c => (
                 <option key={c.id} value={c.id}>{c.name} {c.company_name ? `(${c.company_name})` : ''}</option>
               ))}
             </select>
           </div>
           <div className="form-group">
-            <label>Deal Value (EGP)</label>
+            <label>{t('deals.dealValue', 'Deal Value ({currency})').replace('{currency}', t('common.currency', 'EGP'))}</label>
             <input 
               type="number" 
               value={formData.value}
@@ -679,18 +717,18 @@ const Deals = () => {
             />
           </div>
           <div className="form-group">
-            <label>Pipeline Stage</label>
+            <label>{t('deals.pipelineStage', 'Pipeline Stage')}</label>
             <select 
               value={formData.pipeline_stage}
               disabled={isDealLocked && isFinalDealStage}
               onChange={(e) => setFormData({...formData, pipeline_stage: e.target.value})}
             >
               {(templateConfig?.pipeline || []).map(stage => (
-                <option key={stage} value={stage}>{stage}</option>
+                <option key={stage} value={stage}>{getStageLabel(stage)}</option>
               )) || (
                 <>
-                  <option value="discovery">Discovery</option>
-                  <option value="won">Won</option>
+                  <option value="discovery">{getStageLabel('discovery')}</option>
+                  <option value="won">{getStageLabel('won')}</option>
                 </>
               )}
             </select>
@@ -700,28 +738,28 @@ const Deals = () => {
           {!isRealEstate && (
             <>
                 <div className="form-group">
-                    <label>Win Probability (%)</label>
+                    <label>{t('deals.winProbability', 'Win Probability (%)')}</label>
                     <input type="number" min="0" max="100" value={formData.probability} onChange={(e) => setFormData({...formData, probability: parseInt(e.target.value) || 0})} />
                 </div>
                 <div className="form-group">
-                    <label>Expected Close Date</label>
+                    <label>{t('deals.expectedCloseDate', 'Expected Close Date')}</label>
                     <input type="date" value={formData.expected_close_date} onChange={(e) => setFormData({...formData, expected_close_date: e.target.value})} />
                 </div>
                 <div className="form-group full">
-                    <label>Next Action Required</label>
-                    <input type="text" placeholder="e.g. Call client to discuss proposal" value={formData.next_action} onChange={(e) => setFormData({...formData, next_action: e.target.value})} />
+                    <label>{t('deals.nextActionRequired', 'Next Action Required')}</label>
+                    <input type="text" placeholder={t('deals.nextActionPlaceholder', 'e.g. Call client to discuss proposal')} value={formData.next_action} onChange={(e) => setFormData({...formData, next_action: e.target.value})} />
                 </div>
             </>
           )}
 
           <div className="form-group full">
-            <label>Deal Owner</label>
+            <label>{t('deals.dealOwner', 'Deal Owner')}</label>
             <select 
               value={formData.assigned_to}
               disabled={isDealLocked}
               onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
             >
-              <option value="">Me (Default)</option>
+              <option value="">{t('deals.meDefault', 'Me (Default)')}</option>
               {(users || []).map(u => (
                 <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
               ))}
@@ -732,11 +770,11 @@ const Deals = () => {
           {formData.pipeline_stage?.toLowerCase() === 'site visit' && (
             <div style={{ gridColumn: 'span 2', background: '#faf5ff', border: '1px solid #d8b4fe', borderRadius: '12px', padding: '16px', marginBottom: '8px' }}>
               <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#7e22ce', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
-                <MapPin size={16} /> Site Visit Information
+                <MapPin size={16} /> {t('deals.siteVisitInfo', 'Site Visit Information')}
               </h4>
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Visit Date & Time</label>
+                  <label>{t('deals.visitDateTime', 'Visit Date & Time')}</label>
                   <input 
                     type="datetime-local" 
                     value={formData.custom_fields?.visit_date || ''} 
@@ -744,25 +782,25 @@ const Deals = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Visit Status / Result</label>
+                  <label>{t('deals.visitStatusResult', 'Visit Status / Result')}</label>
                   <select 
                     value={formData.custom_fields?.visit_result || 'Scheduled'} 
                     onChange={(e) => handleCustomFieldChange('visit_result', e.target.value)}
                   >
-                    <option value="Scheduled">Scheduled</option>
-                    <option value="Completed - Highly Interested">Completed - Highly Interested</option>
-                    <option value="Completed - Considering Offer">Completed - Considering Offer</option>
-                    <option value="Completed - Unit Unsuitable">Completed - Unit Unsuitable</option>
-                    <option value="Postponed">Client Postponed</option>
-                    <option value="Cancelled">Cancelled</option>
-                    <option value="No-Show">Client No-Show</option>
+                    <option value="Scheduled">{t('deals.visitResults.scheduled', 'Scheduled')}</option>
+                    <option value="Completed - Highly Interested">{t('deals.visitResults.completedInterested', 'Completed - Highly Interested')}</option>
+                    <option value="Completed - Considering Offer">{t('deals.visitResults.completedConsidering', 'Completed - Considering Offer')}</option>
+                    <option value="Completed - Unit Unsuitable">{t('deals.visitResults.completedUnsuitable', 'Completed - Unit Unsuitable')}</option>
+                    <option value="Postponed">{t('deals.visitResults.postponed', 'Client Postponed')}</option>
+                    <option value="Cancelled">{t('deals.visitResults.cancelled', 'Cancelled')}</option>
+                    <option value="No-Show">{t('deals.visitResults.noShow', 'Client No-Show')}</option>
                   </select>
                 </div>
                 <div className="form-group full" style={{ marginBottom: 0 }}>
-                  <label>Visit Feedback & Notes</label>
+                  <label>{t('deals.visitFeedbackNotes', 'Visit Feedback & Notes')}</label>
                   <textarea 
                     rows="2"
-                    placeholder="Client impressions, preferences discussed during the site visit..." 
+                    placeholder={t('deals.visitFeedbackPlaceholder', 'Client impressions, preferences discussed during the site visit...')} 
                     value={formData.custom_fields?.visit_notes || ''} 
                     onChange={(e) => handleCustomFieldChange('visit_notes', e.target.value)} 
                   />
@@ -776,27 +814,31 @@ const Deals = () => {
             <div style={{ gridColumn: 'span 2', background: '#f0fdf4', border: '2px solid #bbf7d0', borderRadius: '12px', padding: '18px', marginTop: '6px', marginBottom: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#166534' }}>
-                  <Building2 size={18} color="#16a34a"/> Unit Reservation Status
+                  <Building2 size={18} color="#16a34a"/> {t('deals.unitReservationStatus', 'Unit Reservation Status')}
                 </h4>
                 <div style={{ padding: '4px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '6px', fontSize: '11px', fontWeight: 800, border: '1px solid #86efac' }}>
-                  {editingDeal.unit_status || 'Reserved'}
+                  {getReservationStatusLabel(editingDeal.unit_status)}
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px', fontSize: '12px' }}>
                 <div>
-                  <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>Linked Unit:</span>
-                  <span style={{ fontWeight: 800, color: '#1e293b' }}>{editingDeal.unit_project} • Unit {editingDeal.unit_number}</span>
+                  <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.linkedUnit', 'Linked Unit:')}</span>
+                  <span style={{ fontWeight: 800, color: '#1e293b' }}>
+                    {editingDeal.unit_project} • {t('deals.unitProject', 'Unit')} <span className="num-en">{editingDeal.unit_number}</span>
+                  </span>
                 </div>
                 <div>
-                  <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>Reservation Expires:</span>
+                  <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.reservationExpires', 'Reservation Expires:')}</span>
                   <span style={{ fontWeight: 800, color: editingDeal.unit_reservation_expires_at && new Date(editingDeal.unit_reservation_expires_at) < new Date() ? '#dc2626' : '#166534' }}>
-                    {editingDeal.unit_reservation_expires_at ? new Date(editingDeal.unit_reservation_expires_at).toLocaleString() : 'Active'}
+                    {editingDeal.unit_reservation_expires_at ? <span className="num-en">{new Date(editingDeal.unit_reservation_expires_at).toLocaleString('en-GB')}</span> : t('deals.active', 'Active')}
                   </span>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #dcfce7', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 700 }}>
-                  {editingDeal.unit_reservation_extension_count > 0 ? `Extended ${editingDeal.unit_reservation_extension_count} time(s)` : 'Active Reservation'}
+                  {editingDeal.unit_reservation_extension_count > 0 
+                    ? t('deals.extendedTimes', 'Extended {count} time(s)').replace('{count}', editingDeal.unit_reservation_extension_count) 
+                    : t('deals.activeReservation', 'Active Reservation')}
                 </span>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
@@ -804,14 +846,14 @@ const Deals = () => {
                     onClick={() => handleExtendReservation(editingDeal.id, 24)}
                     style={{ padding: '6px 14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                   >
-                    Extend +24h
+                    {t('deals.extend24h', 'Extend +24h')}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleExtendReservation(editingDeal.id, 48)}
                     style={{ padding: '6px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                   >
-                    Extend +48h
+                    {t('deals.extend48h', 'Extend +48h')}
                   </button>
                 </div>
               </div>
@@ -823,40 +865,40 @@ const Deals = () => {
             <div style={{ gridColumn: 'span 2', background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginTop: '6px', marginBottom: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a' }}>
-                  <FileText size={16} color="#2563eb" /> Related Records
+                  <FileText size={16} color="#2563eb" /> {t('deals.relatedRecords', 'Related Records')}
                 </h4>
                 {contractLoading ? (
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>Loading…</span>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>{t('common.loading', 'Loading...')}</span>
                 ) : dealContract ? (
                   <span style={{ fontSize: '11px', fontWeight: 800, color: '#1d4ed8' }}>
-                    {dealContract.contract_number} • {dealContract.status}
-                    {dealContract.expiry_state === 'expiring_soon' && ` • expires in ${dealContract.days_remaining}d`}
-                    {dealContract.expiry_state === 'expired' && ' • EXPIRED'}
+                    <span className="num-en">{dealContract.contract_number}</span> • {getContractStatusLabel(dealContract.status)}
+                    {dealContract.expiry_state === 'expiring_soon' && ` • ${t('deals.expiresInDays', 'expires in {days}d').replace('{days}', dealContract.days_remaining)}`}
+                    {dealContract.expiry_state === 'expired' && ` • ${t('deals.expired', 'EXPIRED')}`}
                   </span>
                 ) : (
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>No contract yet</span>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>{t('deals.noContractYet', 'No contract yet')}</span>
                 )}
               </div>
 
               {!dealContract && !contractLoading && editingDeal?.unit_id && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '12px', color: '#64748b' }}>This deal can originate a sales contract.</span>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>{t('deals.canOriginateContract', 'This deal can originate a sales contract.')}</span>
                   <button
                     type="button"
                     onClick={handleCreateContract}
                     style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                   >
-                    <FileText size={14} /> Create Sales Contract
+                    <FileText size={14} /> {t('deals.createSalesContract', 'Create Sales Contract')}
                   </button>
                 </div>
               )}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                 {[
-                  { label: 'Contract', path: '/contracts', icon: <FileText size={14} />, enabled: !!dealContract },
-                  { label: 'Installments', path: '/installments', icon: <CreditCard size={14} />, enabled: !!dealContract },
-                  { label: 'Commissions', path: '/commissions', icon: <Award size={14} />, enabled: true },
-                  { label: 'Handover', path: '/handover', icon: <Key size={14} />, enabled: !!editingDeal?.unit_id },
+                  { label: t('deals.relatedLinks.contract', 'Contract'), path: '/contracts', icon: <FileText size={14} />, enabled: !!dealContract },
+                  { label: t('deals.relatedLinks.installments', 'Installments'), path: '/installments', icon: <CreditCard size={14} />, enabled: !!dealContract },
+                  { label: t('deals.relatedLinks.commissions', 'Commissions'), path: '/commissions', icon: <Award size={14} />, enabled: true },
+                  { label: t('deals.relatedLinks.handover', 'Handover'), path: '/handover', icon: <Key size={14} />, enabled: !!editingDeal?.unit_id },
                 ].map(link => (
                   <button
                     key={link.path}
@@ -865,7 +907,7 @@ const Deals = () => {
                     onClick={() => { setIsModalOpen(false); navigate(`${link.path}?deal_id=${editingDeal.id}`); }}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', background: link.enabled ? 'white' : '#f1f5f9', color: link.enabled ? '#0f172a' : '#94a3b8', fontSize: '12px', fontWeight: 700, cursor: link.enabled ? 'pointer' : 'not-allowed' }}
                   >
-                    {link.icon} {link.label} <ArrowRight size={12} />
+                    {link.icon} {link.label} <ArrowRight size={12} style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }} />
                   </button>
                 ))}
               </div>
@@ -878,7 +920,7 @@ const Deals = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: cancellationRecord || showCancelForm ? '12px' : 0 }}>
                 <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: cancellationRecord ? '#9f1239' : '#475569' }}>
                   <AlertCircle size={16} color={cancellationRecord ? '#e11d48' : '#64748b'} />
-                  {cancellationRecord ? 'Deal Cancellation & Refund Audit' : 'Cancellation & Unit Release'}
+                  {cancellationRecord ? t('deals.cancellationRefundAudit', 'Deal Cancellation & Refund Audit') : t('deals.cancellationUnitRelease', 'Cancellation & Unit Release')}
                 </h4>
                 {cancellationRecord ? (
                   <span style={{
@@ -890,7 +932,7 @@ const Deals = () => {
                     background: cancellationRecord.refund_status === 'Processed' ? '#dcfce7' : cancellationRecord.refund_status === 'Pending' ? '#fef3c7' : '#f1f5f9',
                     color: cancellationRecord.refund_status === 'Processed' ? '#15803d' : cancellationRecord.refund_status === 'Pending' ? '#b45309' : '#475569'
                   }}>
-                    Refund: {cancellationRecord.refund_status}
+                    {t('deals.refundStatusLabel', 'Refund: {status}').replace('{status}', getRefundStatusLabel(cancellationRecord.refund_status))}
                   </span>
                 ) : editingDeal?.pipeline_stage?.toLowerCase() !== 'lost' && (
                   <button
@@ -898,7 +940,7 @@ const Deals = () => {
                     onClick={() => setShowCancelForm(!showCancelForm)}
                     style={{ padding: '4px 10px', background: showCancelForm ? '#f1f5f9' : '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                   >
-                    {showCancelForm ? 'Close' : 'Cancel Deal & Refund'}
+                    {showCancelForm ? t('common.close', 'Close') : t('deals.cancelDealAndRefund', 'Cancel Deal & Refund')}
                   </button>
                 )}
               </div>
@@ -908,20 +950,20 @@ const Deals = () => {
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '11px', marginBottom: '10px' }}>
                     <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>Total Collected:</span>
-                      <strong style={{ color: '#1e293b' }}>{Number(cancellationRecord.total_paid_amount).toLocaleString()} EGP</strong>
+                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.totalCollected', 'Total Collected:')}</span>
+                      <strong style={{ color: '#1e293b' }}><span className="num-en">{Number(cancellationRecord.total_paid_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
                     </div>
                     <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>Penalty Deduction:</span>
-                      <strong style={{ color: '#b91c1c' }}>-{Number(cancellationRecord.deduction_amount).toLocaleString()} EGP</strong>
+                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.penaltyDeduction', 'Penalty Deduction:')}</span>
+                      <strong style={{ color: '#b91c1c' }}>-<span className="num-en">{Number(cancellationRecord.deduction_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
                     </div>
                     <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>Refundable Balance:</span>
-                      <strong style={{ color: '#047857' }}>{Number(cancellationRecord.refundable_amount).toLocaleString()} EGP</strong>
+                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.refundableBalance', 'Refundable Balance:')}</span>
+                      <strong style={{ color: '#047857' }}><span className="num-en">{Number(cancellationRecord.refundable_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
                     </div>
                   </div>
                   <div style={{ fontSize: '11px', color: '#475569', marginBottom: '10px', background: '#fff', padding: '8px', borderRadius: '6px', border: '1px solid #fecdd3' }}>
-                    <strong>Reason:</strong> {cancellationRecord.cancellation_reason}
+                    <strong>{t('deals.cancellationReasonLabel', 'Reason:')}</strong> {cancellationRecord.cancellation_reason}
                   </div>
                   {cancellationRecord.refund_status === 'Pending' && (
                     <button
@@ -929,7 +971,7 @@ const Deals = () => {
                       onClick={() => handleUpdateRefund(cancellationRecord.id, 'Processed')}
                       style={{ padding: '6px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                     >
-                      Mark Refund as Processed
+                      {t('deals.markRefundProcessed', 'Mark Refund as Processed')}
                     </button>
                   )}
                 </div>
@@ -939,10 +981,10 @@ const Deals = () => {
               {!cancellationRecord && showCancelForm && (
                 <div style={{ background: '#fff', border: '1px dashed #f87171', borderRadius: '8px', padding: '12px' }}>
                   <div className="form-group" style={{ marginBottom: '8px' }}>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#991b1b' }}>Cancellation Reason (Required)</label>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#991b1b' }}>{t('deals.cancellationReasonReq', 'Cancellation Reason (Required)')}</label>
                     <textarea
                       rows="2"
-                      placeholder="Specify buyer withdrawal reason, financial default, or agreement..."
+                      placeholder={t('deals.cancellationReasonPlaceholder', 'Specify buyer withdrawal reason, financial default, or agreement...')}
                       value={cancelFormData.reason}
                       onChange={(e) => setCancelFormData({ ...cancelFormData, reason: e.target.value })}
                       style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
@@ -950,7 +992,7 @@ const Deals = () => {
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                     <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Deduction / Penalty (EGP)</label>
+                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>{t('deals.deductionPenalty', 'Deduction / Penalty ({currency})').replace('{currency}', t('common.currency', 'EGP'))}</label>
                       <input
                         type="number"
                         min="0"
@@ -960,14 +1002,14 @@ const Deals = () => {
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>Unit Action</label>
+                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>{t('deals.unitAction', 'Unit Action')}</label>
                       <select
                         value={cancelFormData.unit_action}
                         onChange={(e) => setCancelFormData({ ...cancelFormData, unit_action: e.target.value })}
                         style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
                       >
-                        <option value="release">Release Unit to Available</option>
-                        <option value="keep_reserved">Keep Unit Status Unchanged</option>
+                        <option value="release">{t('deals.releaseUnitAvailable', 'Release Unit to Available')}</option>
+                        <option value="keep_reserved">{t('deals.keepUnitUnchanged', 'Keep Unit Status Unchanged')}</option>
                       </select>
                     </div>
                   </div>
@@ -976,7 +1018,7 @@ const Deals = () => {
                     onClick={handleProcessCancellation}
                     style={{ padding: '6px 14px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                   >
-                    Confirm Cancellation & Process
+                    {t('deals.confirmCancellationProcess', 'Confirm Cancellation & Process')}
                   </button>
                 </div>
               )}
@@ -985,7 +1027,7 @@ const Deals = () => {
         </form>
         {editingDeal && (
           <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', marginBottom: '16px' }}>Deal Activity Timeline</h3>
+            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', marginBottom: '16px' }}>{t('deals.dealActivityTimeline', 'Deal Activity Timeline')}</h3>
             <ActivityTimeline entityType="deal" entityId={editingDeal.id} />
           </div>
         )}

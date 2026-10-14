@@ -8,9 +8,11 @@ import {
 import KPICard from '../components/Dashboard/KPICard';
 import EmptyState from '../components/Dashboard/EmptyState';
 import { safeArray } from '../utils/dataUtils';
+import { useLanguage } from '../context/LanguageContext';
 
 const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
   const navigate = useNavigate();
+  const { t, lang, isRTL } = useLanguage();
 
   const unitsOverview = data?.unitsOverview || { total: 0, available: 0, reserved: 0, sold: 0 };
   const pipeline = data?.pipeline || { stages: [], counts: {}, values: {}, activeDealsCount: 0 };
@@ -23,15 +25,73 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
   const commissionsOverview = data?.commissionsOverview || { topAgents: [], commissions: null };
   const upcomingHandovers = safeArray(data?.upcomingHandovers);
 
-  const formatEgp = (num) => `${(num || 0).toLocaleString()} EGP`;
+  const formatEgp = (num) => `${(num || 0).toLocaleString('en-US')} ${t('common.currency')}`;
+
+  const getTimeFilterLabel = (filter) => {
+    switch (filter) {
+      case 'TODAY': return t('dashboard.today');
+      case 'THIS_WEEK': return t('dashboard.thisWeek');
+      case 'THIS_MONTH': return t('dashboard.thisMonth');
+      default: return filter;
+    }
+  };
+
+  const getStageLabel = (stage) => {
+    if (!stage) return '';
+    const key = stage.toLowerCase().replace(/[\s_-]+/g, '');
+    const stageMap = {
+      lead: 'lead',
+      interested: 'interested',
+      sitevisit: 'siteVisit',
+      negotiation: 'negotiation',
+      proposal: 'proposal',
+      quotation: 'proposal',
+      closedwon: 'closedWon',
+      closedlost: 'closedLost'
+    };
+    const translationKey = stageMap[key];
+    if (translationKey) {
+      return t(`dashboard.stages.${translationKey}`);
+    }
+    return stage;
+  };
+
+  const getStatusLabel = (status) => {
+    if (!status) return '';
+    const key = status.toLowerCase().replace(/[\s_-]+/g, '');
+    const statusMap = {
+      scheduled: 'scheduled',
+      completed: 'completed',
+      pending: 'pending',
+      inprogress: 'inProgress',
+      paid: 'paid',
+      unpaid: 'unpaid',
+      approved: 'approved'
+    };
+    const mapped = statusMap[key];
+    if (mapped) {
+      return t(`dashboard.statuses.${mapped}`);
+    }
+    return status;
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return t('dashboard.tbd');
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
 
   return (
     <div className="re-dashboard-content">
       {/* HEADER CONTROLS */}
       <div className="dashboard-subbar">
         <div className="dashboard-meta-info">
-          <h2>Real Estate Management Cockpit</h2>
-          <p>Portfolio overview, active pipeline, payment plans, and handover operations.</p>
+          <h2>{t('dashboard.realEstate.title')}</h2>
+          <p>{t('dashboard.realEstate.subtitle')}</p>
         </div>
         <div className="dashboard-actions">
           <select 
@@ -39,9 +99,9 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
             onChange={(e) => setTimeFilter(e.target.value)}
             className="time-filter-select"
           >
-            <option value="TODAY">Today</option>
-            <option value="THIS_WEEK">This Week</option>
-            <option value="THIS_MONTH">This Month</option>
+            <option value="TODAY">{t('dashboard.today')}</option>
+            <option value="THIS_WEEK">{t('dashboard.thisWeek')}</option>
+            <option value="THIS_MONTH">{t('dashboard.thisMonth')}</option>
           </select>
         </div>
       </div>
@@ -49,53 +109,53 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
       {/* SECTION A: KPI CARDS */}
       <div className="dashboard-grid-4">
         <KPICard 
-          title="Available Units" 
+          title={t('dashboard.availableUnits')} 
           value={unitsOverview.available}
           icon={<Building2 size={20} />}
           color="success"
-          subtitle={`Out of ${unitsOverview.total} total units`}
+          subtitle={t('dashboard.availableUnitsSub', { total: unitsOverview.total })}
           onClick={() => navigate('/units-registry')}
         />
         <KPICard 
-          title="Reserved Units" 
+          title={t('dashboard.reservedUnits')} 
           value={unitsOverview.reserved}
           icon={<Clock size={20} />}
           color="warning"
-          subtitle="Awaiting contract signing"
+          subtitle={t('dashboard.reservedUnitsSub')}
           onClick={() => navigate('/reservations')}
         />
         <KPICard 
-          title="Contracted Units" 
+          title={t('dashboard.contractedUnits')} 
           value={unitsOverview.contracted !== undefined ? unitsOverview.contracted : unitsOverview.sold}
           icon={<CheckCircle2 size={20} />}
           color="info"
-          subtitle={unitsOverview.handed_over ? `${unitsOverview.handed_over} handed over` : "Binding legal contracts"}
+          subtitle={unitsOverview.handed_over ? t('dashboard.handedOverCount', { count: unitsOverview.handed_over }) : t('dashboard.bindingContractsSub')}
           onClick={() => navigate('/contracts')}
         />
         <KPICard 
-          title="Active Deals" 
+          title={t('dashboard.activeDeals')} 
           value={pipeline.activeDealsCount}
           icon={<TrendingUp size={20} />}
           color="primary"
-          subtitle="Pipeline opportunities in progress"
+          subtitle={t('dashboard.activeDealsSub')}
           onClick={() => navigate('/deals')}
         />
         {collectionsFlow.accessible && (
           <>
             <KPICard 
-              title="Contracted Value" 
+              title={t('dashboard.contractedValue')} 
               value={formatEgp(collectionsFlow.contractedValue)}
               icon={<Layers size={20} />}
               color="purple"
-              subtitle="From formal binding contracts"
+              subtitle={t('dashboard.contractedValueSub')}
               onClick={() => navigate('/contracts')}
             />
             <KPICard 
-              title="Collected Amount" 
+              title={t('dashboard.collectedAmount')} 
               value={formatEgp(collectionsFlow.collectedAmount)}
               icon={<CheckCircle2 size={20} />}
               color="success"
-              subtitle="Verified receipts in finance vouchers"
+              subtitle={t('dashboard.collectedAmountSub')}
               onClick={() => navigate('/finance')}
             />
           </>
@@ -107,9 +167,9 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         {/* Unit Status Breakdown */}
         <div className="dashboard-card">
           <div className="card-header">
-            <h3>Unit Status</h3>
+            <h3>{t('dashboard.unitStatus')}</h3>
             <button className="text-btn" onClick={() => navigate('/units-registry')}>
-              View Units <ChevronRight size={14} />
+              {t('dashboard.viewUnits')} <ChevronRight size={14} className="rtl-flip" />
             </button>
           </div>
           <div className="card-body">
@@ -119,17 +179,17 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                   <div 
                     className="bar-segment bar-avail" 
                     style={{ width: `${(unitsOverview.available / unitsOverview.total) * 100}%` }} 
-                    title={`Available: ${unitsOverview.available}`}
+                    title={`${t('dashboard.availableCount', { count: unitsOverview.available })}`}
                   />
                   <div 
                     className="bar-segment bar-res" 
                     style={{ width: `${(unitsOverview.reserved / unitsOverview.total) * 100}%` }} 
-                    title={`Reserved: ${unitsOverview.reserved}`}
+                    title={`${t('dashboard.reservedCount', { count: unitsOverview.reserved })}`}
                   />
                   <div 
                     className="bar-segment bar-sold" 
                     style={{ width: `${(unitsOverview.sold / unitsOverview.total) * 100}%` }} 
-                    title={`Sold: ${unitsOverview.sold}`}
+                    title={`${t('dashboard.soldCount', { count: unitsOverview.sold })}`}
                   />
                 </>
               ) : (
@@ -139,15 +199,15 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
             <div className="unit-legend">
               <div className="legend-item" onClick={() => navigate('/units-registry')}>
                 <span className="dot dot-avail" />
-                <span>Available ({unitsOverview.available})</span>
+                <span>{t('dashboard.availableCount', { count: unitsOverview.available })}</span>
               </div>
               <div className="legend-item" onClick={() => navigate('/reservations')}>
                 <span className="dot dot-res" />
-                <span>Reserved ({unitsOverview.reserved})</span>
+                <span>{t('dashboard.reservedCount', { count: unitsOverview.reserved })}</span>
               </div>
               <div className="legend-item" onClick={() => navigate('/units-registry')}>
                 <span className="dot dot-sold" />
-                <span>Sold ({unitsOverview.sold})</span>
+                <span>{t('dashboard.soldCount', { count: unitsOverview.sold })}</span>
               </div>
             </div>
           </div>
@@ -156,9 +216,9 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         {/* Real Estate Pipeline (Lead -> Interested -> Site Visit -> Negotiation -> Closed) */}
         <div className="dashboard-card">
           <div className="card-header">
-            <h3>Deal Pipeline</h3>
+            <h3>{t('dashboard.dealPipeline')}</h3>
             <button className="text-btn" onClick={() => navigate('/deals')}>
-              Open Deals <ChevronRight size={14} />
+              {t('dashboard.openDeals')} <ChevronRight size={14} className="rtl-flip" />
             </button>
           </div>
           <div className="card-body">
@@ -168,9 +228,9 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                 const val = pipeline.values[stg] || 0;
                 return (
                   <div key={stg} className="pipeline-step-item">
-                    <span className="step-label">{stg}</span>
-                    <span className="step-count">{count}</span>
-                    <span className="step-value">{val > 0 ? formatEgp(val) : '—'}</span>
+                    <span className="step-label">{getStageLabel(stg)}</span>
+                    <span className="step-count num-en">{count}</span>
+                    <span className="step-value num-en">{val > 0 ? formatEgp(val) : '—'}</span>
                   </div>
                 );
               })}
@@ -183,11 +243,11 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
       <div className="dashboard-card">
         <div className="card-header">
           <div>
-            <h3>Expiring Reservations</h3>
-            <span className="card-subtitle">Units currently on temporary hold requiring customer commitment</span>
+            <h3>{t('dashboard.expiringReservations')}</h3>
+            <span className="card-subtitle">{t('dashboard.expiringReservationsSub')}</span>
           </div>
           <button className="text-btn" onClick={() => navigate('/reservations')}>
-            Manage Reservations <ChevronRight size={14} />
+            {t('dashboard.manageReservations')} <ChevronRight size={14} className="rtl-flip" />
           </button>
         </div>
         <div className="card-body">
@@ -196,33 +256,36 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
               <table className="compact-table">
                 <thead>
                   <tr>
-                    <th>Unit</th>
-                    <th>Project</th>
-                    <th>Client</th>
-                    <th>Price</th>
-                    <th>Reservation Status</th>
-                    <th>Action</th>
+                    <th>{t('dashboard.unit')}</th>
+                    <th>{t('dashboard.project')}</th>
+                    <th>{t('dashboard.client')}</th>
+                    <th>{t('dashboard.price')}</th>
+                    <th>{t('dashboard.reservationStatus')}</th>
+                    <th>{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {expiringReservations.map((resItem) => (
                     <tr key={resItem.unitId}>
-                      <td className="font-semibold">{resItem.unitNumber}</td>
+                      <td className="font-semibold num-en">{resItem.unitNumber}</td>
                       <td>{resItem.projectName}</td>
                       <td>
                         <div className="client-cell">
                           <span>{resItem.customerName}</span>
-                          {resItem.customerPhone && <span className="cell-sub">{resItem.customerPhone}</span>}
+                          {resItem.customerPhone && <span className="cell-sub num-en">{resItem.customerPhone}</span>}
                         </div>
                       </td>
-                      <td>{formatEgp(resItem.unitPrice)}</td>
+                      <td className="num-en">{formatEgp(resItem.unitPrice)}</td>
                       <td>
                         <span className={`status-pill ${resItem.isExpired ? 'pill-expired' : 'pill-active'}`}>
                           {resItem.isExpired 
-                            ? 'Expired' 
+                            ? t('dashboard.expired') 
                             : resItem.remainingMinutes 
-                              ? `${Math.floor(resItem.remainingMinutes / 60)}h ${resItem.remainingMinutes % 60}m remaining` 
-                              : 'Pending Confirmation'}
+                              ? t('dashboard.timeRemaining', { 
+                                  hours: Math.floor(resItem.remainingMinutes / 60), 
+                                  mins: resItem.remainingMinutes % 60 
+                                }) 
+                              : t('dashboard.pendingConfirmation')}
                         </span>
                       </td>
                       <td>
@@ -230,7 +293,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                           className="table-action-btn"
                           onClick={() => navigate('/reservations')}
                         >
-                          Review
+                          {t('dashboard.review')}
                         </button>
                       </td>
                     </tr>
@@ -239,7 +302,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
               </table>
             </div>
           ) : (
-            <EmptyState message="No reservations approaching expiration." compact={true} />
+            <EmptyState message={t('dashboard.noExpiringReservations')} compact={true} />
           )}
         </div>
       </div>
@@ -249,32 +312,32 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         {/* Contracts & Installments Schedule */}
         <div className="dashboard-card">
           <div className="card-header">
-            <h3>Contracts & Installments</h3>
+            <h3>{t('dashboard.contractsAndInstallments')}</h3>
             <button className="text-btn" onClick={() => navigate('/contracts')}>
-              Contracts Workspace <ChevronRight size={14} />
+              {t('dashboard.contractsWorkspace')} <ChevronRight size={14} className="rtl-flip" />
             </button>
           </div>
           <div className="card-body">
             <div className="stats-subgrid">
               <div className="stat-box" onClick={() => navigate('/contracts')}>
-                <span className="stat-label">Contracts This Month</span>
-                <span className="stat-val">{contractsAndInstallments.contracts.contractsThisMonth}</span>
-                <span className="stat-sub">{formatEgp(contractsAndInstallments.contracts.contractedValueThisMonth)}</span>
+                <span className="stat-label">{t('dashboard.contractsThisMonth')}</span>
+                <span className="stat-val num-en">{contractsAndInstallments.contracts.contractsThisMonth}</span>
+                <span className="stat-sub num-en">{formatEgp(contractsAndInstallments.contracts.contractedValueThisMonth)}</span>
               </div>
               <div className="stat-box" onClick={() => navigate('/installments')}>
-                <span className="stat-label">Installments Due Today</span>
-                <span className="stat-val">{formatEgp(contractsAndInstallments.installments.dueToday)}</span>
-                <span className="stat-sub">Immediate collections</span>
+                <span className="stat-label">{t('dashboard.installmentsDueToday')}</span>
+                <span className="stat-val num-en">{formatEgp(contractsAndInstallments.installments.dueToday)}</span>
+                <span className="stat-sub">{t('dashboard.immediateCollections')}</span>
               </div>
               <div className="stat-box" onClick={() => navigate('/installments')}>
-                <span className="stat-label">Due This Week</span>
-                <span className="stat-val">{formatEgp(contractsAndInstallments.installments.dueThisWeek)}</span>
-                <span className="stat-sub">Upcoming cash inflows</span>
+                <span className="stat-label">{t('dashboard.dueThisWeek')}</span>
+                <span className="stat-val num-en">{formatEgp(contractsAndInstallments.installments.dueThisWeek)}</span>
+                <span className="stat-sub">{t('dashboard.upcomingCashInflows')}</span>
               </div>
               <div className="stat-box box-danger" onClick={() => navigate('/installments')}>
-                <span className="stat-label">Overdue Installments</span>
-                <span className="stat-val">{formatEgp(contractsAndInstallments.installments.overdue)}</span>
-                <span className="stat-sub">{contractsAndInstallments.installments.overdueCount} installments past due</span>
+                <span className="stat-label">{t('dashboard.overdueInstallments')}</span>
+                <span className="stat-val num-en">{formatEgp(contractsAndInstallments.installments.overdue)}</span>
+                <span className="stat-sub">{t('dashboard.installmentsPastDue', { count: contractsAndInstallments.installments.overdueCount })}</span>
               </div>
             </div>
           </div>
@@ -284,28 +347,28 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         {collectionsFlow.accessible ? (
           <div className="dashboard-card">
             <div className="card-header">
-              <h3>Financial Collections Flow</h3>
+              <h3>{t('dashboard.collectionsFlow')}</h3>
               <button className="text-btn" onClick={() => navigate('/finance')}>
-                Finance Vouchers <ChevronRight size={14} />
+                {t('dashboard.financeVouchers')} <ChevronRight size={14} className="rtl-flip" />
               </button>
             </div>
             <div className="card-body">
               <div className="collections-progress">
                 <div className="coll-row">
-                  <span>Contracted Value</span>
-                  <span className="font-semibold">{formatEgp(collectionsFlow.contractedValue)}</span>
+                  <span>{t('dashboard.contractedValue')}</span>
+                  <span className="font-semibold num-en">{formatEgp(collectionsFlow.contractedValue)}</span>
                 </div>
                 <div className="coll-row text-success">
-                  <span>Actual Collected (Vouchers)</span>
-                  <span className="font-semibold">{formatEgp(collectionsFlow.collectedAmount)}</span>
+                  <span>{t('dashboard.actualCollected')}</span>
+                  <span className="font-semibold num-en">{formatEgp(collectionsFlow.collectedAmount)}</span>
                 </div>
                 <div className="coll-row text-muted">
-                  <span>Outstanding Balance</span>
-                  <span className="font-semibold">{formatEgp(collectionsFlow.outstandingAmount)}</span>
+                  <span>{t('dashboard.outstandingBalance')}</span>
+                  <span className="font-semibold num-en">{formatEgp(collectionsFlow.outstandingAmount)}</span>
                 </div>
                 <div className="coll-row text-danger">
-                  <span>Overdue Installments</span>
-                  <span className="font-semibold">{formatEgp(collectionsFlow.overdueAmount)}</span>
+                  <span>{t('dashboard.overdueInstallments')}</span>
+                  <span className="font-semibold num-en">{formatEgp(collectionsFlow.overdueAmount)}</span>
                 </div>
               </div>
             </div>
@@ -313,10 +376,10 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         ) : (
           <div className="dashboard-card">
             <div className="card-header">
-              <h3>Financial Collections</h3>
+              <h3>{t('dashboard.collectionsFlow')}</h3>
             </div>
             <div className="card-body">
-              <EmptyState message="Financial information is restricted for your role." compact={true} />
+              <EmptyState message={t('dashboard.financeRestricted')} compact={true} />
             </div>
           </div>
         )}
@@ -327,9 +390,9 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         {/* Top Salesmen */}
         <div className="dashboard-card">
           <div className="card-header">
-            <h3>Sales Representatives</h3>
+            <h3>{t('dashboard.salesRepresentatives')}</h3>
             <button className="text-btn" onClick={() => navigate('/commissions')}>
-              Commissions Workspace <ChevronRight size={14} />
+              {t('dashboard.commissionsWorkspace')} <ChevronRight size={14} className="rtl-flip" />
             </button>
           </div>
           <div className="card-body">
@@ -337,24 +400,24 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
               <div className="agents-list">
                 {commissionsOverview.topAgents.map((ag, idx) => (
                   <div key={ag.userId} className="agent-item">
-                    <div className="agent-rank">{idx + 1}</div>
+                    <div className="agent-rank num-en">{idx + 1}</div>
                     <div className="agent-meta">
                       <span className="agent-name">{ag.name}</span>
                       <span className="agent-deals">
-                        {ag.dealsCount} closed deals
+                        {t('dashboard.closedDealsCount', { count: ag.dealsCount })}
                         {ag.commissionStatus && (
                           <span className={`agent-comm-badge badge-${ag.commissionStatus.toLowerCase().replace(/\s+/g, '-')}`}>
-                            • {ag.commissionStatus} {ag.commissionAmount ? `(${formatEgp(ag.commissionAmount)})` : ''}
+                            • {getStatusLabel(ag.commissionStatus)} {ag.commissionAmount ? `(${formatEgp(ag.commissionAmount)})` : ''}
                           </span>
                         )}
                       </span>
                     </div>
-                    <span className="agent-val">{formatEgp(ag.dealValue)}</span>
+                    <span className="agent-val num-en">{formatEgp(ag.dealValue)}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <EmptyState message="No sales performance data available yet." compact={true} />
+              <EmptyState message={t('dashboard.noSalesData')} compact={true} />
             )}
           </div>
         </div>
@@ -363,11 +426,11 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         <div className="dashboard-card">
           <div className="card-header">
             <div>
-              <h3>Upcoming Deliveries</h3>
-              <span className="card-subtitle">Scheduled unit keys and snagging handovers</span>
+              <h3>{t('dashboard.upcomingDeliveries')}</h3>
+              <span className="card-subtitle">{t('dashboard.upcomingDeliveriesSub')}</span>
             </div>
             <button className="text-btn" onClick={() => navigate('/handover')}>
-              Handover Workspace <ChevronRight size={14} />
+              {t('dashboard.handoverWorkspace')} <ChevronRight size={14} className="rtl-flip" />
             </button>
           </div>
           <div className="card-body">
@@ -381,14 +444,14 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                       <span className="ho-client">{h.customerName}</span>
                     </div>
                     <div className="ho-date-meta">
-                      <span className="ho-date">{h.scheduledDate ? new Date(h.scheduledDate).toLocaleDateString() : 'TBD'}</span>
-                      <span className="ho-status">{h.status}</span>
+                      <span className="ho-date num-en">{formatDate(h.scheduledDate)}</span>
+                      <span className="ho-status">{getStatusLabel(h.status)}</span>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <EmptyState message="No pending unit deliveries scheduled." compact={true} />
+              <EmptyState message={t('dashboard.noPendingDeliveries')} compact={true} />
             )}
           </div>
         </div>
@@ -560,7 +623,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
           font-size: 12.5px;
         }
         .compact-table th {
-          text-align: left;
+          text-align: start;
           padding: 8px 10px;
           color: var(--text-muted);
           font-weight: 600;
@@ -684,7 +747,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
           justify-content: center;
           font-size: 11px;
           font-weight: 700;
-          margin-right: 10px;
+          margin-inline-end: 10px;
         }
         .agent-meta {
           flex: 1;
@@ -746,7 +809,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
           color: var(--text-muted);
         }
         .ho-date-meta {
-          text-align: right;
+          text-align: end;
           display: flex;
           flex-direction: column;
         }

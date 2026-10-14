@@ -18,16 +18,25 @@ const Layout = () => {
           min-height: 100vh;
           background-color: var(--bg-main, #f1f5f9);
           overflow-x: hidden;
-          font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          font-family: inherit;
         }
         .main-container {
           flex: 1;
           display: flex;
           flex-direction: column;
-          margin-left: ${isSidebarOpen ? 'var(--sidebar-w, 240px)' : '68px'};
-          transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          margin-inline-start: ${isSidebarOpen ? 'var(--sidebar-w, 240px)' : '68px'};
+          margin-inline-end: 0;
+          transition: margin-inline-start 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           min-width: 0;
           width: calc(100% - ${isSidebarOpen ? 'var(--sidebar-w, 240px)' : '68px'});
+        }
+        [dir='rtl'] .main-container {
+          margin-left: 0;
+          margin-right: ${isSidebarOpen ? 'var(--sidebar-w, 240px)' : '68px'};
+        }
+        [dir='ltr'] .main-container {
+          margin-right: 0;
+          margin-left: ${isSidebarOpen ? 'var(--sidebar-w, 240px)' : '68px'};
         }
         .content-area {
           flex: 1;
@@ -46,8 +55,12 @@ const Layout = () => {
           }
         }
         @media (max-width: 768px) {
-          .main-container {
+          .main-container,
+          [dir='rtl'] .main-container,
+          [dir='ltr'] .main-container {
             margin-left: 0 !important;
+            margin-right: 0 !important;
+            margin-inline-start: 0 !important;
             width: 100% !important;
           }
           .content-area {
@@ -56,7 +69,7 @@ const Layout = () => {
         }
         @media print {
           .layout-wrapper { display: block; }
-          .main-container { margin-left: 0 !important; width: 100% !important; }
+          .main-container, [dir='rtl'] .main-container { margin-left: 0 !important; margin-right: 0 !important; width: 100% !important; }
           .content-area { padding: 0 !important; }
           aside, header, nav, .sidebar-container, .header-container { display: none !important; }
         }

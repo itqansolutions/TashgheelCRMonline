@@ -8,9 +8,11 @@ import {
 import KPICard from '../components/Dashboard/KPICard';
 import EmptyState from '../components/Dashboard/EmptyState';
 import { safeArray } from '../utils/dataUtils';
+import { useLanguage } from '../context/LanguageContext';
 
 const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
   const navigate = useNavigate();
+  const { t, isRTL } = useLanguage();
 
   const finance = data?.financeMetrics || { accessible: false };
   const pipeline = data?.pipeline || { stages: [], counts: {}, values: {} };
@@ -19,15 +21,50 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
   const hr = data?.hrMetrics || { accessible: false };
   const pendingActions = data?.pendingActions || { tasks: [], pendingQuotations: [] };
 
-  const formatEgp = (num) => `${(num || 0).toLocaleString()} EGP`;
+  const formatEgp = (num) => `${(num || 0).toLocaleString('en-US')} ${t('common.currency')}`;
+
+  const getTimeFilterLabel = (filter) => {
+    switch (filter) {
+      case 'TODAY': return t('dashboard.today');
+      case 'THIS_WEEK': return t('dashboard.thisWeek');
+      case 'THIS_MONTH': return t('dashboard.thisMonth');
+      default: return filter;
+    }
+  };
+
+  const getStageLabel = (stage) => {
+    if (!stage) return '';
+    const key = stage.toLowerCase().replace(/[\s_-]+/g, '');
+    const stageMap = {
+      lead: 'lead',
+      interested: 'interested',
+      sitevisit: 'siteVisit',
+      negotiation: 'negotiation',
+      proposal: 'proposal',
+      quotation: 'proposal',
+      closedwon: 'closedWon',
+      closedlost: 'closedLost'
+    };
+    const translationKey = stageMap[key];
+    if (translationKey) {
+      return t(`dashboard.stages.${translationKey}`);
+    }
+    return stage.toUpperCase();
+  };
+
+  const getPriorityLabel = (priority) => {
+    if (!priority) return t('dashboard.priorities.normal');
+    const key = priority.toLowerCase();
+    return t(`dashboard.priorities.${key}`, priority);
+  };
 
   return (
     <div className="gen-dashboard-content">
       {/* HEADER CONTROLS */}
       <div className="dashboard-subbar">
         <div className="dashboard-meta-info">
-          <h2>Business Operations Overview</h2>
-          <p>Key operational performance, sales activity, cash flow, and team actions.</p>
+          <h2>{t('dashboard.general.title')}</h2>
+          <p>{t('dashboard.general.subtitle')}</p>
         </div>
         <div className="dashboard-actions">
           <select 
@@ -35,9 +72,9 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
             onChange={(e) => setTimeFilter(e.target.value)}
             className="time-filter-select"
           >
-            <option value="TODAY">Today</option>
-            <option value="THIS_WEEK">This Week</option>
-            <option value="THIS_MONTH">This Month</option>
+            <option value="TODAY">{t('dashboard.today')}</option>
+            <option value="THIS_WEEK">{t('dashboard.thisWeek')}</option>
+            <option value="THIS_MONTH">{t('dashboard.thisMonth')}</option>
           </select>
         </div>
       </div>
@@ -47,27 +84,27 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         {finance.accessible && (
           <>
             <KPICard 
-              title="Sales Today" 
+              title={t('dashboard.salesToday')} 
               value={formatEgp(finance.salesToday)}
               icon={<ShoppingBag size={20} />}
               color="primary"
-              subtitle="Total invoiced value today"
+              subtitle={t('dashboard.salesTodaySub')}
               onClick={() => navigate('/finance')}
             />
             <KPICard 
-              title="Sales This Month" 
+              title={t('dashboard.salesThisMonth')} 
               value={formatEgp(finance.salesThisMonth)}
               icon={<TrendingUp size={20} />}
               color="success"
-              subtitle="Month-to-date billed revenue"
+              subtitle={t('dashboard.salesThisMonthSub')}
               onClick={() => navigate('/finance')}
             />
             <KPICard 
-              title="Outstanding Receivables" 
+              title={t('dashboard.outstandingReceivables')} 
               value={formatEgp(finance.receivables?.outstanding)}
               icon={<CreditCard size={20} />}
               color="warning"
-              subtitle={`Overdue: ${formatEgp(finance.receivables?.overdue)}`}
+              subtitle={t('dashboard.overdueAmount', { amount: formatEgp(finance.receivables?.overdue) })}
               onClick={() => navigate('/finance')}
             />
           </>
@@ -75,33 +112,33 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
 
         {procurement.accessible && (
           <KPICard 
-            title="Pending Purchase Requests" 
+            title={t('dashboard.pendingPurchaseRequests')} 
             value={procurement.pendingPurchaseRequests}
             icon={<ShoppingBag size={20} />}
             color="purple"
-            subtitle={`${procurement.totalPurchaseRequests} total requests`}
+            subtitle={t('dashboard.totalRequestsSub', { count: procurement.totalPurchaseRequests })}
             onClick={() => navigate('/purchases/requests')}
           />
         )}
 
         {inventory.accessible && (
           <KPICard 
-            title="Low Stock Items" 
+            title={t('dashboard.lowStockItems')} 
             value={inventory.lowStock}
             icon={<Package size={20} />}
             color="danger"
-            subtitle={`${inventory.outOfStock} out of stock`}
+            subtitle={t('dashboard.outOfStockSub', { count: inventory.outOfStock })}
             onClick={() => navigate('/inventory/balances')}
           />
         )}
 
         {hr.accessible && (
           <KPICard 
-            title="Employees Present Today" 
+            title={t('dashboard.employeesPresentToday')} 
             value={hr.employeesPresentToday}
             icon={<Users size={20} />}
             color="info"
-            subtitle="Live daily clock-in count"
+            subtitle={t('dashboard.employeesPresentTodaySub')}
             onClick={() => navigate('/hr/dashboard')}
           />
         )}
@@ -113,9 +150,9 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         {finance.accessible ? (
           <div className="dashboard-card">
             <div className="card-header">
-              <h3>Sales Performance ({finance.periodLabel || (timeFilter === 'TODAY' ? 'Today' : timeFilter === 'THIS_WEEK' ? 'This Week' : 'This Month')})</h3>
+              <h3>{t('dashboard.salesPerformancePeriod', { period: finance.periodLabel || getTimeFilterLabel(timeFilter) })}</h3>
               <button className="text-btn" onClick={() => navigate('/finance')}>
-                View Invoices <ChevronRight size={14} />
+                {t('dashboard.viewInvoices')} <ChevronRight size={14} className="rtl-flip" />
               </button>
             </div>
             <div className="card-body">
@@ -123,29 +160,29 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                 <div className="sales-trend-list">
                   {finance.trend.slice(-6).map((tItem) => (
                     <div key={tItem.date} className="trend-row">
-                      <span className="trend-date">{tItem.date}</span>
+                      <span className="trend-date num-en">{tItem.date}</span>
                       <div className="trend-bar-container">
                         <div 
                           className="trend-bar-fill" 
                           style={{ width: `${Math.min(100, Math.max(10, (tItem.sales / (finance.salesThisMonth || 1)) * 100))}%` }} 
                         />
                       </div>
-                      <span className="trend-amount">{formatEgp(tItem.sales)}</span>
+                      <span className="trend-amount num-en">{formatEgp(tItem.sales)}</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <EmptyState message="No sales transactions recorded in this period." compact={true} />
+                <EmptyState message={t('dashboard.noSalesRecorded')} compact={true} />
               )}
             </div>
           </div>
         ) : (
           <div className="dashboard-card">
             <div className="card-header">
-              <h3>Sales Performance</h3>
+              <h3>{t('dashboard.salesPerformance')}</h3>
             </div>
             <div className="card-body">
-              <EmptyState message="Financial performance details are restricted for your role." compact={true} />
+              <EmptyState message={t('dashboard.financeRestricted')} compact={true} />
             </div>
           </div>
         )}
@@ -153,9 +190,9 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         {/* General CRM Sales Pipeline */}
         <div className="dashboard-card">
           <div className="card-header">
-            <h3>Sales Pipeline</h3>
+            <h3>{t('dashboard.salesPipeline')}</h3>
             <button className="text-btn" onClick={() => navigate('/deals')}>
-              Deals Kanban <ChevronRight size={14} />
+              {t('dashboard.dealsKanban')} <ChevronRight size={14} className="rtl-flip" />
             </button>
           </div>
           <div className="card-body">
@@ -165,9 +202,9 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                 const val = pipeline.values[stg] || 0;
                 return (
                   <div key={stg} className="gen-pipeline-step">
-                    <span className="step-label">{stg.toUpperCase()}</span>
-                    <span className="step-count">{count}</span>
-                    <span className="step-value">{val > 0 ? formatEgp(val) : '—'}</span>
+                    <span className="step-label">{getStageLabel(stg)}</span>
+                    <span className="step-count num-en">{count}</span>
+                    <span className="step-value num-en">{val > 0 ? formatEgp(val) : '—'}</span>
                   </div>
                 );
               })}
@@ -181,34 +218,34 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         <div className="dashboard-card">
           <div className="card-header">
             <div>
-              <h3>Receivables & Payables</h3>
-              <span className="card-subtitle">Cash flow obligations and pending settlements</span>
+              <h3>{t('dashboard.receivablesPayables')}</h3>
+              <span className="card-subtitle">{t('dashboard.receivablesPayablesSub')}</span>
             </div>
             <button className="text-btn" onClick={() => navigate('/finance')}>
-              Financial Ledger <ChevronRight size={14} />
+              {t('dashboard.financialLedger')} <ChevronRight size={14} className="rtl-flip" />
             </button>
           </div>
           <div className="card-body">
             <div className="rec-pay-grid">
               <div className="rec-pay-box" onClick={() => navigate('/finance')}>
-                <span className="rp-label">Outstanding Receivables</span>
-                <span className="rp-val">{formatEgp(finance.receivables?.outstanding)}</span>
-                <span className="rp-sub">From clients</span>
+                <span className="rp-label">{t('dashboard.outstandingReceivables')}</span>
+                <span className="rp-val num-en">{formatEgp(finance.receivables?.outstanding)}</span>
+                <span className="rp-sub">{t('dashboard.fromClients')}</span>
               </div>
               <div className="rec-pay-box box-danger" onClick={() => navigate('/finance')}>
-                <span className="rp-label">Overdue Invoices</span>
-                <span className="rp-val">{formatEgp(finance.receivables?.overdue)}</span>
-                <span className="rp-sub">Requires follow-up</span>
+                <span className="rp-label">{t('dashboard.overdueInvoices')}</span>
+                <span className="rp-val num-en">{formatEgp(finance.receivables?.overdue)}</span>
+                <span className="rp-sub">{t('dashboard.requiresFollowUp')}</span>
               </div>
               <div className="rec-pay-box box-warning" onClick={() => navigate('/finance')}>
-                <span className="rp-label">Due in 7 Days</span>
-                <span className="rp-val">{formatEgp(finance.receivables?.dueSoon)}</span>
-                <span className="rp-sub">Expected inflows</span>
+                <span className="rp-label">{t('dashboard.dueIn7Days')}</span>
+                <span className="rp-val num-en">{formatEgp(finance.receivables?.dueSoon)}</span>
+                <span className="rp-sub">{t('dashboard.expectedInflows')}</span>
               </div>
               <div className="rec-pay-box" onClick={() => navigate('/finance')}>
-                <span className="rp-label">Vendor Payables</span>
-                <span className="rp-val">{formatEgp(finance.payables?.outstanding)}</span>
-                <span className="rp-sub">Outstanding supply invoices</span>
+                <span className="rp-label">{t('dashboard.vendorPayables')}</span>
+                <span className="rp-val num-en">{formatEgp(finance.payables?.outstanding)}</span>
+                <span className="rp-sub">{t('dashboard.outstandingSupplyInvoices')}</span>
               </div>
             </div>
           </div>
@@ -221,24 +258,24 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
           {procurement.accessible && (
             <div className="dashboard-card">
               <div className="card-header">
-                <h3>Procurement Status</h3>
+                <h3>{t('dashboard.procurementStatus')}</h3>
                 <button className="text-btn" onClick={() => navigate('/purchases/requests')}>
-                  Procurement Center <ChevronRight size={14} />
+                  {t('dashboard.procurementCenter')} <ChevronRight size={14} className="rtl-flip" />
                 </button>
               </div>
               <div className="card-body">
                 <div className="proc-list">
                   <div className="proc-item" onClick={() => navigate('/purchases/requests')}>
-                    <span className="proc-title">Pending Purchase Requests</span>
-                    <span className="proc-badge">{procurement.pendingPurchaseRequests}</span>
+                    <span className="proc-title">{t('dashboard.pendingPurchaseRequests')}</span>
+                    <span className="proc-badge num-en">{procurement.pendingPurchaseRequests}</span>
                   </div>
                   <div className="proc-item" onClick={() => navigate('/purchases/rfqs')}>
-                    <span className="proc-title">Active RFQs</span>
-                    <span className="proc-badge">{procurement.pendingRfqs}</span>
+                    <span className="proc-title">{t('dashboard.activeRfqs')}</span>
+                    <span className="proc-badge num-en">{procurement.pendingRfqs}</span>
                   </div>
                   <div className="proc-item" onClick={() => navigate('/purchases/orders')}>
-                    <span className="proc-title">Pending Purchase Orders</span>
-                    <span className="proc-badge">{procurement.pendingPurchaseOrders}</span>
+                    <span className="proc-title">{t('dashboard.pendingPurchaseOrders')}</span>
+                    <span className="proc-badge num-en">{procurement.pendingPurchaseOrders}</span>
                   </div>
                 </div>
               </div>
@@ -248,28 +285,28 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
           {inventory.accessible && (
             <div className="dashboard-card">
               <div className="card-header">
-                <h3>Inventory Health</h3>
+                <h3>{t('dashboard.inventoryHealth')}</h3>
                 <button className="text-btn" onClick={() => navigate('/inventory/balances')}>
-                  Stock Balances <ChevronRight size={14} />
+                  {t('dashboard.stockBalances')} <ChevronRight size={14} className="rtl-flip" />
                 </button>
               </div>
               <div className="card-body">
                 <div className="inv-stats-grid">
                   <div className="inv-stat-item">
-                    <span className="inv-label">Total SKU Catalog</span>
-                    <span className="inv-val">{inventory.totalProducts}</span>
+                    <span className="inv-label">{t('dashboard.totalSkuCatalog')}</span>
+                    <span className="inv-val num-en">{inventory.totalProducts}</span>
                   </div>
                   <div className="inv-stat-item text-danger">
-                    <span className="inv-label">Out of Stock</span>
-                    <span className="inv-val">{inventory.outOfStock}</span>
+                    <span className="inv-label">{t('dashboard.outOfStock')}</span>
+                    <span className="inv-val num-en">{inventory.outOfStock}</span>
                   </div>
                   <div className="inv-stat-item text-warning">
-                    <span className="inv-label">Low Stock Warning</span>
-                    <span className="inv-val">{inventory.lowStock}</span>
+                    <span className="inv-label">{t('dashboard.lowStockWarning')}</span>
+                    <span className="inv-val num-en">{inventory.lowStock}</span>
                   </div>
                   <div className="inv-stat-item">
-                    <span className="inv-label">Valuation</span>
-                    <span className="inv-val">{formatEgp(inventory.stockValue)}</span>
+                    <span className="inv-label">{t('dashboard.stockValuation')}</span>
+                    <span className="inv-val num-en">{formatEgp(inventory.stockValue)}</span>
                   </div>
                 </div>
               </div>
@@ -282,18 +319,18 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
       <div className="dashboard-card">
         <div className="card-header">
           <div>
-            <h3>Action Items & Follow-ups</h3>
-            <span className="card-subtitle">Open tasks and pending quotations requiring attention</span>
+            <h3>{t('dashboard.actionItems')}</h3>
+            <span className="card-subtitle">{t('dashboard.actionItemsSub')}</span>
           </div>
           <button className="text-btn" onClick={() => navigate('/tasks')}>
-            Tasks Workspace <ChevronRight size={14} />
+            {t('dashboard.tasksWorkspace')} <ChevronRight size={14} className="rtl-flip" />
           </button>
         </div>
         <div className="card-body">
           {safeArray(pendingActions.tasks).length > 0 || safeArray(pendingActions.pendingQuotations).length > 0 ? (
             <div className="pending-actions-split">
               <div className="action-col">
-                <h4 className="col-heading">My Assigned Tasks</h4>
+                <h4 className="col-heading">{t('dashboard.myAssignedTasks')}</h4>
                 {safeArray(pendingActions.tasks).length > 0 ? (
                   <div className="action-list">
                     {pendingActions.tasks.map((task) => (
@@ -301,39 +338,39 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                         <div className="action-bullet"><CheckSquare size={14} /></div>
                         <div className="action-text">
                           <span className="action-title">{task.title}</span>
-                          <span className="action-meta">Priority: {task.priority || 'Normal'}</span>
+                          <span className="action-meta">{t('dashboard.taskPriority', { priority: getPriorityLabel(task.priority) })}</span>
                         </div>
-                        <span className="action-arrow"><ArrowRight size={14} /></span>
+                        <span className="action-arrow"><ArrowRight size={14} className="rtl-flip" /></span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <EmptyState message="No pending tasks assigned." compact={true} />
+                  <EmptyState message={t('dashboard.noPendingTasks')} compact={true} />
                 )}
               </div>
 
               <div className="action-col">
-                <h4 className="col-heading">Open Quotations</h4>
+                <h4 className="col-heading">{t('dashboard.openQuotations')}</h4>
                 {safeArray(pendingActions.pendingQuotations).length > 0 ? (
                   <div className="action-list">
                     {pendingActions.pendingQuotations.map((quote) => (
                       <div key={quote.id} className="action-item" onClick={() => navigate('/finance?tab=Quotations')}>
                         <div className="action-bullet"><ShoppingBag size={14} /></div>
                         <div className="action-text">
-                          <span className="action-title">Quotation #{quote.id}</span>
-                          <span className="action-meta">Value: {formatEgp(quote.total_amount)}</span>
+                          <span className="action-title">{t('dashboard.quotation')} <span className="num-en">#{quote.id}</span></span>
+                          <span className="action-meta">{t('dashboard.quoteValue', { value: formatEgp(quote.total_amount) })}</span>
                         </div>
-                        <span className="action-arrow"><ArrowRight size={14} /></span>
+                        <span className="action-arrow"><ArrowRight size={14} className="rtl-flip" /></span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <EmptyState message="No pending quotations." compact={true} />
+                  <EmptyState message={t('dashboard.noPendingQuotations')} compact={true} />
                 )}
               </div>
             </div>
           ) : (
-            <EmptyState message="All action items are up to date." compact={true} />
+            <EmptyState message={t('dashboard.allActionItemsUpToDate')} compact={true} />
           )}
         </div>
       </div>
@@ -454,8 +491,8 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         .trend-amount {
           font-weight: 700;
           color: var(--text-main);
-          width: 110px;
-          text-align: right;
+          width: 120px;
+          text-align: end;
         }
 
         .gen-pipeline-flow {

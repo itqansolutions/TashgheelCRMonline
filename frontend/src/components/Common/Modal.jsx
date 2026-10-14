@@ -1,7 +1,10 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) => {
+  const { t, isRTL } = useLanguage();
+
   // Close on ESC key
   useEffect(() => {
     const handleEsc = (e) => {
@@ -90,7 +93,7 @@ const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) =>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>
-          <button label="close modal" className="close-btn" onClick={onClose}>
+          <button label="close modal" title={t('common.close')} className="close-btn" onClick={onClose}>
             <X size={20} />
           </button>
         </div>

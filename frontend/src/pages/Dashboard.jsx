@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useModule } from '../hooks/useModule';
 import DashboardSkeleton from '../components/Dashboard/DashboardSkeleton';
 import GeneralDashboard from './GeneralDashboard';
@@ -9,6 +10,7 @@ import { AlertCircle } from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const { modules: planModules } = useModule();
   
   const [summaryData, setSummaryData] = useState(null);
@@ -26,7 +28,7 @@ const Dashboard = () => {
       setSummaryData(res.data);
     } catch (err) {
       console.error('[Dashboard Error]:', err);
-      setError(err?.response?.data?.message || 'Failed to load business metrics.');
+      setError(err?.response?.data?.message || t('dashboard.failedToLoad'));
     } finally {
       setLoading(false);
     }
@@ -50,11 +52,11 @@ const Dashboard = () => {
         <div className="dashboard-error-banner">
           <AlertCircle size={20} />
           <div>
-            <h4>Dashboard Unavailable</h4>
+            <h4>{t('dashboard.unavailable')}</h4>
             <p>{error}</p>
           </div>
           <button onClick={() => fetchDashboardData(timeFilter)} className="retry-btn">
-            Retry
+            {t('common.retry')}
           </button>
         </div>
         <style>{`
@@ -82,7 +84,7 @@ const Dashboard = () => {
             color: var(--text-muted, #64748b);
           }
           .retry-btn {
-            margin-left: auto;
+            margin-inline-start: auto;
             background: #dc2626;
             color: white;
             border: none;

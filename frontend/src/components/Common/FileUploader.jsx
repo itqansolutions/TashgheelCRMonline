@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { Upload, X, File, CheckCircle } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { useLanguage } from '../../context/LanguageContext';
 
 const FileUploader = ({ linkedType, linkedId, onUploadSuccess }) => {
+  const { t } = useLanguage();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
@@ -12,7 +14,7 @@ const FileUploader = ({ linkedType, linkedId, onUploadSuccess }) => {
   };
 
   const handleUpload = async () => {
-    if (!file) return toast.error('Please select a file');
+    if (!file) return toast.error(t('common.selectFileFirst'));
 
     const formData = new FormData();
     formData.append('file', file);
@@ -24,11 +26,11 @@ const FileUploader = ({ linkedType, linkedId, onUploadSuccess }) => {
       await api.post('/files/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      toast.success('File uploaded successfully');
+      toast.success(t('common.uploadSuccess'));
       setFile(null);
       if (onUploadSuccess) onUploadSuccess();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Upload failed');
+      toast.error(err.response?.data?.message || t('common.errorOccurred'));
     } finally {
       setUploading(false);
     }
@@ -97,8 +99,8 @@ const FileUploader = ({ linkedType, linkedId, onUploadSuccess }) => {
             <Upload size={24} />
           </div>
           <div>
-            <p style={{ fontWeight: '600', fontSize: '14px' }}>Click to upload or drag and drop</p>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>PDF, PNG, JPG or DOCX (max. 5MB)</p>
+            <p style={{ fontWeight: '600', fontSize: '14px' }}>{t('common.clickToUpload')}</p>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('common.uploadFileTypes')}</p>
           </div>
           <input type="file" style={{ display: 'none' }} onChange={handleFileChange} />
         </label>
@@ -116,7 +118,7 @@ const FileUploader = ({ linkedType, linkedId, onUploadSuccess }) => {
             onClick={handleUpload} 
             disabled={uploading}
           >
-            {uploading ? 'Uploading...' : 'Confirm Upload'}
+            {uploading ? t('common.uploading') : t('common.confirmUpload')}
           </button>
         </div>
       )}

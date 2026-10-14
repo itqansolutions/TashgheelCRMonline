@@ -1,9 +1,11 @@
 import React from 'react';
 import { useData } from '../../context/DataContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { Mail, Phone, MapPin, Globe, CreditCard, Building2, Tag } from 'lucide-react';
 
 const QuotationPreview = ({ quotation }) => {
   const { tenant } = useData();
+  const { t, isRTL } = useLanguage();
   
   // Backwards compatibility / Fallback to settings if tenant is empty
   const branding = tenant?.id ? tenant : {};
@@ -17,6 +19,7 @@ const QuotationPreview = ({ quotation }) => {
           background: white;
           color: #1e293b;
           font-family: 'Inter', sans-serif;
+          direction: ${isRTL ? 'rtl' : 'ltr'};
         }
         .quotation-box {
           max-width: 800px;
@@ -51,7 +54,7 @@ const QuotationPreview = ({ quotation }) => {
           letter-spacing: -0.01em;
         }
         .quotation-title-block {
-          text-align: right;
+          text-align: ${isRTL ? 'left' : 'right'};
         }
         .quotation-title-block h1 {
           font-size: 28px;
@@ -94,7 +97,7 @@ const QuotationPreview = ({ quotation }) => {
         .quotation-table th {
           background: #fffbeb;
           padding: 15px;
-          text-align: left;
+          text-align: ${isRTL ? 'right' : 'left'};
           font-size: 12px;
           text-transform: uppercase;
           color: ${branding?.primary_color || '#d97706'};
@@ -133,7 +136,7 @@ const QuotationPreview = ({ quotation }) => {
           text-align: center;
           font-size: 12px;
           color: #94a3b8;
-          font-italic: true;
+          font-style: italic;
         }
 
         @media print {
@@ -165,32 +168,32 @@ const QuotationPreview = ({ quotation }) => {
             {!branding?.logo_url && <span className="comp-name">{branding?.name || 'Tashgheel CRM'}</span>}
             {branding?.logo_url && branding?.name && <span className="comp-name" style={{ fontSize: '14px', color: '#64748b' }}>{branding.name}</span>}
           </div>
-            <div className="quotation-title-block">
-              <h1>Price Quotation</h1>
-              <div className="quot-meta">
-                <div>Ref: {quotation.number || `${branding?.quotation_prefix || 'QUO-'}${quotation.id}`}</div>
-                <div>Date: {new Date(quotation.created_at).toLocaleDateString()}</div>
-              </div>
+          <div className="quotation-title-block">
+            <h1>{t('finance.quotationPreview.title')}</h1>
+            <div className="quot-meta">
+              <div>{t('finance.quotationPreview.ref')} <span className="num-en">{quotation.number || `${branding?.quotation_prefix || 'QUO-'}${quotation.id}`}</span></div>
+              <div>{t('finance.quotationPreview.date')} <span className="num-en">{new Date(quotation.created_at).toLocaleDateString('en-GB')}</span></div>
             </div>
+          </div>
         </div>
 
         {/* Billing Info */}
         <div className="billing-info">
           <div className="info-block">
-            <h4>Prepared For</h4>
-            <p>{quotation.client_name || 'Generic Customer'}</p>
+            <h4>{t('finance.quotationPreview.preparedFor')}</h4>
+            <p>{quotation.client_name || t('finance.invoices.cashCustomer')}</p>
             <div style={{ fontSize: '13px', color: '#64748b', marginTop: '8px' }}>
-              Deal: {quotation.deal_title || 'Direct Sale'}
+              {t('finance.quotationPreview.deal')} {quotation.deal_title || (isRTL ? 'بيع مباشر' : 'Direct Sale')}
               {quotation.unit_number && (
                   <div style={{ marginTop: '4px', fontWeight: '700', color: '#1e293b' }}>
-                      Unit: {quotation.unit_number} ({quotation.project_name})
+                      {t('finance.quotationPreview.unit')} <span className="num-en">{quotation.unit_number}</span> {quotation.project_name ? `(${quotation.project_name})` : ''}
                   </div>
               )}
             </div>
           </div>
-          <div className="info-block" style={{ textAlign: 'right' }}>
-            <h4>Validity</h4>
-            <p>Valid Until: {new Date(quotation.valid_until).toLocaleDateString()}</p>
+          <div className="info-block" style={{ textAlign: isRTL ? 'left' : 'right' }}>
+            <h4>{t('finance.quotationPreview.validity')}</h4>
+            <p>{t('finance.quotationPreview.validUntil')} <span className="num-en">{new Date(quotation.valid_until).toLocaleDateString('en-GB')}</span></p>
           </div>
         </div>
 
@@ -198,10 +201,10 @@ const QuotationPreview = ({ quotation }) => {
         <table className="quotation-table">
           <thead>
             <tr>
-              <th>Item / Service</th>
-              <th style={{ textAlign: 'center' }}>Qty</th>
-              <th style={{ textAlign: 'right' }}>Unit Price</th>
-              <th style={{ textAlign: 'right' }}>Total</th>
+              <th style={{ textAlign: isRTL ? 'right' : 'left' }}>{t('finance.quotationPreview.itemService')}</th>
+              <th style={{ textAlign: 'center' }}>{t('finance.quotationPreview.qty')}</th>
+              <th style={{ textAlign: isRTL ? 'left' : 'right' }}>{t('finance.quotationPreview.unitPrice')}</th>
+              <th style={{ textAlign: isRTL ? 'left' : 'right' }}>{t('finance.quotationPreview.total')}</th>
             </tr>
           </thead>
           <tbody>
@@ -209,30 +212,30 @@ const QuotationPreview = ({ quotation }) => {
                 quotation.items.map((item, idx) => (
                     <tr key={idx}>
                         <td>
-                            <div style={{ fontWeight: '700' }}>{item.product_name || item.description || 'Service Item'}</div>
+                            <div style={{ fontWeight: '700' }}>{item.product_name || item.description || (isRTL ? 'بند خدمة' : 'Service Item')}</div>
                             {item.description && <div style={{ fontSize: '11px', color: '#64748b' }}>{item.description}</div>}
                         </td>
-                        <td style={{ textAlign: 'center' }}>{item.quantity}</td>
-                        <td style={{ textAlign: 'right' }}>{parseFloat(item.unit_price).toLocaleString()}</td>
-                        <td style={{ textAlign: 'right' }}>{parseFloat(item.subtotal).toLocaleString()} EGP</td>
+                        <td className="num-en" style={{ textAlign: 'center' }}>{item.quantity}</td>
+                        <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>{parseFloat(item.unit_price).toLocaleString('en-US')}</td>
+                        <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>{parseFloat(item.subtotal).toLocaleString('en-US')} {t('common.currency')}</td>
                     </tr>
                 ))
             ) : (
                 <tr>
                     <td>
-                        <div style={{ fontWeight: '700', marginBottom: '8px' }}>Estimated Services / Proposal</div>
+                        <div style={{ fontWeight: '700', marginBottom: '8px' }}>{isRTL ? 'خدمات تقديرية / مقترح عمل' : 'Estimated Services / Proposal'}</div>
                         <div style={{ fontSize: '13px', color: '#64748b', whiteSpace: 'pre-wrap' }}>
-                            {quotation.notes || 'Professional quotation based on requested requirements.'}
+                            {quotation.notes || (isRTL ? 'عرض أسعار احترافي وفق المتطلبات المحددة.' : 'Professional quotation based on requested requirements.')}
                         </div>
                     </td>
-                    <td style={{ textAlign: 'center' }}>1</td>
-                    <td style={{ textAlign: 'right' }}>{parseFloat(quotation.total_amount).toLocaleString()}</td>
-                    <td style={{ textAlign: 'right' }}>{parseFloat(quotation.total_amount).toLocaleString()} EGP</td>
+                    <td className="num-en" style={{ textAlign: 'center' }}>1</td>
+                    <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>{parseFloat(quotation.total_amount).toLocaleString('en-US')}</td>
+                    <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>{parseFloat(quotation.total_amount).toLocaleString('en-US')} {t('common.currency')}</td>
                 </tr>
             )}
             <tr className="total-row">
-              <td colSpan="3" style={{ textAlign: 'right' }}>Estimated Total:</td>
-              <td style={{ textAlign: 'right' }}>{parseFloat(quotation.total_amount).toLocaleString()} EGP</td>
+              <td colSpan="3" style={{ textAlign: isRTL ? 'left' : 'right' }}>{t('finance.quotationPreview.estimatedTotal')}</td>
+              <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>{parseFloat(quotation.total_amount).toLocaleString('en-US')} {t('common.currency')}</td>
             </tr>
           </tbody>
         </table>
@@ -241,14 +244,14 @@ const QuotationPreview = ({ quotation }) => {
         <div className="quotation-footer">
           {branding?.quotation_terms && (
             <div className="notes-section">
-              <h4>Terms & Conditions</h4>
+              <h4>{t('finance.quotationPreview.termsConditions')}</h4>
               <div style={{ whiteSpace: 'pre-wrap' }}>{branding.quotation_terms}</div>
             </div>
           )}
           
           {quotation.notes && (quotation.items && quotation.items.length > 0) && (
              <div className="notes-section">
-               <h4>Proposal Notes</h4>
+               <h4>{t('finance.quotationPreview.proposalNotes')}</h4>
                <div style={{ whiteSpace: 'pre-wrap' }}>{quotation.notes}</div>
              </div>
           )}
@@ -260,7 +263,7 @@ const QuotationPreview = ({ quotation }) => {
           )}
           
           <div className="branding-footer" style={{ marginTop: '20px' }}>
-             © {new Date().getFullYear()} {branding?.name || 'Tashgheel CRM'} • Professional Business Proposal
+             © <span className="num-en">{new Date().getFullYear()}</span> {branding?.name || 'Tashgheel CRM'} • {t('finance.quotationPreview.businessProposal')}
           </div>
         </div>
       </div>

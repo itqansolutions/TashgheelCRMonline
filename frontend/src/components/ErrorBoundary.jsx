@@ -34,10 +34,10 @@ class ErrorBoundary extends React.Component {
         }}>
           <div style={{ fontSize: '64px', marginBottom: '24px' }}>🛡️</div>
           <h1 style={{ fontSize: '32px', fontWeight: '800', marginBottom: '16px' }}>
-            {localStorage.getItem('lang') === 'ar' ? 'حدث خطأ غير متوقع' : 'Something went wrong'}
+            {(localStorage.getItem('itqan_lang') === 'ar' || localStorage.getItem('lang') === 'ar') ? 'حدث خطأ غير متوقع' : 'Something went wrong'}
           </h1>
           <p style={{ fontSize: '18px', color: '#64748b', maxWidth: '500px', marginBottom: '32px', lineHeight: '1.6' }}>
-            {localStorage.getItem('lang') === 'ar' 
+            {(localStorage.getItem('itqan_lang') === 'ar' || localStorage.getItem('lang') === 'ar')
                 ? 'لقد واجهنا مشكلة تقنية في عرض هذه الصفحة. من فضلك حاول إعادة تحميل الصفحة.' 
                 : 'We encountered a technical issue while rendering this page. Please try refreshing or contact support.'}
           </p>
@@ -54,7 +54,7 @@ class ErrorBoundary extends React.Component {
                 boxShadow: '0 10px 15px -3px rgba(79, 70, 229, 0.3)'
             }}
           >
-            {localStorage.getItem('lang') === 'ar' ? 'إعادة تحميل الصفحة' : 'Refresh Page'}
+            {(localStorage.getItem('itqan_lang') === 'ar' || localStorage.getItem('lang') === 'ar') ? 'إعادة تحميل الصفحة' : 'Refresh Page'}
           </button>
           
           {process.env.NODE_ENV === 'development' && (

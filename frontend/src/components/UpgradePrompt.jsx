@@ -1,12 +1,13 @@
 import React from 'react';
 import { Lock, Zap, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext';
 
 const MODULE_LABELS = {
-    hr:        { icon: '👥', label: 'HR & Attendance', requiredPlan: 'Pro' },
-    inventory: { icon: '📦', label: 'Inventory & Warehousing', requiredPlan: 'Pro' },
-    automation:{ icon: '⚙️', label: 'Workflow Automation', requiredPlan: 'Enterprise' },
-    finance:   { icon: '💰', label: 'Finance & Invoicing', requiredPlan: 'Basic' },
+    hr:        { icon: '👥', labelKey: 'sidebar.hr', label: 'HR & Attendance', requiredPlan: 'Pro' },
+    inventory: { icon: '📦', labelKey: 'sidebar.warehouse', label: 'Inventory & Warehousing', requiredPlan: 'Pro' },
+    automation:{ icon: '⚙️', labelKey: null, label: 'Workflow Automation', requiredPlan: 'Enterprise' },
+    finance:   { icon: '💰', labelKey: 'sidebar.finance', label: 'Finance & Invoicing', requiredPlan: 'Basic' },
 };
 
 /**
@@ -16,7 +17,9 @@ const MODULE_LABELS = {
  */
 const UpgradePrompt = ({ module }) => {
     const navigate = useNavigate();
+    const { t, isRTL } = useLanguage();
     const meta = MODULE_LABELS[module] || { icon: '🔒', label: module, requiredPlan: 'Pro' };
+    const displayLabel = meta.labelKey ? t(meta.labelKey) : meta.label;
 
     return (
         <div className="upgrade-prompt-container">
@@ -134,22 +137,21 @@ const UpgradePrompt = ({ module }) => {
                     <div className="up-lock-badge"><Lock size={13} color="white"/></div>
                 </div>
 
-                <h2 className="up-title">{meta.label}</h2>
+                <h2 className="up-title">{displayLabel}</h2>
                 <p className="up-subtitle">
-                    This module is not included in your current plan.<br/>
-                    Upgrade to unlock full access instantly.
+                    {t('upgradePrompt.notIncludedDesc')}
                 </p>
 
                 <div className="up-plan-badge">
-                    <Zap size={13}/> Available on {meta.requiredPlan} & above
+                    <Zap size={13}/> {t('upgradePrompt.availableOn', { plan: meta.requiredPlan })}
                 </div>
 
                 <button className="up-btn" onClick={() => navigate('/pricing')}>
-                    Upgrade Now <ArrowRight size={18}/>
+                    {t('upgradePrompt.upgradeNow')} <ArrowRight size={18} style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }}/>
                 </button>
 
                 <div className="up-footer">
-                    All plans include a 14-day free trial.
+                    {t('upgradePrompt.trialFooter')}
                 </div>
             </div>
         </div>

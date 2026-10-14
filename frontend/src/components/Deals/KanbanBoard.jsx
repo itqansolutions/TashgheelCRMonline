@@ -1,8 +1,10 @@
 import React from 'react';
 import { MoreHorizontal, Calendar, Zap, AlertCircle, TrendingUp, Handshake, Mail, User, Target } from 'lucide-react';
 import { safeArray } from '../../utils/dataUtils';
+import { useLanguage } from '../../context/LanguageContext';
 
 const KanbanBoard = ({ deals, pipelineStages, onEdit }) => {
+  const { t, isRTL } = useLanguage();
   const stages = safeArray(pipelineStages).length > 0 ? pipelineStages : ['discovery', 'proposal', 'negotiation', 'won', 'lost'];
   
   // Group deals by stage
@@ -10,6 +12,11 @@ const KanbanBoard = ({ deals, pipelineStages, onEdit }) => {
     acc[stage.toLowerCase()] = safeArray(deals).filter(d => (d.pipeline_stage || '').toLowerCase() === stage.toLowerCase());
     return acc;
   }, {});
+
+  const getStageLabel = (stage) => {
+    const raw = (stage || '').toLowerCase().replace(/[\s-]/g, '_');
+    return t(`deals.stages.${raw}`, stage.replace(/_/g, ' '));
+  };
 
   const getProbabilityColor = (prob) => {
     if (prob >= 80) return '#10b981'; // Green
@@ -27,7 +34,7 @@ const KanbanBoard = ({ deals, pipelineStages, onEdit }) => {
   };
 
   return (
-    <div className="kanban-container" style={{ display: 'flex', gap: '20px', overflowX: 'auto', paddingBottom: '20px', minHeight: '65vh' }}>
+    <div className="kanban-container" style={{ display: 'flex', gap: '20px', overflowX: 'auto', paddingBottom: '20px', minHeight: '65vh', direction: isRTL ? 'rtl' : 'ltr' }}>
       <style>{`
         .kanban-lane {
           flex: 0 0 320px;
@@ -88,16 +95,17 @@ const KanbanBoard = ({ deals, pipelineStages, onEdit }) => {
           <div key={stage} className="kanban-lane">
             <div className="kanban-lane-header">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--text-main)', textTransform: 'capitalize' }}>
-                  {stage.replace('_', ' ')}
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--text-main)' }}>
+                  {getStageLabel(stage)}
                 </h3>
                 <div style={{ background: '#f1f5f9', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 700, color: '#64748b' }}>
-                  {stageDeals.length}
+                  <span className="num-en">{stageDeals.length}</span>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary)' }}>
                 <TrendingUp size={14} />
-                <span style={{ fontSize: '14px', fontWeight: 900 }}>EGP {totalValue.toLocaleString()}</span>
+                <span className="num-en" style={{ fontSize: '14px', fontWeight: 900 }}>{totalValue.toLocaleString('en-US')}</span>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>{t('common.currency', 'EGP')}</span>
               </div>
             </div>
 
@@ -108,19 +116,19 @@ const KanbanBoard = ({ deals, pipelineStages, onEdit }) => {
                     <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)', lineHeight: 1.3 }}>
                       {deal.title}
                     </div>
-                    <button style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><MoreHorizontal size={16}/></button>
+                    <button title={t('common.actions', 'Actions')} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><MoreHorizontal size={16}/></button>
                   </div>
                   
                   <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)', marginBottom: '12px' }}>
-                    {Number(deal.value || 0).toLocaleString()} <span style={{ fontSize: '12px', color: '#64748b' }}>EGP</span>
+                    <span className="num-en">{Number(deal.value || 0).toLocaleString('en-US')}</span> <span style={{ fontSize: '12px', color: '#64748b' }}>{t('common.currency', 'EGP')}</span>
                   </div>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
                     <div className="k-metric-pill" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#475569' }}>
-                      <User size={12}/> {deal.client_name?.split(' ')[0] || 'Client'}
+                      <User size={12}/> {deal.client_name?.split(' ')[0] || t('deals.client', 'Client')}
                     </div>
                     <div className="k-metric-pill" style={{ background: `${getProbabilityColor(deal.probability || 0)}15`, color: getProbabilityColor(deal.probability || 0) }}>
-                      <Target size={12}/> {deal.probability || 0}% Win
+                      <Target size={12}/> <span className="num-en">{deal.probability || 0}%</span> {t('deals.win', 'Win')}
                     </div>
                   </div>
 
@@ -128,7 +136,7 @@ const KanbanBoard = ({ deals, pipelineStages, onEdit }) => {
                     {deal.expected_close_date && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
                         <Calendar size={13} color="#f59e0b" />
-                        Est. Close: {new Date(deal.expected_close_date).toLocaleDateString()}
+                        {t('deals.estClose', 'Est. Close:')} <span className="num-en">{new Date(deal.expected_close_date).toLocaleDateString('en-GB')}</span>
                       </div>
                     )}
                     {deal.next_action && (
@@ -143,7 +151,7 @@ const KanbanBoard = ({ deals, pipelineStages, onEdit }) => {
               
               {stageDeals.length === 0 && (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px', fontWeight: 600, border: '2px dashed #e2e8f0', borderRadius: '12px' }}>
-                  No deals in this stage
+                  {t('deals.noDealsInStage', 'No deals in this stage')}
                 </div>
               )}
             </div>

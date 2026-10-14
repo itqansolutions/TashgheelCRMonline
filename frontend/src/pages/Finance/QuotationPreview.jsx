@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Printer, ShoppingBag, FileText } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Printer, ShoppingBag, FileText } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import QuotationPreviewComponent from '../../components/Features/QuotationPreview';
+import { useLanguage } from '../../context/LanguageContext';
 
 const QuotationPreview = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t, isRTL } = useLanguage();
   const [quotation, setQuotation] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -32,36 +34,44 @@ const QuotationPreview = () => {
   const handleConvertToSalesOrder = async () => {
     try {
       await api.post(`/erp/sales/orders/from-quotation/${id}`);
-      toast.success('Quotation converted to Sales Order successfully!');
+      toast.success(isRTL ? 'تم تحويل عرض السعر إلى أمر بيع بنجاح!' : 'Quotation converted to Sales Order successfully!');
       navigate('/sales/orders');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to convert to sales order');
+      toast.error(err.response?.data?.message || (isRTL ? 'فشل تحويل عرض السعر إلى أمر بيع' : 'Failed to convert to sales order'));
     }
   };
 
   const handleConvertToInvoice = async () => {
     try {
       const res = await api.post(`/invoices/from-quotation/${id}`);
-      toast.success('Invoice created from Quotation!');
+      toast.success(isRTL ? 'تم إصدار الفاتورة من عرض السعر بنجاح!' : 'Invoice created from Quotation!');
       if (res.data?.data?.id) {
         navigate(`/finance/invoice-preview/${res.data.data.id}`);
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to convert to invoice');
+      toast.error(err.response?.data?.message || (isRTL ? 'فشل إصدار الفاتورة من عرض السعر' : 'Failed to convert to invoice'));
     }
   };
 
-  if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading Quotation...</div>;
-  if (!quotation) return <div style={{ padding: '40px', textAlign: 'center' }}>Quotation not found.</div>;
+  if (loading) return (
+    <div style={{ padding: '40px', textAlign: 'center', color: 'var(--primary)' }}>
+      {t('finance.quotationPreview.loading')}
+    </div>
+  );
+  if (!quotation) return (
+    <div style={{ padding: '40px', textAlign: 'center' }}>
+      {t('finance.quotationPreview.notFound')}
+    </div>
+  );
 
   return (
-    <div style={{ padding: '40px' }}>
+    <div style={{ padding: '40px', direction: isRTL ? 'rtl' : 'ltr' }}>
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: '800px', margin: '0 auto 24px auto', flexWrap: 'wrap', gap: '12px' }}>
         <button 
           onClick={() => navigate(-1)}
           style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: 600 }}
         >
-          <ArrowLeft size={18} /> Back
+          {isRTL ? <ArrowRight size={18} /> : <ArrowLeft size={18} />} {t('finance.quotationPreview.back')}
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -69,19 +79,19 @@ const QuotationPreview = () => {
             onClick={handleConvertToSalesOrder}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0', padding: '9px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}
           >
-            <ShoppingBag size={16} /> Create Sales Order
+            <ShoppingBag size={16} /> {t('finance.quotationPreview.createSalesOrder')}
           </button>
           <button 
             onClick={handleConvertToInvoice}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f3e8ff', color: '#7e22ce', border: '1px solid #ddd6fe', padding: '9px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}
           >
-            <FileText size={16} /> Create Invoice
+            <FileText size={16} /> {t('finance.quotationPreview.createInvoice')}
           </button>
           <button 
             onClick={handlePrint}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--primary)', color: 'white', border: 'none', padding: '9px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '13px' }}
           >
-            <Printer size={16} /> Print Quotation
+            <Printer size={16} /> {t('finance.quotationPreview.printQuotation')}
           </button>
         </div>
       </div>

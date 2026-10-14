@@ -2,16 +2,18 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useModule } from '../hooks/useModule';
+import { useLanguage } from '../context/LanguageContext';
 import { safeArray } from '../utils/dataUtils';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, isAuthenticated, loading } = useAuth();
   const { can } = useModule();
+  const { t } = useLanguage();
   const location = useLocation();
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--primary)' }}>
-      Verifying Access...
+      {t('common.verifyingAccess')}
     </div>
   );
 

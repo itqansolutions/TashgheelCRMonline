@@ -29,7 +29,7 @@ const KPICard = ({
         <div className="kpi-top-meta">
           {badge && <span className="kpi-badge">{badge}</span>}
           {trend && (
-            <span className={`kpi-trend ${trend === 'up' ? 'trend-up' : 'trend-down'}`}>
+            <span className={`kpi-trend num-en ${trend === 'up' ? 'trend-up' : 'trend-down'}`}>
               {trend === 'up' ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
               {trendValue}
             </span>
@@ -40,7 +40,7 @@ const KPICard = ({
       <div className="kpi-details">
         <span className="kpi-label">{title}</span>
         <div className="kpi-val-container">
-          <span className="kpi-number">{value}</span>
+          <span className="kpi-number num-en">{value}</span>
         </div>
         {subtitle && <span className="kpi-subtext">{subtitle}</span>}
       </div>

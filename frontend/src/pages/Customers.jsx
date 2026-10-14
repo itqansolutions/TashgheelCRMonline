@@ -11,9 +11,11 @@ import Customer360Workspace from '../components/Customers/Customer360Workspace';
 import { exportCustomersToExcel } from '../utils/excelExport';
 
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const Customers = () => {
   const { user } = useAuth();
+  const { t, isRTL } = useLanguage();
   const {
     customers, fetchCustomers,
     users, fetchUsers,
@@ -157,30 +159,30 @@ const Customers = () => {
       };
       if (editingCustomer) {
         await api.put(`/customers/${editingCustomer.id}`, payload);
-        toast.success('Customer updated successfully');
+        toast.success(t('customers.customerUpdated', 'Customer updated successfully'));
       } else {
         await api.post('/customers', payload);
-        toast.success('Customer added successfully');
+        toast.success(t('customers.customerAdded', 'Customer added successfully'));
       }
       fetchCustomers(false); // Refresh list without full loading spinner
       setIsModalOpen(false);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Something went wrong');
+      toast.error(err.response?.data?.message || t('common.errorOccurred', 'Something went wrong, please try again'));
     }
   };
 
   const handleDelete = async (id) => {
     if (user?.role !== 'admin') {
-        toast.error('Access Denied: Only Admins can delete data.');
+        toast.error(t('customers.accessDeniedAdmin', 'Access Denied: Only Admins can delete data.'));
         return;
     }
-    if (window.confirm('CRITICAL: Are you sure you want to delete this client? This action is permanent.')) {
+    if (window.confirm(t('customers.confirmDeleteCritical', 'CRITICAL: Are you sure you want to delete this client? This action is permanent.'))) {
       try {
         await api.delete(`/customers/${id}`);
-        toast.success('Record deleted permanently.');
+        toast.success(t('customers.recordDeletedPermanent', 'Record deleted permanently.'));
         fetchCustomers(false);
       } catch (err) {
-        toast.error('Failed to delete.');
+        toast.error(t('customers.failedToDelete', 'Failed to delete.'));
       }
     }
   };
@@ -212,10 +214,19 @@ const Customers = () => {
     return matchesSearch && matchesEntity && matchesRooms && matchesSource && matchesClassification && matchesArea;
   });
 
+  const getStatusLabel = (s) => {
+    switch (s) {
+      case 'lead': return t('customers.statusLead', 'Lead');
+      case 'active': return t('customers.statusActive', 'Active Client');
+      case 'inactive': return t('customers.statusInactive', 'Inactive');
+      default: return s;
+    }
+  };
+
   const columns = [
     {
       key: 'name',
-      label: 'Customer Name',
+      label: t('customers.customerName', 'Customer Name'),
       render: (val, item) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', flexShrink: 0 }}>
@@ -230,14 +241,14 @@ const Customers = () => {
     },
     {
       key: 'phone',
-      label: 'Phone / Mobile',
+      label: t('customers.phone', 'Phone / Mobile'),
       render: (val) => val ? (
-        <span style={{ fontWeight: '700', direction: 'ltr', display: 'inline-block', color: '#1e293b' }}>{val}</span>
+        <span className="num-en" style={{ fontWeight: '700', direction: 'ltr', display: 'inline-block', color: '#1e293b' }}>{val}</span>
       ) : <span style={{ color: '#94a3b8' }}>—</span>
     },
     {
       key: 'classification_name',
-      label: 'Classification',
+      label: t('customers.classification', 'Classification'),
       render: (val, item) => val ? (
         <span style={{
           display: 'inline-flex',
@@ -260,7 +271,7 @@ const Customers = () => {
     },
     {
       key: 'area_name',
-      label: 'Area / المنطقة',
+      label: t('customers.area', 'Area'),
       render: (val, item) => val ? (
         <span style={{
           display: 'inline-flex',
@@ -281,13 +292,13 @@ const Customers = () => {
         <span style={{ color: '#94a3b8', fontSize: '12px', fontStyle: 'italic' }}>—</span>
       )
     },
-    { key: 'company_name', label: 'Company / Job' },
+    { key: 'company_name', label: t('customers.companyJob', 'Company / Job') },
     {
       key: 'source_name',
-      label: 'Source',
+      label: t('customers.source', 'Source'),
       render: (val, item) => (
         <div>
-          <span style={{ fontWeight: '600' }}>{val || 'Direct/Other'}</span>
+          <span style={{ fontWeight: '600' }}>{val || t('customers.directOther', 'Direct / Other')}</span>
           {item.meta_form_name && (
             <div style={{ fontSize: '11px', color: '#4f46e5', fontWeight: '700', marginTop: '3px', background: '#eef2ff', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
               📋 {item.meta_form_name}
@@ -298,14 +309,14 @@ const Customers = () => {
     },
     {
       key: 'manager_name',
-      label: 'Director/Manager',
-      render: (val) => val || 'Not Assigned'
+      label: t('customers.manager', 'Director/Manager'),
+      render: (val) => val || t('customers.unassigned', 'Not Assigned')
     },
     {
       key: 'status',
-      label: 'Status',
+      label: t('common.status', 'Status'),
       render: (val) => (
-        <span className={`status-badge`}>{val}</span>
+        <span className={`status-badge`}>{getStatusLabel(val)}</span>
       )
     }
   ];
@@ -377,12 +388,12 @@ const Customers = () => {
       <div className="page-header">
         <div>
           <h2 style={{ fontSize: '24px', fontWeight: '800' }}>
-            {isRealEstate ? 'Leads & Prospective Buyers' : 'Customers'}
+            {isRealEstate ? t('customers.leadsTitle', 'Leads & Prospective Buyers') : t('customers.title', 'Customers')}
           </h2>
           <p style={{ color: 'var(--text-muted)' }}>
             {isRealEstate
-              ? 'Manage your real estate interests and potential buyers.'
-              : 'Manage your leads and active clients.'}
+              ? t('customers.leadsSubtitle', 'Manage your real estate interests and potential buyers.')
+              : t('customers.subtitle', 'Manage your leads and active clients.')}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -393,13 +404,13 @@ const Customers = () => {
               padding: '10px 18px', borderRadius: '8px', display: 'flex', alignItems: 'center',
               gap: '8px', fontWeight: '700', cursor: 'pointer', fontSize: '13px'
             }}
-            title="Export filtered customers to Excel"
+            title={t('customers.exportExcel', 'Export Excel')}
           >
-            <Download size={18} /> Export Excel
+            <Download size={18} /> {t('customers.exportExcel', 'Export Excel')}
           </button>
           <button label="add customer control" className="btn-add" onClick={() => handleOpenModal()}>
             <Plus size={20} />
-            {isRealEstate ? 'Add New Lead / Vendor' : 'Add Customer'}
+            {isRealEstate ? t('customers.addLeadVendor', 'Add New Lead / Vendor') : t('customers.addCustomer', 'Add Customer')}
           </button>
         </div>
       </div>
@@ -410,50 +421,50 @@ const Customers = () => {
           <Phone size={18} className="search-icon" />
           <input
             type="text"
-            placeholder="Search by Name, Phone, Form Name, or Notes..."
+            placeholder={t('customers.searchPlaceholder', 'Search by Name, Phone, Form Name, or Notes...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
         <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
-          <option value="all">All Sources</option>
+          <option value="all">{t('customers.allSources', 'All Sources')}</option>
           {(leadSources || []).map(s => (
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
-          <option value="direct">Direct / Other</option>
+          <option value="direct">{t('customers.directOther', 'Direct / Other')}</option>
         </select>
 
         <select value={classificationFilter} onChange={(e) => setClassificationFilter(e.target.value)}>
-          <option value="all">All Classifications</option>
-          <option value="unclassified">Unclassified</option>
+          <option value="all">{t('customers.allClassifications', 'All Classifications')}</option>
+          <option value="unclassified">{t('customers.unclassified', 'Unclassified')}</option>
           {(customerClassifications || []).map(cc => (
             <option key={cc.id} value={cc.id}>{cc.name}</option>
           ))}
         </select>
 
         <select value={areaFilter} onChange={(e) => setAreaFilter(e.target.value)}>
-          <option value="all">All Areas / كل المناطق</option>
-          <option value="no_area">No Area (بدون منطقة)</option>
+          <option value="all">{t('customers.allAreas', 'All Areas')}</option>
+          <option value="no_area">{t('customers.noArea', 'No Area')}</option>
           {(customerAreas || []).map(ca => (
             <option key={ca.id} value={ca.id}>{ca.name}</option>
           ))}
         </select>
 
         <select value={entityFilter} onChange={(e) => setEntityFilter(e.target.value)}>
-          <option value="all">All Entities</option>
-          <option value="customer">Customers (Buyers)</option>
-          <option value="vendor">Vendors (Owners)</option>
-          <option value="broker">Brokers</option>
+          <option value="all">{t('customers.allEntities', 'All Entities')}</option>
+          <option value="customer">{t('customers.entityCustomer', 'Customers (Buyers)')}</option>
+          <option value="vendor">{t('customers.entityVendor', 'Vendors (Owners)')}</option>
+          <option value="broker">{t('customers.entityBroker', 'Brokers')}</option>
         </select>
 
         {isRealEstate && (
           <select value={roomsFilter} onChange={(e) => setRoomsFilter(e.target.value)}>
-            <option value="">Preferred Rooms</option>
-            <option value="1">1 Room</option>
-            <option value="2">2 Rooms</option>
-            <option value="3">3 Rooms</option>
-            <option value="4">4+ Rooms</option>
+            <option value="">{t('customers.preferredRooms', 'Preferred Rooms')}</option>
+            <option value="1">{t('customers.room', '1 Room')}</option>
+            <option value="2">{t('customers.rooms2', '2 Rooms')}</option>
+            <option value="3">{t('customers.rooms3', '3 Rooms')}</option>
+            <option value="4">{t('customers.rooms4Plus', '4+ Rooms')}</option>
           </select>
         )}
       </div>
@@ -496,7 +507,7 @@ const Customers = () => {
       `}</style>
 
       <DataTable
-        title={isRealEstate ? "Prospective Buyers" : "Customer Directory"}
+        title={isRealEstate ? t('customers.prospectiveBuyers', 'Prospective Buyers') : t('customers.customerDirectory', 'Customer Directory')}
         columns={columns}
         data={filteredCustomers}
         loading={loading}
@@ -515,7 +526,7 @@ const Customers = () => {
                 fontSize: '12px', fontWeight: '800', cursor: 'pointer'
             }}
           >
-            CUSTOMER 360
+            {t('customers.customer360', 'CUSTOMER 360')}
           </button>
         )}
       />
@@ -527,13 +538,15 @@ const Customers = () => {
             setIsModalOpen(false);
             setIsViewingDetails(false);
         }}
-        title={isViewingDetails ? `Customer 360 Workspace — ${editingCustomer?.name || ''}` : (editingCustomer ? 'Edit Customer' : 'Add New Customer')}
+        title={isViewingDetails 
+          ? (t('customers.customer360Workspace', 'Customer 360 Workspace — {name}', { name: editingCustomer?.name || '' }))
+          : (editingCustomer ? t('customers.editCustomer', 'Edit Customer') : t('customers.addCustomer', 'Add Customer'))}
         footer={
           !isViewingDetails ? (
             <>
-              <button label="cancel addition" className="btn-cancel" onClick={() => setIsModalOpen(false)}>Cancel</button>
+              <button label="cancel addition" className="btn-cancel" onClick={() => setIsModalOpen(false)}>{t('common.cancel', 'Cancel')}</button>
               <button label="save addition" className="btn-save" onClick={handleSubmit}>
-                {editingCustomer ? 'Update Customer' : 'Create Customer'}
+                {editingCustomer ? t('customers.updateCustomer', 'Update Customer') : t('customers.createCustomer', 'Create Customer')}
               </button>
             </>
           ) : null
@@ -551,29 +564,29 @@ const Customers = () => {
         ) : (
             <form className="form-grid">
               <div className="form-group">
-                <label>Entity Type</label>
+                <label>{t('customers.entityType', 'Entity Type')}</label>
                 <select
                   value={formData.entity_type}
                   onChange={(e) => setFormData({...formData, entity_type: e.target.value})}
                 >
-                  <option value="customer">Customer (Buyer)</option>
-                  <option value="vendor">Vendor (Owner)</option>
-                  <option value="broker">Broker</option>
-                  <option value="partner">Partner</option>
+                  <option value="customer">{t('customers.entityCustomer', 'Customer (Buyer)')}</option>
+                  <option value="vendor">{t('customers.entityVendor', 'Vendor (Owner)')}</option>
+                  <option value="broker">{t('customers.entityBroker', 'Broker')}</option>
+                  <option value="partner">{t('customers.entityPartner', 'Partner')}</option>
                 </select>
               </div>
               <div className="form-group">
-                <label>Full Name</label>
+                <label>{t('customers.fullName', 'Full Name')}</label>
                 <input
                   type="text"
-                  placeholder="e.g. John Doe"
+                  placeholder={t('customers.fullNamePlaceholder', 'e.g. Ahmed Ali')}
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
                   required
                 />
               </div>
               <div className="form-group">
-                <label>Phone Number</label>
+                <label>{t('customers.phone', 'Phone Number')}</label>
                 <input
                   type="text"
                   placeholder="+20 123 456 789"
@@ -582,7 +595,7 @@ const Customers = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Email Address</label>
+                <label>{t('customers.email', 'Email Address')}</label>
                 <input
                   type="email"
                   placeholder="johndoe@email.com"
@@ -593,26 +606,26 @@ const Customers = () => {
 
               {isRealEstate && (
                   <div className="form-group full specs-section">
-                      <h4>Real Estate Specifications</h4>
+                      <h4>{t('customers.realEstateSpecs', 'Real Estate Specifications')}</h4>
                       <div className="form-grid">
                           <div className="form-group">
-                              <label>Budget (Min - Max) EGP</label>
+                              <label>{t('customers.budgetMinMax', 'Budget (Min - Max) EGP')}</label>
                               <div style={{ display: 'flex', gap: '8px' }}>
-                                <input type="number" placeholder="Min" value={formData.budget_min} onChange={(e) => setFormData({...formData, budget_min: e.target.value})} />
-                                <input type="number" placeholder="Max" value={formData.budget_max} onChange={(e) => setFormData({...formData, budget_max: e.target.value})} />
+                                <input type="number" placeholder={t('customers.min', 'Min')} value={formData.budget_min} onChange={(e) => setFormData({...formData, budget_min: e.target.value})} />
+                                <input type="number" placeholder={t('customers.max', 'Max')} value={formData.budget_max} onChange={(e) => setFormData({...formData, budget_max: e.target.value})} />
                               </div>
                           </div>
                           <div className="form-group">
-                              <label>Area (Min - Max) sqm</label>
+                              <label>{t('customers.areaMinMax', 'Area (Min - Max) sqm')}</label>
                               <div style={{ display: 'flex', gap: '8px' }}>
-                                <input type="number" placeholder="Min" value={formData.preferred_area_min} onChange={(e) => setFormData({...formData, preferred_area_min: e.target.value})} />
-                                <input type="number" placeholder="Max" value={formData.preferred_area_max} onChange={(e) => setFormData({...formData, preferred_area_max: e.target.value})} />
+                                <input type="number" placeholder={t('customers.min', 'Min')} value={formData.preferred_area_min} onChange={(e) => setFormData({...formData, preferred_area_min: e.target.value})} />
+                                <input type="number" placeholder={t('customers.max', 'Max')} value={formData.preferred_area_max} onChange={(e) => setFormData({...formData, preferred_area_max: e.target.value})} />
                               </div>
                           </div>
                           <div className="form-group">
-                              <label>Preferred Rooms</label>
+                              <label>{t('customers.preferredRooms', 'Preferred Rooms')}</label>
                               <select value={formData.preferred_rooms} onChange={(e) => setFormData({...formData, preferred_rooms: e.target.value})}>
-                                  <option value="0">Any</option>
+                                  <option value="0">{t('customers.anyRooms', 'Any')}</option>
                                   <option value="1">1</option>
                                   <option value="2">2</option>
                                   <option value="3">3</option>
@@ -620,44 +633,44 @@ const Customers = () => {
                               </select>
                           </div>
                           <div className="form-group">
-                              <label>Preferred Location</label>
-                              <input type="text" placeholder="e.g. New Cairo" value={formData.preferred_location} onChange={(e) => setFormData({...formData, preferred_location: e.target.value})} />
+                              <label>{t('customers.preferredLocation', 'Preferred Location')}</label>
+                              <input type="text" placeholder={t('customers.preferredLocationPlaceholder', 'e.g. New Cairo, Sheikh Zayed')} value={formData.preferred_location} onChange={(e) => setFormData({...formData, preferred_location: e.target.value})} />
                           </div>
                       </div>
                   </div>
               )}
 
               <div className="form-group">
-                <label>Assigned Employee</label>
+                <label>{t('customers.assignedEmployee', 'Assigned Employee')}</label>
                 <select
                   value={formData.assigned_to}
                   onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
                 >
-                  <option value="">-- Let System Decide / Me --</option>
+                  <option value="">{t('customers.letSystemDecide', '-- Let System Decide / Me --')}</option>
                   {(users || []).map(u => (
                     <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
                   ))}
                 </select>
               </div>
               <div className="form-group">
-                <label>Director/Manager Override</label>
+                <label>{t('customers.managerOverride', 'Director/Manager Override')}</label>
                 <select
                   value={formData.manager_id}
                   onChange={(e) => setFormData({...formData, manager_id: e.target.value})}
                 >
-                  <option value="">-- None --</option>
+                  <option value="">{t('customers.none', '-- None --')}</option>
                   {(users || []).map(u => (
                     <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
                   ))}
                 </select>
               </div>
               <div className="form-group">
-                <label>Lead Source</label>
+                <label>{t('customers.source', 'Lead Source')}</label>
                 <select
                   value={formData.source_id}
                   onChange={(e) => setFormData({...formData, source_id: e.target.value})}
                 >
-                  <option value="">-- No Source --</option>
+                  <option value="">{t('customers.noSource', '-- No Source --')}</option>
                   {(leadSources || []).map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
@@ -665,7 +678,7 @@ const Customers = () => {
               </div>
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ margin: 0 }}>Classification</label>
+                  <label style={{ margin: 0 }}>{t('customers.classification', 'Classification')}</label>
                   <button
                     type="button"
                     onClick={() => setShowQuickClassificationModal(true)}
@@ -675,14 +688,14 @@ const Customers = () => {
                       display: 'flex', alignItems: 'center', gap: '3px'
                     }}
                   >
-                    <Plus size={13} /> Add Classification
+                    <Plus size={13} /> {t('customers.addClassification', 'Add Classification')}
                   </button>
                 </div>
                 <select
                   value={formData.classification_id || ''}
                   onChange={(e) => setFormData({...formData, classification_id: e.target.value})}
                 >
-                  <option value="">-- No Classification (Optional) --</option>
+                  <option value="">{t('customers.noClassification', '-- No Classification (Optional) --')}</option>
                   {(customerClassifications || []).map(cc => (
                     <option key={cc.id} value={cc.id}>{cc.name}</option>
                   ))}
@@ -690,7 +703,7 @@ const Customers = () => {
               </div>
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ margin: 0 }}>Area / المنطقة</label>
+                  <label style={{ margin: 0 }}>{t('customers.area', 'Area')}</label>
                   <button
                     type="button"
                     onClick={() => setShowQuickAreaModal(true)}
@@ -700,35 +713,35 @@ const Customers = () => {
                       display: 'flex', alignItems: 'center', gap: '3px'
                     }}
                   >
-                    <Plus size={13} /> Add Area
+                    <Plus size={13} /> {t('customers.addArea', 'Add Area')}
                   </button>
                 </div>
                 <select
                   value={formData.area_id || ''}
                   onChange={(e) => setFormData({...formData, area_id: e.target.value})}
                 >
-                  <option value="">-- No Area / بدون منطقة --</option>
+                  <option value="">{t('customers.noAreaOpt', '-- No Area / بدون منطقة --')}</option>
                   {(customerAreas || []).map(ca => (
                     <option key={ca.id} value={ca.id}>{ca.name}</option>
                   ))}
                 </select>
               </div>
               <div className="form-group">
-                <label>Lead Status</label>
+                <label>{t('customers.leadStatus', 'Lead Status')}</label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({...formData, status: e.target.value})}
                 >
-                  <option value="lead">Lead</option>
-                  <option value="active">Active Client</option>
-                  <option value="inactive">Inactive</option>
+                  <option value="lead">{t('customers.statusLead', 'Lead')}</option>
+                  <option value="active">{t('customers.statusActive', 'Active Client')}</option>
+                  <option value="inactive">{t('customers.statusInactive', 'Inactive')}</option>
                 </select>
               </div>
               <div className="form-group full">
-                <label>Address</label>
+                <label>{t('customers.address', 'Address')}</label>
                 <textarea
                   rows="2"
-                  placeholder="Notes or physical address"
+                  placeholder={t('customers.addressPlaceholder', 'Notes or physical address')}
                   value={formData.address}
                   onChange={(e) => setFormData({...formData, address: e.target.value})}
                 ></textarea>
@@ -739,7 +752,7 @@ const Customers = () => {
         {/* Document Uploader Fallback for Edit Mode Without Viewing */}
         {!isViewingDetails && editingCustomer && (
           <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
-            <h4 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px' }}>Customer Documents</h4>
+            <h4 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px' }}>{t('customers.documents', 'Customer Documents')}</h4>
             <FileUploader linkedType="customer" linkedId={editingCustomer.id} />
           </div>
         )}
@@ -757,7 +770,7 @@ const Customers = () => {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                🏷️ Add New Customer Classification
+                🏷️ {t('customers.addNewClassification', 'Add New Customer Classification')}
               </h3>
               <button
                 type="button"
@@ -770,11 +783,11 @@ const Customers = () => {
 
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
-                Classification Name (e.g. VIP, Corporate, Retail...) *
+                {t('customers.classificationNameLabel', 'Classification Name (e.g. VIP, Corporate, Retail...) *')}
               </label>
               <input
                 type="text"
-                placeholder="e.g. VIP Client"
+                placeholder={t('customers.classificationNamePlaceholder', 'e.g. VIP Client')}
                 value={newClassificationName}
                 onChange={e => setNewClassificationName(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
@@ -783,7 +796,7 @@ const Customers = () => {
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
-                Badge Color
+                {t('customers.badgeColor', 'Badge Color')}
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <input
@@ -792,12 +805,12 @@ const Customers = () => {
                   onChange={e => setNewClassificationColor(e.target.value)}
                   style={{ width: '40px', height: '38px', padding: 0, border: 'none', borderRadius: '8px', cursor: 'pointer' }}
                 />
-                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{newClassificationColor}</span>
+                <span className="num-en" style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{newClassificationColor}</span>
                 <div style={{
-                  marginLeft: 'auto', padding: '4px 12px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700,
+                  marginInlineStart: 'auto', padding: '4px 12px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700,
                   backgroundColor: `${newClassificationColor}18`, color: newClassificationColor, border: `1px solid ${newClassificationColor}40`
                 }}>
-                  {newClassificationName || 'Preview'}
+                  {newClassificationName || t('customers.preview', 'Preview')}
                 </div>
               </div>
             </div>
@@ -808,20 +821,20 @@ const Customers = () => {
                 onClick={() => setShowQuickClassificationModal(false)}
                 style={{ padding: '8px 16px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
               >
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 type="button"
                 disabled={savingClassification}
                 onClick={async () => {
-                  if (!newClassificationName.trim()) return toast.error('Please enter a classification name');
+                  if (!newClassificationName.trim()) return toast.error(t('customers.enterClassificationName', 'Please enter a classification name'));
                   setSavingClassification(true);
                   try {
                     const res = await api.post('/customer-classifications', {
                       name: newClassificationName.trim(),
                       color: newClassificationColor
                     });
-                    toast.success('Classification created successfully');
+                    toast.success(t('customers.classificationCreated', 'Classification created successfully'));
                     await fetchCustomerClassifications();
                     if (res.data?.data?.id) {
                       setFormData(prev => ({ ...prev, classification_id: res.data.data.id }));
@@ -836,7 +849,7 @@ const Customers = () => {
                 }}
                 style={{ padding: '8px 20px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: savingClassification ? 'not-allowed' : 'pointer', opacity: savingClassification ? 0.7 : 1 }}
               >
-                {savingClassification ? 'Saving...' : 'Save Classification'}
+                {savingClassification ? t('customers.saving', 'Saving...') : t('customers.saveClassification', 'Save Classification')}
               </button>
             </div>
           </div>
@@ -855,7 +868,7 @@ const Customers = () => {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                📍 Add New Customer Area (تصنيف المنطقة)
+                📍 {t('customers.addNewArea', 'Add New Customer Area')}
               </h3>
               <button
                 type="button"
@@ -868,11 +881,11 @@ const Customers = () => {
 
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
-                Area Name / اسم المنطقة (e.g. التجمع الخامس، زايد، المعادي، 6 أكتوبر...) *
+                {t('customers.areaNameLabel', 'Area Name *')}
               </label>
               <input
                 type="text"
-                placeholder="e.g. التجمع الخامس / New Cairo"
+                placeholder={t('customers.areaNamePlaceholder', 'e.g. New Cairo')}
                 value={newAreaName}
                 onChange={e => setNewAreaName(e.target.value)}
                 style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
@@ -881,7 +894,7 @@ const Customers = () => {
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
-                Badge Color
+                {t('customers.badgeColor', 'Badge Color')}
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <input
@@ -890,12 +903,12 @@ const Customers = () => {
                   onChange={e => setNewAreaColor(e.target.value)}
                   style={{ width: '40px', height: '38px', padding: 0, border: 'none', borderRadius: '8px', cursor: 'pointer' }}
                 />
-                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{newAreaColor}</span>
+                <span className="num-en" style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{newAreaColor}</span>
                 <div style={{
-                  marginLeft: 'auto', padding: '4px 12px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700,
+                  marginInlineStart: 'auto', padding: '4px 12px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700,
                   backgroundColor: `${newAreaColor}18`, color: newAreaColor, border: `1px solid ${newAreaColor}40`
                 }}>
-                  {newAreaName || 'Preview'}
+                  {newAreaName || t('customers.preview', 'Preview')}
                 </div>
               </div>
             </div>
@@ -906,20 +919,20 @@ const Customers = () => {
                 onClick={() => setShowQuickAreaModal(false)}
                 style={{ padding: '8px 16px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
               >
-                Cancel
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 type="button"
                 disabled={savingArea}
                 onClick={async () => {
-                  if (!newAreaName.trim()) return toast.error('Please enter an area name');
+                  if (!newAreaName.trim()) return toast.error(t('customers.enterAreaName', 'Please enter an area name'));
                   setSavingArea(true);
                   try {
                     const res = await api.post('/customer-areas', {
                       name: newAreaName.trim(),
                       color: newAreaColor
                     });
-                    toast.success('Area created successfully');
+                    toast.success(t('customers.areaCreated', 'Area created successfully'));
                     await fetchCustomerAreas();
                     if (res.data?.data?.id) {
                       setFormData(prev => ({ ...prev, area_id: res.data.data.id }));
@@ -927,14 +940,14 @@ const Customers = () => {
                     setNewAreaName('');
                     setShowQuickAreaModal(false);
                   } catch (err) {
-                    toast.error(err.response?.data?.message || 'Failed to save area');
+                    toast.error(err.response?.data?.message || t('common.errorOccurred', 'Failed to save area'));
                   } finally {
                     setSavingArea(false);
                   }
                 }}
                 style={{ padding: '8px 20px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: savingArea ? 'not-allowed' : 'pointer', opacity: savingArea ? 0.7 : 1 }}
               >
-                {savingArea ? 'Saving...' : 'Save Area'}
+                {savingArea ? t('customers.saving', 'Saving...') : t('customers.saveArea', 'Save Area')}
               </button>
             </div>
           </div>

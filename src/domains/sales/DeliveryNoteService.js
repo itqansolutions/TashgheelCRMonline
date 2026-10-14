@@ -30,45 +30,129 @@ async function createDeliveryNote(tenantId, branchId, data, userId) {
 
     if (!sales_order_id) throw new Error('sales_order_id is required.');
     if (!items || items.length === 0) throw new Error('Delivery Note must contain at least one item.');
-    await ensureInventoryTrackingColumn(client);
-
-    const soRes = await client.query('SELECT customer_id FROM sales_orders WHERE id = $1 AND tenant_id::text = $2::text', [sales_order_id, String(tenantId)]);
-    if (soRes.rows.length === 0) throw new Error('Sales Order not found.');
-
-    const customerId = soRes.rows[0].customer_id;
-
-    let hasInventoryItems = false;
-    for (const item of items) {
-      if (!item.sales_order_item_id) throw new Error('Each Delivery Note item must reference a Sales Order item.');
-      if (!item.product_id || Number(item.quantity_delivered) <= 0) {
-        throw new Error('Each Delivery Note item requires a product and a quantity greater than zero.');
-      }
-      const productRes = await client.query(`
-        SELECT is_inventory_item FROM products
-        WHERE id::text = $1::text AND tenant_id::text = $2::text
-      `, [String(item.product_id), String(tenantId)]);
-      if (productRes.rows.length === 0) throw new Error(`Product ${item.product_id} not found.`);
-      hasInventoryItems = hasInventoryItems || productRes.rows[0].is_inventory_item !== false;
-    }
-
-    // A warehouse is only required when this Delivery Note contains physical stock items.
-    if (hasInventoryItems && !warehouse_id) {
+    if (!warehouse_id) {
       throw new Error('warehouse_id is required when delivering inventory items.');
     }
-    if (warehouse_id) {
-      // Do not trust a client-provided warehouse ID: it must belong to this tenant and branch.
-      const warehouseRes = await client.query(`
-        SELECT id
-        FROM warehouses
-        WHERE id::text = $1::text
-          AND tenant_id::text = $2::text
-          AND (branch_id::text = $3::text OR ($3 IS NULL AND branch_id IS NULL))
-        FOR UPDATE
-      `, [String(warehouse_id), String(tenantId), branchId || null]);
-      if (warehouseRes.rows.length === 0) {
-        throw new Error('Selected warehouse was not found in the active branch.');
-      }
+    await ensureInventoryTrackingColumn(client);
+
+    // 1. Lock Sales Order for update and verify tenant isolation and deliverable status whitelist
+    const soRes = await client.query(`
+      SELECT id, customer_id, status, branch_id
+      FROM sales_orders
+      WHERE id = $1 AND tenant_id::text = $2::text
+      FOR UPDATE
+    `, [sales_order_id, String(tenantId)]);
+    if (soRes.rows.length === 0) throw new Error('Sales Order not found.');
+
+    const so = soRes.rows[0];
+    const deliverableStatuses = ['confirmed', 'delivered', 'invoiced'];
+    if (!deliverableStatuses.includes(so.status)) {
+      throw new Error(`Cannot deliver Sales Order: Status is '${so.status}'. Order must be 'confirmed', 'delivered', or 'invoiced' to issue a delivery note.`);
     }
+
+    const customerId = so.customer_id;
+
+    // 2. Do not trust client-provided warehouse ID: verify tenant and branch ownership
+    const warehouseRes = await client.query(`
+      SELECT id
+      FROM warehouses
+      WHERE id::text = $1::text
+        AND tenant_id::text = $2::text
+        AND (branch_id::text = $3::text OR ($3 IS NULL AND branch_id IS NULL))
+      FOR UPDATE
+    `, [String(warehouse_id), String(tenantId), branchId || null]);
+    if (warehouseRes.rows.length === 0) {
+      throw new Error('Selected warehouse was not found in the active branch.');
+    }
+
+    // 3. Validate items with row-level locks, classification checks, product matching, and quantity bounds
+    const validatedItems = [];
+    const batchAccumulator = new Map();
+
+    for (const item of items) {
+      if (!item.sales_order_item_id) {
+        throw new Error('Each Delivery Note item must reference a Sales Order item.');
+      }
+
+      const reqQty = Number(item.quantity_delivered);
+      if (!Number.isFinite(reqQty) || reqQty <= 0) {
+        throw new Error('Each Delivery Note item requires a quantity greater than zero.');
+      }
+
+      // Lock sales_order_item row for update to serialize concurrent deliveries
+      const soItemRes = await client.query(`
+        SELECT id, sales_order_id, product_id, item_type, description, quantity, quantity_delivered
+        FROM sales_order_items
+        WHERE id::text = $1::text
+          AND sales_order_id::text = $2::text
+          AND tenant_id::text = $3::text
+        FOR UPDATE
+      `, [String(item.sales_order_item_id), String(sales_order_id), String(tenantId)]);
+
+      if (soItemRes.rows.length === 0) {
+        throw new Error(`Sales Order item ${item.sales_order_item_id} does not belong to Sales Order ${sales_order_id}.`);
+      }
+
+      const soItem = soItemRes.rows[0];
+
+      // Item type classification enforcement: ONLY physical inventory items can be delivered
+      const itemType = soItem.item_type || 'legacy_unclassified';
+      if (itemType === 'service') {
+        throw new Error(`Item '${soItem.description || item.sales_order_item_id}' is a service and does not require physical inventory delivery.`);
+      }
+      if (itemType === 'non_inventory') {
+        throw new Error(`Item '${soItem.description || item.sales_order_item_id}' is a non-inventory item and cannot be dispatched from warehouse.`);
+      }
+      if (itemType === 'legacy_unclassified') {
+        throw new Error(`Item '${soItem.description || item.sales_order_item_id}' is an unclassified historical item and cannot be dispatched without a verified inventory classification.`);
+      }
+      if (itemType !== 'inventory') {
+        throw new Error(`Item '${soItem.description || item.sales_order_item_id}' has invalid item_type '${itemType}' for warehouse dispatch.`);
+      }
+
+      // Product reference and catalog validation
+      if (!soItem.product_id) {
+        throw new Error(`Inventory item '${soItem.description || item.sales_order_item_id}' has no associated product.`);
+      }
+      if (item.product_id && String(item.product_id) !== String(soItem.product_id)) {
+        throw new Error(`Product mismatch: requested product ${item.product_id} does not match Sales Order item product ${soItem.product_id}.`);
+      }
+
+      const resolvedProductId = soItem.product_id;
+      const productRes = await client.query(`
+        SELECT id, is_inventory_item FROM products
+        WHERE id::text = $1::text AND tenant_id::text = $2::text
+      `, [String(resolvedProductId), String(tenantId)]);
+
+      if (productRes.rows.length === 0) {
+        throw new Error(`Product ${resolvedProductId} not found.`);
+      }
+      if (productRes.rows[0].is_inventory_item !== true) {
+        throw new Error(`Product ${resolvedProductId} is not a physical inventory item.`);
+      }
+
+      // Quantity ceiling check with 6-digit decimal precision
+      const totalOrdered = Number(soItem.quantity || 0);
+      const deliveredSoFar = Number(soItem.quantity_delivered || 0);
+      const remainingQty = Math.round((totalOrdered - deliveredSoFar) * 1e6) / 1e6;
+
+      if (remainingQty <= 0) {
+        throw new Error(`Item '${soItem.description || resolvedProductId}' has already been fully delivered.`);
+      }
+
+      const currentBatchTotal = Math.round(((batchAccumulator.get(String(soItem.id)) || 0) + reqQty) * 1e6) / 1e6;
+      if (currentBatchTotal > remainingQty) {
+        throw new Error(`Delivery quantity (${reqQty}) exceeds remaining deliverable quantity (${remainingQty}) for product ${resolvedProductId}.`);
+      }
+      batchAccumulator.set(String(soItem.id), currentBatchTotal);
+
+      validatedItems.push({
+        sales_order_item_id: soItem.id,
+        product_id: resolvedProductId,
+        quantity_delivered: reqQty
+      });
+    }
+
     const year = new Date(delivery_date || new Date()).getFullYear();
     const number = await nextSequence(client, { tenantId, branchId, docType: 'DN', fiscalYear: year });
 
@@ -81,12 +165,12 @@ async function createDeliveryNote(tenantId, branchId, data, userId) {
 
     const deliveryNote = dnRes.rows[0];
 
-    for (const item of items) {
+    for (const item of validatedItems) {
       await client.query(`
         INSERT INTO delivery_note_items
           (delivery_note_id, sales_order_item_id, product_id, quantity_delivered, tenant_id)
         VALUES ($1, $2, $3, $4, $5)
-      `, [deliveryNote.id, item.sales_order_item_id || null, item.product_id, item.quantity_delivered, String(tenantId)]);
+      `, [deliveryNote.id, item.sales_order_item_id, item.product_id, item.quantity_delivered, String(tenantId)]);
     }
 
     return deliveryNote;
@@ -132,14 +216,17 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
       `, [String(item.product_id), String(tenantId)]);
       if (pRes.rows.length === 0) throw new Error(`Product ${item.product_id} not found.`);
       const product = pRes.rows[0];
-      const isInventoryItem = product.is_inventory_item !== false;
+      if (product.is_inventory_item !== true) {
+        throw new Error(`Product ${item.product_id} is not an inventory item; cannot confirm delivery.`);
+      }
+      const isInventoryItem = true;
       const currentAvgCost = Number(product.avg_cost || 0);
 
-      if (isInventoryItem && !dn.warehouse_id) {
+      if (!dn.warehouse_id) {
         throw new Error('Delivery Note has no source warehouse for its inventory items.');
       }
 
-      if (isInventoryItem && !warehouseValidated) {
+      if (!warehouseValidated) {
         // Re-check a stock source before physically moving inventory, including legacy Delivery Notes.
         const warehouseRes = await client.query(`
           SELECT id FROM warehouses
@@ -177,7 +264,7 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
       // Prevent multiple Delivery Notes from exceeding the Sales Order quantity.
       if (!item.sales_order_item_id) throw new Error('Delivery Note item is missing its Sales Order item reference.');
       const soItemRes = await client.query(`
-        SELECT quantity, quantity_delivered
+        SELECT quantity, quantity_delivered, item_type
         FROM sales_order_items
         WHERE id::text = $1::text
           AND sales_order_id::text = $2::text
@@ -187,7 +274,14 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
       `, [String(item.sales_order_item_id), String(dn.sales_order_id), String(item.product_id), String(tenantId)]);
       if (soItemRes.rows.length === 0) throw new Error('Delivery Note item does not match its Sales Order.');
       const soItem = soItemRes.rows[0];
-      if (Number(soItem.quantity_delivered || 0) + Number(item.quantity_delivered) > Number(soItem.quantity || 0)) {
+      if (soItem.item_type !== 'inventory') {
+        throw new Error(`Cannot confirm delivery: item is classified as '${soItem.item_type || 'unclassified'}'. Only 'inventory' items can be delivered.`);
+      }
+      const totalOrdered = Number(soItem.quantity || 0);
+      const deliveredSoFar = Number(soItem.quantity_delivered || 0);
+      const remainingQty = Math.round((totalOrdered - deliveredSoFar) * 1e6) / 1e6;
+      const reqQty = Number(item.quantity_delivered);
+      if (Math.round((reqQty - remainingQty) * 1e6) > 0) {
         throw new Error(`Delivery quantity exceeds the remaining Sales Order quantity for product ${item.product_id}.`);
       }
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Bell, Search, User, LogOut, ChevronDown, Menu, Moon, Sun, Clock, Check, AlertCircle } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
+import { Bell, Search, User, LogOut, ChevronDown, Menu, Moon, Sun, Clock, Check, AlertCircle, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -9,6 +10,7 @@ import { safeArray } from '../../utils/dataUtils';
 
 const Header = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
+  const { lang, toggleLanguage, t, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -133,6 +135,45 @@ const Header = ({ toggleSidebar }) => {
         .dropdown-item:hover { background-color: var(--bg-main); color: var(--primary); }
         .dropdown-item.logout { color: var(--danger); margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px; }
         .dropdown-item.logout:hover { background: #fef2f2; }
+
+        /* Language Toggler Button */
+        .lang-toggle-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 5px 11px;
+          background: rgba(79, 70, 229, 0.08);
+          color: var(--primary);
+          border: 1px solid rgba(79, 70, 229, 0.2);
+          border-radius: 8px;
+          font-size: 12.5px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          user-select: none;
+        }
+        .lang-toggle-btn:hover {
+          background: var(--primary);
+          color: #ffffff;
+          border-color: var(--primary);
+          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+          transform: translateY(-1px);
+        }
+        .lang-toggle-btn:active {
+          transform: translateY(0);
+        }
+        .lang-toggle-btn .lang-icon {
+          transition: transform 0.3s ease;
+        }
+        .lang-toggle-btn:hover .lang-icon {
+          transform: rotate(20deg);
+        }
+
+        /* Directional overrides for RTL */
+        [dir='rtl'] .header-left { gap: 12px; }
+        [dir='rtl'] .user-dropdown { right: auto; left: 0; }
+        [dir='rtl'] .notification-dropdown { right: auto; left: 0px; }
+        [dir='rtl'] .badge { right: auto; left: 0px; }
       `}</style>
 
       <div className="header-left" onClick={() => { setIsDropdownOpen(false); setIsNotificationsOpen(false); }}>
@@ -140,7 +181,7 @@ const Header = ({ toggleSidebar }) => {
           <Search size={18} color="var(--text-muted)" />
           <input 
             type="text" 
-            placeholder="Search for customers, deals..." 
+            placeholder={t('header.searchPlaceholder')} 
             value={globalSearch}
             onChange={(e) => setGlobalSearch(e.target.value)}
             onKeyDown={handleGlobalSearch}
@@ -164,12 +205,23 @@ const Header = ({ toggleSidebar }) => {
             boxShadow: '0 4px 6px rgba(245, 158, 11, 0.1)'
           }}>
             <AlertCircle size={16} />
-            {localStorage.getItem('lang') === 'ar' ? 'وضع التجربة (Demo Mode)' : 'Demo Mode Active'}
+            {t('header.demoMode')}
           </div>
         )}
         <BranchSelector />
+
+        {/* Language Toggler Button */}
+        <button 
+          type="button"
+          className="lang-toggle-btn"
+          onClick={toggleLanguage}
+          title={t('common.switchLanguage')}
+        >
+          <Globe size={16} className="lang-icon" />
+          <span>{lang === 'ar' ? 'English' : 'العربية'}</span>
+        </button>
         
-        <button label="toggle control" className="icon-btn" onClick={toggleTheme} title="Toggle Dark/Light Mode">
+        <button label="toggle control" className="icon-btn" onClick={toggleTheme} title={t('header.toggleTheme')}>
           {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
         </button>
 
@@ -186,12 +238,12 @@ const Header = ({ toggleSidebar }) => {
           {isNotificationsOpen && (
             <div className="notification-dropdown">
               <div className="notif-header">
-                <span style={{ fontWeight: '800', fontSize: '15px' }}>Notifications</span>
+                <span style={{ fontWeight: '800', fontSize: '15px' }}>{t('header.notifications')}</span>
                 <span 
                   style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: '600', cursor: 'pointer' }}
                   onClick={handleMarkAllRead}
                 >
-                  Mark all read
+                  {t('header.markAllRead')}
                 </span>
               </div>
               <div className="notif-list">
@@ -199,10 +251,10 @@ const Header = ({ toggleSidebar }) => {
                   <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔔</div>
                     <p style={{ margin: 0, fontSize: '14px', fontWeight: '800', color: 'var(--text-main)' }}>
-                       {localStorage.getItem('lang') === 'ar' ? 'لا توجد إشعارات' : 'All caught up!'}
+                       {t('header.noNotifications')}
                     </p>
                     <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
-                       {localStorage.getItem('lang') === 'ar' ? 'سوف تظهر التنبيهات الجديدة هنا.' : 'New alerts will appear here.'}
+                       {t('header.newAlertsWillAppear')}
                     </p>
                   </div>
                 ) : (
@@ -228,7 +280,7 @@ const Header = ({ toggleSidebar }) => {
                 )}
               </div>
               <div style={{ padding: '12px', textAlign: 'center', background: '#f8fafc', borderTop: '1px solid var(--border)', fontSize: '12px', fontWeight: '600', color: 'var(--primary)', cursor: 'pointer' }}>
-                View All Notifications
+                {t('header.viewAllNotifications')}
               </div>
             </div>
           )}
@@ -247,10 +299,10 @@ const Header = ({ toggleSidebar }) => {
           {isDropdownOpen && (
             <div className="user-dropdown">
               <div className="dropdown-item">
-                <User size={16} /> Profile
+                <User size={16} /> {t('header.profile')}
               </div>
               <div className="dropdown-item logout" onClick={logout}>
-                <LogOut size={16} /> Logout
+                <LogOut size={16} /> {t('header.logout')}
               </div>
             </div>
           )}

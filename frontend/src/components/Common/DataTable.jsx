@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Edit2, Trash2, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions }) => {
+  const { t, isRTL } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [currentPage, setCurrentPage] = useState(1);
@@ -43,7 +45,7 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
   const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
-  if (loading) return <div className="loading-spinner">Loading...</div>;
+  if (loading) return <div className="loading-spinner">{t('common.loading')}</div>;
 
   return (
     <div className="table-card">
@@ -96,6 +98,9 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
           border-collapse: collapse;
           text-align: left;
         }
+        [dir='rtl'] .data-table {
+          text-align: right;
+        }
         .data-table th {
           background: rgba(0, 0, 0, 0.02);
           padding: 16px 20px;
@@ -107,6 +112,9 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
           border-bottom: 1px solid var(--border);
           cursor: pointer;
           transition: all 0.2s;
+        }
+        [dir='rtl'] .data-table th {
+          text-align: right;
         }
         .data-table th:hover {
           color: var(--primary);
@@ -189,7 +197,7 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
           <Search size={18} color="var(--text-muted)" />
           <input 
             type="text" 
-            placeholder="Search..." 
+            placeholder={t('common.searchPlaceholder')} 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -208,7 +216,7 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
                   </div>
                 </th>
               ))}
-              <th>Actions</th>
+              <th>{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -223,10 +231,10 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
                   <td>
                     <div className="action-btns">
                       {actions && actions(item)}
-                      <button label="table edit control" className="btn-icon btn-edit" onClick={() => onEdit(item)}>
+                      <button label="table edit control" title={t('common.edit')} className="btn-icon btn-edit" onClick={() => onEdit(item)}>
                         <Edit2 size={16} />
                       </button>
-                      <button label="table delete control" className="btn-icon btn-delete" onClick={() => onDelete(item.id)}>
+                      <button label="table delete control" title={t('common.delete')} className="btn-icon btn-delete" onClick={() => onDelete(item.id)}>
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -238,12 +246,10 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
                 <td colSpan={columns.length + 1} style={{ textAlign: 'center', padding: '64px 24px' }}>
                     <div style={{ fontSize: '48px', marginBottom: '16px' }}>📂</div>
                     <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--text-main)', marginBottom: '8px' }}>
-                        {localStorage.getItem('lang') === 'ar' ? 'لا توجد بيانات متاحة' : 'No entries found'}
+                        {t('common.noEntriesFound')}
                     </div>
                     <div style={{ fontSize: '14px', color: 'var(--text-muted)', maxWidth: '300px', margin: '0 auto' }}>
-                        {localStorage.getItem('lang') === 'ar' 
-                            ? 'ابدأ بإضافة أول عنصر لعرضه هنا في الجدول.' 
-                            : 'Start by adding your first record to see it appear here in the table.'}
+                        {t('common.noEntriesSubtitle')}
                     </div>
                 </td>
               </tr>
@@ -254,27 +260,33 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
 
       <div className="pagination">
         <div>
-          Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredData.length)} of {filteredData.length} entries
+          {t('common.showingEntries', {
+            from: filteredData.length === 0 ? 0 : indexOfFirstItem + 1,
+            to: Math.min(indexOfLastItem, filteredData.length),
+            total: filteredData.length
+          })}
         </div>
         <div className="page-btns">
           <button 
             label="previous table entry"
+            title={t('common.previous')}
             className="page-btn" 
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
           >
-            <ChevronLeft size={16} />
+            {isRTL ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
           <span style={{ display: 'flex', alignItems: 'center', padding: '0 10px' }}>
-            Page {currentPage} of {totalPages || 1}
+            {t('common.pageOf', { page: currentPage, total: totalPages || 1 })}
           </span>
           <button 
             label="next table entry"
+            title={t('common.next')}
             className="page-btn" 
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages || totalPages === 0}
           >
-            <ChevronRight size={16} />
+            {isRTL ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
           </button>
         </div>
       </div>

@@ -6,6 +6,7 @@ import {
     Mail, Bell, Home, FileText, CheckCircle, Edit,
     User, Clock, ChevronDown, ChevronUp, Send
 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 // ── Action type configuration ──────────────────────────────────────────────
 const ACTION_TYPES = [
@@ -55,6 +56,7 @@ const getBulletColors = (action) => {
 
 // ── ActivityTimeline component ─────────────────────────────────────────────
 const ActivityTimeline = ({ entityType, entityId }) => {
+    const { t, isRTL } = useLanguage();
     const [activities, setActivities]   = useState([]);
     const [loading, setLoading]         = useState(true);
     const [filter, setFilter]           = useState('all');
@@ -69,6 +71,19 @@ const ActivityTimeline = ({ entityType, entityId }) => {
     const [submitError, setSubmitError] = useState('');
 
     const LIMIT = 20;
+
+    const getActionTypeLabel = (value) => {
+        switch (value) {
+            case 'called': return `📞 ${t('customers.actionTypes.called', 'Called')}`;
+            case 'whatsapp': return `💬 ${t('customers.actionTypes.whatsapp', 'WhatsApp')}`;
+            case 'meeting': return `🤝 ${t('customers.actionTypes.meeting', 'Meeting')}`;
+            case 'email_sent': return `📧 ${t('customers.actionTypes.emailSent', 'Email Sent')}`;
+            case 'follow_up': return `🔔 ${t('customers.actionTypes.followUp', 'Follow-Up')}`;
+            case 'visited': return `🏠 ${t('customers.actionTypes.siteVisit', 'Site Visit')}`;
+            case 'note': return `📝 ${t('customers.actionTypes.note', 'Note')}`;
+            default: return value;
+        }
+    };
 
     // ── Fetch ──────────────────────────────────────────────────────────────
     const fetchActivities = async (currentOffset = 0, append = false) => {
@@ -108,7 +123,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
         e.preventDefault();
         setSubmitError('');
         if (!logNote.trim()) {
-            setSubmitError('Please enter a description.');
+            setSubmitError(t('customers.pleaseEnterDescription', 'Please enter a description.'));
             return;
         }
         setSubmitting(true);
@@ -124,7 +139,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                 setShowForm(false);
             }
         } catch (err) {
-            setSubmitError(err.response?.data?.message || 'Failed to save log. Please try again.');
+            setSubmitError(err.response?.data?.message || t('customers.failedToSaveLog', 'Failed to save log. Please try again.'));
         } finally {
             setSubmitting(false);
         }
@@ -154,14 +169,14 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                             border: '1px solid #e2e8f0', outline: 'none', background: '#fff', cursor: 'pointer'
                         }}
                     >
-                        <option value="all">All Activities</option>
-                        <option value="manual">Interactions Only</option>
-                        <option value="system">System Events</option>
-                        <option value="called">📞 Calls</option>
-                        <option value="whatsapp">💬 WhatsApp</option>
-                        <option value="meeting">🤝 Meetings</option>
-                        <option value="follow_up">🔔 Follow-Ups</option>
-                        <option value="note">📝 Notes</option>
+                        <option value="all">{t('customers.allActivities', 'All Activities')}</option>
+                        <option value="manual">{t('customers.interactionsOnly', 'Interactions Only')}</option>
+                        <option value="system">{t('customers.systemEvents', 'System Events')}</option>
+                        <option value="called">📞 {t('customers.calls', 'Calls')}</option>
+                        <option value="whatsapp">💬 {t('customers.whatsapp', 'WhatsApp')}</option>
+                        <option value="meeting">🤝 {t('customers.meetings', 'Meetings')}</option>
+                        <option value="follow_up">🔔 {t('customers.followUps', 'Follow-Ups')}</option>
+                        <option value="note">📝 {t('customers.notesFilter', 'Notes')}</option>
                     </select>
                 </div>
 
@@ -177,7 +192,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                         transition: 'all 0.2s'
                     }}
                 >
-                    {showForm ? <><X size={14} /> Cancel</> : <><Plus size={14} /> Log Interaction</>}
+                    {showForm ? <><X size={14} /> {t('common.cancel', 'Cancel')}</> : <><Plus size={14} /> {t('customers.logInteraction', 'Log Interaction')}</>}
                 </button>
             </div>
 
@@ -191,7 +206,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                     }}
                 >
                     <div style={{ fontWeight: '800', fontSize: '13px', color: 'var(--primary, #4f46e5)', marginBottom: '12px' }}>
-                        📋 Log a Customer Interaction
+                        📋 {t('customers.logCustomerInteraction', 'Log a Customer Interaction')}
                     </div>
 
                     {/* Action type pills */}
@@ -209,7 +224,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                                     color: logAction === at.value ? at.color : '#64748b',
                                 }}
                             >
-                                {at.label}
+                                {getActionTypeLabel(at.value)}
                             </button>
                         ))}
                     </div>
@@ -217,7 +232,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                     {/* Description */}
                     <textarea
                         rows={3}
-                        placeholder={`Describe the ${ACTION_MAP[logAction]?.label.replace(/^.{2}\s/, '') || 'interaction'}… e.g. "Customer answered, interested in 3BR unit"`}
+                        placeholder={t('customers.describeInteraction', 'Describe the interaction… e.g. Customer answered, interested in 3BR unit')}
                         value={logNote}
                         onChange={e => setLogNote(e.target.value)}
                         required
@@ -248,7 +263,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                             }}
                         >
                             <Send size={14} />
-                            {submitting ? 'Saving…' : 'Save Log'}
+                            {submitting ? t('customers.saving', 'Saving…') : t('customers.saveLog', 'Save Log')}
                         </button>
                     </div>
                 </form>
@@ -257,7 +272,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
             {/* ── Timeline ────────────────────────────────────────────────── */}
             {loading && activities.length === 0 ? (
                 <div style={{ fontSize: '13px', color: '#94a3b8', padding: '12px 0' }}>
-                    Loading timeline…
+                    {t('customers.loadingTimeline', 'Loading timeline…')}
                 </div>
             ) : filteredActivities.length === 0 ? (
                 <div style={{
@@ -265,14 +280,14 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                     background: '#f8fafc', borderRadius: '12px',
                     border: '1px dashed #e2e8f0', color: '#94a3b8', fontSize: '13px'
                 }}>
-                    No activities match your filter.<br />
-                    <span style={{ fontSize: '11px' }}>Use "Log Interaction" above to add the first one.</span>
+                    {t('customers.noActivitiesMatch', 'No activities match your filter.')}<br />
+                    <span style={{ fontSize: '11px' }}>{t('customers.useLogToStart', 'Use "Log Interaction" above to add the first one.')}</span>
                 </div>
             ) : (
-                <div style={{ position: 'relative', paddingLeft: '28px' }}>
+                <div style={{ position: 'relative', paddingInlineStart: '28px' }}>
                     {/* Vertical line */}
                     <div style={{
-                        position: 'absolute', left: '11px', top: '8px',
+                        position: 'absolute', insetInlineStart: '11px', top: '8px',
                         bottom: '8px', width: '2px', background: '#e2e8f0'
                     }} />
 
@@ -287,7 +302,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                             >
                                 {/* Bullet */}
                                 <div style={{
-                                    position: 'absolute', left: '-28px', top: '2px',
+                                    position: 'absolute', insetInlineStart: '-28px', top: '2px',
                                     width: '24px', height: '24px', borderRadius: '50%',
                                     background: bg, color, border: `2px solid ${color}`,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -327,7 +342,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                                             fontSize: '11px', color: '#94a3b8'
                                         }}>
                                             <Clock size={11} />
-                                            <span title={new Date(activity.created_at).toLocaleString()}>
+                                            <span className="num-en" title={new Date(activity.created_at).toLocaleString('en-GB')}>
                                                 {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}
                                             </span>
                                         </div>
@@ -339,10 +354,10 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                                     </div>
 
                                     {/* Exact date stamp */}
-                                    <div style={{ fontSize: '10px', color: '#cbd5e1', marginTop: '6px' }}>
+                                    <div className="num-en" style={{ fontSize: '10px', color: '#cbd5e1', marginTop: '6px' }}>
                                         {new Date(activity.created_at).toLocaleString('en-GB', {
-                                            day: '2-digit', month: 'short', year: 'numeric',
-                                            hour: '2-digit', minute: '2-digit'
+                                             day: '2-digit', month: 'short', year: 'numeric',
+                                             hour: '2-digit', minute: '2-digit'
                                         })}
                                     </div>
                                 </div>
@@ -363,13 +378,13 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                             borderRadius: '20px', fontSize: '12px', fontWeight: '600', cursor: 'pointer'
                         }}
                     >
-                        Load Older Activities
+                        {t('customers.loadOlderActivities', 'Load Older Activities')}
                     </button>
                 </div>
             )}
             {loading && activities.length > 0 && (
                 <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '12px', color: '#94a3b8' }}>
-                    Loading more…
+                    {t('customers.loadingMore', 'Loading more…')}
                 </div>
             )}
         </div>
