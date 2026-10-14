@@ -221,4 +221,81 @@ test('Invoice & Quotation Branding & Header Customization Test Suite', async (t)
     assert.ok(tenantUpdatedLogo);
     assert.match(tenantUpdatedLogo, /logo\.png/);
   });
+
+  await t.test('5. updateTenant handles id = "my" seamlessly', async () => {
+    let queriedId = null;
+    db.query = async (sql, params) => {
+      if (sql.includes('SELECT * FROM tenants WHERE id::text = $1::text')) {
+        queriedId = params[0];
+        return {
+          rows: [{
+            id: 'tenant-abc-123',
+            name: 'Original Name'
+          }]
+        };
+      }
+      if (sql.includes('ALTER TABLE tenants')) {
+        return { rows: [] };
+      }
+      if (sql.includes('UPDATE tenants')) {
+        return {
+          rows: [{
+            id: 'tenant-abc-123',
+            name: 'My Custom Company',
+            invoice_header_title: 'فاتورة ضريبية معتمدة'
+          }]
+        };
+      }
+      return { rows: [] };
+    };
+
+    const { req, res } = mockReqRes({
+      params: { id: 'my' },
+      body: {
+        name: 'My Custom Company',
+        invoice_header_title: 'فاتورة ضريبية معتمدة'
+      }
+    });
+
+    await tenantsController.updateTenant(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.data.status, 'success');
+    assert.equal(queriedId, 'tenant-abc-123');
+    assert.equal(res.data.data.invoice_header_title, 'فاتورة ضريبية معتمدة');
+  });
+
+  await t.test('6. uploadFile succeeds and saves tenant logo even if attachments table has schema issues', async () => {
+    let tenantUpdatedLogo = null;
+    db.query = async (sql, params) => {
+      if (sql.includes('UPDATE tenants SET logo_url')) {
+        tenantUpdatedLogo = params[0];
+        return { rows: [] };
+      }
+      if (sql.includes('INSERT INTO attachments')) {
+        throw new Error('relation "attachments" column "branch_id" does not exist');
+      }
+      return { rows: [] };
+    };
+
+    const mockFile = {
+      filename: '1728888-fallback-logo.png',
+      originalname: 'logo.png',
+      mimetype: 'image/png',
+      path: 'uploads/tenant-abc-123/1728888-fallback-logo.png'
+    };
+
+    const { req, res } = mockReqRes({
+      body: { linked_type: 'Tenant' },
+      file: mockFile
+    });
+
+    await filesController.uploadFile(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.data.status, 'success');
+    assert.ok(tenantUpdatedLogo);
+    assert.match(tenantUpdatedLogo, /fallback-logo\.png/);
+    assert.match(res.data.data.file_path, /fallback-logo\.png/);
+  });
 });

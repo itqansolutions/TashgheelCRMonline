@@ -1,22 +1,28 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Handshake, Users, Target as TargetIcon, ShoppingBag, FileText, Layers } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const SalesSubNav = () => {
+  const { t, isRTL } = useLanguage();
+
   const links = [
-    { path: '/deals', label: 'Deals', icon: <Handshake size={16} /> },
-    { path: '/sales/salesmen', label: 'Salesmen', icon: <Users size={16} /> },
-    { path: '/sales/target', label: 'Target & Goals', icon: <TargetIcon size={16} /> },
-    { path: '/sales/orders', label: 'Sales Orders', icon: <ShoppingBag size={16} /> },
-    { path: '/sales/documents', label: 'Documents', icon: <FileText size={16} /> },
-    { path: '/sales/price-tiers', label: 'Price Tiers', icon: <Layers size={16} /> },
+    { path: '/deals', label: t('sales.subNav.deals'), icon: <Handshake size={16} /> },
+    { path: '/sales/orders', label: t('sales.subNav.orders'), icon: <ShoppingBag size={16} /> },
+    { path: '/sales/documents', label: t('sales.subNav.documents'), icon: <FileText size={16} /> },
+    { path: '/sales/price-tiers', label: t('sales.subNav.priceTiers'), icon: <Layers size={16} /> },
+    { path: '/sales/salesmen', label: t('sales.subNav.salesmen'), icon: <Users size={16} /> },
+    { path: '/sales/target', label: t('sales.subNav.targets'), icon: <TargetIcon size={16} /> },
   ];
 
   return (
-    <div style={{
-      display: 'flex', gap: '6px', overflowX: 'auto', padding: '12px 24px',
-      background: 'white', borderBottom: '1px solid #e2e8f0', marginBottom: '16px'
-    }}>
+    <div
+      dir={isRTL ? 'rtl' : 'ltr'}
+      style={{
+        display: 'flex', gap: '6px', overflowX: 'auto', padding: '12px 24px',
+        background: 'white', borderBottom: '1px solid #e2e8f0', marginBottom: '16px'
+      }}
+    >
       {links.map((link) => (
         <NavLink
           key={link.path}

@@ -41,6 +41,34 @@ exports.uploadFile = async (req, res) => {
   const normalizedRelativePath = path.relative(uploadsRootDir, req.file.path).replace(/\\/g, '/');
   const storedFilePath = `uploads/${normalizedRelativePath}`;
 
+  // 1. If uploading a tenant logo/asset, immediately persist logo_url to tenants table
+  if (String(linked_type).toLowerCase() === 'tenant') {
+    try {
+      await db.query('UPDATE tenants SET logo_url = $1 WHERE id::text = $2::text', [storedFilePath, String(tenant_id)]);
+      console.log(`[Upload] Auto-updated tenant ${tenant_id} logo_url to ${storedFilePath}`);
+    } catch (tErr) {
+      console.warn('[Upload] Failed auto-updating tenant logo_url:', tErr.message);
+    }
+  }
+
+  // 2. Safe attachment record creation
+  let uploadedById = null;
+  if (req.user?.id && !isNaN(Number(req.user.id))) {
+    uploadedById = Number(req.user.id);
+  }
+
+  let attachmentRecord = {
+    filename: req.file.filename,
+    original_name: req.file.originalname,
+    mime_type: req.file.mimetype,
+    file_path: storedFilePath,
+    linked_type,
+    linked_id: String(effectiveLinkedId),
+    uploaded_by: uploadedById,
+    tenant_id: String(tenant_id),
+    branch_id: branch_id ? String(branch_id) : null
+  };
+
   try {
     const result = await db.query(
       'INSERT INTO attachments (filename, original_name, mime_type, file_path, linked_type, linked_id, uploaded_by, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
@@ -51,24 +79,18 @@ exports.uploadFile = async (req, res) => {
         storedFilePath, 
         linked_type, 
         String(effectiveLinkedId), 
-        req.user?.id || null, 
-        tenant_id, 
-        branch_id
+        uploadedById, 
+        String(tenant_id), 
+        branch_id ? String(branch_id) : null
       ]
     );
 
-    // If uploading a tenant logo/asset, automatically update the tenant's logo_url in database
-    if (String(linked_type).toLowerCase() === 'tenant') {
-      try {
-        await db.query('UPDATE tenants SET logo_url = $1 WHERE id::text = $2::text', [storedFilePath, tenant_id]);
-        console.log(`[Upload] Auto-updated tenant ${tenant_id} logo_url to ${storedFilePath}`);
-      } catch (tErr) {
-        console.warn('[Upload] Failed auto-updating tenant logo_url:', tErr.message);
-      }
+    if (result.rows && result.rows.length > 0) {
+      attachmentRecord = result.rows[0];
     }
 
-    console.log('[UPLOAD SUCCESS] File linked:', result.rows[0].id);
-    res.status(201).json({ status: 'success', data: result.rows[0] });
+    console.log('[UPLOAD SUCCESS] File linked:', attachmentRecord.id);
+    return res.status(201).json({ status: 'success', data: attachmentRecord });
   } catch (err) {
     console.error('[Upload DB Error CRITICAL]:', {
       message: err.message,
@@ -76,9 +98,16 @@ exports.uploadFile = async (req, res) => {
       table: err.table,
       constraint: err.constraint
     });
-    // Cleanup file on DB error
+
+    // If uploading a tenant logo, the logo is already saved to tenants.logo_url and file is on disk
+    if (String(linked_type).toLowerCase() === 'tenant') {
+      console.warn('[Upload] Attachments record failed but tenant logo was saved successfully. Returning success.');
+      return res.status(201).json({ status: 'success', data: attachmentRecord });
+    }
+
+    // Cleanup file on DB error for non-tenant entities
     if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ 
+    return res.status(500).json({ 
         status: 'error', 
         message: 'Database failed to link file', 
         debug: err.message 

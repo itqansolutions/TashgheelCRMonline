@@ -54,7 +54,7 @@ const CompanySettings = () => {
     setSaving(true);
     const tenantId = user?.tenant_id || tenant?.id;
     try {
-      await api.put(`/tenants/${tenantId}`, tenant);
+      await api.put('/tenants/my', tenant);
       toast.success('Company settings updated successfully');
       if (typeof fetchTenant === 'function') {
         fetchTenant();

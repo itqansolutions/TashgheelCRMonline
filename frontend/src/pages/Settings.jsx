@@ -124,13 +124,9 @@ const Settings = () => {
 
   const handleUpdate = async (e) => {
     if (e) e.preventDefault();
-    if (!user?.tenant_id) {
-      toast.error('Session expired or invalid tenant context');
-      return;
-    }
     setSaving(true);
     try {
-      const res = await api.put(`/tenants/${user.tenant_id}`, tenant);
+      const res = await api.put('/tenants/my', tenant);
       if (res.data.status === 'success') {
         toast.success('Settings updated successfully');
         if (res.data.data) setTenant(prev => ({ ...prev, ...res.data.data }));
@@ -146,15 +142,15 @@ const Settings = () => {
   const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (!user?.tenant_id) {
-      toast.error('Identity context missing. Please refresh.');
-      return;
-    }
+
+    const tenantId = user?.tenant_id || tenant?.id;
 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('linked_type', 'Tenant');
-    formData.append('linked_id', String(user.tenant_id));
+    if (tenantId) {
+      formData.append('linked_id', String(tenantId));
+    }
 
     setUploading(true);
     try {
@@ -450,6 +446,120 @@ const Settings = () => {
                       <label>Headquarters Physical Address</label>
                       <textarea style={{ height: '60px' }} value={tenant.address || ''} onChange={(e) => setTenant({...tenant, address: e.target.value})} />
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Invoice Branding & Header Configuration */}
+              <div className="settings-card">
+                <div className="card-header">
+                  <h3><FileText size={16} color="#6366f1" /> Invoice Branding & Header (ترويسة وهوية الفاتورة)</h3>
+                </div>
+                <div className="card-body">
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Invoice Header Title (عنوان رأس الفاتورة)</label>
+                      <input 
+                        type="text" 
+                        value={tenant.invoice_header_title || ''} 
+                        onChange={(e) => setTenant({...tenant, invoice_header_title: e.target.value})} 
+                        placeholder="فاتورة ضريبية / TAX INVOICE" 
+                      />
+                      <small style={{ fontSize: '11px', color: '#94a3b8' }}>النص الرئيسي الظاهر أعلى الفاتورة (الافتراضي: فاتورة ضريبية)</small>
+                    </div>
+                    <div className="form-group">
+                      <label>Invoice Header Subtitle / Tagline (العنوان الفرعي للترويسة)</label>
+                      <input 
+                        type="text" 
+                        value={tenant.invoice_header_subtitle || ''} 
+                        onChange={(e) => setTenant({...tenant, invoice_header_subtitle: e.target.value})} 
+                        placeholder="مثال: لحلول الأعمال الذكية والتجارة" 
+                      />
+                      <small style={{ fontSize: '11px', color: '#94a3b8' }}>سطر وصفي أو شعار يظهر أسفل اسم الشركة في رأس الفاتورة</small>
+                    </div>
+                    <div className="form-group">
+                      <label>Invoice Prefix (بادئة الترقيم)</label>
+                      <input 
+                        type="text" 
+                        value={tenant.invoice_prefix || 'INV-'} 
+                        onChange={(e) => setTenant({...tenant, invoice_prefix: e.target.value})} 
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ marginTop: '12px' }}>
+                    <label>Terms & Conditions (شروط وأحكام الفاتورة)</label>
+                    <textarea 
+                      style={{ height: '60px' }} 
+                      value={tenant.terms || ''} 
+                      onChange={(e) => setTenant({...tenant, terms: e.target.value})} 
+                      placeholder="شروط السداد والدفع، مواعيد الاستحقاق، بيانات الحساب البنكي..." 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Invoice Footer / Note (تذييل الفاتورة)</label>
+                    <textarea 
+                      style={{ height: '50px' }} 
+                      value={tenant.invoice_footer || ''} 
+                      onChange={(e) => setTenant({...tenant, invoice_footer: e.target.value})} 
+                      placeholder="شكراً لتعاملكم معنا / Thank you for choosing us!" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quotation Branding & Header Configuration */}
+              <div className="settings-card">
+                <div className="card-header">
+                  <h3><FileText size={16} color="#f59e0b" /> Quotation Branding & Header (ترويسة وهوية عرض السعر)</h3>
+                </div>
+                <div className="card-body">
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Quotation Header Title (عنوان رأس عرض السعر)</label>
+                      <input 
+                        type="text" 
+                        value={tenant.quotation_header_title || ''} 
+                        onChange={(e) => setTenant({...tenant, quotation_header_title: e.target.value})} 
+                        placeholder="عرض أسعار / PRICE QUOTATION" 
+                      />
+                      <small style={{ fontSize: '11px', color: '#94a3b8' }}>النص الرئيسي الظاهر أعلى عرض السعر (الافتراضي: عرض أسعار)</small>
+                    </div>
+                    <div className="form-group">
+                      <label>Quotation Header Subtitle / Tagline (العنوان الفرعي للترويسة)</label>
+                      <input 
+                        type="text" 
+                        value={tenant.quotation_header_subtitle || ''} 
+                        onChange={(e) => setTenant({...tenant, quotation_header_subtitle: e.target.value})} 
+                        placeholder="مثال: عروض أسعار هندسية معتمدة" 
+                      />
+                      <small style={{ fontSize: '11px', color: '#94a3b8' }}>سطر وصفي يظهر أسفل اسم الشركة في عرض السعر</small>
+                    </div>
+                    <div className="form-group">
+                      <label>Quotation Prefix (بادئة الترقيم)</label>
+                      <input 
+                        type="text" 
+                        value={tenant.quotation_prefix || 'QUO-'} 
+                        onChange={(e) => setTenant({...tenant, quotation_prefix: e.target.value})} 
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ marginTop: '12px' }}>
+                    <label>Quotation Terms & Conditions (شروط وصلاحية العرض)</label>
+                    <textarea 
+                      style={{ height: '60px' }} 
+                      value={tenant.quotation_terms || ''} 
+                      onChange={(e) => setTenant({...tenant, quotation_terms: e.target.value})} 
+                      placeholder="الأسعار سارية لمدة 15 يوماً من تاريخ الإصدار..." 
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Quotation Footer / Note (تذييل عرض السعر)</label>
+                    <textarea 
+                      style={{ height: '50px' }} 
+                      value={tenant.quotation_footer || ''} 
+                      onChange={(e) => setTenant({...tenant, quotation_footer: e.target.value})} 
+                      placeholder="نتطلع للتعاون المثمر معكم..." 
+                    />
                   </div>
                 </div>
               </div>

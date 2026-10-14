@@ -68,8 +68,17 @@ exports.getTenantById = async (req, res) => {
 // @route   PUT /api/tenants/:id
 // @access  Private (Admin)
 exports.updateTenant = async (req, res) => {
-  const { id } = req.params;
-  const tenant_id = req.user.tenant_id;
+  let { id } = req.params;
+  const tenant_id = req.user?.tenant_id;
+
+  if (!tenant_id) {
+    return res.status(401).json({ status: 'error', message: 'Tenant context missing.' });
+  }
+
+  // Allow /api/tenants/my or missing id to update current tenant
+  if (id === 'my' || !id || id === 'undefined' || id === 'null') {
+    id = tenant_id;
+  }
 
   // Security check
   if (id !== tenant_id && tenant_id !== SYSTEM_DEFAULT_TENANT) {

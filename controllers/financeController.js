@@ -2349,7 +2349,7 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
                     p.notes
                 FROM payments p
                 LEFT JOIN invoices i   ON i.id::text  = p.invoice_id::text
-                LEFT JOIN customers c  ON c.id::text  = COALESCE(i.customer_id, i.client_id)::text
+                LEFT JOIN customers c  ON c.id::text  = COALESCE(i.customer_id::text, i.client_id::text)
                 LEFT JOIN LATERAL (
                     SELECT fv2.voucher_number
                     FROM finance_vouchers fv2
