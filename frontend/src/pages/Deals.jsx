@@ -143,6 +143,32 @@ const Deals = () => {
     }
   }, []);
 
+  // Handle direct creation from Matching / external query params (?new=1&client_id=X&unit_id=Y)
+  useEffect(() => {
+    const paramNew = searchParams.get('new');
+    const paramClientId = searchParams.get('client_id');
+    const paramUnitId = searchParams.get('unit_id');
+
+    if (paramNew === '1' || paramClientId || paramUnitId) {
+      const targetUnit = (reUnits || []).find(u => String(u.id) === String(paramUnitId));
+      setFormData(prev => ({
+        ...prev,
+        title: targetUnit 
+          ? `${targetUnit.project_name} - Unit ${targetUnit.unit_number}` 
+          : (paramUnitId ? `Deal for Unit ${paramUnitId.slice(0, 8)}` : prev.title || 'New Deal'),
+        client_id: paramClientId || prev.client_id || '',
+        unit_id: paramUnitId || prev.unit_id || '',
+        value: targetUnit ? Number(targetUnit.price) : prev.value || 0,
+        pipeline_stage: prev.pipeline_stage || (templateConfig?.pipeline?.[0] || 'Lead')
+      }));
+      setEditingDeal(null);
+      setIsModalOpen(true);
+      if (!paramUnitId || reUnits.length > 0) {
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [searchParams, reUnits, templateConfig]);
+
   useEffect(() => {
     if (isRealEstate) {
       fetchReUnits();
@@ -650,7 +676,7 @@ const Deals = () => {
                     onChange={(e) => handleUnitChange(e.target.value)}
                 >
                     <option value="">{t('deals.selectAvailableUnit', '-- Select Available Unit --')}</option>
-                    {(reUnits || []).filter(u => u.status === 'Available' || u.id === formData.unit_id).map(u => (
+                    {(reUnits || []).filter(u => u.status === 'Available' || String(u.id) === String(formData.unit_id)).map(u => (
                         <option key={u.id} value={u.id}>
                             {u.project_name} | Unit {u.unit_number} ({u.area}m²) - {Number(u.price).toLocaleString('en-US')} {t('common.currency', 'EGP')}
                         </option>

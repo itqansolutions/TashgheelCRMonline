@@ -221,13 +221,52 @@ exports.updateTask = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Verify task belongs to tenant
+    // Verify task belongs to tenant and branch, and fetch ownership columns
     const branch_id = req.branchId || req.user?.branch_id;
 
-    const verifyResult = await client.query('SELECT id, status_id, assigned_to FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
+    const verifyResult = await client.query(
+      'SELECT id, status_id, assigned_to, created_by, director_id FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text',
+      [req.params.id, tenant_id, branch_id]
+    );
     if (verifyResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
+    }
+
+    const taskRow = verifyResult.rows[0];
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // RBAC Authorization Check for Update
+    let canUpdate = false;
+    if (userRole === 'admin') {
+      canUpdate = true;
+    } else if (
+      String(taskRow.created_by) === String(userId) ||
+      String(taskRow.assigned_to) === String(userId) ||
+      String(taskRow.director_id) === String(userId)
+    ) {
+      canUpdate = true;
+    } else if (userRole === 'manager' || userRole === 'supervisor') {
+      if (taskRow.assigned_to) {
+        const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+        const params = [taskRow.assigned_to, String(tenant_id), userId];
+        let deptSql = '';
+        if (accessibleDeptIds && accessibleDeptIds.length > 0) {
+          params.push(accessibleDeptIds);
+          deptSql = 'OR department_id = ANY($4::int[])';
+        }
+        const subCheck = await client.query(
+          `SELECT 1 FROM users WHERE id = $1 AND tenant_id::text = $2::text AND (manager_id = $3 ${deptSql})`,
+          params
+        );
+        if (subCheck.rows.length > 0) canUpdate = true;
+      }
+    }
+
+    if (!canUpdate) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ status: 'error', message: 'Unauthorized: You do not have permission to update this task' });
     }
 
     const result = await client.query(
@@ -238,8 +277,8 @@ exports.updateTask = async (req, res) => {
     // Update followers: Delete then Insert (simple sync)
     await client.query('DELETE FROM task_followers WHERE task_id = $1', [req.params.id]);
     if (follower_ids && Array.isArray(follower_ids)) {
-      for (const userId of follower_ids) {
-        await client.query('INSERT INTO task_followers (task_id, user_id) VALUES ($1, $2)', [req.params.id, userId]);
+      for (const followerId of follower_ids) {
+        await client.query('INSERT INTO task_followers (task_id, user_id) VALUES ($1, $2)', [req.params.id, followerId]);
       }
     }
 
@@ -288,10 +327,48 @@ exports.deleteTask = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   try {
     const branch_id = req.branchId || req.user?.branch_id;
-    const result = await db.query('DELETE FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *', [req.params.id, tenant_id, branch_id]);
-    if (result.rows.length === 0) {
+    const taskRes = await db.query(
+      'SELECT id, title, assigned_to, created_by, director_id FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text',
+      [req.params.id, tenant_id, branch_id]
+    );
+    if (taskRes.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Task not found or unauthorized' });
     }
+
+    const taskRow = taskRes.rows[0];
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    // RBAC Authorization Check for Delete: Only creator, manager of assignee, or admin can delete
+    let canDelete = false;
+    if (userRole === 'admin') {
+      canDelete = true;
+    } else if (String(taskRow.created_by) === String(userId)) {
+      canDelete = true;
+    } else if (userRole === 'manager' || userRole === 'supervisor') {
+      if (String(taskRow.director_id) === String(userId)) {
+        canDelete = true;
+      } else if (taskRow.assigned_to) {
+        const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+        const params = [taskRow.assigned_to, String(tenant_id), userId];
+        let deptSql = '';
+        if (accessibleDeptIds && accessibleDeptIds.length > 0) {
+          params.push(accessibleDeptIds);
+          deptSql = 'OR department_id = ANY($4::int[])';
+        }
+        const subCheck = await db.query(
+          `SELECT 1 FROM users WHERE id = $1 AND tenant_id::text = $2::text AND (manager_id = $3 ${deptSql})`,
+          params
+        );
+        if (subCheck.rows.length > 0) canDelete = true;
+      }
+    }
+
+    if (!canDelete) {
+      return res.status(403).json({ status: 'error', message: 'Unauthorized: Only the task creator or a manager can delete this task' });
+    }
+
+    const result = await db.query('DELETE FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *', [req.params.id, tenant_id, branch_id]);
     res.json({ status: 'success', message: 'Task deleted' });
   } catch (err) {
     console.error('deleteTask Error:', err.message);

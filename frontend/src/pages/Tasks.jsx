@@ -32,11 +32,12 @@ const getDueDateStatus = (due_date, t) => {
   return { label: t('tasks.dueDays', { days: diffDays }), color: '#64748b', bg: '#f1f5f9' };
 };
 
-const TaskCard = ({ task, onEdit, onDelete, onStatusChange, taskStatuses, onCreateDeal }) => {
+const TaskCard = ({ task, onEdit, onDelete, onStatusChange, taskStatuses, onCreateDeal, getParentLabel }) => {
   const { t } = useLanguage();
   const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
   const status = taskStatuses.find(s => s.id === task.status_id) || { name: 'Todo', color: '#64748b' };
   const dueStat = getDueDateStatus(task.due_date, t);
+  const parentLabel = getParentLabel ? getParentLabel(task.parent_type, task.parent_id) : task.parent_type;
 
   return (
     <div style={{
@@ -92,7 +93,7 @@ const TaskCard = ({ task, onEdit, onDelete, onStatusChange, taskStatuses, onCrea
           {task.parent_type && task.parent_id && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#eff6ff', padding: '3px 8px', borderRadius: '20px' }}>
               {task.parent_type === 'unit' ? <Building size={11} color="#2563eb"/> : <Briefcase size={11} color="#2563eb"/>}
-              <span style={{ fontSize: '11px', fontWeight: 600, color: '#2563eb' }}>{task.parent_type}</span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#2563eb' }}>{parentLabel || task.parent_type}</span>
             </div>
           )}
         </div>
@@ -159,13 +160,25 @@ const Tasks = () => {
     if (deals.length === 0) fetchDeals(false);
     if (users.length === 0) fetchUsers(false);
     if (taskStatuses.length === 0) fetchTaskStatuses(false);
+    api.get('/re-units').then(r => setUnits(r.data?.data || [])).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (user?.template_name === 'real_estate') {
-      api.get('/re-units').then(r => setUnits(r.data?.data || [])).catch(() => {});
+  const getParentLabel = (type, id) => {
+    if (!type || !id) return null;
+    if (type === 'customer') {
+      const c = (customers || []).find(x => String(x.id) === String(id));
+      return c ? `Client: ${c.name}` : `Customer #${id}`;
     }
-  }, [user?.template_name]);
+    if (type === 'deal') {
+      const d = (deals || []).find(x => String(x.id) === String(id));
+      return d ? `Deal: ${d.title}` : `Deal #${id}`;
+    }
+    if (type === 'unit') {
+      const u = (units || []).find(x => String(x.id) === String(id));
+      return u ? `${u.project_name || ''} Unit ${u.unit_number}` : `Unit #${String(id).slice(0, 6)}`;
+    }
+    return `${type} #${id}`;
+  };
 
   const handleOpenModal = (task = null) => {
     if (task) {
@@ -370,7 +383,7 @@ const Tasks = () => {
                   </div>
                 ) : (
                   colTasks.map(task => (
-                    <TaskCard key={task.id} task={task} taskStatuses={taskStatuses} onEdit={handleOpenModal} onDelete={handleDelete} onStatusChange={handleStatusChange} onCreateDeal={handleCreateDealFromTask}/>
+                    <TaskCard key={task.id} task={task} taskStatuses={taskStatuses} onEdit={handleOpenModal} onDelete={handleDelete} onStatusChange={handleStatusChange} onCreateDeal={handleCreateDealFromTask} getParentLabel={getParentLabel}/>
                   ))
                 )}
               </div>
@@ -402,10 +415,17 @@ const Tasks = () => {
                 const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
                 const status = taskStatuses.find(s => s.id === task.status_id) || { name: 'Todo', color: '#64748b' };
                 const dueStat = getDueDateStatus(task.due_date, t);
+                const parentLabel = getParentLabel(task.parent_type, task.parent_id);
                 return (
                   <tr key={task.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px', marginBottom: '2px' }}>{task.title}</div>
+                      {task.parent_type && task.parent_id && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#eff6ff', color: '#2563eb', padding: '1px 7px', borderRadius: '4px', fontSize: '10px', fontWeight: 700, marginBottom: '4px' }}>
+                          {task.parent_type === 'unit' ? <Building size={10} color="#2563eb"/> : <Briefcase size={10} color="#2563eb"/>}
+                          <span>{parentLabel || task.parent_type}</span>
+                        </div>
+                      )}
                       {task.description && <div style={{ fontSize: '12px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>{task.description}</div>}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
@@ -475,6 +495,37 @@ const Tasks = () => {
           <div className="task-form-group">
             <label>{t('tasks.lblDueDate')}</label>
             <input type="date" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})}/>
+          </div>
+          <div className="task-form-group">
+            <label>{t('tasks.lblParentType', 'Link To (Optional)')}</label>
+            <select 
+              value={formData.parent_type || ''} 
+              onChange={e => setFormData({ ...formData, parent_type: e.target.value, parent_id: '' })}
+            >
+              <option value="">{t('tasks.noLink', '-- General / No Link --')}</option>
+              <option value="customer">{t('tasks.linkCustomer', 'Customer')}</option>
+              <option value="deal">{t('tasks.linkDeal', 'Deal')}</option>
+              <option value="unit">{t('tasks.linkUnit', 'Property Unit')}</option>
+            </select>
+          </div>
+          <div className="task-form-group">
+            <label>{t('tasks.lblParentRecord', 'Linked Record')}</label>
+            <select 
+              value={formData.parent_id || ''} 
+              disabled={!formData.parent_type}
+              onChange={e => setFormData({ ...formData, parent_id: e.target.value })}
+            >
+              <option value="">{t('tasks.optSelectRecord', '-- Select Linked Record --')}</option>
+              {formData.parent_type === 'customer' && (customers || []).map(c => (
+                <option key={c.id} value={c.id}>{c.name} {c.phone ? `(${c.phone})` : ''}</option>
+              ))}
+              {formData.parent_type === 'deal' && (deals || []).map(d => (
+                <option key={d.id} value={d.id}>{d.title} ({d.pipeline_stage})</option>
+              ))}
+              {formData.parent_type === 'unit' && (units || []).map(u => (
+                <option key={u.id} value={u.id}>{u.project_name || 'Individual'} - Unit {u.unit_number} ({u.status})</option>
+              ))}
+            </select>
           </div>
           <div className="task-form-group" style={{ gridColumn: 'span 2' }}>
             <label>{t('tasks.lblDescription')}</label>

@@ -4,7 +4,7 @@ import ActivityTimeline from '../Common/ActivityTimeline';
 import { 
   Building, Mail, Phone, MapPin, User, FileText, ShoppingCart, 
   Truck, ArrowDownLeft, DollarSign, Calendar, Clock, CheckCircle, 
-  AlertCircle, ChevronRight, RefreshCw, X, Eye, FileCheck, Layers
+  AlertCircle, ChevronRight, RefreshCw, X, Eye, FileCheck, Layers, Sparkles
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useLanguage } from '../../context/LanguageContext';
@@ -15,6 +15,9 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [data360, setData360] = useState(null);
   const [error, setError] = useState(null);
+  const [matchedUnits, setMatchedUnits] = useState([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [expandedMatchId, setExpandedMatchId] = useState(null);
 
   const fetch360Data = async () => {
     setLoading(true);
@@ -34,9 +37,24 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
     }
   };
 
+  const fetchMatchedUnits = async () => {
+    if (!customerId) return;
+    setLoadingMatches(true);
+    try {
+      const res = await api.get(`/re-units/match-customer/${customerId}`);
+      setMatchedUnits(res.data?.data?.matches || []);
+    } catch (err) {
+      console.warn('[Customer 360 Match Units Fetch Notice]:', err.message);
+      setMatchedUnits([]);
+    } finally {
+      setLoadingMatches(false);
+    }
+  };
+
   useEffect(() => {
     if (customerId) {
       fetch360Data();
+      fetchMatchedUnits();
     }
   }, [customerId]);
 
@@ -50,7 +68,8 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
 
   const showRealEstateTab = summary.has_real_estate === true || 
     (customer.budget_min > 0 || customer.preferred_location) ||
-    realEstate.contracts.length > 0;
+    realEstate.contracts.length > 0 ||
+    matchedUnits.length > 0;
 
   const getEntityLabel = (type) => {
     switch (type) {
@@ -691,6 +710,111 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
           {/* TAB 7: REAL ESTATE (CONDITIONAL) */}
           {activeTab === 'real_estate' && showRealEstateTab && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Matched Inventory Units */}
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sparkles size={16} color="#eab308" /> {t('customers.matchedUnitsTitle', 'Matched Property Units ({count})', { count: matchedUnits.length })}
+                  </h4>
+                  <button 
+                    type="button" 
+                    onClick={fetchMatchedUnits} 
+                    style={{ padding: '4px 10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', color: '#475569' }}
+                  >
+                    <RefreshCw size={11} className={loadingMatches ? 'spin' : ''} /> {t('common.refresh', 'Refresh')}
+                  </button>
+                </div>
+
+                {loadingMatches ? (
+                  <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                    {t('customers.analyzingMatches', 'Matching property inventory against buyer budget, area, and rooms...')}
+                  </div>
+                ) : matchedUnits.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px', background: '#f8fafc', borderRadius: '8px' }}>
+                    {t('customers.noMatchedUnits', 'No matching inventory units found based on current buyer preferences.')}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {matchedUnits.map(({ unit, match_score, match_grade, breakdown }) => {
+                      const isExpanded = expandedMatchId === unit.id;
+                      const gradeColor = match_score >= 85 ? '#16a34a' : match_score >= 65 ? '#2563eb' : match_score >= 45 ? '#d97706' : '#64748b';
+                      const gradeBg = match_score >= 85 ? '#dcfce7' : match_score >= 65 ? '#dbeafe' : match_score >= 45 ? '#fef3c7' : '#f1f5f9';
+                      const isAvailable = unit.status?.toLowerCase() === 'available';
+
+                      return (
+                        <div key={unit.id} style={{ border: `1px solid ${isExpanded ? gradeColor : '#e2e8f0'}`, borderRadius: '10px', background: 'white', overflow: 'hidden' }}>
+                          <div 
+                            onClick={() => setExpandedMatchId(isExpanded ? null : unit.id)}
+                            style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', background: isExpanded ? `${gradeBg}25` : 'white' }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{ textAlign: 'center', minWidth: '50px', padding: '4px 6px', borderRadius: '8px', background: gradeBg, color: gradeColor, fontWeight: 900 }}>
+                                <div style={{ fontSize: '15px', lineHeight: '1' }}>{match_score}%</div>
+                                <div style={{ fontSize: '9px', textTransform: 'uppercase' }}>{match_grade}</div>
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b' }}>
+                                  {unit.project_name || 'Individual'} • Unit <span className="num-en">{unit.unit_number}</span>
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: 700, color: 'var(--primary)' }}><span className="num-en">{Number(unit.price || 0).toLocaleString('en-US')}</span> EGP</span>
+                                  {unit.area_sqm && <span>📐 <span className="num-en">{unit.area_sqm}</span> m²</span>}
+                                  {unit.rooms && <span>🚪 <span className="num-en">{unit.rooms}</span> rooms</span>}
+                                  {unit.location && <span>📍 {unit.location}</span>}
+                                  <span style={{ padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800, background: isAvailable ? '#dcfce7' : '#fee2e2', color: isAvailable ? '#15803d' : '#b91c1c' }}>
+                                    {unit.status}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {isAvailable ? (
+                                <a 
+                                  href={`/deals?new=1&client_id=${customerId}&unit_id=${unit.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ padding: '6px 12px', borderRadius: '6px', background: 'var(--primary)', color: 'white', textDecoration: 'none', fontSize: '11px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
+                                >
+                                  {t('customers.btnCreateDeal', 'Create Deal')} <ChevronRight size={12} />
+                                </a>
+                              ) : (
+                                <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>{unit.status}</span>
+                              )}
+                              <span style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 600 }}>
+                                {isExpanded ? '▲' : '▼'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {isExpanded && breakdown && (
+                            <div style={{ padding: '10px 16px', borderTop: '1px solid #f1f5f9', background: '#fafafa', fontSize: '12px' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
+                                <div style={{ background: 'white', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                  <div style={{ fontWeight: 700, color: '#0f172a' }}>Budget ({breakdown.budget?.score}/{breakdown.budget?.max} pts)</div>
+                                  <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.budget?.reason}</div>
+                                </div>
+                                <div style={{ background: 'white', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                  <div style={{ fontWeight: 700, color: '#0f172a' }}>Area ({breakdown.area?.score}/{breakdown.area?.max} pts)</div>
+                                  <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.area?.reason}</div>
+                                </div>
+                                <div style={{ background: 'white', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                  <div style={{ fontWeight: 700, color: '#0f172a' }}>Location ({breakdown.location?.score}/{breakdown.location?.max} pts)</div>
+                                  <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.location?.reason}</div>
+                                </div>
+                                <div style={{ background: 'white', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                  <div style={{ fontWeight: 700, color: '#0f172a' }}>Rooms ({breakdown.rooms?.score}/{breakdown.rooms?.max} pts)</div>
+                                  <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.rooms?.reason}</div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               {/* Reservations */}
               <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px' }}>
                 <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
