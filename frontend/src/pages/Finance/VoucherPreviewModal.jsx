@@ -162,15 +162,27 @@ function numberToArabicWords(number, currency = 'جنيه مصري') {
 }
 
 const VoucherPreviewModal = ({ voucher, onClose }) => {
-    const printRef = useRef();
+    const printRef = useRef(null);
     const { t, isRTL } = useLanguage();
 
     const isReceipt = voucher?.voucher_type === 'receipt';
     const currency = voucher?.currency || t('common.currency', 'EGP');
 
     const handlePrint = useReactToPrint({
-        content: () => printRef.current,
-        documentTitle: `${isReceipt ? (isRTL ? 'سند_قبض' : 'Receipt_Voucher') : (isRTL ? 'سند_صرف' : 'Payment_Voucher')}_${voucher?.voucher_number || 'doc'}`
+        contentRef: printRef,
+        documentTitle: `${isReceipt ? (isRTL ? 'سند_قبض' : 'Receipt_Voucher') : (isRTL ? 'سند_صرف' : 'Payment_Voucher')}_${voucher?.voucher_number || 'doc'}`,
+        pageStyle: `
+            @page {
+                size: A4;
+                margin: 15mm;
+            }
+            @media print {
+                body {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+            }
+        `
     });
 
     if (!voucher) return null;
@@ -232,7 +244,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <button
-                            onClick={handlePrint}
+                            onClick={() => handlePrint()}
                             style={{
                                 background: 'var(--primary, #3b82f6)',
                                 color: '#fff',

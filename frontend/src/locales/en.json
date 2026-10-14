@@ -1161,6 +1161,199 @@
         "loadError": "Failed to load vendor accounts",
         "statementLoadError": "Failed to load vendor statement"
       }
+    },
+    "treasury": {
+      "methods": {
+        "cash": "Cash",
+        "bank_transfer": "Bank Transfer",
+        "card": "Card",
+        "check": "Check"
+      },
+      "accountCard": {
+        "default": "Default",
+        "currentBalance": "Current Balance",
+        "thisMonthIn": "↑ This Month",
+        "thisMonthOut": "↓ This Month"
+      },
+      "kpi": {
+        "totalBalance": "Total Balance",
+        "cashAccounts": "Cash Accounts",
+        "bankAccounts": "Bank Accounts",
+        "inThisMonth": "In This Month",
+        "outThisMonth": "Out This Month"
+      },
+      "addAccountModal": {
+        "title": "Add Treasury Account",
+        "cashbox": "💵 Cashbox",
+        "bankAccount": "🏦 Bank Account",
+        "accountName": "Account Name *",
+        "cashNamePlaceholder": "e.g. Main Cashbox",
+        "bankNamePlaceholder": "e.g. CIB Main Account",
+        "bankName": "Bank Name",
+        "bankNameInputPlaceholder": "e.g. CIB, QNB, HSBC",
+        "accountNumber": "Account Number",
+        "accountNumberPlaceholder": "Optional",
+        "openingBalance": "Opening Balance (EGP)",
+        "openingBalancePlaceholder": "Balance before CRM tracking started",
+        "openingBalanceHelp": "This is a one-time value representing the balance before CRM tracking began.",
+        "setDefaultAccount": "Set as default {{type}} account",
+        "cancel": "Cancel",
+        "create": "Create Account",
+        "creating": "Creating…",
+        "validationName": "Account name is required",
+        "successCreated": "{{name}} created",
+        "failedCreated": "Failed to create account"
+      },
+      "accountsList": {
+        "title": "Accounts ({{count}})",
+        "add": "Add",
+        "noAccountsTitle": "No Treasury Accounts Yet",
+        "noAccountsSubtitle": "Add a Cashbox or Bank Account to start tracking cash flows",
+        "addFirstAccount": "+ Add First Account",
+        "loading": "Loading treasury…",
+        "selectAccountPrompt": "Select an account",
+        "selectAccountSubtitle": "Click an account card to view its transactions"
+      },
+      "transactions": {
+        "balance": "Balance:",
+        "opening": "Opening:",
+        "filter": "Filter",
+        "loading": "Loading transactions…",
+        "emptyTitle": "No transactions yet",
+        "emptySubtitle": "Payments and expenses linked to this account will appear here",
+        "table": {
+          "date": "Date",
+          "type": "Type",
+          "reference": "Reference",
+          "description": "Description",
+          "method": "Method",
+          "amount": "Amount",
+          "txnCount": "{{count}} transaction(s)"
+        }
+      },
+      "messages": {
+        "loadAccountsError": "Failed to load treasury accounts",
+        "loadTransactionsError": "Failed to load transactions"
+      }
+    },
+    "reports": {
+      "header": {
+        "title": "Financial Intelligence",
+        "subtitle": "Real-time executive metrics derived directly from transactions",
+        "refresh": "Refresh Data",
+        "print": "Print",
+        "allBranches": "All Branches"
+      },
+      "presets": {
+        "today": "Today",
+        "this_month": "This Month",
+        "last_month": "Last Month",
+        "this_year": "This Year",
+        "all": "All Time"
+      },
+      "tabs": {
+        "overview": "Executive Overview",
+        "sales": "1. Sales & Invoices",
+        "collections": "2. Collections",
+        "expenses": "3. Expenses",
+        "aging": "4. Receivables & Aging",
+        "cashflow": "5. Cash Flow"
+      },
+      "loading": "Calculating Financial Intelligence...",
+      "overview": {
+        "kpi": {
+          "totalSales": "Total Sales (Invoiced)",
+          "invoicesIssued": "{{count}} Invoices Issued",
+          "totalCollections": "Total Collections",
+          "paymentsReceived": "{{count}} Payments Received",
+          "receivables": "Receivables (لينا عند العملاء)",
+          "overdueSub": "Overdue: {{amount}} EGP",
+          "payables": "Payables (علينا للموردين)",
+          "netPosition": "Net Position (لينا − علينا)",
+          "positiveEquity": "Positive Equity (+Receivables)",
+          "negativePosition": "Negative Position (−Payables)",
+          "netCashFlow": "Net Cash Flow (معانا سيولة)",
+          "cashflowSub": "In: {{in}} | Out: {{out}}"
+        },
+        "cards": {
+          "cashInOut": "Cash In vs Cash Out",
+          "liquidityVelocity": "Liquidity Velocity",
+          "collectionsIn": "Collections (In): {{amount}} EGP",
+          "outflowOut": "Outflow (Out): {{amount}} EGP",
+          "customerCollections": "Customer Collections",
+          "expensesAndVendors": "Expenses: {{expenses}} + Vendors: {{vendors}}",
+          "netCashPosition": "Net Cash Position:",
+          "agingSummary": "Receivables Aging Summary",
+          "viewDetails": "View Details →",
+          "current": "Current:",
+          "days_1_30": "1–30d:",
+          "days_31_60": "31–60d:",
+          "days_90_plus": "90d+:",
+          "topDebtors": "Top Outstanding Accounts",
+          "clientsCount": "{{count}} Clients",
+          "unpaidInvoices": "{{count}} unpaid invoices",
+          "overdueDebtor": "Overdue: {{amount}}",
+          "zeroOutstanding": "All receivables settled! Zero outstanding."
+        }
+      },
+      "salesReport": {
+        "title": "Invoice Status & Performance Breakdown",
+        "invoicesCount": "{{count}} Invoices",
+        "overallRate": "Overall Collection Rate",
+        "overallRateSub": "Paid amount vs total billed for this period"
+      },
+      "collectionsReport": {
+        "byMethod": "Collections by Payment Method",
+        "transactionsCount": "{{count}} transactions",
+        "trendTitle": "Monthly Collections Trend",
+        "receiptsCount": "{{count}} receipts",
+        "empty": "No collections in selected period"
+      },
+      "expensesReport": {
+        "byCategory": "Expenses by Category",
+        "expensesCount": "{{count}} expenses",
+        "trendTitle": "Monthly Outflow Trend",
+        "entriesCount": "{{count}} entries",
+        "empty": "No expenses recorded in selected period"
+      },
+      "agingReport": {
+        "currentNotDue": "Current (Not Due)",
+        "days_1_30": "1–30 Days Overdue",
+        "days_31_60": "31–60 Days Overdue",
+        "days_61_90": "61–90 Days Overdue",
+        "days_90_plus": "90+ Days Critical",
+        "tableTitle": "Clients with Outstanding Receivables",
+        "tableSubtitle": "Click any client row to open their full statement",
+        "total": "Total: {{amount}} EGP",
+        "table": {
+          "customerName": "Customer Name",
+          "phone": "Phone",
+          "unpaidInvoices": "Unpaid Invoices",
+          "totalOutstanding": "Total Outstanding",
+          "overdueAmount": "Overdue Amount",
+          "action": "Action",
+          "statement": "Statement"
+        }
+      },
+      "cashflowReport": {
+        "inflow": "Total Inflow (Collections)",
+        "outflow": "Total Outflow (Expenses)",
+        "netPosition": "Net Cash Position",
+        "treasuryBreakdown": "Cash Flow by Treasury Account (Cashboxes & Banks)",
+        "table": {
+          "accountName": "Account Name",
+          "type": "Type",
+          "inflow": "Inflow (+)",
+          "outflow": "Outflow (−)",
+          "netChange": "Net Change",
+          "bank": "Bank",
+          "cashbox": "Cashbox",
+          "empty": "No movements across treasury accounts during this period"
+        }
+      },
+      "messages": {
+        "loadError": "Failed to load financial intelligence data"
+      }
     }
   }
 }

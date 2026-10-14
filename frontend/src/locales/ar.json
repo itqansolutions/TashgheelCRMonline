@@ -1161,6 +1161,199 @@
         "loadError": "فشل تحميل حسابات الموردين",
         "statementLoadError": "فشل تحميل كشف حساب المورد"
       }
+    },
+    "treasury": {
+      "methods": {
+        "cash": "نقدي",
+        "bank_transfer": "تحويل بنكي",
+        "card": "بطاقة",
+        "check": "شيك"
+      },
+      "accountCard": {
+        "default": "افتراضي",
+        "currentBalance": "الرصيد الحالي",
+        "thisMonthIn": "↑ وارد الشهر",
+        "thisMonthOut": "↓ صادر الشهر"
+      },
+      "kpi": {
+        "totalBalance": "إجمالي الأرصدة",
+        "cashAccounts": "الخزائن النقدية",
+        "bankAccounts": "الحسابات البنكية",
+        "inThisMonth": "وارد هذا الشهر",
+        "outThisMonth": "منصرف هذا الشهر"
+      },
+      "addAccountModal": {
+        "title": "إضافة حساب خزينة",
+        "cashbox": "💵 خزينة نقدية",
+        "bankAccount": "🏦 حساب بنكي",
+        "accountName": "اسم الحساب *",
+        "cashNamePlaceholder": "مثال: الخزينة الرئيسية",
+        "bankNamePlaceholder": "مثال: حساب البنك التجاري الدولي",
+        "bankName": "اسم البنك",
+        "bankNameInputPlaceholder": "مثال: CIB، الأهلي، مصر",
+        "accountNumber": "رقم الحساب",
+        "accountNumberPlaceholder": "اختياري",
+        "openingBalance": "الرصيد الافتتاحي (ج.م)",
+        "openingBalancePlaceholder": "الرصيد قبل بدء التسجيل بالنظام",
+        "openingBalanceHelp": "قيمة تسجل لمرة واحدة لتمثيل الرصيد قبل بدء التتبع في النظام.",
+        "setDefaultAccount": "تعيين كحساب {{type}} افتراضي",
+        "cancel": "إلغاء",
+        "create": "إنشاء الحساب",
+        "creating": "جاري الإنشاء…",
+        "validationName": "اسم الحساب مطلوب",
+        "successCreated": "تم إنشاء {{name}} بنجاح",
+        "failedCreated": "فشل إنشاء الحساب"
+      },
+      "accountsList": {
+        "title": "الحسابات ({{count}})",
+        "add": "إضافة",
+        "noAccountsTitle": "لا توجد حسابات خزينة حتى الآن",
+        "noAccountsSubtitle": "أضف خزينة نقدية أو حساباً بنكياً لبدء تتبع التدفقات المالية",
+        "addFirstAccount": "+ إضافة أول حساب",
+        "loading": "جاري تحميل الخزائن والبنوك…",
+        "selectAccountPrompt": "اختر حساباً",
+        "selectAccountSubtitle": "انقر على أي بطاقة حساب لعرض كشف حركاته"
+      },
+      "transactions": {
+        "balance": "الرصيد:",
+        "opening": "افتتاحي:",
+        "filter": "تصفية",
+        "loading": "جاري تحميل الحركات…",
+        "emptyTitle": "لا توجد حركات مسجلة حتى الآن",
+        "emptySubtitle": "ستظهر هنا المدفوعات والمصروفات المرتبطة بهذا الحساب فور تسجيلها",
+        "table": {
+          "date": "التاريخ",
+          "type": "النوع",
+          "reference": "المرجع",
+          "description": "البيان / الوصف",
+          "method": "طريقة الدفع",
+          "amount": "المبلغ",
+          "txnCount": "{{count}} حركة مسجلة"
+        }
+      },
+      "messages": {
+        "loadAccountsError": "فشل تحميل حسابات الخزينة",
+        "loadTransactionsError": "فشل تحميل دفتر حركات الخزينة"
+      }
+    },
+    "reports": {
+      "header": {
+        "title": "ذكاء التقارير المالية",
+        "subtitle": "مؤشرات تنفيذية لحظية مستخرجة مباشرة من حركات ودفاتر النظام",
+        "refresh": "تحديث البيانات",
+        "print": "طباعة",
+        "allBranches": "جميع الفروع"
+      },
+      "presets": {
+        "today": "اليوم",
+        "this_month": "هذا الشهر",
+        "last_month": "الشهر الماضي",
+        "this_year": "هذا العام",
+        "all": "كل الفترات"
+      },
+      "tabs": {
+        "overview": "النظرة التنفيذية الشاملة",
+        "sales": "1. المبيعات والفواتير",
+        "collections": "2. التحصيلات والمقبوضات",
+        "expenses": "3. المصروفات والمدفوعات",
+        "aging": "4. مستحقات العملاء وأعمار الديون",
+        "cashflow": "5. التدفق النقدي"
+      },
+      "loading": "جاري احتساب المؤشرات والتقارير المالية...",
+      "overview": {
+        "kpi": {
+          "totalSales": "إجمالي المبيعات (المفوترة)",
+          "invoicesIssued": "تم إصدار {{count}} فاتورة",
+          "totalCollections": "إجمالي التحصيلات",
+          "paymentsReceived": "تم تحصيل {{count}} دفعة",
+          "receivables": "مستحقات العملاء (لنا)",
+          "overdueSub": "المتأخرات: {{amount}} ج.م",
+          "payables": "التزامات الموردين (علينا)",
+          "netPosition": "صافي الموقف المالي (لنا − علينا)",
+          "positiveEquity": "موقف إيجابي فائض (+مستحقات)",
+          "negativePosition": "موقف سالب عجز (−التزامات)",
+          "netCashFlow": "صافي التدفق النقدي (السيولة المتاحة)",
+          "cashflowSub": "وارد: {{in}} | منصرف: {{out}}"
+        },
+        "cards": {
+          "cashInOut": "المقبوضات مقابل المدفوعات",
+          "liquidityVelocity": "حركة السيولة النقدية",
+          "collectionsIn": "المقبوضات (داخل): {{amount}} ج.م",
+          "outflowOut": "المدفوعات (خارج): {{amount}} ج.م",
+          "customerCollections": "تحصيلات من العملاء",
+          "expensesAndVendors": "مصروفات: {{expenses}} + موردون: {{vendors}}",
+          "netCashPosition": "صافي الموقف النقدي:",
+          "agingSummary": "ملخص أعمار ديون العملاء",
+          "viewDetails": "عرض التفاصيل ←",
+          "current": "جاري:",
+          "days_1_30": "1–30 يوم:",
+          "days_31_60": "31–60 يوم:",
+          "days_90_plus": "أكثر من 90 يوم:",
+          "topDebtors": "أعلى حسابات العملاء مديونية",
+          "clientsCount": "{{count}} عميل",
+          "unpaidInvoices": "{{count}} فواتير غير مسددة",
+          "overdueDebtor": "متأخر: {{amount}}",
+          "zeroOutstanding": "تم تسوية جميع المستحقات! لا توجد أرصدة معلقة."
+        }
+      },
+      "salesReport": {
+        "title": "تحليل حالات الفواتير ومؤشرات الأداء",
+        "invoicesCount": "{{count}} فاتورة",
+        "overallRate": "معدل التحصيل الإجمالي",
+        "overallRateSub": "نسبة المبالغ المحصلة إلى إجمالي المفوتر لهذه الفترة"
+      },
+      "collectionsReport": {
+        "byMethod": "التحصيلات حسب طريقة الدفع",
+        "transactionsCount": "{{count}} حركة تحصيل",
+        "trendTitle": "المسار الشهري للمتحصلات",
+        "receiptsCount": "{{count}} سند قبض",
+        "empty": "لا توجد تحصيلات مسجلة خلال الفترة المحددة"
+      },
+      "expensesReport": {
+        "byCategory": "المصروفات حسب التصنيف",
+        "expensesCount": "{{count}} مصروف",
+        "trendTitle": "المسار الشهري للمصروفات والمدفوعات",
+        "entriesCount": "{{count}} حركة صرف",
+        "empty": "لا توجد مصروفات مسجلة خلال الفترة المحددة"
+      },
+      "agingReport": {
+        "currentNotDue": "جاري (لم يستحق بعد)",
+        "days_1_30": "متأخر من 1–30 يوم",
+        "days_31_60": "متأخر من 31–60 يوم",
+        "days_61_90": "متأخر من 61–90 يوم",
+        "days_90_plus": "متأخر أكثر من 90 يوم (حرج)",
+        "tableTitle": "العملاء الذين عليهم مبالغ مستحقة",
+        "tableSubtitle": "انقر على أي عميل لفتح كشف حسابه التفصيلي",
+        "total": "الإجمالي: {{amount}} ج.م",
+        "table": {
+          "customerName": "اسم العميل",
+          "phone": "الهاتف",
+          "unpaidInvoices": "الفواتير غير المسددة",
+          "totalOutstanding": "إجمالي المستحق",
+          "overdueAmount": "المبلغ المتأخر",
+          "action": "الإجراء",
+          "statement": "كشف الحساب"
+        }
+      },
+      "cashflowReport": {
+        "inflow": "إجمالي التدفق الداخل (التحصيلات)",
+        "outflow": "إجمالي التدفق الخارج (المدفوعات)",
+        "netPosition": "صافي الموقف النقدي",
+        "treasuryBreakdown": "التدفق النقدي حسب حسابات الخزينة (الخزائن والبنوك)",
+        "table": {
+          "accountName": "اسم الحساب",
+          "type": "النوع",
+          "inflow": "وارد (+)",
+          "outflow": "صادر (−)",
+          "netChange": "صافي الحركة",
+          "bank": "بنك",
+          "cashbox": "خزينة",
+          "empty": "لا توجد حركات نقدية مسجلة على حسابات الخزينة في هذه الفترة"
+        }
+      },
+      "messages": {
+        "loadError": "فشل تحميل بيانات التقارير والذكاء المالي"
+      }
     }
   }
 }

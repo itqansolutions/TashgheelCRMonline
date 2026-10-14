@@ -17,11 +17,29 @@ const InvoicePreview = () => {
     const [invoiceData, setInvoiceData] = useState(null);
     const [loading, setLoading] = useState(true);
     
-    const componentRef = useRef();
+    const componentRef = useRef(null);
 
     const handlePrint = useReactToPrint({
-        content: () => componentRef.current,
-        documentTitle: `Invoice_${invoiceData?.invoice?.invoice_number}`,
+        contentRef: componentRef,
+        documentTitle: `Invoice_${invoiceData?.invoice?.invoice_number || 'document'}`,
+        pageStyle: `
+            @page {
+                size: A4;
+                margin: 12mm;
+            }
+            @media print {
+                body {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+                .print-container {
+                    box-shadow: none !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    max-width: 100% !important;
+                }
+            }
+        `
     });
 
     useEffect(() => {
@@ -100,7 +118,7 @@ const InvoicePreview = () => {
                     <button style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)', color: 'white', padding: '8px 16px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600 }}>
                         <Send size={16} /> {t('finance.invoicePreview.emailPdf')}
                     </button>
-                    <button onClick={handlePrint} style={{ background: 'var(--primary)', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600 }}>
+                    <button onClick={() => handlePrint()} style={{ background: 'var(--primary)', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600 }}>
                         <Printer size={16} /> {t('finance.invoicePreview.printA4')}
                     </button>
                 </div>

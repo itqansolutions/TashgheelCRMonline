@@ -2,22 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import {
-  BarChart3, TrendingUp, TrendingDown, DollarSign, Calendar,
-  Filter, Printer, RefreshCw, ChevronRight, FileText, ArrowDownLeft,
-  ArrowUpRight, AlertTriangle, Users, Wallet, Building2, CheckCircle2,
-  Clock, ShieldAlert, PieChart, Layers
+  BarChart3, TrendingUp, TrendingDown, DollarSign,
+  Printer, RefreshCw, ChevronRight, FileText, ArrowDownLeft,
+  Users, Building2, CheckCircle2,
+  Clock, Layers
 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 // ─── Formatting Helpers ───────────────────────────────────────────────────────
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-
-const METHOD_LABELS = {
-  cash: 'Cash / نقدي',
-  bank_transfer: 'Bank Transfer / تحويل بنكي',
-  card: 'Card / بطاقة',
-  check: 'Check / شيك',
-};
 
 const AGING_COLORS = {
   current: '#22c55e',
@@ -29,6 +22,7 @@ const AGING_COLORS = {
 
 // ─── Main Reports Component ───────────────────────────────────────────────────
 const Reports = ({ onSelectCustomer }) => {
+  const { t, isRTL } = useLanguage();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeReportTab, setActiveReportTab] = useState('overview'); // overview, sales, collections, expenses, aging, cashflow
@@ -96,11 +90,11 @@ const Reports = ({ onSelectCustomer }) => {
       const res = await api.get(`/finance/reports?${params.toString()}`);
       setData(res.data);
     } catch (err) {
-      toast.error('Failed to load financial intelligence data');
+      toast.error(t('finance.reports.messages.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [dateFrom, dateTo, branchId]);
+  }, [dateFrom, dateTo, branchId, t]);
 
   useEffect(() => {
     if (datePreset !== 'custom' || (dateFrom && dateTo)) {
@@ -133,10 +127,12 @@ const Reports = ({ onSelectCustomer }) => {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <BarChart3 size={20} style={{ color: 'var(--primary)' }} />
-            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 900 }}>Financial Intelligence</h2>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 900 }}>
+              {t('finance.reports.header.title')}
+            </h2>
           </div>
           <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-muted)' }}>
-            Real-time executive metrics derived directly from transactions
+            {t('finance.reports.header.subtitle')}
           </p>
         </div>
 
@@ -145,11 +141,11 @@ const Reports = ({ onSelectCustomer }) => {
           {/* Preset Buttons */}
           <div style={{ display: 'flex', gap: '4px', background: 'rgba(0,0,0,0.03)', padding: '3px', borderRadius: '9px' }}>
             {[
-              { id: 'today', label: 'Today' },
-              { id: 'this_month', label: 'This Month' },
-              { id: 'last_month', label: 'Last Month' },
-              { id: 'this_year', label: 'This Year' },
-              { id: 'all', label: 'All Time' },
+              { id: 'today',      label: t('finance.reports.presets.today') },
+              { id: 'this_month', label: t('finance.reports.presets.this_month') },
+              { id: 'last_month', label: t('finance.reports.presets.last_month') },
+              { id: 'this_year',  label: t('finance.reports.presets.this_year') },
+              { id: 'all',        label: t('finance.reports.presets.all') },
             ].map(p => (
               <button
                 key={p.id}
@@ -195,19 +191,19 @@ const Reports = ({ onSelectCustomer }) => {
               onChange={(e) => setBranchId(e.target.value)}
               style={inputStyle}
             >
-              <option value="all">All Branches</option>
+              <option value="all">{t('finance.reports.header.allBranches')}</option>
               {branches.map(b => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
           )}
 
-          <button onClick={fetchReports} style={btnIconStyle} title="Refresh Data">
+          <button onClick={fetchReports} style={btnIconStyle} title={t('finance.reports.header.refresh')}>
             <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
           </button>
 
-          <button onClick={handlePrint} style={{ ...btnIconStyle, gap: '6px' }} title="Print / Export">
-            <Printer size={14} /> Print
+          <button onClick={handlePrint} style={{ ...btnIconStyle, gap: '6px' }} title={t('finance.reports.header.print')}>
+            <Printer size={14} /> {t('finance.reports.header.print')}
           </button>
         </div>
       </div>
@@ -220,12 +216,12 @@ const Reports = ({ onSelectCustomer }) => {
         paddingBottom: '4px'
       }}>
         {[
-          { id: 'overview', label: 'Executive Overview', icon: <Layers size={15} /> },
-          { id: 'sales', label: '1. Sales & Invoices', icon: <FileText size={15} /> },
-          { id: 'collections', label: '2. Collections', icon: <TrendingUp size={15} /> },
-          { id: 'expenses', label: '3. Expenses', icon: <TrendingDown size={15} /> },
-          { id: 'aging', label: '4. Receivables & Aging', icon: <Clock size={15} /> },
-          { id: 'cashflow', label: '5. Cash Flow', icon: <DollarSign size={15} /> },
+          { id: 'overview',    label: t('finance.reports.tabs.overview'),    icon: <Layers size={15} /> },
+          { id: 'sales',       label: t('finance.reports.tabs.sales'),       icon: <FileText size={15} /> },
+          { id: 'collections', label: t('finance.reports.tabs.collections'), icon: <TrendingUp size={15} /> },
+          { id: 'expenses',    label: t('finance.reports.tabs.expenses'),    icon: <TrendingDown size={15} /> },
+          { id: 'aging',       label: t('finance.reports.tabs.aging'),       icon: <Clock size={15} /> },
+          { id: 'cashflow',    label: t('finance.reports.tabs.cashflow'),    icon: <DollarSign size={15} /> },
         ].map(tab => (
           <button
             key={tab.id}
@@ -257,7 +253,7 @@ const Reports = ({ onSelectCustomer }) => {
       {loading ? (
         <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-muted)' }}>
           <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '12px', opacity: 0.4 }} />
-          <div style={{ fontWeight: 700 }}>Calculating Financial Intelligence...</div>
+          <div style={{ fontWeight: 700 }}>{t('finance.reports.loading')}</div>
         </div>
       ) : !data ? null : (
         <>
@@ -270,23 +266,49 @@ const Reports = ({ onSelectCustomer }) => {
               {/* 6 Strategic Executive KPI Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px' }}>
                 {[
-                  { label: 'Total Sales (Invoiced)', value: overview?.total_invoiced, color: '#6366f1', icon: <FileText size={18} />, sub: `${overview?.invoices_count || 0} Invoices Issued` },
-                  { label: 'Total Collections', value: overview?.total_collected, color: '#10b981', icon: <ArrowDownLeft size={18} />, sub: `${overview?.collections_count || 0} Payments Received` },
-                  { label: 'Receivables (لينا عند العملاء)', value: overview?.total_receivables, color: '#f59e0b', icon: <Users size={18} />, sub: `Overdue: ${fmt(overview?.total_overdue_receivables)} EGP` },
-                  { label: 'Payables (علينا للموردين)', value: overview?.total_payables, color: '#ef4444', icon: <Building2 size={18} />, sub: `Overdue: ${fmt(overview?.total_overdue_payables)} EGP` },
                   {
-                    label: 'Net Position (لينا − علينا)',
+                    label: t('finance.reports.overview.kpi.totalSales'),
+                    value: overview?.total_invoiced,
+                    color: '#6366f1',
+                    icon: <FileText size={18} />,
+                    sub: t('finance.reports.overview.kpi.invoicesIssued', { count: overview?.invoices_count || 0 })
+                  },
+                  {
+                    label: t('finance.reports.overview.kpi.totalCollections'),
+                    value: overview?.total_collected,
+                    color: '#10b981',
+                    icon: <ArrowDownLeft size={18} />,
+                    sub: t('finance.reports.overview.kpi.paymentsReceived', { count: overview?.collections_count || 0 })
+                  },
+                  {
+                    label: t('finance.reports.overview.kpi.receivables'),
+                    value: overview?.total_receivables,
+                    color: '#f59e0b',
+                    icon: <Users size={18} />,
+                    sub: t('finance.reports.overview.kpi.overdueSub', { amount: fmt(overview?.total_overdue_receivables) })
+                  },
+                  {
+                    label: t('finance.reports.overview.kpi.payables'),
+                    value: overview?.total_payables,
+                    color: '#ef4444',
+                    icon: <Building2 size={18} />,
+                    sub: t('finance.reports.overview.kpi.overdueSub', { amount: fmt(overview?.total_overdue_payables) })
+                  },
+                  {
+                    label: t('finance.reports.overview.kpi.netPosition'),
                     value: overview?.net_position,
                     color: (overview?.net_position || 0) >= 0 ? '#10b981' : '#dc2626',
                     icon: <CheckCircle2 size={18} />,
-                    sub: (overview?.net_position || 0) >= 0 ? 'Positive Equity (+Receivables)' : 'Negative Position (−Payables)'
+                    sub: (overview?.net_position || 0) >= 0
+                      ? t('finance.reports.overview.kpi.positiveEquity')
+                      : t('finance.reports.overview.kpi.negativePosition')
                   },
                   {
-                    label: 'Net Cash Flow (معانا سيولة)',
+                    label: t('finance.reports.overview.kpi.netCashFlow'),
                     value: overview?.net_cashflow,
                     color: (overview?.net_cashflow || 0) >= 0 ? '#10b981' : '#dc2626',
                     icon: <DollarSign size={18} />,
-                    sub: `In: ${fmt(overview?.total_collected)} | Out: ${fmt(overview?.total_outflow)}`
+                    sub: t('finance.reports.overview.kpi.cashflowSub', { in: fmt(overview?.total_collected), out: fmt(overview?.total_outflow) })
                   },
                 ].map(card => (
                   <div key={card.label} style={{
@@ -305,7 +327,7 @@ const Reports = ({ onSelectCustomer }) => {
                       </div>
                     </div>
                     <div style={{ fontSize: '24px', fontWeight: 900, color: card.color, marginBottom: '4px' }}>
-                      {fmt(card.value)} <span style={{ fontSize: '12px' }}>EGP</span>
+                      <span className="num-en">{fmt(card.value)}</span> <span style={{ fontSize: '12px' }}>{t('common.currency', 'EGP')}</span>
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>
                       {card.sub}
@@ -320,14 +342,18 @@ const Reports = ({ onSelectCustomer }) => {
                 {/* 1. Cash In vs Cash Out Progress */}
                 <div style={cardBoxStyle}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <div style={{ fontWeight: 800, fontSize: '14px' }}>Cash In vs Cash Out</div>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>Liquidity Velocity</span>
+                    <div style={{ fontWeight: 800, fontSize: '14px' }}>{t('finance.reports.overview.cards.cashInOut')}</div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)' }}>{t('finance.reports.overview.cards.liquidityVelocity')}</span>
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 700, marginBottom: '6px' }}>
-                      <span style={{ color: '#10b981' }}>Collections (In): {fmt(overview?.total_collected)} EGP</span>
-                      <span style={{ color: '#ef4444' }}>Outflow (Out): {fmt(overview?.total_outflow)} EGP</span>
+                      <span style={{ color: '#10b981' }}>
+                        {t('finance.reports.overview.cards.collectionsIn', { amount: fmt(overview?.total_collected) })}
+                      </span>
+                      <span style={{ color: '#ef4444' }}>
+                        {t('finance.reports.overview.cards.outflowOut', { amount: fmt(overview?.total_outflow) })}
+                      </span>
                     </div>
                     <div style={{ height: '12px', borderRadius: '6px', background: 'rgba(239,68,68,0.2)', display: 'flex', overflow: 'hidden' }}>
                       <div
@@ -339,15 +365,15 @@ const Reports = ({ onSelectCustomer }) => {
                       />
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      <span>Customer Collections</span>
-                      <span>Expenses: {fmt(overview?.total_expenses)} + Vendors: {fmt(overview?.total_vendor_payments)}</span>
+                      <span>{t('finance.reports.overview.cards.customerCollections')}</span>
+                      <span>{t('finance.reports.overview.cards.expensesAndVendors', { expenses: fmt(overview?.total_expenses), vendors: fmt(overview?.total_vendor_payments) })}</span>
                     </div>
                   </div>
 
                   <div style={{ background: 'rgba(0,0,0,0.02)', padding: '12px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 700 }}>Net Cash Position:</span>
+                    <span style={{ fontSize: '12px', fontWeight: 700 }}>{t('finance.reports.overview.cards.netCashPosition')}</span>
                     <span style={{ fontSize: '15px', fontWeight: 900, color: (overview?.net_cashflow || 0) >= 0 ? '#10b981' : '#dc2626' }}>
-                      {(overview?.net_cashflow || 0) >= 0 ? '+' : ''}{fmt(overview?.net_cashflow)} EGP
+                      {(overview?.net_cashflow || 0) >= 0 ? '+' : ''}<span className="num-en">{fmt(overview?.net_cashflow)}</span> {t('common.currency', 'EGP')}
                     </span>
                   </div>
                 </div>
@@ -355,12 +381,12 @@ const Reports = ({ onSelectCustomer }) => {
                 {/* 2. Receivables Aging Distribution */}
                 <div style={cardBoxStyle}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                    <div style={{ fontWeight: 800, fontSize: '14px' }}>Receivables Aging Summary</div>
+                    <div style={{ fontWeight: 800, fontSize: '14px' }}>{t('finance.reports.overview.cards.agingSummary')}</div>
                     <button
                       onClick={() => setActiveReportTab('aging')}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: 800, color: 'var(--primary)' }}
                     >
-                      View Details →
+                      {t('finance.reports.overview.cards.viewDetails')}
                     </button>
                   </div>
 
@@ -370,7 +396,7 @@ const Reports = ({ onSelectCustomer }) => {
                       const pct = receivables_aging?.buckets?.total > 0 ? (amount / receivables_aging.buckets.total) * 100 : 0;
                       if (pct <= 0) return null;
                       return (
-                        <div key={bucket} style={{ width: `${pct}%`, background: AGING_COLORS[bucket] }} title={`${bucket}: ${fmt(amount)} EGP`} />
+                        <div key={bucket} style={{ width: `${pct}%`, background: AGING_COLORS[bucket] }} title={`${bucket}: ${fmt(amount)} ${t('common.currency', 'EGP')}`} />
                       );
                     })}
                   </div>
@@ -378,23 +404,23 @@ const Reports = ({ onSelectCustomer }) => {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '11px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: AGING_COLORS.current }} />
-                      <span style={{ color: 'var(--text-muted)' }}>Current:</span>
-                      <strong>{fmt(receivables_aging?.buckets?.current)}</strong>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('finance.reports.overview.cards.current')}</span>
+                      <strong><span className="num-en">{fmt(receivables_aging?.buckets?.current)}</span></strong>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: AGING_COLORS.days_1_30 }} />
-                      <span style={{ color: 'var(--text-muted)' }}>1–30d:</span>
-                      <strong>{fmt(receivables_aging?.buckets?.days_1_30)}</strong>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('finance.reports.overview.cards.days_1_30')}</span>
+                      <strong><span className="num-en">{fmt(receivables_aging?.buckets?.days_1_30)}</span></strong>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: AGING_COLORS.days_31_60 }} />
-                      <span style={{ color: 'var(--text-muted)' }}>31–60d:</span>
-                      <strong>{fmt(receivables_aging?.buckets?.days_31_60)}</strong>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('finance.reports.overview.cards.days_31_60')}</span>
+                      <strong><span className="num-en">{fmt(receivables_aging?.buckets?.days_31_60)}</span></strong>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: AGING_COLORS.days_90_plus }} />
-                      <span style={{ color: 'var(--text-muted)' }}>90d+:</span>
-                      <strong style={{ color: '#dc2626' }}>{fmt(receivables_aging?.buckets?.days_90_plus)}</strong>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('finance.reports.overview.cards.days_90_plus')}</span>
+                      <strong style={{ color: '#dc2626' }}><span className="num-en">{fmt(receivables_aging?.buckets?.days_90_plus)}</span></strong>
                     </div>
                   </div>
                 </div>
@@ -402,8 +428,10 @@ const Reports = ({ onSelectCustomer }) => {
                 {/* 3. Top Debtors Quick List */}
                 <div style={cardBoxStyle}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ fontWeight: 800, fontSize: '14px' }}>Top Outstanding Accounts</div>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{receivables_aging?.total_debtors_count || 0} Clients</span>
+                    <div style={{ fontWeight: 800, fontSize: '14px' }}>{t('finance.reports.overview.cards.topDebtors')}</div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      {t('finance.reports.overview.cards.clientsCount', { count: receivables_aging?.total_debtors_count || 0 })}
+                    </span>
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -423,19 +451,25 @@ const Reports = ({ onSelectCustomer }) => {
                       >
                         <div>
                           <div style={{ fontWeight: 700, fontSize: '12px' }}>{debtor.customer_name}</div>
-                          <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{debtor.invoice_count} unpaid invoices</div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                            {t('finance.reports.overview.cards.unpaidInvoices', { count: debtor.invoice_count })}
+                          </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 800, fontSize: '13px', color: '#ef4444' }}>{fmt(debtor.total_outstanding)} EGP</div>
+                        <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
+                          <div style={{ fontWeight: 800, fontSize: '13px', color: '#ef4444' }}>
+                            <span className="num-en">{fmt(debtor.total_outstanding)}</span> {t('common.currency', 'EGP')}
+                          </div>
                           {debtor.overdue_amount > 0 && (
-                            <div style={{ fontSize: '10px', color: '#dc2626' }}>Overdue: {fmt(debtor.overdue_amount)}</div>
+                            <div style={{ fontSize: '10px', color: '#dc2626' }}>
+                              {t('finance.reports.overview.cards.overdueDebtor', { amount: fmt(debtor.overdue_amount) })}
+                            </div>
                           )}
                         </div>
                       </div>
                     ))}
                     {(receivables_aging?.top_debtors || []).length === 0 && (
                       <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '12px' }}>
-                        All receivables settled! Zero outstanding.
+                        {t('finance.reports.overview.cards.zeroOutstanding')}
                       </div>
                     )}
                   </div>
@@ -451,27 +485,41 @@ const Reports = ({ onSelectCustomer }) => {
           {activeReportTab === 'sales' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={cardBoxStyle}>
-                <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800 }}>Invoice Status & Performance Breakdown</h3>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800 }}>
+                  {t('finance.reports.salesReport.title')}
+                </h3>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '24px' }}>
                   {(sales?.by_status || []).map(st => (
                     <div key={st.status} style={{ border: '1px solid var(--glass-border)', padding: '14px', borderRadius: '10px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{st.status}</div>
-                      <div style={{ fontSize: '20px', fontWeight: 900, margin: '4px 0' }}>{fmt(st.total_amount)} <span style={{ fontSize: '11px' }}>EGP</span></div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{st.count} Invoices</div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                        {t(`finance.customerAccounts.statuses.${st.status}`, st.status)}
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: 900, margin: '4px 0' }}>
+                        <span className="num-en">{fmt(st.total_amount)}</span> <span style={{ fontSize: '11px' }}>{t('common.currency', 'EGP')}</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {t('finance.reports.salesReport.invoicesCount', { count: st.count })}
+                      </div>
                     </div>
                   ))}
                 </div>
 
                 <div style={{ background: 'rgba(99,102,241,0.04)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: '10px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--primary)' }}>Overall Collection Rate</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Paid amount vs total billed for this period</div>
+                    <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--primary)' }}>
+                      {t('finance.reports.salesReport.overallRate')}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                      {t('finance.reports.salesReport.overallRateSub')}
+                    </div>
                   </div>
                   <div style={{ fontSize: '24px', fontWeight: 900, color: 'var(--primary)' }}>
-                    {overview?.total_invoiced > 0
-                      ? Math.round((overview.total_collected / overview.total_invoiced) * 100)
-                      : 0}%
+                    <span className="num-en">
+                      {overview?.total_invoiced > 0
+                        ? Math.round((overview.total_collected / overview.total_invoiced) * 100)
+                        : 0}
+                    </span>%
                   </div>
                 </div>
               </div>
@@ -487,20 +535,26 @@ const Reports = ({ onSelectCustomer }) => {
                 
                 {/* By Payment Method */}
                 <div style={cardBoxStyle}>
-                  <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800 }}>Collections by Payment Method</h3>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800 }}>
+                    {t('finance.reports.collectionsReport.byMethod')}
+                  </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {(collections?.by_method || []).map(m => {
                       const pct = collections.total_collected > 0 ? (m.total_amount / collections.total_collected) * 100 : 0;
                       return (
                         <div key={m.method}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '4px' }}>
-                            <span>{METHOD_LABELS[m.method] || m.method}</span>
-                            <span>{fmt(m.total_amount)} EGP ({Math.round(pct)}%)</span>
+                            <span>{t(`finance.treasury.methods.${m.method}`, m.method)}</span>
+                            <span>
+                              <span className="num-en">{fmt(m.total_amount)}</span> {t('common.currency', 'EGP')} (<span className="num-en">{Math.round(pct)}</span>%)
+                            </span>
                           </div>
                           <div style={{ height: '8px', borderRadius: '4px', background: 'var(--glass-border)', overflow: 'hidden' }}>
                             <div style={{ height: '100%', background: '#10b981', width: `${pct}%` }} />
                           </div>
-                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>{m.count} transactions</div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            {t('finance.reports.collectionsReport.transactionsCount', { count: m.count })}
+                          </div>
                         </div>
                       );
                     })}
@@ -509,17 +563,25 @@ const Reports = ({ onSelectCustomer }) => {
 
                 {/* Collections Trend */}
                 <div style={cardBoxStyle}>
-                  <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800 }}>Monthly Collections Trend</h3>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800 }}>
+                    {t('finance.reports.collectionsReport.trendTitle')}
+                  </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {(collections?.trend || []).map(tr => (
                       <div key={tr.period} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(0,0,0,0.02)', borderRadius: '8px' }}>
-                        <span style={{ fontWeight: 700, fontSize: '13px' }}>{tr.period}</span>
-                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tr.count} receipts</span>
-                        <strong style={{ color: '#10b981', fontSize: '14px' }}>{fmt(tr.total_amount)} EGP</strong>
+                        <span style={{ fontWeight: 700, fontSize: '13px' }}><span className="num-en">{tr.period}</span></span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          {t('finance.reports.collectionsReport.receiptsCount', { count: tr.count })}
+                        </span>
+                        <strong style={{ color: '#10b981', fontSize: '14px' }}>
+                          <span className="num-en">{fmt(tr.total_amount)}</span> {t('common.currency', 'EGP')}
+                        </strong>
                       </div>
                     ))}
                     {(collections?.trend || []).length === 0 && (
-                      <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>No collections in selected period</div>
+                      <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                        {t('finance.reports.collectionsReport.empty')}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -537,7 +599,9 @@ const Reports = ({ onSelectCustomer }) => {
                 
                 {/* By Category */}
                 <div style={cardBoxStyle}>
-                  <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800 }}>Expenses by Category</h3>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800 }}>
+                    {t('finance.reports.expensesReport.byCategory')}
+                  </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {(expenses?.by_category || []).map(cat => {
                       const pct = expenses.total_expenses > 0 ? (cat.total_amount / expenses.total_expenses) * 100 : 0;
@@ -545,12 +609,16 @@ const Reports = ({ onSelectCustomer }) => {
                         <div key={cat.category}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '4px' }}>
                             <span>{cat.category}</span>
-                            <span style={{ color: '#ef4444' }}>{fmt(cat.total_amount)} EGP ({Math.round(pct)}%)</span>
+                            <span style={{ color: '#ef4444' }}>
+                              <span className="num-en">{fmt(cat.total_amount)}</span> {t('common.currency', 'EGP')} (<span className="num-en">{Math.round(pct)}</span>%)
+                            </span>
                           </div>
                           <div style={{ height: '8px', borderRadius: '4px', background: 'var(--glass-border)', overflow: 'hidden' }}>
                             <div style={{ height: '100%', background: '#ef4444', width: `${pct}%` }} />
                           </div>
-                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>{cat.count} expenses</div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            {t('finance.reports.expensesReport.expensesCount', { count: cat.count })}
+                          </div>
                         </div>
                       );
                     })}
@@ -559,17 +627,25 @@ const Reports = ({ onSelectCustomer }) => {
 
                 {/* Expenses Trend */}
                 <div style={cardBoxStyle}>
-                  <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800 }}>Monthly Outflow Trend</h3>
+                  <h3 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800 }}>
+                    {t('finance.reports.expensesReport.trendTitle')}
+                  </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {(expenses?.trend || []).map(tr => (
                       <div key={tr.period} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(0,0,0,0.02)', borderRadius: '8px' }}>
-                        <span style={{ fontWeight: 700, fontSize: '13px' }}>{tr.period}</span>
-                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{tr.count} entries</span>
-                        <strong style={{ color: '#ef4444', fontSize: '14px' }}>{fmt(tr.total_amount)} EGP</strong>
+                        <span style={{ fontWeight: 700, fontSize: '13px' }}><span className="num-en">{tr.period}</span></span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          {t('finance.reports.expensesReport.entriesCount', { count: tr.count })}
+                        </span>
+                        <strong style={{ color: '#ef4444', fontSize: '14px' }}>
+                          <span className="num-en">{fmt(tr.total_amount)}</span> {t('common.currency', 'EGP')}
+                        </strong>
                       </div>
                     ))}
                     {(expenses?.trend || []).length === 0 && (
-                      <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>No expenses recorded in selected period</div>
+                      <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
+                        {t('finance.reports.expensesReport.empty')}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -587,15 +663,17 @@ const Reports = ({ onSelectCustomer }) => {
               {/* Aging 5 Buckets Strip */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
                 {[
-                  { label: 'Current (Not Due)', value: receivables_aging?.buckets?.current, color: AGING_COLORS.current },
-                  { label: '1–30 Days Overdue', value: receivables_aging?.buckets?.days_1_30, color: AGING_COLORS.days_1_30 },
-                  { label: '31–60 Days Overdue', value: receivables_aging?.buckets?.days_31_60, color: AGING_COLORS.days_31_60 },
-                  { label: '61–90 Days Overdue', value: receivables_aging?.buckets?.days_61_90, color: AGING_COLORS.days_61_90 },
-                  { label: '90+ Days Critical', value: receivables_aging?.buckets?.days_90_plus, color: AGING_COLORS.days_90_plus },
+                  { label: t('finance.reports.agingReport.currentNotDue'), value: receivables_aging?.buckets?.current, color: AGING_COLORS.current },
+                  { label: t('finance.reports.agingReport.days_1_30'),     value: receivables_aging?.buckets?.days_1_30, color: AGING_COLORS.days_1_30 },
+                  { label: t('finance.reports.agingReport.days_31_60'),    value: receivables_aging?.buckets?.days_31_60, color: AGING_COLORS.days_31_60 },
+                  { label: t('finance.reports.agingReport.days_61_90'),    value: receivables_aging?.buckets?.days_61_90, color: AGING_COLORS.days_61_90 },
+                  { label: t('finance.reports.agingReport.days_90_plus'),  value: receivables_aging?.buckets?.days_90_plus, color: AGING_COLORS.days_90_plus },
                 ].map(b => (
                   <div key={b.label} style={{ background: 'var(--bg-card)', border: `1.5px solid ${b.color}40`, borderRadius: '12px', padding: '14px 16px' }}>
                     <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', marginBottom: '4px' }}>{b.label}</div>
-                    <div style={{ fontSize: '20px', fontWeight: 900, color: b.color }}>{fmt(b.value)} <span style={{ fontSize: '10px' }}>EGP</span></div>
+                    <div style={{ fontSize: '20px', fontWeight: 900, color: b.color }}>
+                      <span className="num-en">{fmt(b.value)}</span> <span style={{ fontSize: '10px' }}>{t('common.currency', 'EGP')}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -604,19 +682,40 @@ const Reports = ({ onSelectCustomer }) => {
               <div style={cardBoxStyle}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800 }}>Clients with Outstanding Receivables</h3>
-                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>Click any client row to open their full statement</p>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800 }}>
+                      {t('finance.reports.agingReport.tableTitle')}
+                    </h3>
+                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+                      {t('finance.reports.agingReport.tableSubtitle')}
+                    </p>
                   </div>
-                  <span style={{ fontSize: '13px', fontWeight: 800 }}>Total: {fmt(receivables_aging?.buckets?.total)} EGP</span>
+                  <span style={{ fontSize: '13px', fontWeight: 800 }}>
+                    {t('finance.reports.agingReport.total', { amount: fmt(receivables_aging?.buckets?.total) })}
+                  </span>
                 </div>
 
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
-                        {['Customer Name', 'Phone', 'Unpaid Invoices', 'Total Outstanding', 'Overdue Amount', 'Action'].map((h, i) => (
-                          <th key={h} style={{ padding: '10px 14px', textAlign: i >= 3 ? 'right' : 'left', fontWeight: 800, color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', borderBottom: '1px solid var(--glass-border)' }}>
-                            {h}
+                        {[
+                          { key: 'customerName',     label: t('finance.reports.agingReport.table.customerName'),     numeric: false },
+                          { key: 'phone',            label: t('finance.reports.agingReport.table.phone'),            numeric: false },
+                          { key: 'unpaidInvoices',   label: t('finance.reports.agingReport.table.unpaidInvoices'),   numeric: false },
+                          { key: 'totalOutstanding', label: t('finance.reports.agingReport.table.totalOutstanding'), numeric: true },
+                          { key: 'overdueAmount',    label: t('finance.reports.agingReport.table.overdueAmount'),    numeric: true },
+                          { key: 'action',           label: t('finance.reports.agingReport.table.action'),           numeric: true },
+                        ].map(h => (
+                          <th key={h.key} style={{
+                            padding: '10px 14px',
+                            textAlign: h.numeric ? (isRTL ? 'left' : 'right') : (isRTL ? 'right' : 'left'),
+                            fontWeight: 800,
+                            color: 'var(--text-muted)',
+                            fontSize: '11px',
+                            textTransform: 'uppercase',
+                            borderBottom: '1px solid var(--glass-border)'
+                          }}>
+                            {h.label}
                           </th>
                         ))}
                       </tr>
@@ -631,15 +730,24 @@ const Reports = ({ onSelectCustomer }) => {
                           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         >
                           <td style={{ padding: '12px 14px', fontWeight: 700 }}>{debtor.customer_name}</td>
-                          <td style={{ padding: '12px 14px', color: 'var(--text-muted)' }}>{debtor.customer_phone || '—'}</td>
-                          <td style={{ padding: '12px 14px' }}>{debtor.invoice_count}</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, color: '#f59e0b' }}>{fmt(debtor.total_outstanding)} EGP</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 900, color: debtor.overdue_amount > 0 ? '#ef4444' : 'var(--text-muted)' }}>
-                            {debtor.overdue_amount > 0 ? `${fmt(debtor.overdue_amount)} EGP` : '—'}
+                          <td style={{ padding: '12px 14px', color: 'var(--text-muted)' }}>
+                            {debtor.customer_phone ? <span className="num-en" dir="ltr">{debtor.customer_phone}</span> : '—'}
                           </td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                          <td style={{ padding: '12px 14px' }}><span className="num-en">{debtor.invoice_count}</span></td>
+                          <td style={{ padding: '12px 14px', textAlign: isRTL ? 'left' : 'right', fontWeight: 800, color: '#f59e0b' }}>
+                            <span className="num-en">{fmt(debtor.total_outstanding)}</span> {t('common.currency', 'EGP')}
+                          </td>
+                          <td style={{ padding: '12px 14px', textAlign: isRTL ? 'left' : 'right', fontWeight: 900, color: debtor.overdue_amount > 0 ? '#ef4444' : 'var(--text-muted)' }}>
+                            {debtor.overdue_amount > 0 ? (
+                              <>
+                                <span className="num-en">{fmt(debtor.overdue_amount)}</span> {t('common.currency', 'EGP')}
+                              </>
+                            ) : '—'}
+                          </td>
+                          <td style={{ padding: '12px 14px', textAlign: isRTL ? 'left' : 'right' }}>
                             <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                              Statement <ChevronRight size={13} />
+                              {t('finance.reports.agingReport.table.statement')}{' '}
+                              <ChevronRight size={13} style={{ transform: isRTL ? 'scaleX(-1)' : 'none' }} />
                             </span>
                           </td>
                         </tr>
@@ -661,32 +769,58 @@ const Reports = ({ onSelectCustomer }) => {
               {/* Cashflow Summary Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px', padding: '18px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>Total Inflow (Collections)</div>
-                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#10b981', marginTop: '4px' }}>+{fmt(cashflow?.inflow)} EGP</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>
+                    {t('finance.reports.cashflowReport.inflow')}
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#10b981', marginTop: '4px' }}>
+                    +<span className="num-en">{fmt(cashflow?.inflow)}</span> {t('common.currency', 'EGP')}
+                  </div>
                 </div>
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px', padding: '18px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase' }}>Total Outflow (Expenses)</div>
-                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#ef4444', marginTop: '4px' }}>−{fmt(cashflow?.outflow)} EGP</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase' }}>
+                    {t('finance.reports.cashflowReport.outflow')}
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#ef4444', marginTop: '4px' }}>
+                    −<span className="num-en">{fmt(cashflow?.outflow)}</span> {t('common.currency', 'EGP')}
+                  </div>
                 </div>
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px', padding: '18px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Net Cash Position</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    {t('finance.reports.cashflowReport.netPosition')}
+                  </div>
                   <div style={{ fontSize: '24px', fontWeight: 900, color: (cashflow?.net || 0) >= 0 ? '#10b981' : '#dc2626', marginTop: '4px' }}>
-                    {(cashflow?.net || 0) >= 0 ? '+' : ''}{fmt(cashflow?.net)} EGP
+                    {(cashflow?.net || 0) >= 0 ? '+' : ''}<span className="num-en">{fmt(cashflow?.net)}</span> {t('common.currency', 'EGP')}
                   </div>
                 </div>
               </div>
 
               {/* By Treasury Account */}
               <div style={cardBoxStyle}>
-                <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800 }}>Cash Flow by Treasury Account (Cashboxes & Banks)</h3>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: 800 }}>
+                  {t('finance.reports.cashflowReport.treasuryBreakdown')}
+                </h3>
                 
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
-                        {['Account Name', 'Type', 'Inflow (+)', 'Outflow (−)', 'Net Change'].map((h, i) => (
-                          <th key={h} style={{ padding: '10px 14px', textAlign: i >= 2 ? 'right' : 'left', fontWeight: 800, color: 'var(--text-muted)', fontSize: '11px', textTransform: 'uppercase', borderBottom: '1px solid var(--glass-border)' }}>
-                            {h}
+                        {[
+                          { key: 'accountName', label: t('finance.reports.cashflowReport.table.accountName'), numeric: false },
+                          { key: 'type',        label: t('finance.reports.cashflowReport.table.type'),        numeric: false },
+                          { key: 'inflow',      label: t('finance.reports.cashflowReport.table.inflow'),      numeric: true },
+                          { key: 'outflow',     label: t('finance.reports.cashflowReport.table.outflow'),     numeric: true },
+                          { key: 'netChange',   label: t('finance.reports.cashflowReport.table.netChange'),   numeric: true },
+                        ].map(h => (
+                          <th key={h.key} style={{
+                            padding: '10px 14px',
+                            textAlign: h.numeric ? (isRTL ? 'left' : 'right') : (isRTL ? 'right' : 'left'),
+                            fontWeight: 800,
+                            color: 'var(--text-muted)',
+                            fontSize: '11px',
+                            textTransform: 'uppercase',
+                            borderBottom: '1px solid var(--glass-border)'
+                          }}>
+                            {h.label}
                           </th>
                         ))}
                       </tr>
@@ -696,24 +830,28 @@ const Reports = ({ onSelectCustomer }) => {
                         <tr key={acc.id} style={{ borderBottom: '1px solid var(--glass-border)' }}>
                           <td style={{ padding: '12px 14px', fontWeight: 700 }}>
                             {acc.name}
-                            {acc.bank_name && <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '6px' }}>({acc.bank_name})</span>}
+                            {acc.bank_name && <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginInlineStart: '6px' }}>({acc.bank_name})</span>}
                           </td>
                           <td style={{ padding: '12px 14px' }}>
                             <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '12px', background: acc.type === 'bank' ? 'rgba(59,130,246,0.1)' : 'rgba(16,185,129,0.1)', color: acc.type === 'bank' ? '#3b82f6' : '#10b981' }}>
-                              {acc.type === 'bank' ? 'Bank' : 'Cashbox'}
+                              {acc.type === 'bank' ? t('finance.reports.cashflowReport.table.bank') : t('finance.reports.cashflowReport.table.cashbox')}
                             </span>
                           </td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, color: '#10b981' }}>+{fmt(acc.inflow)} EGP</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 800, color: '#ef4444' }}>−{fmt(acc.outflow)} EGP</td>
-                          <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 900, color: acc.net >= 0 ? '#10b981' : '#dc2626' }}>
-                            {acc.net >= 0 ? '+' : ''}{fmt(acc.net)} EGP
+                          <td style={{ padding: '12px 14px', textAlign: isRTL ? 'left' : 'right', fontWeight: 800, color: '#10b981' }}>
+                            +<span className="num-en">{fmt(acc.inflow)}</span> {t('common.currency', 'EGP')}
+                          </td>
+                          <td style={{ padding: '12px 14px', textAlign: isRTL ? 'left' : 'right', fontWeight: 800, color: '#ef4444' }}>
+                            −<span className="num-en">{fmt(acc.outflow)}</span> {t('common.currency', 'EGP')}
+                          </td>
+                          <td style={{ padding: '12px 14px', textAlign: isRTL ? 'left' : 'right', fontWeight: 900, color: acc.net >= 0 ? '#10b981' : '#dc2626' }}>
+                            {(acc.net >= 0 ? '+' : '')}<span className="num-en">{fmt(acc.net)}</span> {t('common.currency', 'EGP')}
                           </td>
                         </tr>
                       ))}
                       {(cashflow?.by_treasury_account || []).length === 0 && (
                         <tr>
                           <td colSpan={5} style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>
-                            No movements across treasury accounts during this period
+                            {t('finance.reports.cashflowReport.table.empty')}
                           </td>
                         </tr>
                       )}
