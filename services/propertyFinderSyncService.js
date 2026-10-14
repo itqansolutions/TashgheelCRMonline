@@ -739,45 +739,56 @@ async function pullLeads(tenantId, { fullBackfill = false } = {}) {
   let page = 1;
   let allPagesRead = true;
 
-  while (true) {
-    if (page > MAX_LEAD_PAGES) { allPagesRead = false; break; }
-    const response = await client.getLeads({ page, perPage: 50, createdAtFrom });
-    const leads = PropertyFinderClient.extractLeads(response);
-    stats.pages++;
-    stats.fetched += leads.length;
+  try {
+    while (true) {
+      if (page > MAX_LEAD_PAGES) { allPagesRead = false; break; }
+      const response = await client.getLeads({ page, perPage: 50, createdAtFrom });
+      const leads = PropertyFinderClient.extractLeads(response);
+      stats.pages++;
+      stats.fetched += leads.length;
 
-    for (const lead of leads) {
+      for (const lead of leads) {
+        try {
+          const r = await ingestLead(tenantId, lead);
+          if (r.status === 'created') stats.created++;
+          else if (r.status === 'duplicate') stats.duplicates++;
+          else stats.skipped++;
+        } catch (e) {
+          stats.errors.push({ leadId: lead?.id || lead?.leadId || null, error: e.message });
+        }
+      }
+
+      if (!PropertyFinderClient.hasNextPage(response, page, leads.length, 50)) break;
+      page++;
+    }
+
+    // Advance the watermark only if every page was read and nothing failed, so failures are retried next run.
+    if (allPagesRead && stats.errors.length === 0) {
       try {
-        const r = await ingestLead(tenantId, lead);
-        if (r.status === 'created') stats.created++;
-        else if (r.status === 'duplicate') stats.duplicates++;
-        else stats.skipped++;
+        await db.query(
+          `UPDATE property_finder_settings SET last_lead_sync_at = $1, updated_at = CURRENT_TIMESTAMP WHERE tenant_id::text = $2::text`,
+          [startedAt.toISOString(), tenantId]
+        );
       } catch (e) {
-        stats.errors.push({ leadId: lead?.id || lead?.leadId || null, error: e.message });
+        stats.watermarkWarning = 'last_lead_sync_at column missing: run migrations/023_pf_lead_sync_watermark.sql';
       }
     }
 
-    if (!PropertyFinderClient.hasNextPage(response, page, leads.length, 50)) break;
-    page++;
+    await logIntegrationEvent(tenantId, 'pull_leads',
+      `Lead poll: ${stats.fetched} fetched, ${stats.created} created, ${stats.duplicates} duplicates, ${stats.errors.length} errors.`,
+      { ...stats, errors: stats.errors.slice(0, 10) }, stats.errors.length ? 'warn' : 'info');
+
+    return stats;
+  } catch (err) {
+    await logIntegrationEvent(
+      tenantId,
+      'pull_leads_failed',
+      `Lead poll failed: ${err.message}`,
+      err.details || { error: err.message, status: err.status },
+      'error'
+    );
+    throw err;
   }
-
-  // Advance the watermark only if every page was read and nothing failed, so failures are retried next run.
-  if (allPagesRead && stats.errors.length === 0) {
-    try {
-      await db.query(
-        `UPDATE property_finder_settings SET last_lead_sync_at = $1, updated_at = CURRENT_TIMESTAMP WHERE tenant_id::text = $2::text`,
-        [startedAt.toISOString(), tenantId]
-      );
-    } catch (e) {
-      stats.watermarkWarning = 'last_lead_sync_at column missing: run migrations/023_pf_lead_sync_watermark.sql';
-    }
-  }
-
-  await logIntegrationEvent(tenantId, 'pull_leads',
-    `Lead poll: ${stats.fetched} fetched, ${stats.created} created, ${stats.duplicates} duplicates, ${stats.errors.length} errors.`,
-    { ...stats, errors: stats.errors.slice(0, 10) }, stats.errors.length ? 'warn' : 'info');
-
-  return stats;
 }
 
 

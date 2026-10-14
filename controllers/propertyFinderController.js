@@ -323,7 +323,7 @@ function mapSyncErrorToResponse(err, res, context = 'Operation') {
   if (err.status && typeof err.status === 'number' && err.status >= 400 && err.status < 600) {
     return res.status(err.status).json({
       status: 'error',
-      code: 'PROVIDER_API_ERROR',
+      code: err.code || 'PROVIDER_API_ERROR',
       message: msg,
       details: err.details || null
     });

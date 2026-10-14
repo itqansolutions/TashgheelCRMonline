@@ -545,5 +545,62 @@ test('Property Finder Enterprise Integration Test Suite', async (suite) => {
     assert.equal(responseData.data.environment, 'production', 'environment was preserved as production');
     assert.ok(savedRow.api_key_encrypted, 'Credentials were not wiped during partial sync settings save');
   });
+
+  // --------------------------------------------------------------------------
+  // 11. ATLAS RFC 7807 & 403 TRACE_ID ERROR PARSING & SANITIZATION
+  // --------------------------------------------------------------------------
+  await suite.test('11. Atlas 403 Error Parsing: Captures Code, Detail, Trace ID, and Redacts Secrets', async () => {
+    const rawSecret = 'super_secret_raw_pass_123';
+    const client = new PropertyFinderClient({
+      apiKey: 'pk_live_12345678',
+      apiSecret: rawSecret,
+      environment: 'production',
+      countryCode: 'EG',
+      tenantId: 'tenant-diag-123'
+    });
+
+    const mockAxios403Error = {
+      message: 'Request failed with status code 403',
+      response: {
+        status: 403,
+        headers: {
+          'x-trace-id': 'trace-header-fallback-999'
+        },
+        data: {
+          code: 'common-http-403-forbidden',
+          detail: `User with secret ${rawSecret} is not authorized to access leads.`,
+          attributes: {
+            trace_id: 'pf_atlas_trace_abc_789'
+          }
+        }
+      }
+    };
+
+    let caughtError = null;
+    try {
+      client._handleApiError(mockAxios403Error, 'GET /leads');
+    } catch (err) {
+      caughtError = err;
+    }
+
+    assert.ok(caughtError, 'Must throw structured customError');
+    assert.equal(caughtError.status, 403);
+    assert.equal(caughtError.code, 'common-http-403-forbidden');
+    assert.equal(caughtError.traceId, 'pf_atlas_trace_abc_789');
+
+    // Details payload assertions
+    assert.equal(caughtError.details.status, 403);
+    assert.equal(caughtError.details.code, 'common-http-403-forbidden');
+    assert.equal(caughtError.details.trace_id, 'pf_atlas_trace_abc_789');
+    assert.equal(caughtError.details.environment, 'production');
+    assert.equal(caughtError.details.endpoint, 'GET /leads');
+    assert.equal(caughtError.details.tenant_id, 'tenant-diag-123');
+
+    // Zero secret leakage assertions
+    assert.ok(!caughtError.message.includes(rawSecret), 'Raw secret must never leak in error message');
+    assert.ok(caughtError.message.includes('[REDACTED_SECRET]'), 'Secret must be replaced with [REDACTED_SECRET]');
+    assert.ok(!JSON.stringify(caughtError.details).includes(rawSecret), 'Raw secret must not leak in details JSON');
+    assert.ok(JSON.stringify(caughtError.details).includes('[REDACTED_SECRET]'));
+  });
 });
 

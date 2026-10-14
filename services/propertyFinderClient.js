@@ -396,38 +396,107 @@ class PropertyFinderClient {
   // --------------------------------------------------------------------------
 
   /**
+   * Sanitizes objects and strings to prevent API secrets, API keys, or tokens from leaking.
+   */
+  _sanitizeForLogging(data) {
+    if (data === null || data === undefined) return null;
+    try {
+      let str = typeof data === 'string' ? data : JSON.stringify(data);
+      if (this.apiSecret) {
+        str = str.replace(new RegExp(this.apiSecret, 'g'), '[REDACTED_SECRET]');
+      }
+      if (this.apiKey) {
+        str = str.replace(new RegExp(this.apiKey, 'g'), '[REDACTED_KEY]');
+      }
+      str = str.replace(/Bearer\s+[A-Za-z0-9\-_.]+/gi, 'Bearer [REDACTED_TOKEN]');
+      return typeof data === 'string' ? str : JSON.parse(str);
+    } catch (_) {
+      return String(data);
+    }
+  }
+
+  /**
    * Parses RFC 7807 problem details or standard HTTP errors into structured error.
-   * Strips out any sensitive tokens or secrets before throwing.
+   * Extracts error code, detail, and trace_id without sensitive token or secret leakage.
    */
   _handleApiError(err, context = 'API Call') {
-    let message = err.message || 'Unknown network error';
-    let statusCode = err.response?.status || 500;
-    let details = null;
+    const statusCode = err.response?.status || 500;
+    const rawData = err.response?.data;
+    const headers = err.response?.headers || {};
 
-    if (err.response?.data) {
-      const data = err.response.data;
-      // RFC 7807 problem details
-      if (data.title || data.detail) {
-        message = data.detail || data.title;
-        details = data.invalid_params || data.errors || null;
-      } else if (data.message) {
-        message = data.message;
-      } else if (data.error_description || data.error) {
-        message = data.error_description || data.error;
+    let code = null;
+    let detail = null;
+    let traceId = null;
+
+    if (rawData && typeof rawData === 'object') {
+      // 1. Direct fields: code, detail, attributes.trace_id (Property Finder Atlas API pattern)
+      code = rawData.code || rawData.errorCode || rawData.error || null;
+      detail = rawData.detail || rawData.message || rawData.title || rawData.error_description || null;
+      traceId = rawData.attributes?.trace_id || rawData.trace_id || rawData.traceId || null;
+
+      // 2. Nested JSON:API / RFC 7807 errors array
+      if (Array.isArray(rawData.errors) && rawData.errors.length > 0) {
+        const firstErr = rawData.errors[0];
+        if (firstErr && typeof firstErr === 'object') {
+          code = code || firstErr.code || firstErr.title || null;
+          detail = detail || firstErr.detail || firstErr.message || null;
+          traceId = traceId || firstErr.attributes?.trace_id || firstErr.trace_id || null;
+        }
       }
+    } else if (typeof rawData === 'string' && rawData.trim()) {
+      detail = rawData.slice(0, 500);
     }
 
-    // Safety: ensure API secret and access tokens are never part of error messages
-    if (this.apiSecret) {
-      message = message.replace(new RegExp(this.apiSecret, 'g'), '[REDACTED_SECRET]');
-    }
-    if (this.apiKey) {
-      message = message.replace(new RegExp(this.apiKey, 'g'), '[REDACTED_KEY]');
-    }
+    // Header fallbacks for trace ID
+    traceId = traceId || headers['x-trace-id'] || headers['x-request-id'] || headers['x-amzn-trace-id'] || null;
 
-    const customError = new Error(`[Property Finder ${context}] ${message} (Status: ${statusCode})`);
+    // Clean human-readable message and detail (sanitized against secrets)
+    const cleanDetail = this._sanitizeForLogging(detail);
+    const cleanErrMessage = this._sanitizeForLogging(err.message);
+    const baseMessage = cleanDetail || cleanErrMessage || `Request failed with status code ${statusCode}`;
+
+    // Sanitized response body for deep diagnostics
+    const sanitizedBody = this._sanitizeForLogging(rawData);
+
+    // Build structured details payload
+    const structuredDetails = {
+      status: statusCode,
+      endpoint: context,
+      environment: this.environment,
+      country_code: this.countryCode,
+      tenant_id: this.tenantId,
+      code: code || `HTTP_${statusCode}`,
+      detail: cleanDetail || baseMessage,
+      trace_id: traceId || null,
+      auth_header_sent: true,
+      response_body: sanitizedBody
+    };
+
+    // Construct informative, user-facing error message
+    let formattedMessage = `[Property Finder ${context}] (${this.environment})`;
+    if (code) formattedMessage += ` [${code}]`;
+    formattedMessage += `: ${baseMessage}`;
+    if (traceId) formattedMessage += ` (trace_id: ${traceId})`;
+    formattedMessage += ` (Status: ${statusCode})`;
+
+    // Sanitize the formatted message itself
+    formattedMessage = this._sanitizeForLogging(formattedMessage);
+
+    const customError = new Error(formattedMessage);
     customError.status = statusCode;
-    customError.details = details;
+    customError.details = structuredDetails;
+    customError.code = code || `HTTP_${statusCode}`;
+    customError.traceId = traceId || null;
+
+    console.error(`🚨 ${formattedMessage}`, {
+      status: statusCode,
+      endpoint: context,
+      environment: this.environment,
+      code,
+      trace_id: traceId,
+      response: sanitizedBody
+    });
+
     throw customError;
   }
 
