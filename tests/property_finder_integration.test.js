@@ -162,6 +162,7 @@ test('Property Finder Enterprise Integration Test Suite', async (suite) => {
     // ingestLead runs inside a transaction on a pooled client: route it through the same mock (never the real pool).
     db.connect = async () => ({ query: (sql, params) => db.query(sql, params), release() {} });
     db.query = async (sql, params) => {
+      if (sql.includes('FROM branches')) return { rows: [{ id: 'branch-1' }] };
       if (sql.includes('SELECT * FROM property_finder_lead_mappings')) {
         const existing = leadMappings.filter(m => m.external_lead_id === params[1]);
         return { rows: existing };

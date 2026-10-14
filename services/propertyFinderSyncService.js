@@ -444,6 +444,37 @@ async function unpublishUnit(tenantId, unitId) {
 const LEAD_OVERLAP_MS = 60 * 60 * 1000; // re-read the last hour on every poll; external-ID dedup makes this safe
 const MAX_LEAD_PAGES = 200;              // runaway-pagination guard (200 * 50 = 10k leads per run)
 
+/**
+ * Resolve the branch an imported lead belongs to.
+ *
+ * customers.branch_id (and deals.branch_id) are NOT NULL in the CRM schema, and normal CRM creation takes the
+ * branch from middleware/branchScope.js: x-branch-id header -> the user's user_branches -> the tenant's MAIN branch.
+ * A Property Finder poll/webhook has no logged-in user or header, so the only authoritative tier that applies is the
+ * tenant's main branch (branches.is_main = true), looked up strictly WITHIN the tenant.
+ *
+ * Unlike branchScope this NEVER auto-creates a branch and NEVER picks an arbitrary one: if the tenant has no main
+ * branch we raise a configuration error so nothing is written under a wrong branch.
+ */
+async function resolveLeadBranchId(q, tenantId) {
+  const res = await q(
+    `SELECT id FROM branches
+      WHERE tenant_id::text = $1::text AND is_main = true
+      ORDER BY created_at ASC NULLS LAST, id::text ASC
+      LIMIT 1`,
+    [tenantId]
+  );
+  const branchId = res.rows[0]?.id;
+  if (!branchId) {
+    const err = new Error(
+      'Property Finder lead import requires a branch, but this organization has no main branch configured. ' +
+      'Create or restore the main branch in Branch settings, then run the sync again.'
+    );
+    err.code = 'PF_BRANCH_UNRESOLVED';
+    throw err;
+  }
+  return branchId;
+}
+
 const pick = (...vals) => {
   for (const v of vals) {
     if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
@@ -554,6 +585,9 @@ async function ingestLead(tenantId, rawLead) {
       return { status: 'skipped', reason: 'lead_sync_disabled', leadId: extLeadId };
     }
 
+    // Branch (NOT NULL on customers/deals): resolved per tenant BEFORE any write; throws PF_BRANCH_UNRESOLVED if none.
+    const branchId = await resolveLeadBranchId(q, tenantId);
+
     // Lock 2: the contact (phone and/or email), sorted for a stable acquisition order
     const contactKeys = [contactPhone && `pf:contact:${tenantId}:p:${contactPhone}`,
       contactEmail && `pf:contact:${tenantId}:e:${contactEmail}`].filter(Boolean).sort();
@@ -626,12 +660,12 @@ async function ingestLead(tenantId, rawLead) {
     if (!customerId) {
       const custInsert = await q(
         `INSERT INTO customers (
-          tenant_id, name, phone, email, source, source_id, assigned_to, status, notes
+          tenant_id, name, phone, email, source, source_id, assigned_to, status, notes, branch_id
          ) VALUES (
-          $1::uuid, $2, $3, $4, 'Property Finder', $5, $6, 'lead', $7
+          $1::uuid, $2, $3, $4, 'Property Finder', $5, $6, 'lead', $7, $8
          ) RETURNING id`,
         [tenantId, contactName, contactPhone || null, contactEmail || null, sourceId || null,
-          settings.default_assigned_to || null, noteLine]
+          settings.default_assigned_to || null, noteLine, branchId]
       );
       customerId = custInsert.rows[0].id;
       customerCreated = true;
@@ -680,11 +714,12 @@ async function ingestLead(tenantId, rawLead) {
         }
       }
       const dealIns = await q(
-        `INSERT INTO deals (title, value, pipeline_stage, client_id, assigned_to, tenant_id, unit_id, source_type, source_id, custom_fields)
-         VALUES ($1, $2, $3, $4, $5, $6::uuid, $7, 'property_finder', $8, $9) RETURNING id`,
+        `INSERT INTO deals (title, value, pipeline_stage, client_id, assigned_to, tenant_id, unit_id, source_type, source_id, custom_fields, branch_id)
+         VALUES ($1, $2, $3, $4, $5, $6::uuid, $7, 'property_finder', $8, $9, $10) RETURNING id`,
         [dealTitle, dealValue, stage, customerId, settings.default_assigned_to || null, tenantId,
           isRealEstate ? (associatedUnitId ? String(associatedUnitId) : null) : null, extLeadId,
-          JSON.stringify({ channel, lead_type: n.leadType, pf_listing_id: extListingId, pf_project_id: n.externalProjectId })]
+          JSON.stringify({ channel, lead_type: n.leadType, pf_listing_id: extListingId, pf_project_id: n.externalProjectId }),
+          branchId]
       );
       dealId = dealIns.rows[0]?.id || null;
     }
@@ -754,6 +789,8 @@ async function pullLeads(tenantId, { fullBackfill = false } = {}) {
           else if (r.status === 'duplicate') stats.duplicates++;
           else stats.skipped++;
         } catch (e) {
+          // Tenant-level configuration problem (no main branch): every lead would fail the same way. Abort the run.
+          if (e.code === 'PF_BRANCH_UNRESOLVED') throw e;
           stats.errors.push({ leadId: lead?.id || lead?.leadId || null, error: e.message });
         }
       }

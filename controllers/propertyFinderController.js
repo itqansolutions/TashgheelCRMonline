@@ -305,6 +305,14 @@ exports.disconnect = async (req, res) => {
 function mapSyncErrorToResponse(err, res, context = 'Operation') {
   const msg = err.message || '';
 
+  if (err.code === 'PF_BRANCH_UNRESOLVED') {
+    return res.status(400).json({
+      status: 'error',
+      code: 'INTEGRATION_PRECONDITION_FAILED',
+      message: msg
+    });
+  }
+
   // Configuration & Precondition checks (Client/Tenant configuration error)
   if (
     msg.includes('currently disabled') ||

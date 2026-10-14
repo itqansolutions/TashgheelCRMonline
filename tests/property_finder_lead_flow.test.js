@@ -23,11 +23,14 @@ const originalAxiosPost = axios.post;
 
 function makeFakeDb() {
   const s = {
-    customers: [], deals: [], leadMaps: [], listingMaps: [], sources: [], events: [], webhookEvents: [],
+    customers: [], deals: [], leadMaps: [], listingMaps: [], sources: [], events: [], webhookEvents: [], branches: [],
     settings: {}, templates: {}, units: {}, watermarkWrites: [], lockLog: [], failNext: null, seq: 1
   };
   const q = async (sql, p = []) => {
     if (/whatsapp_/i.test(sql)) throw new Error('Lead flow must not touch WhatsApp conversation tables');
+    if (sql.includes('FROM branches')) {
+      return { rows: s.branches.filter(b => b.tenant === p[0] && b.is_main).map(b => ({ id: b.id })) };
+    }
     if (sql.includes('INSERT INTO property_finder_event_logs')) { s.events.push({ type: p[1], sev: p[2] }); return { rows: [] }; }
     if (sql.includes('SELECT webhook_secret_encrypted, is_enabled FROM property_finder_settings')) {
       const st = s.settings[p[0]]; return { rows: st ? [st] : [] };
@@ -63,7 +66,7 @@ function makeFakeDb() {
       return { rows: [] };
     }
     if (sql.includes('INSERT INTO customers')) {
-      const c = { id: s.seq++, tenant: p[0], name: p[1], phone: p[2], email: p[3], source: 'Property Finder', source_id: p[4], status: 'lead', assigned_to: p[5], notes: p[6] };
+      const c = { id: s.seq++, tenant: p[0], name: p[1], phone: p[2], email: p[3], source: 'Property Finder', source_id: p[4], status: 'lead', assigned_to: p[5], notes: p[6], branch_id: p[7] };
       s.customers.push(c); return { rows: [{ id: c.id }] };
     }
     if (sql.includes('SELECT id FROM deals')) { return { rows: s.deals.filter(d => d.tenant === p[0] && d.source_type === 'property_finder' && d.source_id === p[1]) }; }
@@ -73,7 +76,7 @@ function makeFakeDb() {
     }
     if (sql.includes('INSERT INTO deals')) {
       if (s.failNext === 'deals') { s.failNext = null; throw new Error('simulated deal insert failure'); }
-      const d = { id: s.seq++, title: p[0], value: p[1], pipeline_stage: p[2], client_id: p[3], assigned_to: p[4], tenant: p[5], unit_id: p[6], source_type: 'property_finder', source_id: p[7], custom_fields: JSON.parse(p[8]) };
+      const d = { id: s.seq++, title: p[0], value: p[1], pipeline_stage: p[2], client_id: p[3], assigned_to: p[4], tenant: p[5], unit_id: p[6], source_type: 'property_finder', source_id: p[7], custom_fields: JSON.parse(p[8]), branch_id: p[9] };
       s.deals.push(d); return { rows: [{ id: d.id }] };
     }
     if (sql.includes('SELECT * FROM property_finder_webhook_events')) {
@@ -125,7 +128,8 @@ function makeFakeDb() {
   return { s, q, connect };
 }
 
-function seedTenant(s, tenant, { template = 'real_estate', secret = null, leadSync = true } = {}) {
+function seedTenant(s, tenant, { template = 'real_estate', secret = null, leadSync = true, branch = true } = {}) {
+  if (branch) s.branches.push({ id: 'branch-' + tenant.slice(0, 4), tenant, is_main: true });
   s.settings[tenant] = {
     tenant_id: tenant, is_enabled: true, lead_sync_enabled: leadSync, environment: 'sandbox', country_code: 'EG',
     api_key_encrypted: encrypt('key_' + tenant.slice(0, 4)), api_secret_encrypted: encrypt('secret_' + tenant.slice(0, 4)),
@@ -451,4 +455,57 @@ test('Client: GET request never carries a body (data:null would send "null", Con
   } finally {
     axios.defaults.adapter = prevAdapter;
   }
+});
+
+// ---- branch_id resolution (customers.branch_id / deals.branch_id are NOT NULL in production) ----
+
+test('Branch: lead is created under the tenant MAIN branch (customer and deal), never another tenant branch', async () => {
+  const { s, q } = makeFakeDb(); db.query = q; seedTenant(s, TA); seedTenant(s, TB);
+  const r = await svc.ingestLead(TA, { id: 'b1', phone: '+2012', name: 'Sara' });
+  assert.equal(r.status, 'created');
+  const tenantABranch = s.branches.find(b => b.tenant === TA).id;
+  assert.equal(s.customers[0].branch_id, tenantABranch);
+  assert.equal(s.deals[0].branch_id, tenantABranch);
+  assert.notEqual(s.customers[0].branch_id, s.branches.find(b => b.tenant === TB).id);
+});
+
+test('Branch: tenant with NO main branch fails safely with a config error; nothing is written', async () => {
+  const { s, q } = makeFakeDb(); db.query = q; seedTenant(s, TA, { branch: false });
+  await assert.rejects(() => svc.ingestLead(TA, { id: 'nb1', phone: '+2013' }),
+    (e) => e.code === 'PF_BRANCH_UNRESOLVED' && /main branch/.test(e.message));
+  assert.equal(s.customers.length, 0); assert.equal(s.deals.length, 0); assert.equal(s.leadMaps.length, 0);
+  assert.equal(s.sources.length, 0, 'no side-effect rows (e.g. lead source) before the branch is known');
+});
+
+test('Branch: a branch that belongs to ANOTHER tenant is never used', async () => {
+  const { s, q } = makeFakeDb(); db.query = q;
+  seedTenant(s, TA, { branch: false }); seedTenant(s, TB); // only tenant B has a main branch
+  await assert.rejects(() => svc.ingestLead(TA, { id: 'x1', phone: '+2014' }), (e) => e.code === 'PF_BRANCH_UNRESOLVED');
+  assert.equal(s.customers.length, 0, "tenant A must not borrow tenant B's branch");
+  // tenant B still works and uses its own branch
+  const rb = await svc.ingestLead(TB, { id: 'x1', phone: '+2014' });
+  assert.equal(rb.status, 'created');
+  assert.equal(s.customers[0].branch_id, s.branches.find(b => b.tenant === TB).id);
+});
+
+test('Branch: pullLeads aborts on the first missing-branch error (no 1,726 identical failures) and keeps the watermark', async () => {
+  const { s, q } = makeFakeDb(); db.query = q; seedTenant(s, TA, { branch: false });
+  let getLeadsCalls = 0;
+  PropertyFinderClient.prototype.getLeads = async () => { getLeadsCalls++; return { data: [{ id: 'p1', phone: '1' }, { id: 'p2', phone: '2' }, { id: 'p3', phone: '3' }], pagination: { totalPages: 5 } }; };
+  await assert.rejects(() => svc.pullLeads(TA), (e) => e.code === 'PF_BRANCH_UNRESOLVED');
+  assert.equal(getLeadsCalls, 1, 'must stop fetching further pages');
+  assert.equal(s.customers.length, 0);
+  assert.equal(s.watermarkWrites.length, 0, 'watermark must not advance on a failed run');
+});
+
+test('Branch: duplicates stay idempotent with branches, and a failed deal insert rolls back customer + mapping', async () => {
+  const { s, q } = makeFakeDb(); db.query = q; seedTenant(s, TA);
+  s.failNext = 'deals';
+  await assert.rejects(() => svc.ingestLead(TA, { id: 'rb1', phone: '+2015' }), /simulated deal insert failure/);
+  assert.equal(s.customers.length, 0); assert.equal(s.leadMaps.length, 0); assert.equal(s.deals.length, 0);
+  const ok = await svc.ingestLead(TA, { id: 'rb1', phone: '+2015' });
+  assert.equal(ok.status, 'created');
+  const dup = await svc.ingestLead(TA, { id: 'rb1', phone: '+2015' });
+  assert.equal(dup.status, 'duplicate');
+  assert.equal(s.customers.length, 1); assert.equal(s.deals.length, 1);
 });
