@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { safeArray } from '../../utils/dataUtils';
+import { useLanguage } from '../../context/LanguageContext';
 
 export const formatN2 = (val) => {
     if (val === '' || val === null || val === undefined) return '';
@@ -100,7 +101,7 @@ const UnitsRegistry = () => {
             const res = await api.get('/re-units');
             setUnits(res.data.data);
         } catch (err) {
-            toast.error('Failed to load units inventory');
+            toast.error(t('realEstate.unitsRegistry.toastLoadUnitsError'));
         } finally {
             setLoading(false);
         }
@@ -110,16 +111,16 @@ const UnitsRegistry = () => {
         try {
             const res = await api.post(`/re-units/${unitId}/extend-reservation`, { extensionHours: hours });
             if (res.data?.success) {
-                toast.success(`Reservation extended by ${hours}h`);
+                toast.success(t('realEstate.unitsRegistry.toastExtendSuccess', { hours }));
                 if (res.data.data) {
                     setSelectedUnit(prev => prev ? { ...prev, ...res.data.data } : null);
                 }
                 fetchUnits();
             } else {
-                toast.error(res.data?.message || 'Failed to extend reservation');
+                toast.error(res.data?.message || t('realEstate.unitsRegistry.toastExtendError'));
             }
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Error extending reservation');
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastExtendError'));
         }
     };
 
@@ -132,7 +133,7 @@ const UnitsRegistry = () => {
             const res = await api.get(`/re-units/match-unit/${unit.id}`);
             setMatchedBuyersList(res.data?.data?.matches || []);
         } catch(err) {
-            toast.error(err.response?.data?.message || 'Failed to match buyer leads');
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastMatchBuyersError'));
         } finally {
             setLoadingMatchedBuyers(false);
         }
@@ -184,13 +185,13 @@ const UnitsRegistry = () => {
     const handleCreateDeveloper = async (e) => {
         e.preventDefault();
         if (!newDevForm.name.trim()) {
-            toast.error('Developer name is required');
+            toast.error(t('realEstate.unitsRegistry.toastDevNameRequired'));
             return;
         }
         setCreatingDev(true);
         try {
             const res = await api.post('/re-hierarchy/developers', newDevForm);
-            toast.success(`Developer "${newDevForm.name}" created!`);
+            toast.success(t('realEstate.unitsRegistry.toastDevCreated', { name: newDevForm.name }));
             const createdDev = res.data?.data;
             await fetchHierarchy();
             if (createdDev && createdDev.id) {
@@ -199,7 +200,7 @@ const UnitsRegistry = () => {
             setNewDevForm({ name: '', contact_person: '', phone: '', email: '' });
             setShowQuickDevModal(false);
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to create developer');
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastDevCreateError'));
         } finally {
             setCreatingDev(false);
         }
@@ -208,7 +209,7 @@ const UnitsRegistry = () => {
     const handleCreateProject = async (e) => {
         e.preventDefault();
         if (!newProjForm.name.trim()) {
-            toast.error('Project name is required');
+            toast.error(t('realEstate.unitsRegistry.toastProjNameRequired'));
             return;
         }
         setCreatingProj(true);
@@ -220,7 +221,7 @@ const UnitsRegistry = () => {
                 description: newProjForm.description || ''
             };
             const res = await api.post('/re-hierarchy/projects', payload);
-            toast.success(`Project "${newProjForm.name}" created!`);
+            toast.success(t('realEstate.unitsRegistry.toastProjCreated', { name: newProjForm.name }));
             const createdProj = res.data?.data;
             await fetchHierarchy();
             if (createdProj && createdProj.id) {
@@ -234,31 +235,31 @@ const UnitsRegistry = () => {
             setNewProjForm({ name: '', developer_id: '', location: '', description: '' });
             setShowQuickProjModal(false);
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to create project');
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastProjCreateError'));
         } finally {
             setCreatingProj(false);
         }
     };
 
     const handleDeleteDeveloper = async (id, name) => {
-        if (!window.confirm(`Delete developer "${name}"? Existing projects will be unlinked.`)) return;
+        if (!window.confirm(t('realEstate.unitsRegistry.confirmDeleteDev', { name }))) return;
         try {
             await api.delete(`/re-hierarchy/developers/${id}`);
-            toast.success('Developer deleted');
+            toast.success(t('realEstate.unitsRegistry.toastDevDeleted'));
             fetchHierarchy();
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to delete developer');
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastDevDeleteError'));
         }
     };
 
     const handleDeleteProject = async (id, name) => {
-        if (!window.confirm(`Delete project "${name}"? Units linked to this project will be preserved.`)) return;
+        if (!window.confirm(t('realEstate.unitsRegistry.confirmDeleteProj', { name }))) return;
         try {
             await api.delete(`/re-hierarchy/projects/${id}`);
-            toast.success('Project deleted');
+            toast.success(t('realEstate.unitsRegistry.toastProjDeleted'));
             fetchHierarchy();
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to delete project');
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastProjDeleteError'));
         }
     };
 
@@ -280,11 +281,11 @@ const UnitsRegistry = () => {
     const handleCreatePhase = async (e) => {
         e.preventDefault();
         if (!newPhaseForm.project_id) {
-            toast.error('Please select a project for this phase');
+            toast.error(t('realEstate.unitsRegistry.toastSelectProjForPhase'));
             return;
         }
         if (!newPhaseForm.name.trim()) {
-            toast.error('Phase name is required');
+            toast.error(t('realEstate.unitsRegistry.toastPhaseNameRequired'));
             return;
         }
         setCreatingPhase(true);
@@ -293,7 +294,7 @@ const UnitsRegistry = () => {
                 project_id: newPhaseForm.project_id,
                 name: newPhaseForm.name.trim()
             });
-            toast.success(`Phase "${newPhaseForm.name}" created!`);
+            toast.success(t('realEstate.unitsRegistry.toastPhaseCreated', { name: newPhaseForm.name }));
             const createdPhase = res.data?.data;
             await fetchHierarchy();
             if (createdPhase && createdPhase.id) {
@@ -306,7 +307,7 @@ const UnitsRegistry = () => {
             setNewPhaseForm({ project_id: '', name: '' });
             setShowQuickPhaseModal(false);
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to create phase');
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastPhaseCreateError'));
         } finally {
             setCreatingPhase(false);
         }
@@ -315,11 +316,11 @@ const UnitsRegistry = () => {
     const handleCreateBuilding = async (e) => {
         e.preventDefault();
         if (!newBuildingForm.project_id) {
-            toast.error('Please select a project for this building');
+            toast.error(t('realEstate.unitsRegistry.toastSelectProjForBuilding'));
             return;
         }
         if (!newBuildingForm.name.trim()) {
-            toast.error('Building name is required');
+            toast.error(t('realEstate.unitsRegistry.toastBuildingNameRequired'));
             return;
         }
         setCreatingBuilding(true);
@@ -330,7 +331,7 @@ const UnitsRegistry = () => {
                 name: newBuildingForm.name.trim(),
                 floors_count: parseInt(newBuildingForm.floors_count) || 1
             });
-            toast.success(`Building "${newBuildingForm.name}" created!`);
+            toast.success(t('realEstate.unitsRegistry.toastBuildingCreated', { name: newBuildingForm.name }));
             const createdBuilding = res.data?.data;
             await fetchHierarchy();
             if (createdBuilding && createdBuilding.id) {
@@ -343,31 +344,31 @@ const UnitsRegistry = () => {
             setNewBuildingForm({ project_id: '', phase_id: '', name: '', floors_count: 1 });
             setShowQuickBuildingModal(false);
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to create building');
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastBuildingCreateError'));
         } finally {
             setCreatingBuilding(false);
         }
     };
 
     const handleDeletePhase = async (id, name) => {
-        if (!window.confirm(`Delete phase "${name}"?`)) return;
+        if (!window.confirm(t('realEstate.unitsRegistry.confirmDeletePhase', { name }))) return;
         try {
             await api.delete(`/re-hierarchy/phases/${id}`);
-            toast.success(`Phase "${name}" deleted`);
+            toast.success(t('realEstate.unitsRegistry.toastPhaseDeleted', { name }));
             fetchHierarchy();
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to delete phase');
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastPhaseDeleteError'));
         }
     };
 
     const handleDeleteBuilding = async (id, name) => {
-        if (!window.confirm(`Delete building "${name}"?`)) return;
+        if (!window.confirm(t('realEstate.unitsRegistry.confirmDeleteBuilding', { name }))) return;
         try {
             await api.delete(`/re-hierarchy/buildings/${id}`);
-            toast.success(`Building "${name}" deleted`);
+            toast.success(t('realEstate.unitsRegistry.toastBuildingDeleted', { name }));
             fetchHierarchy();
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to delete building');
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastBuildingDeleteError'));
         }
     };
 
@@ -379,7 +380,7 @@ const UnitsRegistry = () => {
                 price: formData.price ? parseFloat(String(formData.price).replace(/,/g, '')) : 0
             };
             await api.post('/re-units', payload);
-            toast.success('Unit added successfully to your premium registry!');
+            toast.success(t('realEstate.unitsRegistry.toastUnitAdded'));
             setShowAddModal(false);
             setFormData({ 
                 project_name: '', unit_number: '', name: '', type: 'Apartment', floor: '', 
@@ -390,35 +391,35 @@ const UnitsRegistry = () => {
             setPriceDisplay('');
             fetchUnits();
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to add unit');
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastAddUnitError'));
         }
     };
 
     const handleAssignEmployee = async (unitId, employeeId) => {
         try {
             await api.put(`/re-units/${unitId}`, { assigned_to: employeeId || null });
-            toast.success(employeeId ? 'Employee assigned successfully!' : 'Assignment cleared.');
+            toast.success(employeeId ? t('realEstate.unitsRegistry.toastEmployeeAssigned') : t('realEstate.unitsRegistry.toastAssignmentCleared'));
             fetchUnits();
             // Update selected unit in-place so modal shows new name immediately
             setSelectedUnit(prev => ({ ...prev, assigned_to: employeeId || null }));
         } catch(err) {
-            toast.error('Failed to update assignment.');
+            toast.error(t('realEstate.unitsRegistry.toastAssignError'));
         }
     };
 
     const handleDelete = async (id) => {
         const targetUnit = units.find(u => u.id === id);
         if (targetUnit && (targetUnit.vendor_id || targetUnit.status?.toLowerCase() !== 'available')) {
-            toast.error('Asset Locked: Cannot delete a unit linked to a Vendor or an Active Deal.');
+            toast.error(t('realEstate.unitsRegistry.assetLockedError'));
             return;
         }
-        if (!window.confirm('Are you sure you want to remove this property from the inventory? This action is permanent.')) return;
+        if (!window.confirm(t('realEstate.unitsRegistry.confirmDeleteProperty'))) return;
         try {
             await api.delete(`/re-units/${id}`);
-            toast.success('Property removed from registry');
+            toast.success(t('realEstate.unitsRegistry.toastUnitDeleted'));
             fetchUnits();
         } catch (err) {
-            toast.error('Delete failed');
+            toast.error(t('realEstate.unitsRegistry.toastUnitDeleteError'));
         }
     };
 
@@ -472,7 +473,7 @@ const UnitsRegistry = () => {
     }, {});
 
     return (
-        <div className="wow-reveal" style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
+        <div className="wow-reveal" dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
             {/* Header Section */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>
                 <div>
@@ -491,7 +492,7 @@ const UnitsRegistry = () => {
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     {/* View Mode Toggle */}
                     <div style={{ display: 'flex', background: 'rgba(0,0,0,0.04)', padding: '4px', borderRadius: '12px', gap: '2px' }}>
-                        {[{ key: 'map', icon: <Map size={15}/>, label: 'Map' }, { key: 'cards', icon: <LayoutGrid size={15}/>, label: 'Cards' }, { key: 'list', icon: <List size={15}/>, label: 'List' }].map(v => (
+                        {[{ key: 'map', icon: <Map size={15}/>, label: t('realEstate.unitsRegistry.viewMap') }, { key: 'cards', icon: <LayoutGrid size={15}/>, label: t('realEstate.unitsRegistry.viewCards') }, { key: 'list', icon: <List size={15}/>, label: t('realEstate.unitsRegistry.viewList') }].map(v => (
                             <button key={v.key} onClick={() => setViewMode(v.key)} style={{ padding: '8px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', background: viewMode === v.key ? 'white' : 'transparent', color: viewMode === v.key ? 'var(--primary)' : 'var(--text-muted)', boxShadow: viewMode === v.key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none', transition: '0.2s' }}>
                                 {v.icon} {v.label}
                             </button>
@@ -528,11 +529,11 @@ const UnitsRegistry = () => {
             {/* Controls Bar */}
             <div className="ap-card" style={{ padding: '12px 16px', marginBottom: '32px', display: 'flex', gap: '16px', alignItems: 'center', background: 'var(--glass-bg)', flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: '180px', position: 'relative' }}>
-                    <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}/>
+                    <Search size={18} style={{ position: 'absolute', [isRTL ? 'right' : 'left']: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}/>
                     <input 
                         className="ap-input" 
-                        placeholder="Search projects, buildings, codes..." 
-                        style={{ paddingLeft: '48px', border: 'none', background: 'transparent', height: '40px' }}
+                        placeholder={t('realEstate.unitsRegistry.searchPlaceholder')} 
+                        style={{ [isRTL ? 'paddingRight' : 'paddingLeft']: '48px', border: 'none', background: 'transparent', height: '40px' }}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -550,7 +551,7 @@ const UnitsRegistry = () => {
                         setSelectedBuildingFilter('all');
                     }}
                 >
-                    <option value="all">All Projects</option>
+                    <option value="all">{t('realEstate.unitsRegistry.allProjects')}</option>
                     {(hierarchyTree.projects || []).map(p => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
@@ -563,7 +564,7 @@ const UnitsRegistry = () => {
                         value={selectedPhaseFilter} 
                         onChange={e => setSelectedPhaseFilter(e.target.value)}
                     >
-                        <option value="all">All Phases</option>
+                        <option value="all">{t('realEstate.unitsRegistry.allPhases')}</option>
                         {activeProjectPhases.map(ph => (
                             <option key={ph.id} value={ph.id}>{ph.name}</option>
                         ))}
@@ -577,7 +578,7 @@ const UnitsRegistry = () => {
                         value={selectedBuildingFilter} 
                         onChange={e => setSelectedBuildingFilter(e.target.value)}
                     >
-                        <option value="all">All Buildings</option>
+                        <option value="all">{t('realEstate.unitsRegistry.allBuildings')}</option>
                         {activeProjectBuildings.map(b => (
                             <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
@@ -587,19 +588,26 @@ const UnitsRegistry = () => {
                 <div style={{ height: '32px', width: '1px', background: 'var(--border)' }}></div>
                 
                 <div style={{ display: 'flex', gap: '8px' }}>
-                    <input type="number" placeholder="Min EGP" className="ap-input" style={{ width: '110px', height: '40px' }} value={budgetMin} onChange={e => setBudgetMin(e.target.value)} />
-                    <input type="number" placeholder="Max EGP" className="ap-input" style={{ width: '110px', height: '40px' }} value={budgetMax} onChange={e => setBudgetMax(e.target.value)} />
+                    <input type="number" placeholder={t('realEstate.unitsRegistry.minEgp')} className="ap-input" style={{ width: '110px', height: '40px' }} value={budgetMin} onChange={e => setBudgetMin(e.target.value)} />
+                    <input type="number" placeholder={t('realEstate.unitsRegistry.maxEgp')} className="ap-input" style={{ width: '110px', height: '40px' }} value={budgetMax} onChange={e => setBudgetMax(e.target.value)} />
                 </div>
                 <div style={{ height: '32px', width: '1px', background: 'var(--border)' }}></div>
                 
                 <select className="ap-input" style={{ width: '160px', height: '40px' }} value={assignedFilter} onChange={e => setAssignedFilter(e.target.value)}>
-                    <option value="all">All Employees</option>
+                    <option value="all">{t('realEstate.unitsRegistry.allEmployees')}</option>
                     {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
 
                 <div style={{ height: '32px', width: '1px', background: 'var(--border)' }}></div>
                 <div style={{ display: 'flex', background: 'rgba(0,0,0,0.03)', padding: '5px', borderRadius: '12px', gap: '3px', flexWrap: 'wrap' }}>
-                    {['All', 'Available', 'Reserved', 'Contracted', 'Handed Over', 'Under Dispute'].map(tab => (
+                    {[
+  { key: 'All', label: t('realEstate.unitsRegistry.tabAll') },
+  { key: 'Available', label: t('realEstate.unitsRegistry.tabAvailable') },
+  { key: 'Reserved', label: t('realEstate.unitsRegistry.tabReserved') },
+  { key: 'Contracted', label: t('realEstate.unitsRegistry.tabContracted') },
+  { key: 'Handed Over', label: t('realEstate.unitsRegistry.tabHandedOver') },
+  { key: 'Under Dispute', label: t('realEstate.unitsRegistry.tabUnderDispute') },
+].map(tab => (
                         <button 
                             key={tab}
                             onClick={() => setFilter(tab)}
@@ -621,7 +629,7 @@ const UnitsRegistry = () => {
             {loading ? (
                 <div style={{ textAlign: 'center', padding: '100px', color: 'var(--text-muted)' }}>
                     <div className="wow-float" style={{ marginBottom: '16px' }}><Building2 size={48} opacity={0.3}/></div>
-                    <p style={{ fontWeight: 600 }}>Syncing Property Inventory...</p>
+                    <p style={{ fontWeight: 600 }}>{t('realEstate.unitsRegistry.syncingInventory')}</p>
                 </div>
             ) : filteredUnits.length === 0 ? (
                 <div style={{ padding: '80px', textAlign: 'center' }}>
@@ -629,8 +637,8 @@ const UnitsRegistry = () => {
                         <div className="wow-float" style={{ marginBottom: '20px' }}>
                             <Building2 size={64} opacity={0.1}/>
                         </div>
-                        <h3 style={{ fontWeight: 900, color: 'var(--text-main)', marginBottom: '8px' }}>No Properties Found</h3>
-                        <p style={{ color: 'var(--text-muted)', marginBottom: '32px' }}>Try adjusting your filters or register new units.</p>
+                        <h3 style={{ fontWeight: 900, color: 'var(--text-main)', marginBottom: '8px' }}>{t('realEstate.unitsRegistry.noPropertiesFound')}</h3>
+                        <p style={{ color: 'var(--text-muted)', marginBottom: '32px' }}>{t('realEstate.unitsRegistry.adjustFilters')}</p>
                         <button onClick={() => setShowAddModal(true)} className="btn-primary-premium" style={{ margin: '0 auto' }}>
                             <Plus size={20} />
                             Register First Unit
@@ -647,30 +655,30 @@ const UnitsRegistry = () => {
                                     <Building2 size={24} color="var(--primary)" /> {project}
                                 </h3>
                                 <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-muted)', background: 'var(--bg-main)', padding: '6px 12px', borderRadius: '8px' }}>
-                                    {Object.values(floors).flat().length} Units
+                                    <span className="num-en">{Object.values(floors).flat().length}</span> {t('realEstate.unitsRegistry.unitCountLabel', { count: '' }).trim()}
                                 </div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                                 {Object.entries(floors).sort(([a],[b]) => parseInt(b || 0) - parseInt(a || 0)).map(([floor, sortedUnits]) => (
                                     <div key={floor} style={{ display: 'flex', gap: '16px', alignItems: 'stretch' }}>
                                         <div style={{ width: '80px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', borderRadius: '12px', color: 'var(--text-muted)' }}>
-                                            <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>Floor</span>
-                                            <span style={{ fontSize: '24px', fontWeight: 900, color: 'var(--text-main)' }}>{floor}</span>
+                                            <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase' }}>{t('realEstate.unitsRegistry.floorLabel')}</span>
+                                            <span className="num-en" style={{ fontSize: '24px', fontWeight: 900, color: 'var(--text-main)' }}>{floor}</span>
                                         </div>
                                         <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '12px', padding: '16px', background: 'rgba(0,0,0,0.01)', borderRadius: '12px', border: '1px solid var(--border)' }}>
                                             {sortedUnits.map(u => {
                                                 const config = getStatusConfig(u.status);
                                                 return (
-                                                    <div key={u.id} title="Click to View Full Details" onClick={() => setSelectedUnit(u)}
+                                                    <div key={u.id} title={t('realEstate.unitsRegistry.clickDetails')} onClick={() => setSelectedUnit(u)}
                                                         style={{ padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s', background: config.bg, color: config.color, border: `1px solid ${config.color}40`, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '110px' }}
                                                         onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 6px 12px ${config.bg}`; }}
                                                         onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                            <span style={{ fontWeight: 900, fontSize: '16px' }}>{u.unit_number}</span>
+                                                            <span className="num-en" style={{ fontWeight: 900, fontSize: '16px' }}>{u.unit_number}</span>
                                                             {config.icon}
                                                         </div>
                                                         <div style={{ fontSize: '10px', fontWeight: 800, opacity: 0.9, textTransform: 'uppercase' }}>
-                                                            {u.type === 'Apartment' ? 'APT' : u.type === 'Commercial' ? 'COM' : u.type === 'Villa' ? 'VIL' : 'UNT'} • {u.area_sqm}m²
+                                                            {u.type === 'Apartment' ? 'APT' : u.type === 'Commercial' ? 'COM' : u.type === 'Villa' ? 'VIL' : 'UNT'} • <span className="num-en">{u.area_sqm}</span>m²
                                                         </div>
                                                     </div>
                                                 );
@@ -696,23 +704,23 @@ const UnitsRegistry = () => {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                                         <div>
                                             <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>{u.project_name || 'Individual'}</div>
-                                            <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)' }}>Unit {u.unit_number}</div>
+                                            <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.unitPrefix', { number: u.unit_number })}</div>
                                         </div>
                                         <span style={{ background: config.bg, color: config.color, padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 900 }}>{u.status}</span>
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                                         <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px' }}>
-                                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>TYPE</div>
+                                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>{t('realEstate.unitsRegistry.cardType')}</div>
                                             <div style={{ fontSize: '13px', fontWeight: 800 }}>{u.type}</div>
                                         </div>
                                         <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px' }}>
-                                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>AREA</div>
-                                            <div style={{ fontSize: '13px', fontWeight: 800 }}>{u.area_sqm} m²</div>
+                                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>{t('realEstate.unitsRegistry.cardArea')}</div>
+                                            <div style={{ fontSize: '13px', fontWeight: 800 }}><span className="num-en">{u.area_sqm}</span> m²</div>
                                         </div>
                                     </div>
-                                    <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)', marginBottom: '8px' }}>{Number(u.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP</div>
+                                    <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)', marginBottom: '8px' }}><span className="num-en">{Number(u.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> {t('realEstate.common.currencySuffix')}</div>
                                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
-                                        Floor {u.floor} • {u.rooms} Rooms
+                                        <span>{t('realEstate.unitsRegistry.floorRooms', { floor: u.floor, rooms: u.rooms })}</span>
                                         {u.assigned_to && <span style={{ marginLeft: '8px', color: '#16a34a' }}>• {u.assigned_to_name || users.find(em => String(em.id) === String(u.assigned_to))?.name}</span>}
                                     </div>
                                 </div>
@@ -726,7 +734,16 @@ const UnitsRegistry = () => {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr style={{ background: '#f8fafc', borderBottom: '2px solid var(--border)' }}>
-                                {['Unit', 'Project', 'Type', 'Area', 'Price (EGP)', 'Status', 'Employee', ''].map(h => (
+                                {[
+  t('realEstate.unitsRegistry.thUnit'),
+  t('realEstate.unitsRegistry.thProject'),
+  t('realEstate.unitsRegistry.thType'),
+  t('realEstate.unitsRegistry.thArea'),
+  t('realEstate.unitsRegistry.thPrice'),
+  t('realEstate.unitsRegistry.thStatus'),
+  t('realEstate.unitsRegistry.thEmployee'),
+  t('realEstate.unitsRegistry.thActions')
+].map(h => (
                                     <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                                 ))}
                             </tr>
@@ -738,16 +755,16 @@ const UnitsRegistry = () => {
                                     <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa', cursor: 'pointer', transition: 'background 0.15s' }}
                                         onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
                                         onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? 'white' : '#fafafa'}>
-                                        <td style={{ padding: '14px 16px', fontWeight: 900, fontSize: '15px', color: 'var(--text-main)' }}>{u.unit_number}</td>
+                                        <td style={{ padding: '14px 16px', fontWeight: 900, fontSize: '15px', color: 'var(--text-main)' }}><span className="num-en">{u.unit_number}</span></td>
                                         <td style={{ padding: '14px 16px', fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>{u.project_name || '—'}</td>
                                         <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700 }}>{u.type}</td>
-                                        <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700 }}>{u.area_sqm} m²</td>
-                                        <td style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--primary)' }}>{Number(u.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                        <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700 }}><span className="num-en">{u.area_sqm}</span> m²</td>
+                                        <td style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--primary)' }}><span className="num-en">{Number(u.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <span style={{ background: config.bg, color: config.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 900 }}>{u.status}</span>
                                         </td>
                                         <td style={{ padding: '14px 16px', fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>
-                                            {u.assigned_to_name || users.find(em => String(em.id) === String(u.assigned_to))?.name || <span style={{ fontStyle: 'italic' }}>Unassigned</span>}
+                                            {u.assigned_to_name || users.find(em => String(em.id) === String(u.assigned_to))?.name || <span style={{ fontStyle: 'italic' }}>{t('realEstate.unitsRegistry.unassigned')}</span>}
                                         </td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <button onClick={() => setSelectedUnit(u)} style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'white', color: 'var(--primary)', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}>
@@ -775,25 +792,25 @@ const UnitsRegistry = () => {
                         </button>
 
                         <div style={{ marginBottom: '32px' }}>
-                            <h2 style={{ fontSize: '26px', fontWeight: 900, marginBottom: '8px' }}>New Property Record</h2>
-                            <p style={{ color: 'var(--text-muted)' }}>Enter the specification of the luxury unit for the inventory.</p>
+                            <h2 style={{ fontSize: '26px', fontWeight: 900, marginBottom: '8px' }}>{t('realEstate.unitsRegistry.modalAddTitle')}</h2>
+                            <p style={{ color: 'var(--text-muted)' }}>{t('realEstate.unitsRegistry.modalAddSubtitle')}</p>
                         </div>
 
                         <form onSubmit={handleAddUnit}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
                                 {/* Core Identity & Project Hierarchy */}
                                 <div style={{ gridColumn: 'span 2', paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '8px' }}>
-                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Project Hierarchy & Identity</h4>
+                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('realEstate.unitsRegistry.secHierarchy')}</h4>
                                 </div>
                                 <div className="ap-form-group">
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                        <label className="ap-label" style={{ margin: 0 }}>Developer (Optional)</label>
+                                        <label className="ap-label" style={{ margin: 0 }}>{t('realEstate.unitsRegistry.lblDeveloper')}</label>
                                         <button 
                                             type="button" 
                                             onClick={() => setShowQuickDevModal(true)}
                                             style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontWeight: 800, fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                                         >
-                                            <Plus size={12} strokeWidth={3} /> Add Developer
+                                            <Plus size={12} strokeWidth={3} /> {t('realEstate.unitsRegistry.btnAddDeveloper')}
                                         </button>
                                     </div>
                                     <select 
@@ -801,7 +818,7 @@ const UnitsRegistry = () => {
                                         value={formData.developer_id || ''} 
                                         onChange={e => setFormData({ ...formData, developer_id: e.target.value })}
                                     >
-                                        <option value="">-- Independent / None --</option>
+                                        <option value="">{t('realEstate.unitsRegistry.optNoDev')}</option>
                                         {(hierarchyTree.developers || []).map(d => (
                                             <option key={d.id} value={d.id}>{d.name}</option>
                                         ))}
@@ -809,7 +826,7 @@ const UnitsRegistry = () => {
                                 </div>
                                 <div className="ap-form-group">
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                        <label className="ap-label" style={{ margin: 0 }}>Project</label>
+                                        <label className="ap-label" style={{ margin: 0 }}>{t('realEstate.unitsRegistry.lblProject')}</label>
                                         <button 
                                             type="button" 
                                             onClick={() => {
@@ -818,7 +835,7 @@ const UnitsRegistry = () => {
                                             }}
                                             style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontWeight: 800, fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                                         >
-                                            <Plus size={12} strokeWidth={3} /> Add Project
+                                            <Plus size={12} strokeWidth={3} /> {t('realEstate.unitsRegistry.btnAddProject')}
                                         </button>
                                     </div>
                                     <select 
@@ -836,7 +853,7 @@ const UnitsRegistry = () => {
                                             });
                                         }}
                                     >
-                                        <option value="">-- Custom / Direct Name --</option>
+                                        <option value="">{t('realEstate.unitsRegistry.optCustomProject')}</option>
                                         {(hierarchyTree.projects || []).map(p => (
                                             <option key={p.id} value={p.id}>{p.name}{p.developer_name ? ` (${p.developer_name})` : ''}</option>
                                         ))}
@@ -844,21 +861,21 @@ const UnitsRegistry = () => {
                                 </div>
                                 {!formData.project_id && (
                                     <div className="ap-form-group">
-                                        <label className="ap-label">Project Name</label>
-                                        <input className="ap-input" required value={formData.project_name} onChange={e => setFormData({...formData, project_name: e.target.value})} placeholder="e.g. Palm Residences" />
+                                        <label className="ap-label">{t('realEstate.unitsRegistry.lblProjectName')}</label>
+                                        <input className="ap-input" required value={formData.project_name} onChange={e => setFormData({...formData, project_name: e.target.value})} placeholder={t('realEstate.unitsRegistry.placeholderProjectName')} />
                                     </div>
                                 )}
                                 {formData.project_id && (
                                     <>
                                         <div className="ap-form-group">
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                                <label className="ap-label" style={{ margin: 0 }}>Phase (Optional)</label>
+                                                <label className="ap-label" style={{ margin: 0 }}>{t('realEstate.unitsRegistry.lblPhase')}</label>
                                                 <button 
                                                     type="button" 
                                                     onClick={() => openAddPhaseModal(formData.project_id)}
                                                     style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontWeight: 800, fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                                                 >
-                                                    <Plus size={12} strokeWidth={3} /> Add Phase
+                                                    <Plus size={12} strokeWidth={3} /> {t('realEstate.unitsRegistry.btnAddPhase')}
                                                 </button>
                                             </div>
                                             <select 
@@ -866,7 +883,7 @@ const UnitsRegistry = () => {
                                                 value={formData.phase_id || ''} 
                                                 onChange={e => setFormData({ ...formData, phase_id: e.target.value })}
                                             >
-                                                <option value="">-- Select Phase --</option>
+                                                <option value="">{t('realEstate.unitsRegistry.optSelectPhase')}</option>
                                                 {(hierarchyTree.projects?.find(p => String(p.id) === String(formData.project_id))?.phases || []).map(ph => (
                                                     <option key={ph.id} value={ph.id}>{ph.name}</option>
                                                 ))}
@@ -874,13 +891,13 @@ const UnitsRegistry = () => {
                                         </div>
                                         <div className="ap-form-group">
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                                <label className="ap-label" style={{ margin: 0 }}>Building (Optional)</label>
+                                                <label className="ap-label" style={{ margin: 0 }}>{t('realEstate.unitsRegistry.lblBuilding')}</label>
                                                 <button 
                                                     type="button" 
                                                     onClick={() => openAddBuildingModal(formData.project_id, '', formData.phase_id)}
                                                     style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontWeight: 800, fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                                                 >
-                                                    <Plus size={12} strokeWidth={3} /> Add Building
+                                                    <Plus size={12} strokeWidth={3} /> {t('realEstate.unitsRegistry.btnAddBuilding')}
                                                 </button>
                                             </div>
                                             <select 
@@ -888,44 +905,44 @@ const UnitsRegistry = () => {
                                                 value={formData.building_id || ''} 
                                                 onChange={e => setFormData({ ...formData, building_id: e.target.value })}
                                             >
-                                                <option value="">-- Select Building --</option>
+                                                <option value="">{t('realEstate.unitsRegistry.optSelectBuilding')}</option>
                                                 {(hierarchyTree.projects?.find(p => String(p.id) === String(formData.project_id))?.buildings || []).map(b => (
-                                                    <option key={b.id} value={b.id}>{b.name}{b.floors_count ? ` (${b.floors_count} Floors)` : ''}</option>
+                                                    <option key={b.id} value={b.id}>{b.name}{b.floors_count ? ` ${t('realEstate.unitsRegistry.buildingFloorsSuffix', { count: b.floors_count })}` : ''}</option>
                                                 ))}
                                             </select>
                                         </div>
                                     </>
                                 )}
                                 <div className="ap-form-group">
-                                    <label className="ap-label">Unit Number / Code</label>
-                                    <input className="ap-input" required value={formData.unit_number} onChange={e => setFormData({...formData, unit_number: e.target.value})} placeholder="e.g. PH-402" />
+                                    <label className="ap-label">{t('realEstate.unitsRegistry.lblUnitNumber')}</label>
+                                    <input className="ap-input" required value={formData.unit_number} onChange={e => setFormData({...formData, unit_number: e.target.value})} placeholder={t('realEstate.unitsRegistry.placeholderUnitNumber')} />
                                 </div>
 
                                 {/* Linkages */}
                                 <div style={{ gridColumn: 'span 2', paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '8px', marginTop: '8px' }}>
-                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Responsibility & Ownership</h4>
+                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('realEstate.unitsRegistry.secOwnership')}</h4>
                                 </div>
                                 <div className="ap-form-group">
-                                    <label className="ap-label">Assigned Employee (Target List)</label>
+                                    <label className="ap-label">{t('realEstate.unitsRegistry.lblAssignedEmployee')}</label>
                                     <select className="ap-input" value={formData.assigned_to} onChange={e => setFormData({...formData, assigned_to: e.target.value})}>
-                                        <option value="">-- Let System Decide --</option>
+                                        <option value="">{t('realEstate.unitsRegistry.optSystemDecide')}</option>
                                         {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                     </select>
                                 </div>
                                 <div className="ap-form-group">
-                                    <label className="ap-label">Original Vendor (Owner)</label>
+                                    <label className="ap-label">{t('realEstate.unitsRegistry.lblVendor')}</label>
                                     <select className="ap-input" value={formData.vendor_id} onChange={e => setFormData({...formData, vendor_id: e.target.value})}>
-                                        <option value="">-- Independent --</option>
+                                        <option value="">{t('realEstate.unitsRegistry.optIndependentVendor')}</option>
                                         {(vendors || []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
                                     </select>
                                 </div>
 
                                 {/* Specifications */}
                                 <div style={{ gridColumn: 'span 2', paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '8px', marginTop: '8px' }}>
-                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Technical Specifications</h4>
+                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('realEstate.unitsRegistry.secTechSpecs')}</h4>
                                 </div>
                                 <div className="ap-form-group">
-                                    <label className="ap-label">Property Type</label>
+                                    <label className="ap-label">{t('realEstate.unitsRegistry.lblPropertyType')}</label>
                                     <select className="ap-input" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
                                         <option value="Apartment">Luxury Apartment</option>
                                         <option value="Villa">Premium Villa</option>
@@ -934,28 +951,28 @@ const UnitsRegistry = () => {
                                     </select>
                                 </div>
                                 <div className="ap-form-group">
-                                    <label className="ap-label">Area Size (sqm)</label>
-                                    <input className="ap-input" type="number" required value={formData.area_sqm} onChange={e => setFormData({...formData, area_sqm: e.target.value})} placeholder="e.g. 150" />
+                                    <label className="ap-label">{t('realEstate.unitsRegistry.lblAreaSqm')}</label>
+                                    <input className="ap-input" type="number" required value={formData.area_sqm} onChange={e => setFormData({...formData, area_sqm: e.target.value})} placeholder={t('realEstate.unitsRegistry.placeholderArea')} />
                                 </div>
                                 <div className="ap-form-group">
-                                    <label className="ap-label">Total Rooms</label>
+                                    <label className="ap-label">{t('realEstate.unitsRegistry.lblRooms')}</label>
                                     <input className="ap-input" type="number" required value={formData.rooms} onChange={e => setFormData({...formData, rooms: e.target.value})} />
                                 </div>
                                 <div className="ap-form-group">
-                                    <label className="ap-label">Floor Level</label>
+                                    <label className="ap-label">{t('realEstate.unitsRegistry.lblFloor')}</label>
                                     <input className="ap-input" type="number" required value={formData.floor} onChange={e => setFormData({...formData, floor: e.target.value})} />
                                 </div>
 
                                 {/* Commercials */}
                                 <div style={{ gridColumn: 'span 2', paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '8px', marginTop: '8px' }}>
-                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Pricing</h4>
+                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('realEstate.unitsRegistry.secPricing')}</h4>
                                 </div>
                                 <div className="ap-form-group" style={{ gridColumn: 'span 2' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                        <label className="ap-label" style={{ margin: 0 }}>Target Price (EGP)</label>
+                                        <label className="ap-label" style={{ margin: 0 }}>{t('realEstate.unitsRegistry.lblTargetPrice')}</label>
                                         {formData.price && (
                                             <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--primary)', background: 'rgba(99, 102, 241, 0.08)', padding: '2px 8px', borderRadius: '6px' }}>
-                                                N2 Format: {formatN2(formData.price)} EGP
+                                                {t('realEstate.unitsRegistry.n2FormatNotice', { formatted: formatN2(formData.price) })}
                                             </span>
                                         )}
                                     </div>
@@ -976,8 +993,8 @@ const UnitsRegistry = () => {
                             </div>
 
                             <div style={{ display: 'flex', gap: '16px' }}>
-                                <button type="submit" className="btn-primary-premium" style={{ flex: 1, justifyContent: 'center', height: '56px' }}>Confirm Registration</button>
-                                <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '0 32px', borderRadius: '12px', border: '2px solid var(--border)', fontWeight: 800, color: 'var(--text-muted)' }}>Discard</button>
+                                <button type="submit" className="btn-primary-premium" style={{ flex: 1, justifyContent: 'center', height: '56px' }}>{t('realEstate.unitsRegistry.btnConfirmReg')}</button>
+                                <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '0 32px', borderRadius: '12px', border: '2px solid var(--border)', fontWeight: 800, color: 'var(--text-muted)' }}>{t('realEstate.unitsRegistry.btnDiscard')}</button>
                             </div>
                         </form>
                     </div>
@@ -996,11 +1013,11 @@ const UnitsRegistry = () => {
                                         <div>
                                             <div style={{ fontSize: '12px', fontWeight: 900, color: config.color, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
                                                 {selectedUnit.developer_name ? `${selectedUnit.developer_name} • ` : ''}
-                                                {selectedUnit.project_name || 'Individual'}
+                                                {selectedUnit.project_name || t('realEstate.unitsRegistry.individual')}
                                                 {selectedUnit.phase_name ? ` • ${selectedUnit.phase_name}` : ''}
                                                 {selectedUnit.building_name ? ` • ${selectedUnit.building_name}` : ''}
                                             </div>
-                                            <h2 style={{ fontSize: '28px', margin: 0, fontWeight: 900, color: 'var(--text-main)' }}>Unit {selectedUnit.unit_number}</h2>
+                                            <h2 style={{ fontSize: '28px', margin: 0, fontWeight: 900, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.unitPrefix', { number: selectedUnit.unit_number })}</h2>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
                                             <button onClick={() => setSelectedUnit(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-main)' }}><X size={24}/></button>
@@ -1013,20 +1030,20 @@ const UnitsRegistry = () => {
                                     <div style={{ padding: '32px' }}>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
                                             <div>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Property Type</div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerType')}</div>
                                                 <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>{selectedUnit.type}</div>
                                             </div>
                                             <div>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Market Value</div>
-                                                <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)' }}>{Number(selectedUnit.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP</div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerMarketValue')}</div>
+                                                <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)' }}><span className="num-en">{Number(selectedUnit.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> {t('realEstate.common.currencySuffix')}</div>
                                             </div>
                                             <div>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Area Size</div>
-                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>{selectedUnit.area_sqm} m²</div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerArea')}</div>
+                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}><span className="num-en">{selectedUnit.area_sqm}</span> m²</div>
                                             </div>
                                             <div>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Layout</div>
-                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>Floor {selectedUnit.floor} • {selectedUnit.rooms} Rooms</div>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerLayout')}</div>
+                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.drawerFloorRooms', { floor: selectedUnit.floor, rooms: selectedUnit.rooms })}</div>
                                             </div>
                                         </div>
 
@@ -1034,13 +1051,13 @@ const UnitsRegistry = () => {
                                         {selectedUnit.status === 'Reserved' && (
                                             <div style={{ background: '#fffbeb', padding: '16px', borderRadius: '12px', border: '1px solid #fde68a', marginBottom: '16px' }}>
                                                 <div style={{ fontSize: '11px', color: '#b45309', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <Clock size={13}/> Active Reservation
+                                                    <Clock size={13}/> {t('realEstate.unitsRegistry.activeReservation')}
                                                 </div>
                                                 <div style={{ fontSize: '13px', color: '#92400e', marginBottom: '10px' }}>
-                                                    <strong>Expires:</strong> {selectedUnit.reservation_expires_at ? new Date(selectedUnit.reservation_expires_at).toLocaleString() : 'Not Set'}
+                                                    <strong>{t('realEstate.unitsRegistry.lblExpires')}</strong> {selectedUnit.reservation_expires_at ? <span className="num-en">{new Date(selectedUnit.reservation_expires_at).toLocaleString('en-US')}</span> : t('realEstate.unitsRegistry.notSet')}
                                                     {Number(selectedUnit.reservation_extension_count) > 0 && (
                                                         <span style={{ marginLeft: '8px', padding: '2px 6px', background: '#fef3c7', borderRadius: '4px', fontSize: '11px', fontWeight: 700, color: '#b45309' }}>
-                                                            Extended {selectedUnit.reservation_extension_count}x
+                                                            {t('realEstate.unitsRegistry.extendedCount', { count: selectedUnit.reservation_extension_count })}
                                                         </span>
                                                     )}
                                                 </div>
@@ -1065,7 +1082,7 @@ const UnitsRegistry = () => {
 
                                         <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
                                             <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <UserCheck size={13}/> Employee Assignment
+                                                <UserCheck size={13}/> {t('realEstate.unitsRegistry.employeeAssignment')}
                                             </div>
                                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                                 <select
@@ -1073,7 +1090,7 @@ const UnitsRegistry = () => {
                                                     onChange={e => setAssigningEmployee(e.target.value)}
                                                     style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600, background: 'white', cursor: 'pointer' }}
                                                 >
-                                                    <option value="">— Unassigned / Open —</option>
+                                                    <option value="">{t('realEstate.unitsRegistry.optOpenEmployee')}</option>
                                                     {(users || []).map(u => (
                                                         <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
                                                     ))}
@@ -1087,7 +1104,7 @@ const UnitsRegistry = () => {
                                             </div>
                                             {selectedUnit.assigned_to && (
                                                 <div style={{ marginTop: '8px', fontSize: '12px', color: '#16a34a', fontWeight: 600 }}>
-                                                    ✓ Currently: {selectedUnit.assigned_to_name || users.find(u => String(u.id) === String(selectedUnit.assigned_to))?.name || 'Assigned'}
+                                                    {t('realEstate.unitsRegistry.currentlyAssigned', { name: selectedUnit.assigned_to_name || users.find(u => String(u.id) === String(selectedUnit.assigned_to))?.name || t('realEstate.common.confirmed') })}
                                                 </div>
                                             )}
                                         </div>
@@ -1096,19 +1113,19 @@ const UnitsRegistry = () => {
                                         <div style={{ background: '#f0f9ff', padding: '16px', borderRadius: '12px', border: '1px solid #bae6fd', marginBottom: '16px' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                                 <div style={{ fontSize: '11px', color: '#0369a1', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <Globe size={13}/> Property Finder (Egypt)
+                                                    <Globe size={13}/> {t('realEstate.unitsRegistry.pfTitle')}
                                                 </div>
                                                 <span style={{
                                                     fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px',
                                                     background: selectedUnit.pf_publication_status === 'published' ? '#dcfce7' : selectedUnit.pf_publication_status === 'rejected' ? '#fee2e2' : selectedUnit.pf_publication_status === 'pending_publication' ? '#fef3c7' : '#f1f5f9',
                                                     color: selectedUnit.pf_publication_status === 'published' ? '#15803d' : selectedUnit.pf_publication_status === 'rejected' ? '#b91c1c' : selectedUnit.pf_publication_status === 'pending_publication' ? '#b45309' : '#64748b'
                                                 }}>
-                                                    {selectedUnit.pf_publication_status ? selectedUnit.pf_publication_status.replace(/_/g, ' ').toUpperCase() : 'NOT PUBLISHED'}
+                                                    {selectedUnit.pf_publication_status ? selectedUnit.pf_publication_status.replace(/_/g, ' ').toUpperCase() : t('realEstate.unitsRegistry.pfNotPublished')}
                                                 </span>
                                             </div>
                                             {selectedUnit.pf_rejection_reason && (
                                                 <div style={{ fontSize: '11px', color: '#b91c1c', marginBottom: '8px', padding: '6px 8px', background: '#fef2f2', borderRadius: '6px' }}>
-                                                    ⚠️ Rejection: {selectedUnit.pf_rejection_reason}
+                                                    {t('realEstate.unitsRegistry.pfRejection', { reason: selectedUnit.pf_rejection_reason })}
                                                 </div>
                                             )}
                                             <div style={{ display: 'flex', gap: '8px' }}>
@@ -1117,16 +1134,16 @@ const UnitsRegistry = () => {
                                                     onClick={async () => {
                                                         try {
                                                             await api.post(`/propertyfinder/units/${selectedUnit.id}/publish`);
-                                                            toast.success('Submitted to Property Finder successfully!');
+                                                            toast.success(t('realEstate.unitsRegistry.toastPfPublishSuccess'));
                                                             fetchUnits();
                                                             setSelectedUnit(prev => ({ ...prev, pf_publication_status: 'pending_publication' }));
                                                         } catch (err) {
-                                                            toast.error(err.response?.data?.message || 'Publishing failed');
+                                                            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastPfPublishError'));
                                                         }
                                                     }}
                                                     style={{ flex: 1, padding: '8px 12px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                                                 >
-                                                    <UploadCloud size={13}/> {selectedUnit.pf_publication_status === 'published' ? 'Update on PF' : 'Publish to PF'}
+                                                    <UploadCloud size={13}/> {selectedUnit.pf_publication_status === 'published' ? t('realEstate.unitsRegistry.btnUpdatePf') : t('realEstate.unitsRegistry.btnPublishPf')}
                                                 </button>
                                                 {selectedUnit.pf_publication_status === 'published' && (
                                                     <button
@@ -1134,11 +1151,11 @@ const UnitsRegistry = () => {
                                                         onClick={async () => {
                                                             try {
                                                                 await api.post(`/propertyfinder/units/${selectedUnit.id}/unpublish`);
-                                                                toast.success('Unpublished from Property Finder.');
+                                                                toast.success(t('realEstate.unitsRegistry.toastPfUnpublishSuccess'));
                                                                 fetchUnits();
                                                                 setSelectedUnit(prev => ({ ...prev, pf_publication_status: 'unpublished' }));
                                                             } catch (err) {
-                                                                toast.error(err.response?.data?.message || 'Unpublishing failed');
+                                                                toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastPfUnpublishError'));
                                                             }
                                                         }}
                                                         style={{ padding: '8px 12px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
@@ -1152,7 +1169,7 @@ const UnitsRegistry = () => {
                                                         target="_blank"
                                                         rel="noreferrer"
                                                         style={{ padding: '8px 12px', background: '#e0f2fe', color: '#0369a1', borderRadius: '8px', fontWeight: 700, fontSize: '12px', textDecoration: 'none', display: 'flex', alignItems: 'center' }}
-                                                        title="Open in Property Finder"
+                                                        title={t('realEstate.unitsRegistry.pfOpenTooltip')}
                                                     >
                                                         <ExternalLink size={13}/>
                                                     </a>
@@ -1167,7 +1184,7 @@ const UnitsRegistry = () => {
                                                 className="btn-primary-premium"
                                                 style={{ flex: 1, justifyContent: 'center', background: '#3b82f6', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)' }}
                                             >
-                                                <Sparkles size={16} /> 🎯 Match Buyers
+                                                <Sparkles size={16} /> {t('realEstate.unitsRegistry.btnMatchBuyers')}
                                             </button>
                                             <button 
                                                 onClick={() => {
@@ -1177,7 +1194,7 @@ const UnitsRegistry = () => {
                                                 className="btn-primary-premium"
                                                 style={{ flex: 1, justifyContent: 'center', background: 'var(--danger)', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}
                                             >
-                                                <Trash2 size={16} /> Disable & Delete
+                                                <Trash2 size={16} /> {t('realEstate.unitsRegistry.btnDisableDelete')}
                                             </button>
                                         </div>
                                     </div>
@@ -1195,10 +1212,10 @@ const UnitsRegistry = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                             <div>
                                 <h3 style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Sparkles size={20} color="#eab308" /> 🎯 Matched Buyer Leads
+                                    <Sparkles size={20} color="#eab308" /> {t('realEstate.unitsRegistry.matchBuyersTitle')}
                                 </h3>
                                 <div style={{ fontSize: '13px', color: '#64748b' }}>
-                                    Matching registered buyer clients for <strong>Unit {matchedBuyersUnit.unit_number}</strong> ({matchedBuyersUnit.project_name || 'Individual'}) • {Number(matchedBuyersUnit.price).toLocaleString()} EGP • {matchedBuyersUnit.area_sqm} m² • {matchedBuyersUnit.rooms} Rooms
+                                    <span>{t('realEstate.unitsRegistry.matchBuyersDesc', { unit: matchedBuyersUnit.unit_number, project: matchedBuyersUnit.project_name || t('realEstate.unitsRegistry.individual'), price: Number(matchedBuyersUnit.price).toLocaleString('en-US'), area: matchedBuyersUnit.area_sqm, rooms: matchedBuyersUnit.rooms })}</span>
                                 </div>
                             </div>
                             <button onClick={() => setShowMatchBuyersModal(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1208,11 +1225,11 @@ const UnitsRegistry = () => {
 
                         {loadingMatchedBuyers ? (
                             <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
-                                Analyzing registered buyer client requirements...
+                                {t('realEstate.unitsRegistry.analyzingBuyers')}
                             </div>
                         ) : matchedBuyersList.length === 0 ? (
                             <div style={{ padding: '30px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', color: '#64748b', fontSize: '14px' }}>
-                                No registered buyer clients currently match this unit.
+                                {t('realEstate.unitsRegistry.noMatchedBuyers')}
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -1237,8 +1254,8 @@ const UnitsRegistry = () => {
                                                         <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
                                                             {customer.phone && <span>📞 {customer.phone}</span>}
                                                             {customer.preferred_location && <span>📍 {customer.preferred_location}</span>}
-                                                            {customer.budget_max && <span>💰 Max: {Number(customer.budget_max).toLocaleString()} EGP</span>}
-                                                            {customer.preferred_rooms && <span>🛏️ {customer.preferred_rooms} Rms</span>}
+                                                            {customer.budget_max && <span>{t('realEstate.unitsRegistry.maxBudgetLabel', { amount: Number(customer.budget_max).toLocaleString('en-US') })}</span>}
+                                                            {customer.preferred_rooms && <span>{t('realEstate.unitsRegistry.roomsLabel', { count: customer.preferred_rooms })}</span>}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1248,7 +1265,7 @@ const UnitsRegistry = () => {
                                                         onClick={(e) => e.stopPropagation()}
                                                         style={{ padding: '7px 14px', borderRadius: '8px', background: 'var(--primary)', color: 'white', textDecoration: 'none', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
                                                     >
-                                                        Create Deal <ArrowRight size={13} />
+                                                        {t('realEstate.unitsRegistry.btnCreateDeal')} <ArrowRight size={13} />
                                                     </a>
                                                     {isExpanded ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
                                                 </div>
@@ -1258,19 +1275,19 @@ const UnitsRegistry = () => {
                                                 <div style={{ padding: '12px 18px', borderTop: '1px solid #f1f5f9', background: '#fafafa', fontSize: '12px' }}>
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                                         <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>💰 Budget ({breakdown.budget.score}/{breakdown.budget.max} pts)</div>
+                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{t('realEstate.unitsRegistry.scoreBudget')} {t('realEstate.unitsRegistry.ptsScore', { score: breakdown.budget.score, max: breakdown.budget.max })}</div>
                                                             <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.budget.reason}</div>
                                                         </div>
                                                         <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>📐 Area ({breakdown.area.score}/{breakdown.area.max} pts)</div>
+                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{t('realEstate.unitsRegistry.scoreArea')} {t('realEstate.unitsRegistry.ptsScore', { score: breakdown.area.score, max: breakdown.area.max })}</div>
                                                             <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.area.reason}</div>
                                                         </div>
                                                         <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>📍 Location ({breakdown.location.score}/{breakdown.location.max} pts)</div>
+                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{t('realEstate.unitsRegistry.scoreLocation')} {t('realEstate.unitsRegistry.ptsScore', { score: breakdown.location.score, max: breakdown.location.max })}</div>
                                                             <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.location.reason}</div>
                                                         </div>
                                                         <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>🛏️ Rooms ({breakdown.rooms.score}/{breakdown.rooms.max} pts)</div>
+                                                            <div style={{ fontWeight: 700, color: '#0f172a' }}>{t('realEstate.unitsRegistry.scoreRooms')} {t('realEstate.unitsRegistry.ptsScore', { score: breakdown.rooms.score, max: breakdown.rooms.max })}</div>
                                                             <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.rooms.reason}</div>
                                                         </div>
                                                     </div>
@@ -1301,52 +1318,52 @@ const UnitsRegistry = () => {
                                 <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
                                     <Building size={20} />
                                 </div>
-                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Add Developer</h3>
+                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.devModalTitle')}</h3>
                             </div>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Register a real estate developer company into your system.</p>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>{t('realEstate.unitsRegistry.devModalSubtitle')}</p>
                         </div>
                         <form onSubmit={handleCreateDeveloper}>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
-                                <label className="ap-label">Developer Company Name *</label>
+                                <label className="ap-label">{t('realEstate.unitsRegistry.lblDevName')}</label>
                                 <input 
                                     className="ap-input" 
                                     required 
-                                    placeholder="e.g. Emaar Misr, Talaat Moustafa..." 
+                                    placeholder={t('realEstate.unitsRegistry.placeholderDevName')} 
                                     value={newDevForm.name} 
                                     onChange={e => setNewDevForm({ ...newDevForm, name: e.target.value })} 
                                 />
                             </div>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
-                                <label className="ap-label">Contact Person</label>
+                                <label className="ap-label">{t('realEstate.unitsRegistry.lblContactPerson')}</label>
                                 <input 
                                     className="ap-input" 
-                                    placeholder="e.g. Ahmed Zaki" 
+                                    placeholder={t('realEstate.unitsRegistry.placeholderContactPerson')} 
                                     value={newDevForm.contact_person} 
                                     onChange={e => setNewDevForm({ ...newDevForm, contact_person: e.target.value })} 
                                 />
                             </div>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
-                                <label className="ap-label">Phone Number</label>
+                                <label className="ap-label">{t('realEstate.unitsRegistry.lblPhone')}</label>
                                 <input 
                                     className="ap-input" 
-                                    placeholder="e.g. +20 100 123 4567" 
+                                    placeholder={t('realEstate.unitsRegistry.placeholderPhone')} 
                                     value={newDevForm.phone} 
                                     onChange={e => setNewDevForm({ ...newDevForm, phone: e.target.value })} 
                                 />
                             </div>
                             <div className="ap-form-group" style={{ marginBottom: '24px' }}>
-                                <label className="ap-label">Email</label>
+                                <label className="ap-label">{t('realEstate.unitsRegistry.lblEmail')}</label>
                                 <input 
                                     className="ap-input" 
                                     type="email" 
-                                    placeholder="e.g. info@developer.com" 
+                                    placeholder={t('realEstate.unitsRegistry.placeholderEmail')} 
                                     value={newDevForm.email} 
                                     onChange={e => setNewDevForm({ ...newDevForm, email: e.target.value })} 
                                 />
                             </div>
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <button type="submit" disabled={creatingDev} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
-                                    {creatingDev ? 'Saving...' : 'Confirm Developer'}
+                                    {creatingDev ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmDev')}
                                 </button>
                                 <button type="button" onClick={() => setShowQuickDevModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
                                     Cancel
@@ -1373,17 +1390,17 @@ const UnitsRegistry = () => {
                                 <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
                                     <Building2 size={20} />
                                 </div>
-                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Add Project / Compound</h3>
+                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.projModalTitle')}</h3>
                             </div>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Create a compound or real estate project under a developer.</p>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>{t('realEstate.unitsRegistry.projModalSubtitle')}</p>
                         </div>
                         <form onSubmit={handleCreateProject}>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
-                                <label className="ap-label">Project / Compound Name *</label>
+                                <label className="ap-label">{t('realEstate.unitsRegistry.lblProjName')}</label>
                                 <input 
                                     className="ap-input" 
                                     required 
-                                    placeholder="e.g. Palm Hills, Marassi, Uptown Cairo..." 
+                                    placeholder={t('realEstate.unitsRegistry.placeholderProjName')} 
                                     value={newProjForm.name} 
                                     onChange={e => setNewProjForm({ ...newProjForm, name: e.target.value })} 
                                 />
@@ -1395,34 +1412,34 @@ const UnitsRegistry = () => {
                                     value={newProjForm.developer_id}
                                     onChange={e => setNewProjForm({ ...newProjForm, developer_id: e.target.value })}
                                 >
-                                    <option value="">-- No Developer / Direct --</option>
+                                    <option value="">{t('realEstate.unitsRegistry.optNoDevDirect')}</option>
                                     {(hierarchyTree.developers || []).map(d => (
                                         <option key={d.id} value={d.id}>{d.name}</option>
                                     ))}
                                 </select>
                             </div>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
-                                <label className="ap-label">Location / City</label>
+                                <label className="ap-label">{t('realEstate.unitsRegistry.lblLocation')}</label>
                                 <input 
                                     className="ap-input" 
-                                    placeholder="e.g. New Cairo, North Coast, 6th of October" 
+                                    placeholder={t('realEstate.unitsRegistry.placeholderLocation')} 
                                     value={newProjForm.location} 
                                     onChange={e => setNewProjForm({ ...newProjForm, location: e.target.value })} 
                                 />
                             </div>
                             <div className="ap-form-group" style={{ marginBottom: '24px' }}>
-                                <label className="ap-label">Description (Optional)</label>
+                                <label className="ap-label">{t('realEstate.unitsRegistry.lblDescription')}</label>
                                 <textarea 
                                     className="ap-input" 
                                     rows={2}
-                                    placeholder="Brief overview of the project..." 
+                                    placeholder={t('realEstate.unitsRegistry.placeholderDescription')} 
                                     value={newProjForm.description} 
                                     onChange={e => setNewProjForm({ ...newProjForm, description: e.target.value })} 
                                 />
                             </div>
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <button type="submit" disabled={creatingProj} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
-                                    {creatingProj ? 'Saving...' : 'Confirm Project'}
+                                    {creatingProj ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmProj')}
                                 </button>
                                 <button type="button" onClick={() => setShowQuickProjModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
                                     Cancel
@@ -1449,38 +1466,38 @@ const UnitsRegistry = () => {
                                 <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
                                     <Layers size={20} />
                                 </div>
-                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Add Project Phase</h3>
+                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.phaseModalTitle')}</h3>
                             </div>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Create a new phase or development stage for a project.</p>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>{t('realEstate.unitsRegistry.phaseModalSubtitle')}</p>
                         </div>
                         <form onSubmit={handleCreatePhase}>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
-                                <label className="ap-label">Project / Compound *</label>
+                                <label className="ap-label">{t('realEstate.unitsRegistry.lblProjSelect')}</label>
                                 <select 
                                     className="ap-input" 
                                     required
                                     value={newPhaseForm.project_id}
                                     onChange={e => setNewPhaseForm({ ...newPhaseForm, project_id: e.target.value })}
                                 >
-                                    <option value="">-- Select Project --</option>
+                                    <option value="">{t('realEstate.unitsRegistry.optSelectProject')}</option>
                                     {(hierarchyTree.projects || []).map(p => (
                                         <option key={p.id} value={p.id}>{p.name}</option>
                                     ))}
                                 </select>
                             </div>
                             <div className="ap-form-group" style={{ marginBottom: '24px' }}>
-                                <label className="ap-label">Phase Name *</label>
+                                <label className="ap-label">{t('realEstate.unitsRegistry.lblPhaseName')}</label>
                                 <input 
                                     className="ap-input" 
                                     required 
-                                    placeholder="e.g. Phase 1, Phase 2, Marina Stage, North Wing..." 
+                                    placeholder={t('realEstate.unitsRegistry.placeholderPhaseName')} 
                                     value={newPhaseForm.name} 
                                     onChange={e => setNewPhaseForm({ ...newPhaseForm, name: e.target.value })} 
                                 />
                             </div>
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <button type="submit" disabled={creatingPhase} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
-                                    {creatingPhase ? 'Saving...' : 'Confirm Phase'}
+                                    {creatingPhase ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmPhase')}
                                 </button>
                                 <button type="button" onClick={() => setShowQuickPhaseModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
                                     Cancel
@@ -1507,9 +1524,9 @@ const UnitsRegistry = () => {
                                 <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
                                     <Building size={20} />
                                 </div>
-                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>Add Building / Tower</h3>
+                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.buildingModalTitle')}</h3>
                             </div>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Register a specific building, tower, or block.</p>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>{t('realEstate.unitsRegistry.buildingModalSubtitle')}</p>
                         </div>
                         <form onSubmit={handleCreateBuilding}>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
@@ -1533,24 +1550,24 @@ const UnitsRegistry = () => {
                                     value={newBuildingForm.phase_id}
                                     onChange={e => setNewBuildingForm({ ...newBuildingForm, phase_id: e.target.value })}
                                 >
-                                    <option value="">-- Direct Project Level (No Phase) --</option>
+                                    <option value="">{t('realEstate.unitsRegistry.optNoPhaseDirect')}</option>
                                     {(hierarchyTree.projects?.find(p => String(p.id) === String(newBuildingForm.project_id))?.phases || []).map(ph => (
                                         <option key={ph.id} value={ph.id}>{ph.name}</option>
                                     ))}
                                 </select>
                             </div>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
-                                <label className="ap-label">Building / Tower Name *</label>
+                                <label className="ap-label">{t('realEstate.unitsRegistry.lblBuildingName')}</label>
                                 <input 
                                     className="ap-input" 
                                     required 
-                                    placeholder="e.g. Building A, Tower 2, Block 14..." 
+                                    placeholder={t('realEstate.unitsRegistry.placeholderBuildingName')} 
                                     value={newBuildingForm.name} 
                                     onChange={e => setNewBuildingForm({ ...newBuildingForm, name: e.target.value })} 
                                 />
                             </div>
                             <div className="ap-form-group" style={{ marginBottom: '24px' }}>
-                                <label className="ap-label">Floors Count</label>
+                                <label className="ap-label">{t('realEstate.unitsRegistry.lblFloorsCount')}</label>
                                 <input 
                                     type="number"
                                     min="1"
@@ -1562,7 +1579,7 @@ const UnitsRegistry = () => {
                             </div>
                             <div style={{ display: 'flex', gap: '12px' }}>
                                 <button type="submit" disabled={creatingBuilding} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
-                                    {creatingBuilding ? 'Saving...' : 'Confirm Building'}
+                                    {creatingBuilding ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmBuilding')}
                                 </button>
                                 <button type="button" onClick={() => setShowQuickBuildingModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
                                     Cancel
@@ -1580,8 +1597,8 @@ const UnitsRegistry = () => {
                         {/* Header */}
                         <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
-                                <h2 style={{ fontSize: '22px', fontWeight: 900, margin: '0 0 4px 0', color: 'var(--text-main)' }}>Developers & Projects Catalog</h2>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Manage the real estate hierarchy structure for your inventory.</p>
+                                <h2 style={{ fontSize: '22px', fontWeight: 900, margin: '0 0 4px 0', color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.catalogTitle')}</h2>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>{t('realEstate.unitsRegistry.catalogSubtitle')}</p>
                             </div>
                             <button 
                                 onClick={() => setShowManageHierarchyModal(false)}
@@ -1597,13 +1614,13 @@ const UnitsRegistry = () => {
                                 onClick={() => setHierarchyTab('projects')}
                                 style={{ padding: '10px 18px', border: 'none', background: 'transparent', fontWeight: 800, fontSize: '14px', cursor: 'pointer', borderBottom: hierarchyTab === 'projects' ? '3px solid var(--primary)' : '3px solid transparent', color: hierarchyTab === 'projects' ? 'var(--primary)' : 'var(--text-muted)' }}
                             >
-                                Projects ({(hierarchyTree.projects || []).length})
+                                {t('realEstate.unitsRegistry.tabProjects', { count: (hierarchyTree.projects || []).length })}
                             </button>
                             <button 
                                 onClick={() => setHierarchyTab('developers')}
                                 style={{ padding: '10px 18px', border: 'none', background: 'transparent', fontWeight: 800, fontSize: '14px', cursor: 'pointer', borderBottom: hierarchyTab === 'developers' ? '3px solid var(--primary)' : '3px solid transparent', color: hierarchyTab === 'developers' ? 'var(--primary)' : 'var(--text-muted)' }}
                             >
-                                Developers ({(hierarchyTree.developers || []).length})
+                                {t('realEstate.unitsRegistry.tabDevelopers', { count: (hierarchyTree.developers || []).length })}
                             </button>
                             <div style={{ flex: 1 }} />
                             <button 
@@ -1615,7 +1632,7 @@ const UnitsRegistry = () => {
                                 style={{ height: '36px', fontSize: '12px', padding: '0 14px' }}
                             >
                                 <Plus size={14} strokeWidth={3} />
-                                {hierarchyTab === 'developers' ? 'New Developer' : 'New Project'}
+                                {hierarchyTab === 'developers' ? t('realEstate.unitsRegistry.btnNewDev') : t('realEstate.unitsRegistry.btnNewProj')}
                             </button>
                         </div>
 
@@ -1625,9 +1642,9 @@ const UnitsRegistry = () => {
                                 (hierarchyTree.projects || []).length === 0 ? (
                                     <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
                                         <Building2 size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
-                                        <p style={{ fontWeight: 700, margin: '0 0 12px 0' }}>No projects registered yet.</p>
+                                        <p style={{ fontWeight: 700, margin: '0 0 12px 0' }}>{t('realEstate.unitsRegistry.noProjectsRegistered')}</p>
                                         <button onClick={() => setShowQuickProjModal(true)} className="btn-primary-premium" style={{ height: '38px', fontSize: '13px' }}>
-                                            <Plus size={14} /> Create First Project
+                                            <Plus size={14} /> {t('realEstate.unitsRegistry.btnCreateFirstProj')}
                                         </button>
                                     </div>
                                 ) : (
@@ -1644,7 +1661,7 @@ const UnitsRegistry = () => {
                                                             <button 
                                                                 onClick={() => handleDeleteProject(p.id, p.name)}
                                                                 style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
-                                                                title="Delete Project"
+                                                                title={t('realEstate.unitsRegistry.btnDeleteProjTitle')}
                                                             >
                                                                 <Trash2 size={15}/>
                                                             </button>
@@ -1674,7 +1691,7 @@ const UnitsRegistry = () => {
                                                                 onClick={() => setExpandedProjectId(isExpanded ? null : p.id)}
                                                                 style={{ border: 'none', background: 'transparent', padding: 0, fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
                                                             >
-                                                                <span>{phasesList.length} Phases • {buildingsList.length} Buildings</span>
+                                                                <span>{t('realEstate.unitsRegistry.summaryPhasesBuildings', { phases: phasesList.length, buildings: buildingsList.length })}</span>
                                                                 {isExpanded ? <ChevronUp size={14} color="var(--primary)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
                                                             </button>
                                                             <div style={{ display: 'flex', gap: '6px' }}>
@@ -1683,18 +1700,18 @@ const UnitsRegistry = () => {
                                                                     onClick={() => openAddPhaseModal(p.id, p.name)}
                                                                     className="btn-secondary-modern"
                                                                     style={{ height: '28px', padding: '0 8px', fontSize: '11px', fontWeight: 800, borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '3px' }}
-                                                                    title="Add Phase to this project"
+                                                                    title={t('realEstate.unitsRegistry.addPhaseToProj')}
                                                                 >
-                                                                    <Plus size={11} strokeWidth={3} /> Phase
+                                                                    <Plus size={11} strokeWidth={3} /> {t('realEstate.unitsRegistry.btnPhaseInline')}
                                                                 </button>
                                                                 <button 
                                                                     type="button"
                                                                     onClick={() => openAddBuildingModal(p.id, p.name)}
                                                                     className="btn-secondary-modern"
                                                                     style={{ height: '28px', padding: '0 8px', fontSize: '11px', fontWeight: 800, borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '3px' }}
-                                                                    title="Add Building to this project"
+                                                                    title={t('realEstate.unitsRegistry.addBuildingToProj')}
                                                                 >
-                                                                    <Plus size={11} strokeWidth={3} /> Building
+                                                                    <Plus size={11} strokeWidth={3} /> {t('realEstate.unitsRegistry.btnBuildingInline')}
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -1705,7 +1722,7 @@ const UnitsRegistry = () => {
                                                                 {/* Phases list */}
                                                                 <div>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                                                        <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>Phases ({phasesList.length})</span>
+                                                                        <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{t('realEstate.unitsRegistry.phasesHeading', { count: phasesList.length })}</span>
                                                                         <button 
                                                                             type="button" 
                                                                             onClick={() => openAddPhaseModal(p.id, p.name)}
@@ -1715,7 +1732,7 @@ const UnitsRegistry = () => {
                                                                         </button>
                                                                     </div>
                                                                     {phasesList.length === 0 ? (
-                                                                        <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>No phases defined yet</span>
+                                                                        <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>{t('realEstate.unitsRegistry.noPhasesDefined')}</span>
                                                                     ) : (
                                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                                                             {phasesList.map(ph => (
@@ -1725,7 +1742,7 @@ const UnitsRegistry = () => {
                                                                                         type="button"
                                                                                         onClick={() => handleDeletePhase(ph.id, ph.name)}
                                                                                         style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
-                                                                                        title={`Delete phase ${ph.name}`}
+                                                                                        title={t('realEstate.unitsRegistry.deletePhaseTitle', { name: ph.name })}
                                                                                     >
                                                                                         <X size={12}/>
                                                                                     </button>
@@ -1738,7 +1755,7 @@ const UnitsRegistry = () => {
                                                                 {/* Buildings list */}
                                                                 <div>
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                                                        <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>Buildings ({buildingsList.length})</span>
+                                                                        <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{t('realEstate.unitsRegistry.buildingsHeading', { count: buildingsList.length })}</span>
                                                                         <button 
                                                                             type="button" 
                                                                             onClick={() => openAddBuildingModal(p.id, p.name)}
@@ -1748,7 +1765,7 @@ const UnitsRegistry = () => {
                                                                         </button>
                                                                     </div>
                                                                     {buildingsList.length === 0 ? (
-                                                                        <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>No buildings defined yet</span>
+                                                                        <span style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>{t('realEstate.unitsRegistry.noBuildingsDefined')}</span>
                                                                     ) : (
                                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                                                             {buildingsList.map(b => (
@@ -1758,7 +1775,7 @@ const UnitsRegistry = () => {
                                                                                         type="button"
                                                                                         onClick={() => handleDeleteBuilding(b.id, b.name)}
                                                                                         style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
-                                                                                        title={`Delete building ${b.name}`}
+                                                                                        title={t('realEstate.unitsRegistry.deleteBuildingTitle', { name: b.name })}
                                                                                     >
                                                                                         <X size={12}/>
                                                                                     </button>
@@ -1779,9 +1796,9 @@ const UnitsRegistry = () => {
                                 (hierarchyTree.developers || []).length === 0 ? (
                                     <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
                                         <Building size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
-                                        <p style={{ fontWeight: 700, margin: '0 0 12px 0' }}>No developers registered yet.</p>
+                                        <p style={{ fontWeight: 700, margin: '0 0 12px 0' }}>{t('realEstate.unitsRegistry.noDevelopersRegistered')}</p>
                                         <button onClick={() => setShowQuickDevModal(true)} className="btn-primary-premium" style={{ height: '38px', fontSize: '13px' }}>
-                                            <Plus size={14} /> Create First Developer
+                                            <Plus size={14} /> {t('realEstate.unitsRegistry.btnCreateFirstDev')}
                                         </button>
                                     </div>
                                 ) : (
@@ -1794,7 +1811,7 @@ const UnitsRegistry = () => {
                                                         <button 
                                                             onClick={() => handleDeleteDeveloper(d.id, d.name)}
                                                             style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
-                                                            title="Delete Developer"
+                                                            title={t('realEstate.unitsRegistry.deleteDevTitle')}
                                                         >
                                                             <Trash2 size={15}/>
                                                         </button>

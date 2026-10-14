@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 /**
  * Lightweight shared building blocks for the standalone Real Estate workspaces
@@ -7,8 +8,22 @@ import { X } from 'lucide-react';
  * Presentation only – all data access and authorization stays in the backend.
  */
 
-export const fmtMoney = (v) => `${Number(v || 0).toLocaleString()} EGP`;
-export const fmtDate = (v) => (v ? String(v).split('T')[0] : '—');
+export const fmtMoney = (v, currencySuffix) => {
+  const numStr = Number(v || 0).toLocaleString('en-US');
+  const suffix = currencySuffix !== undefined ? currencySuffix : 'EGP';
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+      <span className="num-en">{numStr}</span>
+      <span>{suffix}</span>
+    </span>
+  );
+};
+
+export const fmtDate = (v) => {
+  if (!v) return '—';
+  const val = String(v).split('T')[0];
+  return <span className="num-en">{val}</span>;
+};
 
 export const WorkspaceHeader = ({ icon, title, subtitle, children }) => (
   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', gap: '16px', flexWrap: 'wrap' }}>
@@ -27,7 +42,9 @@ export const StatCards = ({ items }) => (
     {items.map((s) => (
       <div key={s.label} style={{ background: 'var(--bg-card, #fff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: '12px', padding: '14px 16px' }}>
         <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>{s.label}</div>
-        <div style={{ fontSize: '20px', fontWeight: 800, color: s.color || '#0f172a', marginTop: '4px' }}>{s.value}</div>
+        <div style={{ fontSize: '20px', fontWeight: 800, color: s.color || '#0f172a', marginTop: '4px' }}>
+          {typeof s.value === 'number' ? <span className="num-en">{s.value.toLocaleString('en-US')}</span> : s.value}
+        </div>
       </div>
     ))}
   </div>
@@ -51,15 +68,21 @@ export const FilterChips = ({ options, value, onChange }) => (
   </div>
 );
 
-export const DealFilterBanner = ({ dealId, label, onClear }) =>
-  dealId ? (
+export const DealFilterBanner = ({ dealId, label, onClear }) => {
+  const { t } = useLanguage();
+  if (!dealId) return null;
+
+  return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', borderRadius: '10px', padding: '8px 12px', marginBottom: '12px', fontSize: '12px', fontWeight: 700 }}>
-      <span>Showing records for Deal #{dealId}{label ? ` — ${label}` : ''}</span>
+      <span>
+        {t('realEstate.common.showingDealRecords', { dealId })}{label ? ` — ${label}` : ''}
+      </span>
       <button type="button" onClick={onClear} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none', color: '#1e40af', cursor: 'pointer', fontWeight: 700 }}>
-        <X size={14} /> Clear
+        <X size={14} /> {t('realEstate.common.clearFilter')}
       </button>
     </div>
-  ) : null;
+  );
+};
 
 const BADGE_COLORS = {
   green: ['#dcfce7', '#15803d'],
@@ -93,36 +116,44 @@ export const ActionButton = ({ color = '#2563eb', outline = false, children, ...
   </button>
 );
 
-export const SimpleTable = ({ columns, rows, loading, empty = 'No records found.', rowStyle }) => (
-  <div style={{ background: 'var(--bg-card, #fff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: '12px', overflowX: 'auto' }}>
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-      <thead>
-        <tr style={{ background: '#f8fafc', color: '#475569', textAlign: 'left' }}>
-          {columns.map((c) => (
-            <th key={c.key} style={{ padding: '10px 12px', fontWeight: 700, borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap', textAlign: c.align || 'left' }}>{c.label}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {loading ? (
-          <tr><td colSpan={columns.length} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>Loading…</td></tr>
-        ) : rows.length === 0 ? (
-          <tr><td colSpan={columns.length} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>{empty}</td></tr>
-        ) : (
-          rows.map((r, idx) => (
-            <tr key={r.id ?? idx} style={{ borderBottom: '1px solid #f1f5f9', ...(rowStyle ? rowStyle(r) : {}) }}>
-              {columns.map((c) => (
-                <td key={c.key} style={{ padding: '10px 12px', verticalAlign: 'middle', textAlign: c.align || 'left' }}>
-                  {c.render ? c.render(r[c.key], r) : (r[c.key] ?? '—')}
-                </td>
-              ))}
-            </tr>
-          ))
-        )}
-      </tbody>
-    </table>
-  </div>
-);
+export const SimpleTable = ({ columns, rows, loading, empty, rowStyle }) => {
+  const { t, isRTL } = useLanguage();
+  const defaultEmpty = empty || t('realEstate.common.noRecords');
+  const defaultLoading = t('realEstate.common.loading');
+
+  return (
+    <div style={{ background: 'var(--bg-card, #fff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: '12px', overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+        <thead>
+          <tr style={{ background: '#f8fafc', color: '#475569', textAlign: isRTL ? 'right' : 'left' }}>
+            {columns.map((c) => (
+              <th key={c.key} style={{ padding: '10px 12px', fontWeight: 700, borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap', textAlign: c.align || (isRTL ? 'right' : 'left') }}>
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {loading ? (
+            <tr><td colSpan={columns.length} style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>{defaultLoading}</td></tr>
+          ) : rows.length === 0 ? (
+            <tr><td colSpan={columns.length} style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>{defaultEmpty}</td></tr>
+          ) : (
+            rows.map((r, idx) => (
+              <tr key={r.id ?? idx} style={{ borderBottom: '1px solid #f1f5f9', ...(rowStyle ? rowStyle(r) : {}) }}>
+                {columns.map((c) => (
+                  <td key={c.key} style={{ padding: '10px 12px', verticalAlign: 'middle', textAlign: c.align || (isRTL ? 'right' : 'left') }}>
+                    {c.render ? c.render(r[c.key], r) : (r[c.key] ?? '—')}
+                  </td>
+                ))}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 export const fieldStyle = { width: '100%', padding: '9px 10px', border: '1px solid var(--border, #e2e8f0)', borderRadius: '8px', fontSize: '13px', background: 'var(--bg-main, #fff)' };
 export const labelStyle = { display: 'block', marginBottom: '6px', fontSize: '12px', fontWeight: 600, color: '#334155' };
