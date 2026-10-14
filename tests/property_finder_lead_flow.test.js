@@ -434,3 +434,21 @@ test('Locks are taken in a fixed order (lead -> contact -> source) so concurrent
   const kinds = s.lockLog.map(k => k.split(':')[1]);
   assert.deepEqual(kinds, ['lead', 'contact', 'contact', 'source']);
 });
+
+test('Client: GET request never carries a body (data:null would send "null", Content-Length 4 -> CloudFront 403)', async () => {
+  const c = new PropertyFinderClient({ apiKey: 'k'.repeat(40), apiSecret: 's'.repeat(32), environment: 'production', tenantId: TA });
+  c.getAccessToken = async () => 'tok';
+  const prevAdapter = axios.defaults.adapter;
+  let captured;
+  axios.defaults.adapter = async (config) => { captured = config; return { data: { data: [] }, status: 200, statusText: 'OK', headers: {}, config }; };
+  try {
+    await c.getLeads({ page: 1, perPage: 50 });
+    assert.equal(captured.method, 'get');
+    assert.equal(captured.data, undefined, 'GET must not have a request body');
+    // POST bodies must still be sent
+    await c.request({ method: 'POST', endpoint: '/x', data: { a: 1 } });
+    assert.ok(captured.data, 'POST body must be preserved');
+  } finally {
+    axios.defaults.adapter = prevAdapter;
+  }
+});

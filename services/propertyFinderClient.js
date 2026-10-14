@@ -130,10 +130,9 @@ class PropertyFinderClient {
         const token = await this.getAccessToken(attempt > 1);
         const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
 
-        const response = await axios({
+        const axiosConfig = {
           method,
           url,
-          data,
           params,
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -143,7 +142,14 @@ class PropertyFinderClient {
             'User-Agent': 'Tashgheel-CRM/1.0 (ITQAN Solutions; RealEstate Egypt)'
           },
           timeout: 25000
-        });
+        };
+        // IMPORTANT: never pass `data: null` — axios serializes it as the body "null"
+        // (Content-Length: 4) even on GET, and CloudFront rejects that with HTTP 403.
+        if (data !== null && data !== undefined) {
+          axiosConfig.data = data;
+        }
+
+        const response = await axios(axiosConfig);
 
         return response.data;
       } catch (err) {
