@@ -27,20 +27,30 @@ async function run() {
   let environment = 'production';
 
   // If not provided in args/env, load from property_finder_settings in database
+  const targetTenant = process.argv[2] && process.argv[2].includes('-') ? process.argv[2] : null;
+
+  // If not provided in args/env, load from property_finder_settings in database
   if (!apiKey || !apiSecret) {
     try {
-      const res = await db.query(
-        `SELECT api_key_encrypted, api_secret_encrypted, environment FROM property_finder_settings 
-         WHERE api_key_encrypted IS NOT NULL AND api_secret_encrypted IS NOT NULL 
-         LIMIT 1`
-      );
+      let query = `SELECT tenant_id, api_key_encrypted, api_secret_encrypted, environment FROM property_finder_settings 
+                   WHERE api_key_encrypted IS NOT NULL AND api_secret_encrypted IS NOT NULL `;
+      const params = [];
+      if (targetTenant) {
+        query += `AND tenant_id::text = $1::text `;
+        params.push(targetTenant);
+      } else {
+        query += `ORDER BY is_enabled DESC, updated_at DESC `;
+      }
+      query += `LIMIT 1`;
+
+      const res = await db.query(query, params);
       if (res.rows.length > 0) {
         apiKey = decrypt(res.rows[0].api_key_encrypted);
         apiSecret = decrypt(res.rows[0].api_secret_encrypted);
         environment = res.rows[0].environment || 'production';
-        console.log(`✅ Loaded credentials from database for environment: [${environment}]`);
-        console.log(`   🔑 API Key length: ${apiKey.length} | Format: "${apiKey.slice(0, 3)}...${apiKey.slice(-3)}"`);
-        console.log(`   🔒 API Secret length: ${apiSecret.length} | Format: "${apiSecret.slice(0, 2)}...${apiSecret.slice(-2)}"`);
+        console.log(`✅ Loaded credentials for Tenant [${res.rows[0].tenant_id}] (environment: [${environment}])`);
+        console.log(`   🔑 API Key length: ${apiKey.length} | Format: "${apiKey.slice(0, 4)}...${apiKey.slice(-4)}"`);
+        console.log(`   🔒 API Secret length: ${apiSecret.length} | Format: "${apiSecret.slice(0, 4)}...${apiSecret.slice(-4)}"`);
       }
     } catch (dbErr) {
       console.warn(`⚠️ Could not query local database: ${dbErr.message}`);
