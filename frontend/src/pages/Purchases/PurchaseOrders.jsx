@@ -271,7 +271,7 @@ const PurchaseOrders = () => {
 
   const handleSubmitReceive = async (e) => {
     e.preventDefault();
-    if (!receivingOrder) return;
+    if (!receivingOrder || submittingReceive) return;
 
     if (!receiveWarehouseId) {
       toast.error('يرجى اختيار مخزن الاستلام.');
@@ -304,19 +304,27 @@ const PurchaseOrders = () => {
 
     setSubmittingReceive(true);
     try {
+      const idempotencyKey = `rcv_${receivingOrder.id}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
       const payload = {
         warehouse_id: parseInt(receiveWarehouseId),
         notes: receiveNotes,
-        items: itemsToReceive
+        items: itemsToReceive,
+        idempotency_key: idempotencyKey
       };
 
-      const res = await api.post(`/purchase-orders/${receivingOrder.id}/receive`, payload);
+      const res = await api.post(`/purchase-orders/${receivingOrder.id}/receive`, payload, {
+        headers: { 'Idempotency-Key': idempotencyKey }
+      });
       toast.success(res.data?.message || 'تم استلام البضاعة بنجاح.');
       setShowReceiveModal(false);
 
-      fetchOrders();
+      if (res.data?.data && selectedOrder && selectedOrder.id === receivingOrder.id) {
+        setSelectedOrder(prev => ({ ...prev, ...res.data.data }));
+      }
+
+      await fetchOrders();
       if (selectedOrder && selectedOrder.id === receivingOrder.id) {
-        handleOpenDetail(receivingOrder.id);
+        await handleOpenDetail(receivingOrder.id);
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'فشل في استلام البضاعة.');

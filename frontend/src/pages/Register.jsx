@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, User, Building2, ArrowRight, Check, Loader2, Phone, CheckCircle2 } from 'lucide-react';
 import api from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
 
 const Register = () => {
+    const { t, isRTL } = useLanguage();
     const [step, setStep] = useState(1);
     const [formData, setFormData] = useState({ name: '', email: '', password: '', companyName: '', phone: '' });
     const [templateName, setTemplateName] = useState('general');
@@ -15,15 +17,15 @@ const Register = () => {
 
     const validateStep1 = () => {
         if (!formData.companyName.trim() || !formData.name.trim() || !formData.email.trim() || !formData.password.trim()) {
-            setError('Please fill in all required fields.'); return false;
+            setError(t('auth.toastFillFields', 'Please fill in all required fields.')); return false;
         }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(formData.email.trim())) {
-            setError('Please enter a valid email address.'); return false;
+            setError(t('auth.toastValidEmail', 'Please enter a valid email address.')); return false;
         }
         const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
         if (!passwordRegex.test(formData.password)) {
-            setError('Password: min 8 chars, 1 uppercase, 1 number.'); return false;
+            setError(t('auth.toastPasswordRules', 'Password: min 8 chars, 1 uppercase, 1 number.')); return false;
         }
         setError(''); return true;
     };
@@ -44,21 +46,21 @@ const Register = () => {
             });
             setStep(2);
         } catch (err) {
-            setError(err.response?.data?.message || 'Something went wrong. Please try again.');
+            setError(err.response?.data?.message || t('common.errorOccurred', 'Something went wrong. Please try again.'));
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div style={{ minHeight: '100vh', background: 'radial-gradient(circle at top right, #4f46e5 0%, #1e1b4b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
+        <div dir={isRTL ? 'rtl' : 'ltr'} style={{ minHeight: '100vh', background: 'radial-gradient(circle at top right, #4f46e5 0%, #1e1b4b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
             <style>{`
                 @keyframes slideUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
                 @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
                 @keyframes pulseCheck { 0%,100% { transform:scale(1); } 50% { transform:scale(1.1); } }
                 @keyframes spin { to { transform: rotate(360deg); } }
                 .reg-card { background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); padding: 40px; border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); width: 100%; max-width: 520px; border: 1px solid rgba(255,255,255,0.1); animation: slideUp 0.5s cubic-bezier(0.4,0,0.2,1); }
-                .reg-input { width: 100%; padding: 12px 12px 12px 42px; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; font-size: 14px; font-weight: 500; background: rgba(255,255,255,0.06); color: white; transition: all 0.3s; box-sizing: border-box; }
+                .reg-input { width: 100%; ${isRTL ? 'padding: 12px 42px 12px 12px;' : 'padding: 12px 12px 12px 42px;'} border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; font-size: 14px; font-weight: 500; background: rgba(255,255,255,0.06); color: white; transition: all 0.3s; box-sizing: border-box; }
                 .reg-input:focus { border-color: #6366f1; background: rgba(255,255,255,0.1); box-shadow: 0 0 0 4px rgba(99,102,241,0.2); outline: none; }
                 .reg-input::placeholder { color: rgba(255,255,255,0.35); }
                 .reg-label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); letter-spacing: 0.02em; }
@@ -79,10 +81,10 @@ const Register = () => {
             <div className="reg-card">
                 <div style={{ textAlign: 'center', marginBottom: 28 }}>
                     <h1 style={{ color: 'white', fontSize: 30, fontWeight: 900, margin: '0 0 8px', letterSpacing: '-0.03em' }}>
-                        {step === 1 ? 'Create Your Workspace' : 'Request Received!'}
+                        {step === 1 ? t('auth.registerTitle') : 'Request Received!'}
                     </h1>
                     <p style={{ color: 'rgba(255,255,255,0.55)', margin: 0, fontSize: 14 }}>
-                        {step === 1 ? 'Launch your organization in minutes' : "We'll be in touch shortly"}
+                        {step === 1 ? t('auth.registerSubtitle') : "We'll be in touch shortly"}
                     </p>
                 </div>
 
@@ -104,17 +106,17 @@ const Register = () => {
                     <form onSubmit={handleSubmit} style={{ animation: 'fadeIn 0.3s ease' }}>
                         {error && <div className="err-box">{error}</div>}
                         {[
-                            { name: 'companyName', label: 'Organization Name', placeholder: 'e.g. Acme Corp',                  type: 'text',     Icon: Building2 },
-                            { name: 'name',        label: 'Your Full Name',    placeholder: 'John Doe',                        type: 'text',     Icon: User },
-                            { name: 'email',       label: 'Work Email',        placeholder: 'john@company.com',                type: 'email',    Icon: Mail },
-                            { name: 'phone',       label: 'Phone Number',      placeholder: '+201...',                         type: 'text',     Icon: Phone },
-                            { name: 'password',    label: 'Password',          placeholder: 'Min 8 chars, 1 upper, 1 number',  type: 'password', Icon: Lock },
+                            { name: 'companyName', label: t('companySettings.lblLegalName', 'Organization Name'), placeholder: 'e.g. Acme Corp', type: 'text', Icon: Building2 },
+                            { name: 'name', label: t('auth.lblFullName'), placeholder: t('auth.placeholderFullName'), type: 'text', Icon: User },
+                            { name: 'email', label: t('auth.lblEmail'), placeholder: t('auth.placeholderEmail'), type: 'email', Icon: Mail },
+                            { name: 'phone', label: t('companySettings.lblPhone', 'Phone Number'), placeholder: '+201...', type: 'text', Icon: Phone },
+                            { name: 'password', label: t('auth.lblPassword'), placeholder: 'Min 8 chars, 1 upper, 1 number', type: 'password', Icon: Lock },
                         ].map(({ name, label, placeholder, type, Icon }) => (
                             <div key={name} style={{ marginBottom: 20 }}>
                                 <label className="reg-label">{label}</label>
                                 <div style={{ position: 'relative' }}>
-                                    <Icon size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }}/>
-                                    <input className="reg-input" type={type} name={name} placeholder={placeholder} value={formData[name]} onChange={handleChange} required={name !== 'phone'}/>
+                                    <Icon size={16} style={{ position: 'absolute', [isRTL ? 'right' : 'left']: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }}/>
+                                    <input className={`reg-input ${name === 'phone' || name === 'email' ? 'num-en' : ''}`} type={type} name={name} placeholder={placeholder} value={formData[name]} onChange={handleChange} required={name !== 'phone'}/>
                                 </div>
                             </div>
                         ))}
@@ -136,11 +138,11 @@ const Register = () => {
                         <button type="submit" className="reg-btn" disabled={loading}>
                             {loading
                                 ? <><Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }}/> Submitting...</>
-                                : <>Submit Request <ArrowRight size={18}/></>
+                                : <>{t('auth.btnRegister')} <ArrowRight size={18} style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }}/></>
                             }
                         </button>
                         <div style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>
-                            Already have a workspace? <Link to="/login" style={{ color: 'white', fontWeight: 700 }}>Sign In</Link>
+                            {t('auth.alreadyHaveAccount')} <Link to="/login" style={{ color: 'white', fontWeight: 700 }}>{t('auth.btnLogin')}</Link>
                         </div>
                     </form>
                 )}
@@ -158,7 +160,7 @@ const Register = () => {
                         </p>
                         <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 16, marginBottom: 28, border: '1px solid rgba(255,255,255,0.08)' }}>
                             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>Registered email</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>{formData.email}</div>
+                            <div className="num-en" style={{ fontSize: 14, fontWeight: 700, color: 'white' }}>{formData.email}</div>
                         </div>
                         <button className="reg-btn" onClick={() => navigate('/', { replace: true })}>Back to Home</button>
                     </div>

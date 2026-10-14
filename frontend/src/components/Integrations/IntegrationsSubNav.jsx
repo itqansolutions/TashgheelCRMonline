@@ -1,22 +1,27 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Cpu, FileCheck, Share2, MessageCircle, Send, MessageSquare, Bot } from 'lucide-react';
+import { FileCheck, Share2, MessageCircle, Send, MessageSquare, Bot } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const IntegrationsSubNav = () => {
+  const { t, isRTL } = useLanguage();
   const links = [
-    { path: '/whatsapp-chat', label: 'WhatsApp Chat', icon: <MessageSquare size={16} /> },
-    { path: '/marketing/whatsapp-chatbots', label: 'ChatBots', icon: <Bot size={16} /> },
-    { path: '/marketing/whatsapp-campaigns', label: 'WhatsApp Campaigns', icon: <Send size={16} /> },
-    { path: '/integrations/whatsapp', label: 'WhatsApp Settings', icon: <MessageCircle size={16} /> },
-    { path: '/integrations/meta-forms', label: 'Meta Lead Ads (Forms)', icon: <Share2 size={16} /> },
-    { path: '/integrations/einvoice', label: 'ETA E-Invoicing', icon: <FileCheck size={16} /> },
+    { path: '/whatsapp-chat', label: t('subNav.integrations.whatsappChat'), icon: <MessageSquare size={16} /> },
+    { path: '/marketing/whatsapp-chatbots', label: t('subNav.integrations.chatbots'), icon: <Bot size={16} /> },
+    { path: '/marketing/whatsapp-campaigns', label: t('subNav.integrations.whatsappCampaigns'), icon: <Send size={16} /> },
+    { path: '/integrations/whatsapp', label: t('subNav.integrations.whatsappSettings'), icon: <MessageCircle size={16} /> },
+    { path: '/integrations/meta-forms', label: t('subNav.integrations.metaForms'), icon: <Share2 size={16} /> },
+    { path: '/integrations/einvoice', label: t('subNav.integrations.einvoice'), icon: <FileCheck size={16} /> },
   ];
 
   return (
-    <div style={{
-      display: 'flex', gap: '6px', overflowX: 'auto', padding: '12px 24px',
-      background: 'white', borderBottom: '1px solid #e2e8f0', marginBottom: '16px'
-    }}>
+    <div
+      dir={isRTL ? 'rtl' : 'ltr'}
+      style={{
+        display: 'flex', gap: '6px', overflowX: 'auto', padding: '12px 24px',
+        background: 'white', borderBottom: '1px solid #e2e8f0', marginBottom: '16px'
+      }}
+    >
       {links.map((link) => (
         <NavLink
           key={link.path}

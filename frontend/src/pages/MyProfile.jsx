@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import {
   UserCircle, Mail, Shield, Building, Briefcase, Calendar,
   Clock, FileText, ShieldCheck, DollarSign, Wallet,
@@ -9,6 +10,7 @@ import {
 
 const MyProfile = () => {
   const { user } = useAuth();
+  const { t, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -37,19 +39,19 @@ const MyProfile = () => {
   }, [tabParam, navigate]);
 
   const quickNavItems = [
-    { name: 'My Attendance', desc: 'Punch clock and timesheet logs', path: '/my-attendance', icon: <Clock size={20} color="#059669" />, bg: '#ecfdf5' },
-    { name: 'My Requests', desc: 'Submit and track leaves & permissions', path: '/my-requests', icon: <FileText size={20} color="#2563eb" />, bg: '#eff6ff' },
-    ...(isManager ? [{ name: 'Approvals', desc: 'Review team requests', path: '/approvals', icon: <ShieldCheck size={20} color="#7c3aed" />, bg: '#f5f3ff' }] : []),
-    { name: 'My Payroll', desc: 'Salary history and pay slips', path: '/my-payroll', icon: <DollarSign size={20} color="#d97706" />, bg: '#fffbeb' },
-    { name: 'Activity Balance', desc: 'View allocated operational quotas', path: '/activity-balance', icon: <Wallet size={20} color="#0891b2" />, bg: '#ecfeff' },
-    { name: 'Deals', desc: 'Sales pipeline and active deals', path: '/deals', icon: <Handshake size={20} color="#4f46e5" />, bg: '#eef2ff' },
-    { name: 'Tasks', desc: 'Assigned activities and to-dos', path: '/tasks', icon: <CheckSquare size={20} color="#ea580c" />, bg: '#fff7ed' },
-    { name: 'Customers', desc: 'Assigned clients and accounts', path: '/customers', icon: <Users size={20} color="#0284c7" />, bg: '#f0f9ff' },
-    ...(isRealEstate ? [{ name: 'Units', desc: 'Real Estate inventory & assignments', path: '/units-registry', icon: <Key size={20} color="#0d9488" />, bg: '#f0fdfa' }] : [])
+    { name: t('profile.navAttendance'), desc: t('profile.descAttendance'), path: '/my-attendance', icon: <Clock size={20} color="#059669" />, bg: '#ecfdf5' },
+    { name: t('profile.navRequests'), desc: t('profile.descRequests'), path: '/my-requests', icon: <FileText size={20} color="#2563eb" />, bg: '#eff6ff' },
+    ...(isManager ? [{ name: t('profile.navApprovals'), desc: t('profile.descApprovals'), path: '/approvals', icon: <ShieldCheck size={20} color="#7c3aed" />, bg: '#f5f3ff' }] : []),
+    { name: t('profile.navPayroll'), desc: t('profile.descPayroll'), path: '/my-payroll', icon: <DollarSign size={20} color="#d97706" />, bg: '#fffbeb' },
+    { name: t('profile.navActivityBalance'), desc: t('profile.descActivityBalance'), path: '/activity-balance', icon: <Wallet size={20} color="#0891b2" />, bg: '#ecfeff' },
+    { name: t('profile.navDeals'), desc: t('profile.descDeals'), path: '/deals', icon: <Handshake size={20} color="#4f46e5" />, bg: '#eef2ff' },
+    { name: t('profile.navTasks'), desc: t('profile.descTasks'), path: '/tasks', icon: <CheckSquare size={20} color="#ea580c" />, bg: '#fff7ed' },
+    { name: t('profile.navCustomers'), desc: t('profile.descCustomers'), path: '/customers', icon: <Users size={20} color="#0284c7" />, bg: '#f0f9ff' },
+    ...(isRealEstate ? [{ name: t('profile.navUnits'), desc: t('profile.descUnits'), path: '/units-registry', icon: <Key size={20} color="#0d9488" />, bg: '#f0fdfa' }] : [])
   ];
 
   return (
-    <div style={{ padding: '32px 24px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '32px 24px', maxWidth: '1200px', margin: '0 auto' }}>
       {/* Profile Hero Header Card */}
       <div style={{
         background: 'white',
@@ -83,7 +85,7 @@ const MyProfile = () => {
         <div style={{ flex: 1, minWidth: '260px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <h1 style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
-              {user?.name || 'User Profile'}
+              {user?.name || t('profile.title')}
             </h1>
             <span style={{
               background: user?.role === 'admin' ? '#fef2f2' : user?.role === 'manager' ? '#eff6ff' : '#f0fdf4',
@@ -99,12 +101,12 @@ const MyProfile = () => {
               gap: '4px'
             }}>
               <Shield size={12} />
-              {user?.role === 'admin' ? 'System Administrator' : user?.role === 'manager' ? 'Branch Manager' : 'Staff Employee'}
+              {user?.role === 'admin' ? t('profile.adminRole') : user?.role === 'manager' ? t('profile.managerRole') : t('profile.employeeRole')}
             </span>
           </div>
 
           <p style={{ margin: '8px 0 0', color: '#64748b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Mail size={15} color="#94a3b8" /> {user?.email || '—'}
+            <Mail size={15} color="#94a3b8" /> <span className="num-en">{user?.email || '—'}</span>
           </p>
         </div>
       </div>
@@ -126,31 +128,31 @@ const MyProfile = () => {
         }}>
           <h3 style={{ margin: '0 0 18px', fontSize: '16px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Building size={18} color="#4f46e5" />
-            Account & Organization
+            {t('profile.sectionAccount')}
           </h3>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' }}>
-              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>Account ID</span>
-              <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 700 }}>#{user?.id}</span>
+              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{t('profile.lblAccountId')}</span>
+              <span className="num-en" style={{ fontSize: '13px', color: '#0f172a', fontWeight: 700 }}>#{user?.id}</span>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' }}>
-              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>Job Title</span>
-              <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 700 }}>{user?.job_title_name || 'General Staff'}</span>
+              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{t('profile.lblJobTitle')}</span>
+              <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 700 }}>{user?.job_title_name || t('profile.generalStaff')}</span>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' }}>
-              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>Template Edition</span>
+              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{t('profile.lblTemplate')}</span>
               <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 700, textTransform: 'capitalize' }}>
-                {user?.template_name === 'real_estate' ? 'Real Estate Edition' : 'General Edition'}
+                {user?.template_name === 'real_estate' ? t('profile.templateRealEstate') : t('profile.templateGeneral')}
               </span>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' }}>
-              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>Member Since</span>
-              <span style={{ fontSize: '13px', color: '#0f172a', fontWeight: 700 }}>
-                {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
+              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{t('profile.lblMemberSince')}</span>
+              <span className="num-en" style={{ fontSize: '13px', color: '#0f172a', fontWeight: 700 }}>
+                {user?.created_at ? new Date(user.created_at).toLocaleDateString('en-CA') : '—'}
               </span>
             </div>
           </div>
@@ -166,7 +168,7 @@ const MyProfile = () => {
         }}>
           <h3 style={{ margin: '0 0 18px', fontSize: '16px', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Briefcase size={18} color="#059669" />
-            Branch Memberships
+            {t('profile.sectionBranches')}
           </h3>
 
           {user?.branches && user.branches.length > 0 ? (
@@ -183,17 +185,17 @@ const MyProfile = () => {
                 }}>
                   <div>
                     <div style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b' }}>{b.name}</div>
-                    <div style={{ fontSize: '12px', color: '#64748b' }}>Code: {b.code || 'MAIN'}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>{t('profile.branchCode', { code: b.code || 'MAIN' })}</div>
                   </div>
                   <span style={{ background: '#dcfce7', color: '#15803d', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
-                    Active
+                    {t('profile.badgeActive')}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
             <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>
-              Operating under primary default organization branch.
+              {t('profile.noBranches')}
             </p>
           )}
         </div>
@@ -202,10 +204,10 @@ const MyProfile = () => {
       {/* Independent Workspaces Quick Navigation */}
       <div>
         <h3 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
-          Personal Workspaces & Functions
+          {t('profile.sectionWorkspaces')}
         </h3>
         <p style={{ margin: '0 0 20px', color: '#64748b', fontSize: '13px' }}>
-          Each operational workspace is independently accessible with full dedicated tooling:
+          {t('profile.workspacesSubtitle')}
         </p>
 
         <div style={{
@@ -255,7 +257,7 @@ const MyProfile = () => {
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   {item.name}
-                  <ArrowRight size={14} color="#94a3b8" />
+                  <ArrowRight size={14} color="#94a3b8" style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }} />
                 </div>
                 <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', lineHeight: 1.4 }}>
                   {item.desc}

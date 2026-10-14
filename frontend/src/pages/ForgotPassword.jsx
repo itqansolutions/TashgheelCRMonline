@@ -3,8 +3,10 @@ import { Mail, ArrowLeft, Send, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { useLanguage } from '../context/LanguageContext';
 
 const ForgotPassword = () => {
+  const { t, isRTL } = useLanguage();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -15,16 +17,16 @@ const ForgotPassword = () => {
     try {
       await api.post('/auth/forgot-password', { email });
       setSubmitted(true);
-      toast.success('Reset link sent!');
+      toast.success(t('auth.toastResetSent', 'Reset link sent!'));
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Something went wrong');
+      toast.error(err.response?.data?.message || t('common.errorOccurred', 'Something went wrong'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="login-container">
+    <div className="login-container" dir={isRTL ? 'rtl' : 'ltr'}>
       <style>{`
         .login-container {
           display: flex;
@@ -53,8 +55,8 @@ const ForgotPassword = () => {
         .form-group { margin-bottom: 24px; }
         .form-group label { display: block; color: white; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
         .input-wrapper { position: relative; }
-        .input-wrapper svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: rgba(255, 255, 255, 0.4); width: 18px; }
-        input { width: 100%; padding: 14px 14px 14px 48px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: white; transition: all 0.3s; }
+        .input-wrapper svg { position: absolute; ${isRTL ? 'right: 16px;' : 'left: 16px;'} top: 50%; transform: translateY(-50%); color: rgba(255, 255, 255, 0.4); width: 18px; }
+        input { width: 100%; ${isRTL ? 'padding: 14px 48px 14px 14px;' : 'padding: 14px 14px 14px 48px;'} background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: white; transition: all 0.3s; box-sizing: border-box; }
         input:focus { outline: none; border-color: #6366f1; background: rgba(255, 255, 255, 0.1); }
         .btn-submit { width: 100%; padding: 14px; background: #6366f1; color: white; border: none; border-radius: 12px; font-weight: 700; display: flex; justify-content: center; align-items: center; gap: 10px; cursor: pointer; transition: all 0.3s; }
         .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(99, 102, 241, 0.4); }
@@ -67,17 +69,17 @@ const ForgotPassword = () => {
       <div className="login-card">
         {!submitted ? (
           <>
-            <h1>Forgot Password?</h1>
-            <p>No worries, it happens. Enter your email and we'll send you a reset link.</p>
+            <h1>{t('auth.forgotPassword')}</h1>
+            <p>{t('auth.resetSubtitle')}</p>
             
             <form onSubmit={handleSubmit}>
               <div className="form-group">
-                <label>Email Address</label>
+                <label>{t('auth.lblEmail')}</label>
                 <div className="input-wrapper">
                   <Mail />
                   <input 
                     type="email" 
-                    placeholder="name@company.com" 
+                    placeholder={t('auth.placeholderEmail')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required 
@@ -86,7 +88,7 @@ const ForgotPassword = () => {
               </div>
               
               <button type="submit" className="btn-submit" disabled={loading}>
-                {loading ? 'Sending...' : <><Send size={18} /> Send Reset Link</>}
+                {loading ? t('common.loading', 'Sending...') : <><Send size={18} style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }} /> {t('auth.btnSendReset')}</>}
               </button>
             </form>
           </>
@@ -94,13 +96,13 @@ const ForgotPassword = () => {
           <div className="success-state">
             <CheckCircle className="success-icon" />
             <h1>Email Sent!</h1>
-            <p>We've sent a password reset link to <strong>{email}</strong>. Please check your inbox (and spam folder).</p>
+            <p>We've sent a password reset link to <strong className="num-en">{email}</strong>. Please check your inbox (and spam folder).</p>
             <p style={{fontSize: '13px'}}>Link expires in 15 minutes.</p>
           </div>
         )}
         
         <Link to="/login" className="back-to-login">
-          <ArrowLeft size={16} /> Back to Sign In
+          <ArrowLeft size={16} style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }} /> {t('auth.backToLogin')}
         </Link>
       </div>
     </div>

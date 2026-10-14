@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Mail, Lock, LogIn } from 'lucide-react';
+import { Mail, Lock, LogIn, Globe } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const { login } = useAuth();
+  const { t, isRTL, language, setLanguage } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -22,7 +24,6 @@ const Login = () => {
 
       let target = '/dashboard';
       if (requestedPath && requestedPath !== '/login') {
-        // If they specifically navigated somewhere, check if they can access it or if they have dashboard
         target = requestedPath;
       } else if (isAdmin || allowed.includes('/dashboard')) {
         target = '/dashboard';
@@ -32,12 +33,12 @@ const Login = () => {
 
       navigate(target, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid email or password');
+      setError(err.response?.data?.message || t('auth.toastInvalidCredentials'));
     }
   };
 
   return (
-    <div className="login-container">
+    <div className="login-container" dir={isRTL ? 'rtl' : 'ltr'}>
       <style>{`
         .login-container {
           display: flex;
@@ -48,7 +49,7 @@ const Login = () => {
           padding: 24px;
           position: relative;
           overflow: hidden;
-          font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+          font-family: inherit;
         }
         .login-container::before {
           content: "";
@@ -72,6 +73,7 @@ const Login = () => {
           max-width: 440px;
           border: 1px solid rgba(255, 255, 255, 0.1);
           animation: slideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
         }
         @keyframes slideUp {
           from { opacity: 0; transform: translateY(30px); }
@@ -83,15 +85,35 @@ const Login = () => {
         }
         .login-header h1 {
           color: white;
-          font-size: 32px;
+          font-size: 30px;
           font-weight: 800;
           letter-spacing: -0.04em;
-          margin-bottom: 12px;
+          margin-bottom: 8px;
         }
         .login-header p {
           color: rgba(255, 255, 255, 0.6);
-          font-size: 15px;
+          font-size: 14px;
           font-weight: 500;
+        }
+        .lang-toggle-btn {
+          position: absolute;
+          top: 20px;
+          ${isRTL ? 'left: 20px;' : 'right: 20px;'}
+          background: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: white;
+          border-radius: 20px;
+          padding: 4px 12px;
+          font-size: 12px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .lang-toggle-btn:hover {
+          background: rgba(255, 255, 255, 0.2);
         }
         .form-group {
           margin-bottom: 20px;
@@ -99,8 +121,8 @@ const Login = () => {
         }
         .form-group label {
           display: block;
-          margin-bottom: 10px;
-          font-size: 14px;
+          margin-bottom: 8px;
+          font-size: 13px;
           font-weight: 600;
           color: rgba(255, 255, 255, 0.9);
           letter-spacing: 0.02em;
@@ -110,7 +132,7 @@ const Login = () => {
         }
         .input-wrapper svg {
           position: absolute;
-          left: 16px;
+          ${isRTL ? 'right: 16px;' : 'left: 16px;'}
           top: 50%;
           transform: translateY(-50%);
           color: rgba(255, 255, 255, 0.4);
@@ -119,7 +141,7 @@ const Login = () => {
         }
         .form-group input {
           width: 100%;
-          padding: 14px 14px 14px 48px;
+          ${isRTL ? 'padding: 14px 48px 14px 14px;' : 'padding: 14px 14px 14px 48px;'}
           border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 12px;
           font-size: 15px;
@@ -127,28 +149,28 @@ const Login = () => {
           transition: all 0.3s;
           background: rgba(255, 255, 255, 0.05);
           color: white;
+          box-sizing: border-box;
         }
         .form-group input:focus {
           background: rgba(255, 255, 255, 0.1);
-          border-color: var(--secondary);
+          border-color: #6366f1;
           box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
           outline: none;
-        }
-        .form-group input:focus + svg {
-          color: white;
         }
         .btn-login {
           width: 100%;
           padding: 14px;
-          background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+          background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
           color: white;
           border-radius: 12px;
           font-weight: 700;
           font-size: 16px;
+          border: none;
           display: flex;
           justify-content: center;
           align-items: center;
           gap: 12px;
+          cursor: pointer;
           transition: all 0.3s;
           margin-top: 16px;
           box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.4);
@@ -157,94 +179,37 @@ const Login = () => {
           transform: translateY(-2px);
           box-shadow: 0 15px 30px -5px rgba(79, 70, 229, 0.6);
         }
-        .btn-login:active {
-          transform: translateY(0);
-        }
         .error-message {
           background-color: #fee2e2;
-          color: var(--danger);
+          color: #dc2626;
           padding: 10px;
-          border-radius: 6px;
+          border-radius: 8px;
           font-size: 13px;
           margin-bottom: 20px;
           text-align: center;
           border: 1px solid #fecaca;
         }
         .forgot-password {
-          text-align: right;
+          text-align: ${isRTL ? 'left' : 'right'};
           margin-top: 12px;
         }
         .forgot-password a {
           font-size: 13px;
-          color: rgba(255, 255, 255, 0.5);
+          color: rgba(255, 255, 255, 0.6);
           font-weight: 600;
+          text-decoration: none;
           transition: color 0.2s;
         }
         .forgot-password a:hover {
           color: white;
         }
-      `}</style>
-      
-      <div className="login-card">
-        <div className="login-header">
-          <h1>Tashgheel CRM</h1>
-          <p>Login to your account</p>
-        </div>
-
-        {error && <div className="error-message">{error}</div>}
-
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Email Address</label>
-            <div className="input-wrapper">
-              <Mail />
-              <input 
-                type="text" 
-                placeholder="yours@example.com" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required 
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>Password</label>
-            <div className="input-wrapper">
-              <Lock />
-              <input 
-                type="password" 
-                placeholder="••••••••" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required 
-              />
-            </div>
-          </div>
-
-          <button type="submit" className="btn-login">
-            <LogIn size={20} />
-            Sign In
-          </button>
-
-          <div className="forgot-password">
-            <Link to="/forgot-password">Forgot Password?</Link>
-          </div>
-
-          <div className="register-link">
-            Don't have a workspace? <a href="/register">Create one now</a>
-          </div>
-        </form>
-      </div>
-
-      <style>{`
         .register-link {
           margin-top: 24px;
           padding-top: 24px;
           border-top: 1px solid rgba(255, 255, 255, 0.1);
           text-align: center;
           font-size: 14px;
-          color: rgba(255, 255, 255, 0.5);
+          color: rgba(255, 255, 255, 0.6);
         }
         .register-link a {
           color: white;
@@ -256,6 +221,68 @@ const Login = () => {
           text-decoration: underline;
         }
       `}</style>
+      
+      <div className="login-card">
+        <button
+          type="button"
+          className="lang-toggle-btn"
+          onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
+          title="Toggle Language"
+        >
+          <Globe size={13} />
+          {language === 'ar' ? 'English' : 'العربية'}
+        </button>
+
+        <div className="login-header">
+          <h1>Tashgheel CRM</h1>
+          <p>{t('auth.loginSubtitle')}</p>
+        </div>
+
+        {error && <div className="error-message">{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>{t('auth.lblEmail')}</label>
+            <div className="input-wrapper">
+              <Mail />
+              <input 
+                type="email" 
+                placeholder={t('auth.placeholderEmail')}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required 
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>{t('auth.lblPassword')}</label>
+            <div className="input-wrapper">
+              <Lock />
+              <input 
+                type="password" 
+                placeholder={t('auth.placeholderPassword')}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required 
+              />
+            </div>
+          </div>
+
+          <button type="submit" className="btn-login">
+            <LogIn size={20} style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }} />
+            {t('auth.btnLogin')}
+          </button>
+
+          <div className="forgot-password">
+            <Link to="/forgot-password">{t('auth.forgotPassword')}</Link>
+          </div>
+
+          <div className="register-link">
+            {t('auth.dontHaveAccount')} <Link to="/register">{t('auth.registerLink')}</Link>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

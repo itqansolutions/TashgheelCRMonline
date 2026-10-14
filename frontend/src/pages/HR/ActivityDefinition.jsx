@@ -3,8 +3,10 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Plus, Edit2, Trash2, CheckCircle2, XCircle, Clock, Calendar, Sliders } from 'lucide-react';
 import HRSubNav from '../../components/HR/HRSubNav';
+import { useLanguage } from '../../context/LanguageContext';
 
 const ActivityDefinition = () => {
+  const { t, isRTL } = useLanguage();
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -26,7 +28,7 @@ const ActivityDefinition = () => {
       const res = await api.get('/hr/activity-types');
       setActivities(res.data.data || []);
     } catch (err) {
-      toast.error('Failed to load activity definitions');
+      toast.error(t('hr.activityDefinition.fetchError', 'Failed to load activity definitions'));
     } finally {
       setLoading(false);
     }
@@ -65,30 +67,30 @@ const ActivityDefinition = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim()) return toast.error('Activity name is required');
+    if (!form.name.trim()) return toast.error(t('hr.activityDefinition.nameRequired', 'Activity name is required'));
     try {
       if (editingId) {
         await api.put(`/hr/activity-types/${editingId}`, form);
-        toast.success('Activity definition updated successfully');
+        toast.success(t('hr.activityDefinition.updateSuccess', 'Activity definition updated successfully'));
       } else {
         await api.post('/hr/activity-types', form);
-        toast.success('Activity definition added successfully');
+        toast.success(t('hr.activityDefinition.addSuccess', 'Activity definition added successfully'));
       }
       setShowModal(false);
       fetchActivities();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Error saving activity');
+      toast.error(err.response?.data?.message || t('hr.activityDefinition.saveFailed', 'Error saving activity'));
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this activity?')) return;
+    if (!window.confirm(t('hr.activityDefinition.confirmDelete', 'Are you sure you want to delete this activity?'))) return;
     try {
       await api.delete(`/hr/activity-types/${id}`);
-      toast.success('Activity deleted successfully');
+      toast.success(t('hr.activityDefinition.deleteSuccess', 'Activity deleted successfully'));
       fetchActivities();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete activity');
+      toast.error(err.response?.data?.message || t('hr.activityDefinition.deleteFailed', 'Failed to delete activity'));
     }
   };
 
@@ -100,21 +102,26 @@ const ActivityDefinition = () => {
 
   const inputStyle = {
     width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px',
-    fontSize: '14px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box'
+    fontSize: '14px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box',
+    textAlign: isRTL ? 'right' : 'left'
+  };
+
+  const getUnitLabel = (unit) => {
+    return unit === 'hours' ? t('hr.activityDefinition.unitHours', 'Hours') : t('hr.activityDefinition.unitDays', 'Days');
   };
 
   return (
-    <div>
+    <div dir={isRTL ? 'rtl' : 'ltr'}>
       <HRSubNav />
       <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', textAlign: isRTL ? 'right' : 'left' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Sliders size={24} style={{ color: '#4f46e5' }} /> Activity Definitions
+              <Sliders size={24} style={{ color: '#4f46e5' }} /> {t('hr.activityDefinition.title', 'Activity Definitions')}
             </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
-              Define company activity types, permission rules, and valid duration boundaries
+              {t('hr.activityDefinition.subtitle', 'Define company activity types, permission rules, and valid duration boundaries')}
             </p>
           </div>
           <button
@@ -126,30 +133,30 @@ const ActivityDefinition = () => {
               boxShadow: '0 4px 12px rgba(79,70,229,0.25)'
             }}
           >
-            <Plus size={18} /> Add New Activity
+            <Plus size={18} /> {t('hr.activityDefinition.addActivityBtn', 'Add New Activity')}
           </button>
         </div>
 
         {/* Main Table */}
         <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
           {loading ? (
-            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>Loading...</div>
+            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>{t('hr.activityDefinition.loading', 'Loading...')}</div>
           ) : activities.length === 0 ? (
             <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
               <Sliders size={48} style={{ opacity: 0.3, marginBottom: '12px' }} />
-              <p style={{ fontWeight: 700, margin: 0 }}>No activity definitions found</p>
-              <p style={{ fontSize: '13px', color: '#cbd5e1' }}>Click "Add New Activity" to create your first company activity definition</p>
+              <p style={{ fontWeight: 700, margin: 0 }}>{t('hr.activityDefinition.noActivities', 'No activity definitions found')}</p>
+              <p style={{ fontSize: '13px', color: '#cbd5e1' }}>{t('hr.activityDefinition.noActivitiesDesc', 'Click "Add New Activity" to create your first company activity definition')}</p>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Activity Name</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Unit</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Posting Boundaries (Start / End Post)</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Min — Max Range</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Status</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569', textAlign: 'center' }}>Actions</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.activityDefinition.colActivityName', 'Activity Name')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.activityDefinition.colUnit', 'Unit')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.activityDefinition.colPostingBoundaries', 'Posting Boundaries (Start / End Post)')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.activityDefinition.colMinMaxRange', 'Min — Max Range')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.activityDefinition.colStatus', 'Status')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569', textAlign: 'center' }}>{t('hr.activityDefinition.colActions', 'Actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -164,14 +171,20 @@ const ActivityDefinition = () => {
                         background: act.unit === 'hours' ? '#e0e7ff' : '#fef3c7',
                         color: act.unit === 'hours' ? '#4338ca' : '#b45309'
                       }}>
-                        {act.unit === 'hours' ? '⏱️ Hours' : '📅 Days'}
+                        {act.unit === 'hours' ? t('hr.activityDefinition.unitHoursBadge', '⏱️ Hours') : t('hr.activityDefinition.unitDaysBadge', '📅 Days')}
                       </span>
                     </td>
                     <td style={{ padding: '14px 18px', fontSize: '13px', color: '#475569', fontWeight: 600 }}>
-                      From {act.start_post >= 0 ? `+${act.start_post}` : act.start_post} days to {act.end_post >= 0 ? `+${act.end_post}` : act.end_post} days
+                      <span className="num-en">
+                        {t('hr.activityDefinition.boundariesFormat', {
+                          start: act.start_post >= 0 ? `+${act.start_post}` : act.start_post,
+                          end: act.end_post >= 0 ? `+${act.end_post}` : act.end_post,
+                          defaultValue: `From ${act.start_post >= 0 ? `+${act.start_post}` : act.start_post} days to ${act.end_post >= 0 ? `+${act.end_post}` : act.end_post} days`
+                        })}
+                      </span>
                     </td>
                     <td style={{ padding: '14px 18px', fontSize: '13px', color: '#475569', fontWeight: 700 }}>
-                      {act.min_value} — {act.max_value} {act.unit === 'hours' ? 'Hours' : 'Days'}
+                      <span className="num-en">{act.min_value} — {act.max_value}</span> {getUnitLabel(act.unit)}
                     </td>
                     <td style={{ padding: '14px 18px' }}>
                       <span style={{
@@ -179,7 +192,7 @@ const ActivityDefinition = () => {
                         background: act.is_active ? '#dcfce7' : '#fee2e2',
                         color: act.is_active ? '#15803d' : '#b91c1c'
                       }}>
-                        {act.is_active ? 'Active' : 'Inactive'}
+                        {act.is_active ? t('hr.activityDefinition.statusActive', 'Active') : t('hr.activityDefinition.statusInactive', 'Inactive')}
                       </span>
                     </td>
                     <td style={{ padding: '14px 18px', textAlign: 'center' }}>
@@ -205,17 +218,17 @@ const ActivityDefinition = () => {
             <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '520px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
               <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  {editingId ? 'Edit Activity Definition' : 'Add New Activity'}
+                  {editingId ? t('hr.activityDefinition.editModalTitle', 'Edit Activity Definition') : t('hr.activityDefinition.addModalTitle', 'Add New Activity')}
                 </h3>
                 <button onClick={() => setShowModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>✕</button>
               </div>
 
-              <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', textAlign: isRTL ? 'right' : 'left' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Activity Name</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldActivityName', 'Activity Name')}</label>
                   <input
                     type="text"
-                    placeholder="e.g. Late Permission / Annual Leave"
+                    placeholder={t('hr.activityDefinition.placeholderName', 'e.g. Late Permission / Annual Leave')}
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     style={inputStyle}
@@ -224,59 +237,63 @@ const ActivityDefinition = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Unit</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldUnit', 'Unit')}</label>
                   <select
                     value={form.unit}
                     onChange={(e) => setForm({ ...form, unit: e.target.value })}
                     style={inputStyle}
                   >
-                    <option value="hours">Hours</option>
-                    <option value="days">Days</option>
+                    <option value="hours">{t('hr.activityDefinition.unitHours', 'Hours')}</option>
+                    <option value="days">{t('hr.activityDefinition.unitDays', 'Days')}</option>
                   </select>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Start Post (Days)</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldStartPost', 'Start Post (Days)')}</label>
                     <input
                       type="number"
                       value={form.start_post}
                       onChange={(e) => setForm({ ...form, start_post: parseInt(e.target.value) || 0 })}
                       style={inputStyle}
-                      placeholder="Negative = days before"
+                      placeholder={t('hr.activityDefinition.placeholderStartPost', 'Negative = days before')}
+                      className="num-en"
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>End Post (Days)</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldEndPost', 'End Post (Days)')}</label>
                     <input
                       type="number"
                       value={form.end_post}
                       onChange={(e) => setForm({ ...form, end_post: parseInt(e.target.value) || 0 })}
                       style={inputStyle}
-                      placeholder="Positive = days after"
+                      placeholder={t('hr.activityDefinition.placeholderEndPost', 'Positive = days after')}
+                      className="num-en"
                     />
                   </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Min Value</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldMinValue', 'Min Value')}</label>
                     <input
                       type="number"
                       step="0.1"
                       value={form.min_value}
                       onChange={(e) => setForm({ ...form, min_value: parseFloat(e.target.value) || 0 })}
                       style={inputStyle}
+                      className="num-en"
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Max Value</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldMaxValue', 'Max Value')}</label>
                     <input
                       type="number"
                       step="0.1"
                       value={form.max_value}
                       onChange={(e) => setForm({ ...form, max_value: parseFloat(e.target.value) || 0 })}
                       style={inputStyle}
+                      className="num-en"
                     />
                   </div>
                 </div>
@@ -289,7 +306,7 @@ const ActivityDefinition = () => {
                     onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
                     style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                   />
-                  <label htmlFor="is_active" style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>Activity is Active</label>
+                  <label htmlFor="is_active" style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>{t('hr.activityDefinition.activityIsActive', 'Activity is Active')}</label>
                 </div>
 
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
@@ -298,13 +315,13 @@ const ActivityDefinition = () => {
                     onClick={() => setShowModal(false)}
                     style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
                   >
-                    Cancel
+                    {t('hr.activityDefinition.btnCancel', 'Cancel')}
                   </button>
                   <button
                     type="submit"
                     style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
                   >
-                    {editingId ? 'Update' : 'Save'}
+                    {editingId ? t('hr.activityDefinition.btnUpdate', 'Update') : t('hr.activityDefinition.btnSave', 'Save')}
                   </button>
                 </div>
               </form>

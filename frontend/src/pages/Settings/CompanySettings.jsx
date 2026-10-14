@@ -7,10 +7,12 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 const CompanySettings = () => {
   const { user } = useAuth();
   const { fetchTenant } = useData();
+  const { t, isRTL } = useLanguage();
   const fileInputRef = useRef(null);
   
   const [tenant, setTenant] = useState({
@@ -43,7 +45,7 @@ const CompanySettings = () => {
         setTenant(prev => ({ ...prev, ...tenantRes.data.data }));
       }
     } catch (err) {
-      toast.error('Failed to load company details');
+      toast.error(t('companySettings.toastLoadError'));
     } finally {
       setLoading(false);
     }
@@ -55,12 +57,12 @@ const CompanySettings = () => {
     const tenantId = user?.tenant_id || tenant?.id;
     try {
       await api.put('/tenants/my', tenant);
-      toast.success('Company settings updated successfully');
+      toast.success(t('companySettings.toastUpdated'));
       if (typeof fetchTenant === 'function') {
         fetchTenant();
       }
     } catch (err) {
-      toast.error('Failed to update company settings');
+      toast.error(t('companySettings.toastLoadError'));
     } finally {
       setSaving(false);
     }
@@ -90,26 +92,26 @@ const CompanySettings = () => {
         if (typeof fetchTenant === 'function') {
           fetchTenant();
         }
-        toast.success('Logo uploaded and saved successfully!');
+        toast.success(t('companySettings.toastLogoSuccess'));
       }
     } catch (err) {
       console.error('Logo upload error:', err);
-      toast.error(err.response?.data?.message || 'Upload failed');
+      toast.error(err.response?.data?.message || t('companySettings.toastLogoError'));
     } finally {
       setUploading(false);
     }
   };
 
-  if (loading) return <div className="loading-state">Loading Identity System...</div>;
+  if (loading) return <div className="loading-state">{t('common.loading', 'Loading...')}</div>;
 
   return (
-    <div className="company-settings-page">
+    <div className="company-settings-page" dir={isRTL ? 'rtl' : 'ltr'}>
       <style>{`
         .company-settings-page { padding: 24px; max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 32px; }
         .settings-header { grid-column: span 2; margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; }
         .settings-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .card-header { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background: #fbfcfd; display: flex; align-items: center; gap: 10px; }
-        .card-header h3 { font-size: 14px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; }
+        .card-header h3 { font-size: 14px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
         .card-body { padding: 20px; }
         
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -147,6 +149,10 @@ const CompanySettings = () => {
 
         .btn-save { width: 100%; padding: 12px; background: #6366f1; color: white; border-radius: 10px; font-weight: 700; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: 0.2s; }
         .btn-save:hover { background: #4f46e5; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2); }
+        @media (max-width: 900px) {
+          .company-settings-page { grid-template-columns: 1fr; }
+          .settings-header { grid-column: span 1; }
+        }
       `}</style>
 
       <div className="settings-header">
@@ -156,13 +162,13 @@ const CompanySettings = () => {
                  background: user?.template_name === 'real_estate' ? '#4f46e5' : '#64748b',
                  color: 'white', textTransform: 'uppercase'
              }}>
-                 {user?.template_name === 'real_estate' ? '🏠 Real Estate Sales OS' : '🏢 General CRM'}
+                 {user?.template_name === 'real_estate' ? t('companySettings.badgeRealEstate') : t('companySettings.badgeGeneral')}
              </div>
         </div>
         <h2 style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '-0.02em', color: '#1e293b' }}>
-            {user?.template_name === 'real_estate' ? 'Corporate Property Identity' : 'Brand Identity'}
+            {user?.template_name === 'real_estate' ? t('companySettings.titleRealEstate') : t('companySettings.titleGeneral')}
         </h2>
-        <p style={{ color: '#64748b', fontSize: '14px' }}>Customize your organization for professional invoicing and reports.</p>
+        <p style={{ color: '#64748b', fontSize: '14px' }}>{t('companySettings.subtitle')}</p>
       </div>
 
       <div className="settings-forms">
@@ -170,7 +176,7 @@ const CompanySettings = () => {
           <div className="settings-card">
             <div className="card-header">
               <Building2 size={16} color="#6366f1" />
-              <h3>Business Profile</h3>
+              <h3>{t('companySettings.sectionProfile')}</h3>
             </div>
             <div className="card-body">
               <div className="logo-upload-container">
@@ -178,40 +184,40 @@ const CompanySettings = () => {
                   {tenant.logo_url ? <img src={`/${tenant.logo_url}`} alt="Logo" /> : <ImageIcon size={32} color="#94a3b8" />}
                 </div>
                 <div>
-                  <h4 style={{ fontSize: '13px', fontWeight: '700', marginBottom: '8px' }}>Company Logo</h4>
+                  <h4 style={{ fontSize: '13px', fontWeight: '700', marginBottom: '8px' }}>{t('companySettings.companyLogo')}</h4>
                   <input type="file" ref={fileInputRef} onChange={handleLogoUpload} style={{ display: 'none' }} accept="image/*" />
                   <button type="button" className="upload-btn" onClick={() => fileInputRef.current.click()} disabled={uploading}>
-                    {uploading ? 'Uploading...' : 'Change Logo'}
+                    {uploading ? t('companySettings.uploading') : t('companySettings.btnChangeLogo')}
                   </button>
-                  <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>Square or wide logo in PNG/JPG (Max 2MB).</p>
+                  <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>{t('companySettings.logoHint')}</p>
                 </div>
               </div>
 
               <div className="form-grid">
                 <div className="form-group full">
-                  <label>Legal Company Name</label>
-                  <input type="text" value={tenant.name || ''} onChange={(e) => setTenant({...tenant, name: e.target.value})} placeholder="Acme International" />
+                  <label>{t('companySettings.lblLegalName')}</label>
+                  <input type="text" value={tenant.name || ''} onChange={(e) => setTenant({...tenant, name: e.target.value})} placeholder={t('companySettings.placeholderLegalName')} />
                 </div>
                 <div className="form-group">
-                  <label>Phone Number</label>
+                  <label>{t('companySettings.lblPhone')}</label>
                   <div style={{ position: 'relative' }}>
-                    <Phone size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                    <input style={{ paddingLeft: '36px' }} type="text" value={tenant.phone || ''} onChange={(e) => setTenant({...tenant, phone: e.target.value})} placeholder="+20 123..." />
+                    <Phone size={14} style={{ position: 'absolute', [isRTL ? 'right' : 'left']: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    <input style={{ [isRTL ? 'paddingRight' : 'paddingLeft']: '36px' }} className="num-en" type="text" value={tenant.phone || ''} onChange={(e) => setTenant({...tenant, phone: e.target.value})} placeholder="+20 123..." />
                   </div>
                 </div>
                 <div className="form-group">
-                  <label>Tax ID (Optional)</label>
-                  <input type="text" value={tenant.tax_no || ''} onChange={(e) => setTenant({...tenant, tax_no: e.target.value})} placeholder="123-456-789" />
+                  <label>{t('companySettings.lblTaxId')}</label>
+                  <input className="num-en" type="text" value={tenant.tax_no || ''} onChange={(e) => setTenant({...tenant, tax_no: e.target.value})} placeholder="123-456-789" />
                 </div>
                 <div className="form-group">
-                  <label>Commercial Registry (Optional)</label>
-                  <input type="text" value={tenant.reg_no || ''} onChange={(e) => setTenant({...tenant, reg_no: e.target.value})} placeholder="Reg No. 5566" />
+                  <label>{t('companySettings.lblRegNo')}</label>
+                  <input className="num-en" type="text" value={tenant.reg_no || ''} onChange={(e) => setTenant({...tenant, reg_no: e.target.value})} placeholder="Reg No. 5566" />
                 </div>
                 <div className="form-group full">
-                  <label>Business Address</label>
+                  <label>{t('companySettings.lblAddress')}</label>
                   <div style={{ position: 'relative' }}>
-                    <MapPin size={14} style={{ position: 'absolute', left: '12px', top: '13px', color: '#94a3b8' }} />
-                    <textarea style={{ paddingLeft: '36px', height: '60px' }} value={tenant.address || ''} onChange={(e) => setTenant({...tenant, address: e.target.value})} placeholder="123 Business St, Smart Village, Egypt" />
+                    <MapPin size={14} style={{ position: 'absolute', [isRTL ? 'right' : 'left']: '12px', top: '13px', color: '#94a3b8' }} />
+                    <textarea style={{ [isRTL ? 'paddingRight' : 'paddingLeft']: '36px', height: '60px' }} value={tenant.address || ''} onChange={(e) => setTenant({...tenant, address: e.target.value})} placeholder="123 Business St, Cairo, Egypt" />
                   </div>
                 </div>
               </div>
@@ -221,12 +227,12 @@ const CompanySettings = () => {
           <div className="settings-card">
             <div className="card-header">
               <Receipt size={16} color="#10b981" />
-              <h3>Financial Defaults</h3>
+              <h3>{t('companySettings.sectionFinancial')}</h3>
             </div>
             <div className="card-body">
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Base Currency</label>
+                  <label>{t('companySettings.lblBaseCurrency')}</label>
                   <select value={tenant.currency || 'EGP'} onChange={(e) => setTenant({...tenant, currency: e.target.value})}>
                     <option value="EGP">Egyptian Pound (EGP)</option>
                     <option value="USD">US Dollar (USD)</option>
@@ -235,12 +241,12 @@ const CompanySettings = () => {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Default Tax Rate (%)</label>
-                  <input type="number" step="0.01" value={tenant.tax_rate || 0} onChange={(e) => setTenant({...tenant, tax_rate: e.target.value})} />
+                  <label>{t('companySettings.lblDefaultTaxRate')}</label>
+                  <input className="num-en" type="number" step="0.01" value={tenant.tax_rate || 0} onChange={(e) => setTenant({...tenant, tax_rate: e.target.value})} />
                 </div>
                 <div className="form-group">
-                  <label>Invoice Prefix</label>
-                  <input type="text" value={tenant.invoice_prefix || 'INV-'} onChange={(e) => setTenant({...tenant, invoice_prefix: e.target.value})} />
+                  <label>{t('companySettings.lblInvoicePrefix')}</label>
+                  <input className="num-en" type="text" value={tenant.invoice_prefix || 'INV-'} onChange={(e) => setTenant({...tenant, invoice_prefix: e.target.value})} />
                 </div>
               </div>
             </div>
@@ -249,37 +255,35 @@ const CompanySettings = () => {
           <div className="settings-card">
             <div className="card-header">
               <FileText size={16} color="#6366f1" />
-              <h3>Invoice Branding & Header (ترويسة وهوية الفاتورة)</h3>
+              <h3>{t('companySettings.sectionInvoiceBranding')}</h3>
             </div>
             <div className="card-body">
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Invoice Header Title (عنوان رأس الفاتورة)</label>
+                  <label>{t('companySettings.lblInvoiceTitle')}</label>
                   <input 
                     type="text" 
                     value={tenant.invoice_header_title || ''} 
                     onChange={(e) => setTenant({...tenant, invoice_header_title: e.target.value})} 
                     placeholder="فاتورة ضريبية / TAX INVOICE" 
                   />
-                  <small style={{ fontSize: '11px', color: '#94a3b8' }}>النص الرئيسي الظاهر أعلى الفاتورة (الافتراضي: فاتورة ضريبية)</small>
                 </div>
                 <div className="form-group">
-                  <label>Invoice Header Subtitle / Tagline (العنوان الفرعي للترويسة)</label>
+                  <label>{t('companySettings.lblInvoiceSubtitle')}</label>
                   <input 
                     type="text" 
                     value={tenant.invoice_header_subtitle || ''} 
                     onChange={(e) => setTenant({...tenant, invoice_header_subtitle: e.target.value})} 
                     placeholder="مثال: لحلول الأعمال والتجارة الذكية" 
                   />
-                  <small style={{ fontSize: '11px', color: '#94a3b8' }}>سطر وصفي أو شعار يظهر أسفل اسم الشركة في رأس الفاتورة</small>
                 </div>
               </div>
               <div className="form-group" style={{ marginTop: '12px' }}>
-                <label>Terms & Conditions (شروط وأحكام الفاتورة)</label>
+                <label>{t('companySettings.lblInvoiceTerms')}</label>
                 <textarea style={{ height: '70px' }} value={tenant.terms || ''} onChange={(e) => setTenant({...tenant, terms: e.target.value})} placeholder="شروط السداد والدفع، مواعيد الاستحقاق، بيانات الحساب البنكي..." />
               </div>
               <div className="form-group">
-                <label>Invoice Footer / Note (تذييل الفاتورة)</label>
+                <label>{t('companySettings.lblInvoiceFooter')}</label>
                 <textarea style={{ height: '50px' }} value={tenant.invoice_footer || ''} onChange={(e) => setTenant({...tenant, invoice_footer: e.target.value})} placeholder="شكراً لتعاملكم معنا / Thank you for choosing us!" />
               </div>
             </div>
@@ -288,44 +292,42 @@ const CompanySettings = () => {
           <div className="settings-card">
             <div className="card-header">
               <FileText size={16} color="#f59e0b" />
-              <h3>Quotation Branding & Header (ترويسة وهوية عرض السعر)</h3>
+              <h3>{t('companySettings.sectionQuotationBranding')}</h3>
             </div>
             <div className="card-body">
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Quotation Header Title (عنوان رأس عرض السعر)</label>
+                  <label>{t('companySettings.lblQuotationTitle')}</label>
                   <input 
                     type="text" 
                     value={tenant.quotation_header_title || ''} 
                     onChange={(e) => setTenant({...tenant, quotation_header_title: e.target.value})} 
                     placeholder="عرض أسعار / PRICE QUOTATION" 
                   />
-                  <small style={{ fontSize: '11px', color: '#94a3b8' }}>النص الرئيسي الظاهر أعلى عرض السعر (الافتراضي: عرض أسعار)</small>
                 </div>
                 <div className="form-group">
-                  <label>Quotation Header Subtitle / Tagline (العنوان الفرعي للترويسة)</label>
+                  <label>{t('companySettings.lblQuotationSubtitle')}</label>
                   <input 
                     type="text" 
                     value={tenant.quotation_header_subtitle || ''} 
                     onChange={(e) => setTenant({...tenant, quotation_header_subtitle: e.target.value})} 
                     placeholder="مثال: عروض أسعار هندسية معتمدة" 
                   />
-                  <small style={{ fontSize: '11px', color: '#94a3b8' }}>سطر وصفي يظهر أسفل اسم الشركة في عرض السعر</small>
                 </div>
               </div>
               <div className="form-group" style={{ marginTop: '12px' }}>
-                <label>Quotation Terms & Conditions (شروط وصلاحية العرض)</label>
+                <label>{t('companySettings.lblQuotationTerms')}</label>
                 <textarea style={{ height: '70px' }} value={tenant.quotation_terms || ''} onChange={(e) => setTenant({...tenant, quotation_terms: e.target.value})} placeholder="الأسعار سارية لمدة 15 يوماً من تاريخ الإصدار..." />
               </div>
               <div className="form-group">
-                <label>Quotation Footer / Note (تذييل عرض السعر)</label>
+                <label>{t('companySettings.lblQuotationFooter')}</label>
                 <textarea style={{ height: '50px' }} value={tenant.quotation_footer || ''} onChange={(e) => setTenant({...tenant, quotation_footer: e.target.value})} placeholder="نتطلع للتعاون المثمر معكم..." />
               </div>
             </div>
           </div>
 
           <button type="submit" className="btn-save" disabled={saving}>
-            <Save size={18} /> {saving ? 'Saving Workspace...' : 'Update Organization Context'}
+            <Save size={18} /> {saving ? t('companySettings.saving') : t('companySettings.btnSaveSettings')}
           </button>
         </form>
       </div>
@@ -337,10 +339,10 @@ const CompanySettings = () => {
         <div className="preview-box">
           <div className="preview-tabs">
             <div className={`preview-tab ${previewMode === 'Invoice' ? 'active' : ''}`} onClick={() => setPreviewMode('Invoice')}>
-              INVOICE PREVIEW
+              {t('companySettings.tabInvoicePreview')}
             </div>
             <div className={`preview-tab ${previewMode === 'Quotation' ? 'active' : ''}`} onClick={() => setPreviewMode('Quotation')}>
-              QUOTATION PREVIEW
+              {t('companySettings.tabQuotationPreview')}
             </div>
           </div>
 
@@ -367,14 +369,14 @@ const CompanySettings = () => {
                 )}
                 <div style={{ marginTop: '6px', fontSize: '8px', color: '#64748b', whiteSpace: 'pre-wrap' }}>
                   {tenant.address || 'Cairo, Egypt'}<br/>
-                  Phone: {tenant.phone || '+20 --- --- ----'}
+                  <span className="num-en">Phone: {tenant.phone || '+20 --- --- ----'}</span>
                 </div>
               </div>
-              <div className="preview-title">
+              <div className="preview-title" style={{ textAlign: isRTL ? 'left' : 'right' }}>
                 <h2 style={{ fontSize: '18px', margin: 0, color: previewMode === 'Quotation' ? '#d97706' : '#6366f1' }}>
                   {previewMode === 'Invoice' ? (tenant.invoice_header_title || 'INVOICE') : (tenant.quotation_header_title || 'QUOTATION')}
                 </h2>
-                <div style={{ marginTop: '5px' }}>
+                <div style={{ marginTop: '5px' }} className="num-en">
                   {previewMode === 'Invoice' ? (tenant.invoice_prefix || 'INV-') : (tenant.quotation_prefix || 'QUO-')}00234
                 </div>
               </div>
@@ -383,52 +385,52 @@ const CompanySettings = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div>
                 <div style={{ fontWeight: '800', marginBottom: '4px' }}>
-                  {previewMode === 'Invoice' ? 'BILL TO:' : 'PREPARED FOR:'}
+                  {previewMode === 'Invoice' ? t('companySettings.previewBilledTo') : 'PREPARED FOR:'}
                 </div>
-                <div>John Doe Ltd.<br/>john@example.com</div>
+                <div>John Doe Ltd.<br/><span className="num-en">john@example.com</span></div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontWeight: '800', marginBottom: '4px' }}>DATE:</div>
-                <div>{new Date().toLocaleDateString()}</div>
+              <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
+                <div style={{ fontWeight: '800', marginBottom: '4px' }}>{t('companySettings.previewDue')}</div>
+                <div className="num-en">{new Date().toLocaleDateString('en-CA')}</div>
               </div>
             </div>
 
             <table className="preview-table">
               <thead>
                 <tr>
-                  <th>Item Description</th>
-                  <th>Qty</th>
-                  <th>Price</th>
-                  <th style={{ textAlign: 'right' }}>Total</th>
+                  <th style={{ textAlign: isRTL ? 'right' : 'left' }}>{t('companySettings.previewItem')}</th>
+                  <th>{t('companySettings.previewQty')}</th>
+                  <th>{t('companySettings.previewRate')}</th>
+                  <th style={{ textAlign: isRTL ? 'left' : 'right' }}>{t('companySettings.previewAmount')}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
                   <td>Sample Professional Service</td>
-                  <td>1</td>
-                  <td>1,000.00</td>
-                  <td style={{ textAlign: 'right' }}>1,000.00</td>
+                  <td className="num-en">1</td>
+                  <td className="num-en">1,000.00</td>
+                  <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>1,000.00</td>
                 </tr>
               </tbody>
             </table>
 
-            <div className="preview-totals">
+            <div className="preview-totals" style={{ [isRTL ? 'marginRight' : 'marginLeft']: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                <span>Subtotal:</span>
-                <span>1,000.00</span>
+                <span>{t('companySettings.previewSubtotal')}</span>
+                <span className="num-en">1,000.00</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #f1f5f9' }}>
-                <span>Tax ({tenant.tax_rate}%):</span>
-                <span>{(1000 * (tenant.tax_rate / 100)).toFixed(2)}</span>
+                <span>{t('companySettings.previewTax')} ({tenant.tax_rate}%):</span>
+                <span className="num-en">{(1000 * (tenant.tax_rate / 100)).toFixed(2)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontWeight: '900', fontSize: '12px' }}>
-                <span>GRAND TOTAL:</span>
-                <span>{(1000 * (1 + tenant.tax_rate / 100)).toFixed(2)} {tenant.currency}</span>
+                <span>{t('companySettings.previewTotal')}</span>
+                <span className="num-en">{(1000 * (1 + tenant.tax_rate / 100)).toFixed(2)} {tenant.currency}</span>
               </div>
             </div>
 
             <div className="preview-footer">
-              <div style={{ fontWeight: '800', marginBottom: '4px' }}>TERMS:</div>
+              <div style={{ fontWeight: '800', marginBottom: '4px' }}>{t('companySettings.previewTerms')}</div>
               <div style={{ marginBottom: '15px' }}>
                 {previewMode === 'Invoice' ? (tenant.terms || 'Payment within 15 days.') : (tenant.quotation_terms || 'Prices valid for 15 days.')}
               </div>
@@ -437,15 +439,12 @@ const CompanySettings = () => {
               </div>
               {tenant.tax_no && (
                 <div style={{ marginTop: '10px', fontSize: '7px' }}>
-                  TAX ID: {tenant.tax_no} {tenant.reg_no ? `| REG: ${tenant.reg_no}` : ''}
+                  <span className="num-en">{t('companySettings.previewTaxId')} {tenant.tax_no} {tenant.reg_no ? `| REG: ${tenant.reg_no}` : ''}</span>
                 </div>
               )}
             </div>
           </div>
         </div>
-        <p style={{ marginTop: '16px', fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>
-          This preview represents a standard professional A4 document. Actual layouts may vary slightly.
-        </p>
       </div>
     </div>
   );

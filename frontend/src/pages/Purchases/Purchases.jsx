@@ -3,8 +3,10 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { ShoppingCart, Plus, Search, Trash2, Calendar, Building, Truck, X, FileText } from 'lucide-react';
 import PurchasesSubNav from '../../components/Purchases/PurchasesSubNav';
+import { useLanguage } from '../../context/LanguageContext';
 
 const Purchases = () => {
+  const { t, isRTL } = useLanguage();
   const [purchases, setPurchases] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -32,7 +34,7 @@ const Purchases = () => {
       const res = await api.get('/purchases');
       setPurchases(res.data?.data || []);
     } catch (err) {
-      toast.error('Failed to load purchases');
+      toast.error(t('purchases.toastLoadError'));
     } finally {
       setLoading(false);
     }
@@ -125,7 +127,7 @@ const Purchases = () => {
   };
 
   const removeItemRow = (index) => {
-    if (form.items.length <= 1) return toast.error('Purchase must have at least one product');
+    if (form.items.length <= 1) return toast.error(t('purchases.noPurchases'));
     setForm(prev => ({
       ...prev,
       items: prev.items.filter((_, i) => i !== index)
@@ -136,9 +138,9 @@ const Purchases = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.vendor_id) return toast.error('Please select a supplier');
-    if (!form.warehouse_id) return toast.error('Please select a warehouse');
-    if (form.items.length === 0) return toast.error('Please add at least one product');
+    if (!form.vendor_id) return toast.error(t('purchases.optSelectVendor'));
+    if (!form.warehouse_id) return toast.error(t('purchases.optSelectWarehouse'));
+    if (form.items.length === 0) return toast.error(t('purchases.sectionItems'));
 
     setSubmitting(true);
     try {
@@ -152,11 +154,11 @@ const Purchases = () => {
           unit_price: parseFloat(it.unit_price)
         }))
       });
-      toast.success('Purchase Invoice created successfully!');
+      toast.success(t('purchases.toastSuccess'));
       setShowModal(false);
       fetchPurchases();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save purchase');
+      toast.error(err.response?.data?.message || t('purchases.toastLoadError'));
     } finally {
       setSubmitting(false);
     }
@@ -180,17 +182,17 @@ const Purchases = () => {
   };
 
   return (
-    <div>
+    <div dir={isRTL ? 'rtl' : 'ltr'}>
       <PurchasesSubNav />
       <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <ShoppingCart size={24} style={{ color: '#0ea5e9' }} /> Purchase Invoices
+              <ShoppingCart size={24} style={{ color: '#0ea5e9' }} /> {t('purchases.title')}
             </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
-              Record supplier invoices, create accounts payable debt, and track vendor balances
+              {t('purchases.subtitle')}
             </p>
           </div>
 
@@ -203,7 +205,7 @@ const Purchases = () => {
               boxShadow: '0 4px 12px rgba(14,165,233,0.25)'
             }}
           >
-            <Plus size={18} /> New Purchase Invoice
+            <Plus size={18} /> {t('purchases.btnAdd')}
           </button>
         </div>
 
@@ -212,7 +214,7 @@ const Purchases = () => {
           <Search size={18} style={{ color: '#94a3b8' }} />
           <input
             type="text"
-            placeholder="Search by invoice number, supplier or warehouse..."
+            placeholder={t('purchases.searchPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', fontWeight: 600, color: '#1e293b' }}
@@ -222,34 +224,34 @@ const Purchases = () => {
         {/* Table */}
         <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
           {loading ? (
-            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>Loading purchases...</div>
+            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>{t('common.loading', 'Loading...')}</div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
               <ShoppingCart size={44} style={{ opacity: 0.3, marginBottom: '12px' }} />
-              <p style={{ fontWeight: 700, margin: 0 }}>No purchase invoices recorded yet</p>
+              <p style={{ fontWeight: 700, margin: 0 }}>{t('purchases.noPurchases')}</p>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Invoice #</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Date</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Supplier / Vendor</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Warehouse</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Total Amount</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Paid</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Balance</th>
-                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Status</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('purchases.colInvoiceNo')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('purchases.colDate')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('purchases.colVendor')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('purchases.colWarehouse')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('purchases.colTotal')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('vendors.statementPaid', 'Paid')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('vendors.statementBalance', 'Balance')}</th>
+                  <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('common.status', 'Status')}</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(p => (
                   <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '14px 18px', fontFamily: 'monospace', fontWeight: 800, color: '#0ea5e9' }}>
+                    <td className="num-en" style={{ padding: '14px 18px', fontFamily: 'monospace', fontWeight: 800, color: '#0ea5e9' }}>
                       {p.invoice_number}
                     </td>
-                    <td style={{ padding: '14px 18px', fontSize: '13px', color: '#64748b' }}>
-                      {p.invoice_date ? new Date(p.invoice_date).toLocaleDateString() : '—'}
+                    <td className="num-en" style={{ padding: '14px 18px', fontSize: '13px', color: '#64748b' }}>
+                      {p.invoice_date ? new Date(p.invoice_date).toLocaleDateString('en-CA') : '—'}
                     </td>
                     <td style={{ padding: '14px 18px', fontWeight: 700, color: '#1e293b' }}>
                       {p.vendor_name}
@@ -257,14 +259,14 @@ const Purchases = () => {
                     <td style={{ padding: '14px 18px', fontSize: '13px', color: '#475569' }}>
                       🏢 {p.warehouse_name}
                     </td>
-                    <td style={{ padding: '14px 18px', fontWeight: 800, color: '#1e293b' }}>
-                      {parseFloat(p.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} EGP
+                    <td className="num-en" style={{ padding: '14px 18px', fontWeight: 800, color: '#1e293b' }}>
+                      {parseFloat(p.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} {t('common.currency', 'EGP')}
                     </td>
-                    <td style={{ padding: '14px 18px', fontWeight: 700, color: '#10b981' }}>
-                      {parseFloat(p.paid_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} EGP
+                    <td className="num-en" style={{ padding: '14px 18px', fontWeight: 700, color: '#10b981' }}>
+                      {parseFloat(p.paid_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} {t('common.currency', 'EGP')}
                     </td>
-                    <td style={{ padding: '14px 18px', fontWeight: 800, color: parseFloat(p.balance) > 0 ? '#ef4444' : '#10b981' }}>
-                      {parseFloat(p.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })} EGP
+                    <td className="num-en" style={{ padding: '14px 18px', fontWeight: 800, color: parseFloat(p.balance) > 0 ? '#ef4444' : '#10b981' }}>
+                      {parseFloat(p.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })} {t('common.currency', 'EGP')}
                     </td>
                     <td style={{ padding: '14px 18px' }}>
                       <span style={{
@@ -273,7 +275,7 @@ const Purchases = () => {
                         color: p.status === 'paid' ? '#15803d' : p.status === 'partial' ? '#b45309' : '#b91c1c',
                         textTransform: 'uppercase'
                       }}>
-                        {p.status}
+                        {p.status === 'paid' ? t('vendors.badgePaid', 'PAID') : p.status === 'partial' ? t('vendors.badgePartial', 'PARTIAL') : t('vendors.badgeUnpaid', 'UNPAID')}
                       </span>
                     </td>
                   </tr>
@@ -285,11 +287,11 @@ const Purchases = () => {
 
         {/* Modal: New Purchase Invoice */}
         {showModal && (
-          <div style={modalStyle}>
+          <div style={modalStyle} dir={isRTL ? 'rtl' : 'ltr'}>
             <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '780px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)' }}>
                 <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ShoppingCart size={20} /> Create Purchase Invoice
+                  <ShoppingCart size={20} /> {t('purchases.modalNew')}
                 </h3>
                 <button onClick={() => setShowModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>
                   <X size={18} />
@@ -299,14 +301,14 @@ const Purchases = () => {
               <form onSubmit={handleSubmit} style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Supplier / Vendor *</label>
+                    <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>{t('purchases.lblVendor')}</label>
                     <select
                       value={form.vendor_id}
                       onChange={e => setForm({ ...form, vendor_id: e.target.value })}
                       style={inputStyle}
                       required
                     >
-                      <option value="">Select Vendor...</option>
+                      <option value="">{t('purchases.optSelectVendor')}</option>
                       {vendors.map(v => (
                         <option key={v.id} value={v.id}>{v.name}</option>
                       ))}
@@ -314,14 +316,14 @@ const Purchases = () => {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Receiving Warehouse *</label>
+                    <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>{t('purchases.lblWarehouse')}</label>
                     <select
                       value={form.warehouse_id}
                       onChange={e => setForm({ ...form, warehouse_id: e.target.value })}
                       style={inputStyle}
                       required
                     >
-                      <option value="">Select Warehouse...</option>
+                      <option value="">{t('purchases.optSelectWarehouse')}</option>
                       {warehouses.map(w => (
                         <option key={w.id} value={w.id}>{w.name}</option>
                       ))}
@@ -329,9 +331,10 @@ const Purchases = () => {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Invoice Date *</label>
+                    <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>{t('purchases.lblDate')}</label>
                     <input
                       type="date"
+                      className="num-en"
                       value={form.invoice_date}
                       onChange={e => setForm({ ...form, invoice_date: e.target.value })}
                       style={inputStyle}
@@ -343,24 +346,24 @@ const Purchases = () => {
                 {/* Products Table */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <label style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b' }}>Purchased Products</label>
+                    <label style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b' }}>{t('purchases.sectionItems')}</label>
                     <button
                       type="button"
                       onClick={addItemRow}
                       style={{ background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                     >
-                      <Plus size={14} /> Add Product Line
+                      <Plus size={14} /> {t('purchases.btnAddItem')}
                     </button>
                   </div>
 
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
-                      <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', textAlign: 'left' }}>
-                        <th style={{ padding: '8px', width: '35%' }}>Product</th>
-                        <th style={{ padding: '8px', width: '15%' }}>Unit</th>
-                        <th style={{ padding: '8px', width: '15%' }}>Quantity</th>
-                        <th style={{ padding: '8px', width: '15%' }}>Unit Cost</th>
-                        <th style={{ padding: '8px', width: '15%' }}>Subtotal</th>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', textAlign: isRTL ? 'right' : 'left' }}>
+                        <th style={{ padding: '8px', width: '35%' }}>{t('purchases.colItem')}</th>
+                        <th style={{ padding: '8px', width: '15%' }}>{t('inventory.colUnit', 'Unit')}</th>
+                        <th style={{ padding: '8px', width: '15%' }}>{t('purchases.colQty')}</th>
+                        <th style={{ padding: '8px', width: '15%' }}>{t('purchases.colPrice')}</th>
+                        <th style={{ padding: '8px', width: '15%' }}>{t('purchases.colSubtotal')}</th>
                         <th style={{ padding: '8px', width: '5%' }}></th>
                       </tr>
                     </thead>
@@ -374,7 +377,7 @@ const Purchases = () => {
                               style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 600 }}
                               required
                             >
-                              <option value="">Select...</option>
+                              <option value="">{t('common.select', 'Select...')}</option>
                               {products.map(p => (
                                 <option key={p.id} value={p.id}>{p.name}</option>
                               ))}
@@ -388,6 +391,7 @@ const Purchases = () => {
                               type="number"
                               step="any"
                               min="0.001"
+                              className="num-en"
                               value={item.quantity}
                               onChange={e => handleItemChange(idx, 'quantity', e.target.value)}
                               style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 700 }}
@@ -399,14 +403,15 @@ const Purchases = () => {
                               type="number"
                               step="any"
                               min="0"
+                              className="num-en"
                               value={item.unit_price}
                               onChange={e => handleItemChange(idx, 'unit_price', e.target.value)}
                               style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 700 }}
                               required
                             />
                           </td>
-                          <td style={{ padding: '8px', fontWeight: 800, color: '#0ea5e9' }}>
-                            {item.subtotal.toFixed(2)} EGP
+                          <td className="num-en" style={{ padding: '8px', fontWeight: 800, color: '#0ea5e9' }}>
+                            {item.subtotal.toFixed(2)} {t('common.currency', 'EGP')}
                           </td>
                           <td style={{ padding: '8px', textAlign: 'center' }}>
                             <button
@@ -425,14 +430,14 @@ const Purchases = () => {
 
                 {/* Total Summary */}
                 <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#475569' }}>Total Purchase Invoice:</span>
-                  <span style={{ fontSize: '22px', fontWeight: 900, color: '#0ea5e9' }}>
-                    {totalPurchaseAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} EGP
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#475569' }}>{t('purchases.lblGrandTotal')}</span>
+                  <span className="num-en" style={{ fontSize: '22px', fontWeight: 900, color: '#0ea5e9' }}>
+                    {totalPurchaseAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {t('common.currency', 'EGP')}
                   </span>
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>Notes (Optional)</label>
+                  <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>{t('purchases.lblNotes')}</label>
                   <input
                     type="text"
                     placeholder="e.g. Supplier Invoice reference or terms"
@@ -444,10 +449,10 @@ const Purchases = () => {
 
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
                   <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
-                    Cancel
+                    {t('purchases.btnCancel')}
                   </button>
                   <button type="submit" disabled={submitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
-                    {submitting ? 'Recording...' : 'Save Purchase Invoice'}
+                    {submitting ? t('purchases.saving') : t('purchases.btnSave')}
                   </button>
                 </div>
               </form>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import { 
@@ -14,34 +15,28 @@ import Modal from '../components/Common/Modal';
 import ActivityTimeline from '../components/Common/ActivityTimeline';
 
 const PRIORITY_CONFIG = {
-  urgent: { bg: '#fef2f2', color: '#dc2626', border: '#fecaca', label: 'Urgent', icon: '🔴' },
-  high:   { bg: '#fff7ed', color: '#ea580c', border: '#fed7aa', label: 'High',   icon: '🟠' },
-  medium: { bg: '#fefce8', color: '#ca8a04', border: '#fde68a', label: 'Medium', icon: '🟡' },
-  low:    { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0', label: 'Low',    icon: '🟢' },
+  urgent: { bg: '#fef2f2', color: '#dc2626', border: '#fecaca', key: 'urgent', icon: '🔴' },
+  high:   { bg: '#fff7ed', color: '#ea580c', border: '#fed7aa', key: 'high',   icon: '🟠' },
+  medium: { bg: '#fefce8', color: '#ca8a04', border: '#fde68a', key: 'medium', icon: '🟡' },
+  low:    { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0', key: 'low',    icon: '🟢' },
 };
 
-const STATUS_CONFIG = {
-  todo:        { label: 'To Do',       color: '#64748b', bg: '#f1f5f9', icon: <Circle size={14}/> },
-  in_progress: { label: 'In Progress', color: '#2563eb', bg: '#eff6ff', icon: <PlayCircle size={14}/> },
-  review:      { label: 'Review',      color: '#7c3aed', bg: '#f5f3ff', icon: <AlertTriangle size={14}/> },
-  done:        { label: 'Done',        color: '#16a34a', bg: '#f0fdf4', icon: <CheckCircle2 size={14}/> },
-};
-
-const getDueDateStatus = (due_date) => {
+const getDueDateStatus = (due_date, t) => {
   if (!due_date) return null;
   const today = new Date();
   const due = new Date(due_date);
   const diffDays = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
-  if (diffDays < 0) return { label: `${Math.abs(diffDays)}d overdue`, color: '#dc2626', bg: '#fef2f2' };
-  if (diffDays === 0) return { label: 'Due today', color: '#ea580c', bg: '#fff7ed' };
-  if (diffDays <= 3) return { label: `${diffDays}d left`, color: '#ca8a04', bg: '#fefce8' };
-  return { label: `${diffDays}d`, color: '#64748b', bg: '#f1f5f9' };
+  if (diffDays < 0) return { label: t('tasks.dueOverdue', { days: Math.abs(diffDays) }), color: '#dc2626', bg: '#fef2f2' };
+  if (diffDays === 0) return { label: t('tasks.dueToday'), color: '#ea580c', bg: '#fff7ed' };
+  if (diffDays <= 3) return { label: t('tasks.dueLeft', { days: diffDays }), color: '#ca8a04', bg: '#fefce8' };
+  return { label: t('tasks.dueDays', { days: diffDays }), color: '#64748b', bg: '#f1f5f9' };
 };
 
 const TaskCard = ({ task, onEdit, onDelete, onStatusChange, taskStatuses, onCreateDeal }) => {
+  const { t } = useLanguage();
   const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
   const status = taskStatuses.find(s => s.id === task.status_id) || { name: 'Todo', color: '#64748b' };
-  const dueStat = getDueDateStatus(task.due_date);
+  const dueStat = getDueDateStatus(task.due_date, t);
 
   return (
     <div style={{
@@ -56,7 +51,7 @@ const TaskCard = ({ task, onEdit, onDelete, onStatusChange, taskStatuses, onCrea
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
         <div style={{ flex: 1 }}>
           <span style={{ fontSize: '11px', fontWeight: 800, color: priority.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {priority.icon} {priority.label}
+            {priority.icon} {t(`tasks.priorities.${priority.key}`) || priority.key}
           </span>
           <h4 style={{ margin: '4px 0 0', fontSize: '14px', fontWeight: 700, color: '#1e293b', lineHeight: 1.3 }}>{task.title}</h4>
         </div>
@@ -64,7 +59,7 @@ const TaskCard = ({ task, onEdit, onDelete, onStatusChange, taskStatuses, onCrea
           {task.can_make_deal && (
             <button onClick={(e) => { e.stopPropagation(); onCreateDeal(task); }} 
               style={{ padding: '4px', background: '#dbeafe', color: '#1e40af', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', fontSize: '11px', fontWeight: 700 }} title="Convert to Deal">
-              <Briefcase size={13} style={{ marginRight: '4px' }}/> Deal
+              <Briefcase size={13} style={{ marginRight: '4px' }}/> {t('tasks.btnDeal')}
             </button>
           )}
           <button onClick={(e) => { e.stopPropagation(); onEdit(task); }} 
@@ -103,7 +98,7 @@ const TaskCard = ({ task, onEdit, onDelete, onStatusChange, taskStatuses, onCrea
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           {dueStat && (
-            <span style={{ fontSize: '10px', fontWeight: 800, color: dueStat.color, background: dueStat.bg, padding: '2px 8px', borderRadius: '20px' }}>
+            <span className="num-en" style={{ fontSize: '10px', fontWeight: 800, color: dueStat.color, background: dueStat.bg, padding: '2px 8px', borderRadius: '20px' }}>
               <Calendar size={9} style={{ display: 'inline', marginRight: '3px' }}/>{dueStat.label}
             </span>
           )}
@@ -113,7 +108,7 @@ const TaskCard = ({ task, onEdit, onDelete, onStatusChange, taskStatuses, onCrea
             onClick={(e) => e.stopPropagation()}
             style={{ fontSize: '10px', fontWeight: 800, color: 'white', background: status.color, border: 'none', borderRadius: '6px', padding: '3px 6px', cursor: 'pointer' }}
           >
-            <option value="" disabled>Select Status</option>
+            <option value="" disabled>{t('tasks.optSelectStatus')}</option>
             {taskStatuses.map(ts => (
               <option key={ts.id} value={ts.id}>{ts.name}</option>
             ))}
@@ -125,6 +120,7 @@ const TaskCard = ({ task, onEdit, onDelete, onStatusChange, taskStatuses, onCrea
 };
 
 const Tasks = () => {
+  const { t, isRTL } = useLanguage();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const activityTypeParam = searchParams.get('type') || '';
@@ -151,7 +147,7 @@ const Tasks = () => {
       const res = await api.get('/tasks');
       setTasks(res.data?.data || []);
     } catch (err) {
-      toast.error('Failed to load tasks');
+      toast.error(t('tasks.toastLoadError'));
     } finally {
       setLoading(false);
     }
@@ -166,7 +162,6 @@ const Tasks = () => {
   }, []);
 
   useEffect(() => {
-    // Fetch units for the unit selector (Real Estate only)
     if (user?.template_name === 'real_estate') {
       api.get('/re-units').then(r => setUnits(r.data?.data || [])).catch(() => {});
     }
@@ -193,6 +188,7 @@ const Tasks = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.title.trim()) return toast.error(t('tasks.toastTitleReq'));
     try {
       const cleanData = {
         ...formData,
@@ -204,76 +200,65 @@ const Tasks = () => {
       };
       if (editingTask) {
         await api.put(`/tasks/${editingTask.id}`, cleanData);
-        toast.success('Task updated');
+        toast.success(t('tasks.toastSaved'));
       } else {
         await api.post('/tasks', cleanData);
-        toast.success('Task created');
+        toast.success(t('tasks.toastSaved'));
       }
       fetchTasks(false);
       setIsModalOpen(false);
     } catch (err) {
-      toast.error('Error saving task');
+      toast.error(err.response?.data?.message || t('tasks.toastLoadError'));
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this task permanently?')) return;
+    if (!window.confirm(t('tasks.confirmDelete'))) return;
     await api.delete(`/tasks/${id}`);
     fetchTasks(false);
-    toast.success('Task deleted');
+    toast.success(t('tasks.toastDeleted'));
   };
 
   const handleStatusChange = async (id, newStatusId) => {
     try {
       await api.put(`/tasks/${id}`, { status_id: newStatusId });
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, status_id: newStatusId } : t));
+      setTasks(prev => prev.map(tTask => tTask.id === id ? { ...tTask, status_id: newStatusId } : tTask));
     } catch (err) {
-      toast.error('Failed to update status');
+      toast.error(t('tasks.toastLoadError'));
     }
   };
 
   const handleCreateDealFromTask = (task) => {
-    // Save to local storage for Deals page to pick up
     localStorage.setItem('convert_task_to_deal', JSON.stringify(task));
     window.location.href = '/deals';
   };
 
-  // Filtered data
-  const filteredTasks = useMemo(() => tasks.filter(t => {
+  const filteredTasks = useMemo(() => tasks.filter(tTask => {
     if (activityTypeParam) {
-      const matchType = (t.title || '').toLowerCase().includes(activityTypeParam.replace('_', ' ')) ||
-                        (t.description || '').toLowerCase().includes(activityTypeParam.replace('_', ' ')) ||
-                        (t.parent_type || '').toLowerCase() === activityTypeParam.toLowerCase();
+      const matchType = (tTask.title || '').toLowerCase().includes(activityTypeParam.replace('_', ' ')) ||
+                        (tTask.description || '').toLowerCase().includes(activityTypeParam.replace('_', ' ')) ||
+                        (tTask.parent_type || '').toLowerCase() === activityTypeParam.toLowerCase();
       if (!matchType) return false;
     }
-    if (filterStatus !== 'all' && String(t.status_id) !== filterStatus) return false;
-    if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
-    if (filterAssignee !== 'all' && String(t.assigned_to) !== filterAssignee) return false;
+    if (filterStatus !== 'all' && String(tTask.status_id) !== filterStatus) return false;
+    if (filterPriority !== 'all' && tTask.priority !== filterPriority) return false;
+    if (filterAssignee !== 'all' && String(tTask.assigned_to) !== filterAssignee) return false;
     return true;
   }), [tasks, activityTypeParam, filterStatus, filterPriority, filterAssignee]);
 
-  // Stats
   const stats = useMemo(() => {
     const finalStatuses = taskStatuses.filter(ts => ts.is_final).map(ts => ts.id);
     const firstStatus = taskStatuses.find(ts => ts.order_index === 0)?.id;
     return {
       total: tasks.length,
-      todo: tasks.filter(t => t.status_id === firstStatus).length,
-      done: tasks.filter(t => finalStatuses.includes(t.status_id)).length,
-      overdue: tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && !finalStatuses.includes(t.status_id)).length,
+      todo: tasks.filter(tTask => tTask.status_id === firstStatus).length,
+      done: tasks.filter(tTask => finalStatuses.includes(tTask.status_id)).length,
+      overdue: tasks.filter(tTask => tTask.due_date && new Date(tTask.due_date) < new Date() && !finalStatuses.includes(tTask.status_id)).length,
     }
   }, [tasks, taskStatuses]);
 
-  const roleLabel = user?.role === 'admin' ? 'All Organization Tasks' 
-                  : user?.role === 'manager' ? 'My Team Tasks' 
-                  : 'My Assigned Tasks';
-
-  const titleLabel = activityTypeParam === 'site_visit' ? 'Site Visits & Field Activities'
-                   : activityTypeParam ? `${activityTypeParam.replace('_', ' ').toUpperCase()} Activities`
-                   : 'Task Command Center';
-
   return (
-    <div style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
+    <div style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }} dir={isRTL ? 'rtl' : 'ltr'}>
       <style>{`
         .task-form-group { margin-bottom: 16px; }
         .task-form-group label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: #475569; }
@@ -287,15 +272,15 @@ const Tasks = () => {
       `}</style>
 
       {/* Hero Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', boxShadow: '0 8px 20px rgba(102, 126, 234, 0.3)' }}>
               <CheckSquare size={24}/>
             </div>
             <div>
-              <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900, color: '#1e293b', letterSpacing: '-0.02em' }}>{titleLabel}</h1>
-              <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px', fontWeight: 600 }}>{roleLabel} • {filteredTasks.length} {activityTypeParam ? 'Matching Items' : 'Tasks'}</p>
+              <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 900, color: '#1e293b', letterSpacing: '-0.02em' }}>{t('tasks.title')}</h1>
+              <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px', fontWeight: 600 }}>{t('tasks.subtitle')}</p>
             </div>
           </div>
         </div>
@@ -303,30 +288,30 @@ const Tasks = () => {
           {/* View Toggle */}
           <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '10px' }}>
             <button onClick={() => setViewMode('kanban')} style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '13px', background: viewMode === 'kanban' ? 'white' : 'transparent', color: viewMode === 'kanban' ? 'var(--primary)' : '#64748b', boxShadow: viewMode === 'kanban' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s' }}>
-              <LayoutGrid size={15}/> Board
+              <LayoutGrid size={15}/> {t('tasks.viewKanban')}
             </button>
             <button onClick={() => setViewMode('list')} style={{ padding: '8px 14px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '13px', background: viewMode === 'list' ? 'white' : 'transparent', color: viewMode === 'list' ? 'var(--primary)' : '#64748b', boxShadow: viewMode === 'list' ? '0 1px 4px rgba(0,0,0,0.1)' : 'none', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s' }}>
-              <List size={15}/> List
+              <List size={15}/> {t('tasks.viewList')}
             </button>
           </div>
           <button onClick={() => handleOpenModal()} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', padding: '10px 20px', borderRadius: '12px', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '14px', boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)' }}>
-            <Plus size={18} strokeWidth={3}/> New Task
+            <Plus size={18} strokeWidth={3}/> {t('tasks.btnCreate')}
           </button>
         </div>
       </div>
 
       {/* Stats Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginBottom: '28px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
         {[
-          { label: 'Total Tasks', value: stats.total, color: '#6366f1', bg: '#eef2ff' },
-          { label: 'To Do', value: stats.todo, color: '#64748b', bg: '#f1f5f9' },
-          { label: 'Completed', value: stats.done, color: '#10b981', bg: '#d1fae5' },
-          { label: 'Overdue', value: stats.overdue, color: '#dc2626', bg: '#fef2f2' },
+          { label: t('tasks.filterAll'), value: stats.total, color: '#6366f1', bg: '#eef2ff' },
+          { label: t('tasks.statuses.todo'), value: stats.todo, color: '#64748b', bg: '#f1f5f9' },
+          { label: t('tasks.statuses.done'), value: stats.done, color: '#10b981', bg: '#d1fae5' },
+          { label: t('tasks.dueOverdue', { days: '' }).replace(/[0-9]/g, '').trim(), value: stats.overdue, color: '#dc2626', bg: '#fef2f2' },
         ].map((stat) => (
           <div key={stat.label} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>{stat.label}</div>
-              <div style={{ fontSize: '28px', fontWeight: 900, color: stat.color }}>{stat.value}</div>
+              <div className="num-en" style={{ fontSize: '28px', fontWeight: 900, color: stat.color }}>{stat.value}</div>
             </div>
             <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: stat.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <div style={{ fontSize: '20px', color: stat.color, fontWeight: 900 }}>{stat.value > 0 ? '●' : '○'}</div>
@@ -339,15 +324,15 @@ const Tasks = () => {
       <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '12px 16px', marginBottom: '24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
         <Filter size={16} color="#94a3b8"/>
         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600, color: '#475569', background: '#f8fafc' }}>
-          <option value="all">All Statuses</option>
+          <option value="all">{t('tasks.filterStatus')}: {t('tasks.filterAll')}</option>
           {taskStatuses.map(ts => <option key={ts.id} value={ts.id}>{ts.name}</option>)}
         </select>
         <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600, color: '#475569', background: '#f8fafc' }}>
-          <option value="all">All Priorities</option>
-          {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+          <option value="all">{t('tasks.filterPriority')}: {t('tasks.filterAll')}</option>
+          {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.icon} {t(`tasks.priorities.${k}`)}</option>)}
         </select>
         <select value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600, color: '#475569', background: '#f8fafc', minWidth: '160px' }}>
-          <option value="all">All Employees</option>
+          <option value="all">{t('tasks.colAssigned')}: {t('tasks.filterAll')}</option>
           {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
         {(filterStatus !== 'all' || filterPriority !== 'all' || filterAssignee !== 'all') && (
@@ -355,21 +340,18 @@ const Tasks = () => {
             <X size={12}/> Clear
           </button>
         )}
-        <div style={{ marginLeft: 'auto', fontSize: '13px', color: '#94a3b8', fontWeight: 600 }}>
-          Showing <b style={{ color: '#475569' }}>{filteredTasks.length}</b> of {tasks.length} tasks
-        </div>
       </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: '80px', color: '#94a3b8' }}>
           <CheckSquare size={40} opacity={0.2} style={{ marginBottom: '12px' }}/>
-          <p style={{ fontWeight: 600 }}>Loading task board...</p>
+          <p style={{ fontWeight: 600 }}>...</p>
         </div>
       ) : viewMode === 'kanban' ? (
         /* KANBAN VIEW */
         <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', overflowX: 'auto', paddingBottom: '16px' }}>
           {taskStatuses.map(statusCfg => {
-            const colTasks = filteredTasks.filter(t => t.status_id === statusCfg.id);
+            const colTasks = filteredTasks.filter(tTask => tTask.status_id === statusCfg.id);
             return (
               <div key={statusCfg.id} className="kanban-col">
                 <div className="kanban-col-header">
@@ -377,14 +359,14 @@ const Tasks = () => {
                     <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: statusCfg.color || '#64748b' }}></span>
                     <span style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>{statusCfg.name}</span>
                   </div>
-                  <span style={{ background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
+                  <span className="num-en" style={{ background: '#f1f5f9', color: '#64748b', padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>
                     {colTasks.length}
                   </span>
                 </div>
                 {colTasks.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '32px 16px', color: '#cbd5e1' }}>
                     <Circle size={28} opacity={0.3} style={{ marginBottom: '8px' }}/>
-                    <p style={{ fontSize: '12px', fontWeight: 600 }}>No tasks here</p>
+                    <p style={{ fontSize: '12px', fontWeight: 600 }}>{t('tasks.noTasks')}</p>
                   </div>
                 ) : (
                   colTasks.map(task => (
@@ -401,18 +383,25 @@ const Tasks = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                {['Task', 'Assignee', 'Priority', 'Status', 'Due Date', 'Actions'].map(h => (
-                  <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                {[
+                  t('tasks.colTask'),
+                  t('tasks.colAssigned'),
+                  t('tasks.colPriority'),
+                  t('tasks.colStatus'),
+                  t('tasks.colDueDate'),
+                  t('tasks.colActions')
+                ].map(h => (
+                  <th key={h} style={{ padding: '12px 16px', textAlign: isRTL ? 'right' : 'left', fontSize: '12px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filteredTasks.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '48px', color: '#94a3b8' }}>No tasks found</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '48px', color: '#94a3b8' }}>{t('tasks.noTasks')}</td></tr>
               ) : filteredTasks.map((task, i) => {
                 const priority = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
                 const status = taskStatuses.find(s => s.id === task.status_id) || { name: 'Todo', color: '#64748b' };
-                const dueStat = getDueDateStatus(task.due_date);
+                const dueStat = getDueDateStatus(task.due_date, t);
                 return (
                   <tr key={task.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
                     <td style={{ padding: '14px 16px' }}>
@@ -424,25 +413,25 @@ const Tasks = () => {
                         <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb', fontSize: '11px', fontWeight: 800 }}>
                           {task.in_charge_name?.[0] || '?'}
                         </div>
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>{task.in_charge_name || 'Unassigned'}</span>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#475569' }}>{task.in_charge_name || '—'}</span>
                       </div>
                     </td>
                     <td style={{ padding: '14px 16px' }}>
-                      <span style={{ background: priority.bg, color: priority.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>{priority.icon} {priority.label}</span>
+                      <span style={{ background: priority.bg, color: priority.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>{priority.icon} {t(`tasks.priorities.${priority.key}`)}</span>
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <span style={{ background: status.color, color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>{status.name}</span>
                     </td>
                     <td style={{ padding: '14px 16px' }}>
-                      {dueStat ? <span style={{ background: dueStat.bg, color: dueStat.color, padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>{dueStat.label}</span> : <span style={{ color: '#cbd5e1', fontSize: '12px' }}>—</span>}
+                      {dueStat ? <span className="num-en" style={{ background: dueStat.bg, color: dueStat.color, padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>{dueStat.label}</span> : <span style={{ color: '#cbd5e1', fontSize: '12px' }}>—</span>}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         {task.can_make_deal && (
-                          <button onClick={() => handleCreateDealFromTask(task)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1e40af', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Deal</button>
+                          <button onClick={() => handleCreateDealFromTask(task)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1e40af', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>{t('tasks.btnDeal')}</button>
                         )}
-                        <button onClick={() => handleOpenModal(task)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#475569', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Edit</button>
-                        <button onClick={() => handleDelete(task.id)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Delete</button>
+                        <button onClick={() => handleOpenModal(task)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#475569', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>{t('tasks.btnEdit')}</button>
+                        <button onClick={() => handleDelete(task.id)} style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>{t('tasks.btnDelete')}</button>
                       </div>
                     </td>
                   </tr>
@@ -457,74 +446,43 @@ const Tasks = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingTask ? 'Edit Task' : 'Create New Task'}
+        title={editingTask ? t('tasks.modalEdit') : t('tasks.modalCreate')}
         footer={
           <>
-            <button onClick={() => setIsModalOpen(false)} style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-            <button onClick={handleSubmit} style={{ padding: '10px 24px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', fontWeight: 700, cursor: 'pointer' }}>{editingTask ? 'Update Task' : 'Create Task'}</button>
+            <button onClick={() => setIsModalOpen(false)} style={{ padding: '10px 20px', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', fontWeight: 700, cursor: 'pointer' }}>{t('common.cancel')}</button>
+            <button onClick={handleSubmit} style={{ padding: '10px 24px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', fontWeight: 700, cursor: 'pointer' }}>{editingTask ? t('tasks.modalEdit') : t('tasks.btnCreate')}</button>
           </>
         }
       >
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }} dir={isRTL ? 'rtl' : 'ltr'}>
           <div className="task-form-group" style={{ gridColumn: 'span 2' }}>
-            <label>Task Title *</label>
-            <input type="text" placeholder="e.g. Call client for follow-up" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required/>
+            <label>{t('tasks.lblTitle')}</label>
+            <input type="text" placeholder={t('tasks.placeholderTitle')} value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required/>
           </div>
           <div className="task-form-group">
-            <label>Assigned Employee</label>
+            <label>{t('tasks.lblAssignee')}</label>
             <select value={formData.assigned_to} onChange={e => setFormData({...formData, assigned_to: e.target.value})}>
-              <option value="">-- Select Employee --</option>
+              <option value="">{t('tasks.optSelectAssignee')}</option>
               {(users || []).map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
             </select>
           </div>
           <div className="task-form-group">
-            <label>Director / Supervisor</label>
-            <select value={formData.director_id} onChange={e => setFormData({...formData, director_id: e.target.value})}>
-              <option value="">-- Select Director --</option>
-              {(users || []).filter(u => u.role === 'admin' || u.role === 'manager').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </div>
-          <div className="task-form-group">
-            <label>Priority</label>
+            <label>{t('tasks.lblPriority')}</label>
             <select value={formData.priority} onChange={e => setFormData({...formData, priority: e.target.value})}>
-              {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+              {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.icon} {t(`tasks.priorities.${k}`)}</option>)}
             </select>
           </div>
           <div className="task-form-group">
-            <label>Due Date</label>
+            <label>{t('tasks.lblDueDate')}</label>
             <input type="date" value={formData.due_date} onChange={e => setFormData({...formData, due_date: e.target.value})}/>
           </div>
-          <div className="task-form-group">
-            <label>Link To</label>
-            <select value={formData.parent_type} onChange={e => setFormData({...formData, parent_type: e.target.value, parent_id: ''})}>
-              <option value="">-- None --</option>
-              <option value="customer">Customer / Lead</option>
-              <option value="deal">Deal</option>
-              <option value="unit">Real Estate Unit</option>
-            </select>
-          </div>
-          {formData.parent_type && (
-            <div className="task-form-group">
-              <label>Select {formData.parent_type === 'customer' ? 'Customer' : formData.parent_type === 'deal' ? 'Deal' : 'Unit'}</label>
-              <select value={formData.parent_id} onChange={e => setFormData({...formData, parent_id: e.target.value})}>
-                <option value="">-- Select --</option>
-                {formData.parent_type === 'customer' && (customers || []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                {formData.parent_type === 'deal' && (deals || []).map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
-                {formData.parent_type === 'unit' && (units.length === 0
-                  ? <option disabled>No units found — add units in Units Registry first</option>
-                  : units.map(u => <option key={u.id} value={u.id}>{u.unit_number} — {u.project_name || 'Individual'} ({u.status})</option>)
-                )}
-              </select>
-            </div>
-          )}
           <div className="task-form-group" style={{ gridColumn: 'span 2' }}>
-            <label>Description</label>
-            <textarea rows="3" placeholder="Task details and instructions..." value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} style={{ resize: 'vertical' }}></textarea>
+            <label>{t('tasks.lblDescription')}</label>
+            <textarea rows="3" placeholder={t('tasks.placeholderDescription')} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} style={{ resize: 'vertical' }}></textarea>
           </div>
         </div>
         {editingTask && (
           <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', marginBottom: '16px' }}>Activity Timeline</h3>
             <ActivityTimeline entityType="task" entityId={editingTask.id} />
           </div>
         )}

@@ -3,8 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import api from '../services/api';
 import toast from 'react-hot-toast';
+import { useLanguage } from '../context/LanguageContext';
 
 const ResetPassword = () => {
+  const { t, isRTL } = useLanguage();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
   const [password, setPassword] = useState('');
@@ -16,21 +18,21 @@ const ResetPassword = () => {
 
   useEffect(() => {
     if (!token) {
-      setError('Invalid or missing reset token.');
+      setError(t('auth.invalidResetToken', 'Invalid or missing reset token.'));
     }
   }, [token]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error(t('auth.passwordsDoNotMatch', 'Passwords do not match'));
       return;
     }
     
     // Password strength check
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
     if (!passwordRegex.test(password)) {
-      setError('Password must be at least 8 characters, include uppercase, lowercase, and a number.');
+      setError(t('auth.toastPasswordRules', 'Password must be at least 8 characters, include uppercase, lowercase, and a number.'));
       return;
     }
 
@@ -39,17 +41,17 @@ const ResetPassword = () => {
     try {
       await api.post('/auth/reset-password', { token, newPassword: password });
       setSuccess(true);
-      toast.success('Password reset successfully!');
+      toast.success(t('auth.passwordResetSuccess', 'Password reset successfully!'));
       setTimeout(() => navigate('/login'), 3000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Token expired or invalid');
+      setError(err.response?.data?.message || t('auth.tokenExpiredOrInvalid', 'Token expired or invalid'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="login-container">
+    <div className="login-container" dir={isRTL ? 'rtl' : 'ltr'}>
       <style>{`
         .login-container {
           display: flex; justify-content: center; align-items: center; min-height: 100vh;
@@ -66,8 +68,8 @@ const ResetPassword = () => {
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; color: white; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
         .input-wrapper { position: relative; }
-        .input-wrapper svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: rgba(255, 255, 255, 0.4); width: 18px; }
-        input { width: 100%; padding: 14px 14px 14px 48px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: white; transition: all 0.3s; }
+        .input-wrapper svg { position: absolute; ${isRTL ? 'right: 16px;' : 'left: 16px;'} top: 50%; transform: translateY(-50%); color: rgba(255, 255, 255, 0.4); width: 18px; }
+        input { width: 100%; ${isRTL ? 'padding: 14px 48px 14px 14px;' : 'padding: 14px 14px 14px 48px;'} background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: white; transition: all 0.3s; box-sizing: border-box; }
         input:focus { outline: none; border-color: #6366f1; background: rgba(255, 255, 255, 0.1); }
         .btn-submit { width: 100%; padding: 14px; background: #6366f1; color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: all 0.3s; display: flex; justify-content: center; align-items: center; gap: 10px; }
         .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(99, 102, 241, 0.4); }
@@ -85,8 +87,8 @@ const ResetPassword = () => {
           </div>
         ) : (
           <>
-            <h1>Reset Password</h1>
-            <p>Enter your new password below.</p>
+            <h1>{t('auth.resetTitle')}</h1>
+            <p>{t('auth.resetSubtitle')}</p>
 
             {error && (
               <div className="error-box">
@@ -96,7 +98,7 @@ const ResetPassword = () => {
 
             <form onSubmit={handleSubmit}>
               <div className="form-group">
-                <label>New Password</label>
+                <label>{t('auth.lblPassword')}</label>
                 <div className="input-wrapper">
                   <Lock />
                   <input 
@@ -110,7 +112,7 @@ const ResetPassword = () => {
               </div>
 
               <div className="form-group">
-                <label>Confirm Password</label>
+                <label>{t('auth.lblConfirmPassword', 'Confirm Password')}</label>
                 <div className="input-wrapper">
                   <Lock />
                   <input 
@@ -124,7 +126,7 @@ const ResetPassword = () => {
               </div>
 
               <button type="submit" className="btn-submit" disabled={loading || !!error}>
-                {loading ? <Loader2 className="animate-spin" /> : 'Reset Password'}
+                {loading ? <Loader2 className="animate-spin" /> : t('auth.resetTitle')}
               </button>
             </form>
           </>

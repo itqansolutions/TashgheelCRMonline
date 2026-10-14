@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle, XCircle, AlertCircle, History, Coffee } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { useLanguage } from '../../context/LanguageContext';
 
 const Attendance = () => {
+  const { t, isRTL } = useLanguage();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -44,10 +46,10 @@ const Attendance = () => {
     setIsProcessing(true);
     try {
       const res = await api.post('/hr/attendance/check-in');
-      toast.success(res.data.message || 'Checked in successfully!');
+      toast.success(res.data.message || t('hr.attendance.checkInSuccess', 'Checked in successfully!'));
       fetchAttendance();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to check in');
+      toast.error(err.response?.data?.message || t('hr.attendance.checkInFailed', 'Failed to check in'));
     } finally {
       setIsProcessing(false);
     }
@@ -57,19 +59,28 @@ const Attendance = () => {
     setIsProcessing(true);
     try {
       const res = await api.post('/hr/attendance/check-out');
-      toast.success(res.data.message || 'Checked out successfully!');
+      toast.success(res.data.message || t('hr.attendance.checkOutSuccess', 'Checked out successfully!'));
       fetchAttendance();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to check out');
+      toast.error(err.response?.data?.message || t('hr.attendance.checkOutFailed', 'Failed to check out'));
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const getStatusLabel = (status) => {
+    switch (status) {
+      case 'present': return t('hr.attendance.statuses.present', 'Present');
+      case 'late': return t('hr.attendance.statuses.late', 'Late');
+      case 'absent': return t('hr.attendance.statuses.absent', 'Absent');
+      default: return status;
+    }
+  };
+
   return (
-    <div className="attendance-dashboard">
+    <div className="attendance-dashboard" dir={isRTL ? 'rtl' : 'ltr'}>
       <style>{`
-        .att-header { margin-bottom: 24px; }
+        .att-header { margin-bottom: 24px; text-align: ${isRTL ? 'right' : 'left'}; }
         .clock-pad { background: var(--bg-card); border-radius: 16px; padding: 40px; text-align: center; border: 1px solid var(--glass-border); box-shadow: var(--shadow-xl); margin-bottom: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; }
         
         .btn-clock { width: 180px; height: 180px; border-radius: 50%; border: none; font-size: 20px; font-weight: 800; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); color: white; }
@@ -85,76 +96,76 @@ const Attendance = () => {
         .status-present { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 
         .log-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); }
-        .log-table th, .log-table td { padding: 16px; text-align: left; border-bottom: 1px solid var(--glass-border); }
+        .log-table th, .log-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border); }
         .log-table th { background: rgba(0,0,0,0.02); font-weight: 600; color: var(--text-muted); font-size: 13px; text-transform: uppercase; }
         .log-table tr:hover { background: rgba(255,255,255,0.02); }
       `}</style>
       
       <div className="att-header">
-        <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800' }}>Self-Service Attendance</h2>
-        <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>Daily punch clock and timesheet history.</p>
+        <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '800' }}>{t('hr.attendance.title', 'Self-Service Attendance')}</h2>
+        <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>{t('hr.attendance.subtitle', 'Daily punch clock and timesheet history.')}</p>
       </div>
 
       {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px' }}>Loading Terminal...</div>
+          <div style={{ textAlign: 'center', padding: '40px' }}>{t('hr.attendance.loading', 'Loading Terminal...')}</div>
       ) : (
           <>
             <div className="clock-pad">
                 {activeSession === 'none' && (
                     <button className="btn-clock btn-checkin" onClick={handleCheckIn} disabled={isProcessing}>
                         <Clock size={40} />
-                        CHECK IN
+                        {t('hr.attendance.checkIn', 'CHECK IN')}
                     </button>
                 )}
                 
                 {activeSession === 'checked_in' && (
                     <button className="btn-clock btn-checkout" onClick={handleCheckOut} disabled={isProcessing}>
                         <Clock size={40} />
-                        CHECK OUT
+                        {t('hr.attendance.checkOut', 'CHECK OUT')}
                     </button>
                 )}
 
                 {activeSession === 'completed' && (
                     <div className="btn-clock btn-completed">
                         <CheckCircle size={40} />
-                        COMPLETED
-                        <span style={{ fontSize: '12px', opacity: 0.8, fontWeight: 500 }}>Shift Ended</span>
+                        {t('hr.attendance.completed', 'COMPLETED')}
+                        <span style={{ fontSize: '12px', opacity: 0.8, fontWeight: 500 }}>{t('hr.attendance.shiftEnded', 'Shift Ended')}</span>
                     </div>
                 )}
                 
                 {/* Live Status Indicator */}
                 <div style={{ marginTop: '24px' }}>
-                    {activeSession === 'none' && <span className="status-badge" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}><XCircle size={16}/> Not Checked In</span>}
-                    {activeSession === 'checked_in' && <span className="status-badge status-present"><CheckCircle size={16}/> Checked In (Active Session)</span>}
-                    {activeSession === 'completed' && <span className="status-badge" style={{ background: 'rgba(107, 114, 128, 0.1)', color: '#6b7280' }}><Coffee size={16}/> Shift Completed</span>}
+                    {activeSession === 'none' && <span className="status-badge" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}><XCircle size={16}/> {t('hr.attendance.notCheckedIn', 'Not Checked In')}</span>}
+                    {activeSession === 'checked_in' && <span className="status-badge status-present"><CheckCircle size={16}/> {t('hr.attendance.checkedInActive', 'Checked In (Active Session)')}</span>}
+                    {activeSession === 'completed' && <span className="status-badge" style={{ background: 'rgba(107, 114, 128, 0.1)', color: '#6b7280' }}><Coffee size={16}/> {t('hr.attendance.shiftCompleted', 'Shift Completed')}</span>}
                 </div>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                 <History size={18} color="var(--primary)" />
-                <h3 style={{ margin: 0, fontSize: '18px' }}>My Timesheet</h3>
+                <h3 style={{ margin: 0, fontSize: '18px' }}>{t('hr.attendance.myTimesheet', 'My Timesheet')}</h3>
             </div>
 
             <table className="log-table">
                 <thead>
                     <tr>
-                        <th>Date</th>
-                        <th>Check-in</th>
-                        <th>Check-out</th>
-                        <th>Duration (Hrs)</th>
-                        <th>Status</th>
-                        <th>Source</th>
+                        <th>{t('hr.attendance.date', 'Date')}</th>
+                        <th>{t('hr.attendance.checkInTime', 'Check-in')}</th>
+                        <th>{t('hr.attendance.checkOutTime', 'Check-out')}</th>
+                        <th>{t('hr.attendance.durationHrs', 'Duration (Hrs)')}</th>
+                        <th>{t('hr.attendance.status', 'Status')}</th>
+                        <th>{t('hr.attendance.source', 'Source')}</th>
                     </tr>
                 </thead>
                 <tbody>
                     {logs.length === 0 ? (
-                        <tr><td colSpan="6" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No attendance history found.</td></tr>
+                        <tr><td colSpan="6" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>{t('hr.attendance.noHistory', 'No attendance history found.')}</td></tr>
                     ) : logs.map((log) => (
                         <tr key={log.id}>
-                            <td style={{ fontWeight: 600 }}>{new Date(log.check_in).toLocaleDateString()}</td>
-                            <td>{new Date(log.check_in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                            <td>{log.check_out ? new Date(log.check_out).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : <span style={{ color: '#ef4444' }}>--:--</span>}</td>
-                            <td style={{ fontWeight: 700 }}>{log.work_hours ? parseFloat(log.work_hours).toFixed(2) : '-'}</td>
+                            <td style={{ fontWeight: 600 }} className="num-en">{new Date(log.check_in).toLocaleDateString()}</td>
+                            <td className="num-en">{new Date(log.check_in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
+                            <td className="num-en">{log.check_out ? new Date(log.check_out).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : <span style={{ color: '#ef4444' }}>--:--</span>}</td>
+                            <td style={{ fontWeight: 700 }} className="num-en">{log.work_hours ? parseFloat(log.work_hours).toFixed(2) : '-'}</td>
                             <td>
                                 <span style={{ 
                                     padding: '4px 10px', 
@@ -165,10 +176,10 @@ const Attendance = () => {
                                     background: log.status === 'present' ? 'rgba(16, 185, 129, 0.1)' : log.status === 'late' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
                                     color: log.status === 'present' ? '#10b981' : log.status === 'late' ? '#f59e0b' : '#ef4444'
                                 }}>
-                                    {log.status} {log.late_minutes > 0 ? `(+${log.late_minutes}m)` : ''}
+                                    {getStatusLabel(log.status)} {log.late_minutes > 0 ? <span className="num-en">{`(+${log.late_minutes}m)`}</span> : ''}
                                 </span>
                             </td>
-                            <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{log.source.toUpperCase()}</td>
+                            <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{log.source ? log.source.toUpperCase() : ''}</td>
                         </tr>
                     ))}
                 </tbody>

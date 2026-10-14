@@ -1,21 +1,26 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { ClipboardList, FileText, ShoppingCart, Building2, FileCheck } from 'lucide-react';
+import { ClipboardList, FileText, ShoppingCart, Building2 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const PurchasesSubNav = () => {
+  const { t, isRTL } = useLanguage();
   const coreLinks = [
-    { path: '/purchases/requests', label: 'Purchase Requests', icon: <ClipboardList size={16} /> },
-    { path: '/purchases/orders', label: 'Purchase Orders', icon: <FileText size={16} /> },
-    { path: '/purchases', label: 'Invoices', icon: <ShoppingCart size={16} /> },
-    { path: '/finance?tab=Vendors', label: 'Vendors', icon: <Building2 size={16} /> },
+    { path: '/purchases/requests', label: t('subNav.purchases.requests'), icon: <ClipboardList size={16} /> },
+    { path: '/purchases/orders', label: t('subNav.purchases.orders'), icon: <FileText size={16} /> },
+    { path: '/purchases', label: t('subNav.purchases.invoices'), icon: <ShoppingCart size={16} /> },
+    { path: '/contacts/vendors', label: t('subNav.purchases.vendors'), icon: <Building2 size={16} /> },
   ];
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '8px',
-      overflowX: 'auto', padding: '12px 24px',
-      background: 'white', borderBottom: '1px solid #e2e8f0', marginBottom: '16px'
-    }}>
+    <div
+      dir={isRTL ? 'rtl' : 'ltr'}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '8px',
+        overflowX: 'auto', padding: '12px 24px',
+        background: 'white', borderBottom: '1px solid #e2e8f0', marginBottom: '16px'
+      }}
+    >
       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
         {coreLinks.map((link) => (
           <NavLink

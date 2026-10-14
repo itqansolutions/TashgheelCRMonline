@@ -6,27 +6,29 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-
-const STATUS_CONFIG = {
-    trial:           { color: '#10b981', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.3)', icon: <Clock size={14}/>,         label: 'Free Trial' },
-    active:          { color: '#4f46e5', bg: 'rgba(79,70,229,0.1)',  border: 'rgba(79,70,229,0.3)',  icon: <Check size={14}/>,          label: 'Active' },
-    pending_upgrade: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.3)', icon: <Loader2 size={14}/>,        label: 'Pending Upgrade' },
-    expired:         { color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.3)',  icon: <AlertTriangle size={14}/>, label: 'Expired' },
-};
-
-const REQUEST_STATUS = {
-    pending:  { color: '#f59e0b', label: '⏳ Pending Review' },
-    approved: { color: '#10b981', label: '✅ Approved' },
-    rejected: { color: '#ef4444', label: '❌ Rejected' },
-    cancelled:{ color: '#9ca3af', label: '🚫 Cancelled' },
-};
+import { useLanguage } from '../../context/LanguageContext';
 
 const Billing = () => {
+    const { t, isRTL } = useLanguage();
     const [data, setData]         = useState(null);
     const [loading, setLoading]   = useState(true);
     const [requesting, setRequesting] = useState(false);
     const [selectedPlanId, setSelectedPlanId] = useState('');
     const navigate = useNavigate();
+
+    const STATUS_CONFIG = {
+        trial:           { color: '#10b981', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.3)', icon: <Clock size={14}/>,         label: t('billing.planFreeTrial') },
+        active:          { color: '#4f46e5', bg: 'rgba(79,70,229,0.1)',  border: 'rgba(79,70,229,0.3)',  icon: <Check size={14}/>,          label: t('billing.planActive') },
+        pending_upgrade: { color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.3)', icon: <Loader2 size={14}/>,        label: t('billing.planPendingUpgrade') },
+        expired:         { color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.3)',  icon: <AlertTriangle size={14}/>, label: t('billing.planExpired') },
+    };
+
+    const REQUEST_STATUS = {
+        pending:  { color: '#f59e0b', label: t('billing.reqPending') },
+        approved: { color: '#10b981', label: t('billing.reqApproved') },
+        rejected: { color: '#ef4444', label: t('billing.reqRejected') },
+        cancelled:{ color: '#9ca3af', label: t('billing.reqCancelled') },
+    };
 
     const load = async () => {
         setLoading(true);
@@ -34,31 +36,31 @@ const Billing = () => {
             const res = await api.get('/billing');
             setData(res.data.data);
         } catch (err) {
-            toast.error('Failed to load billing data');
+            toast.error(t('billing.toastLoadError'));
         } finally { setLoading(false); }
     };
 
     useEffect(() => { load(); }, []);
 
     const handleRequest = async () => {
-        if (!selectedPlanId) return toast.error('Please select a plan');
+        if (!selectedPlanId) return toast.error(t('billing.toastSelectPlan'));
         setRequesting(true);
         try {
             await api.post('/billing/request-upgrade', { requested_plan_id: parseInt(selectedPlanId) });
-            toast.success('✅ Request submitted! Our team will contact you within 24 hours.', { duration: 6000 });
+            toast.success(t('billing.toastSubmitted'), { duration: 6000 });
             load();
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Request failed');
+            toast.error(err.response?.data?.message || t('billing.toastRequestFailed'));
         } finally { setRequesting(false); }
     };
 
     const handleCancel = async () => {
-        if (!window.confirm('Cancel your upgrade request?')) return;
+        if (!window.confirm(t('billing.confirmCancel'))) return;
         try {
             await api.delete('/billing/request-upgrade');
-            toast.success('Request cancelled');
+            toast.success(t('billing.toastCancelled'));
             load();
-        } catch { toast.error('Cancel failed'); }
+        } catch { toast.error(t('billing.toastCancelFailed')); }
     };
 
     if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}><Loader2 size={32} style={{ animation: 'spin 1s linear infinite' }} color="var(--primary)"/></div>;
@@ -70,7 +72,7 @@ const Billing = () => {
     const hasPending = latestReq?.status === 'pending';
 
     return (
-        <div style={{ padding: '28px', maxWidth: 900, margin: '0 auto' }}>
+        <div dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '28px', maxWidth: 900, margin: '0 auto' }}>
             <style>{`
                 @keyframes spin { to { transform: rotate(360deg); } }
                 @keyframes pulse { 0%,100%{opacity:0.6;} 50%{opacity:1;} }
@@ -87,33 +89,33 @@ const Billing = () => {
             {/* Header */}
             <div style={{ marginBottom: 28 }}>
                 <h1 style={{ margin: 0, fontSize: 30, fontWeight: 900, display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <CreditCard size={28} color="var(--primary)"/> Billing & Subscription
+                    <CreditCard size={28} color="var(--primary)"/> {t('billing.title')}
                 </h1>
-                <p style={{ margin: '6px 0 0', color: 'var(--text-muted)' }}>Manage your plan and upgrade requests</p>
+                <p style={{ margin: '6px 0 0', color: 'var(--text-muted)' }}>{t('billing.subtitle')}</p>
             </div>
 
             {/* Current Plan Card */}
             <div className="bill-card" style={{ border: `1.5px solid ${subCfg.border}` }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
                     <div>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Current Plan</div>
-                        <div style={{ fontSize: 32, fontWeight: 900 }}>{sub?.display_name || 'No Plan'}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{t('billing.currentPlan')}</div>
+                        <div style={{ fontSize: 32, fontWeight: 900 }}>{sub?.display_name || t('billing.noPlan')}</div>
                         <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--primary)', marginTop: 4 }}>
-                            ${sub?.price_monthly || 0}<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>/month</span>
+                            <span className="num-en">${sub?.price_monthly || 0}</span><span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>/{t('common.perMonth', 'month')}</span>
                         </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
                         <span className="badge" style={{ background: subCfg.bg, color: subCfg.color, border: `1px solid ${subCfg.border}` }}>
                             {subCfg.icon} {subCfg.label}
                         </span>
                         {sub?.sub_status === 'trial' && sub?.trial_days_left !== null && (
                             <div style={{ marginTop: 8, fontSize: 14, fontWeight: 700, color: sub.trial_days_left <= 3 ? '#ef4444' : sub.trial_days_left <= 7 ? '#f59e0b' : '#10b981' }}>
-                                ⏳ {sub.trial_days_left} day{sub.trial_days_left !== 1 ? 's' : ''} remaining
+                                ⏳ <span className="num-en">{sub.trial_days_left}</span> {t('common.daysRemaining', 'days remaining')}
                             </div>
                         )}
                         {sub?.sub_status === 'active' && sub?.expires_at && (
                             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>
-                                Renews: {new Date(sub.expires_at).toLocaleDateString()}
+                                <span className="num-en">{new Date(sub.expires_at).toLocaleDateString('en-CA')}</span>
                             </div>
                         )}
                     </div>
@@ -136,18 +138,18 @@ const Billing = () => {
                 <div className="bill-card" style={{ border: `1.5px solid ${REQUEST_STATUS[latestReq.status]?.color}33`, background: `${REQUEST_STATUS[latestReq.status]?.color}08` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                            <div style={{ fontWeight: 800, marginBottom: 4 }}>Upgrade Request Status</div>
+                            <div style={{ fontWeight: 800, marginBottom: 4 }}>{t('billing.title')}</div>
                             <div style={{ color: REQUEST_STATUS[latestReq.status]?.color, fontWeight: 700, fontSize: 15 }}>
                                 {REQUEST_STATUS[latestReq.status]?.label}
                             </div>
                             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
                                 {latestReq.current_plan_name} → <strong>{latestReq.requested_plan_name}</strong>
-                                {' · '}{new Date(latestReq.created_at).toLocaleDateString()}
+                                {' · '}<span className="num-en">{new Date(latestReq.created_at).toLocaleDateString('en-CA')}</span>
                             </div>
                         </div>
                         {hasPending && (
                             <button onClick={handleCancel} style={{ background: 'none', border: '1px solid #ef4444', color: '#ef4444', padding: '8px 16px', borderRadius: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <XCircle size={14}/> Cancel Request
+                                <XCircle size={14}/> {t('billing.btnCancelRequest')}
                             </button>
                         )}
                         {latestReq.status === 'approved' && (
@@ -156,7 +158,7 @@ const Billing = () => {
                     </div>
                     {hasPending && (
                         <div style={{ marginTop: 14, padding: 14, background: 'rgba(245,158,11,0.07)', borderRadius: 10, fontSize: 13, color: '#92400e', border: '1px solid rgba(245,158,11,0.15)' }}>
-                            💬 <strong>What happens next?</strong> Our team has received your request and will contact you within 24 hours to confirm your upgrade. No payment is required yet.
+                            💬 {t('billing.toastSubmitted')}
                         </div>
                     )}
                 </div>
@@ -166,7 +168,7 @@ const Billing = () => {
             {!hasPending && sub?.sub_status !== 'expired' && availablePlans.length > 0 && (
                 <div className="bill-card">
                     <h3 style={{ margin: '0 0 16px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Zap size={18} color="var(--primary)"/> Upgrade Your Plan
+                        <Zap size={18} color="var(--primary)"/> {t('billing.sectionAvailablePlans')}
                     </h3>
 
                     {availablePlans.map(plan => {
@@ -181,12 +183,16 @@ const Billing = () => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
                                         <div style={{ fontWeight: 800, fontSize: 16 }}>{plan.display_name}</div>
-                                        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{activeCount} modules included</div>
+                                        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                                            <span className="num-en">{activeCount}</span> {t('common.modulesIncluded', 'modules included')}
+                                        </div>
                                     </div>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontWeight: 900, fontSize: 22, color: 'var(--primary)' }}>${plan.price_monthly}<span style={{ fontSize: 12, fontWeight: 500 }}>/mo</span></div>
+                                    <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
+                                        <div style={{ fontWeight: 900, fontSize: 22, color: 'var(--primary)' }}>
+                                            <span className="num-en">${plan.price_monthly}</span><span style={{ fontSize: 12, fontWeight: 500 }}>/{t('common.perMonth', 'mo')}</span>
+                                        </div>
                                         {selectedPlanId === String(plan.id) && (
-                                            <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>✓ Selected</span>
+                                            <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 700 }}>✓</span>
                                         )}
                                     </div>
                                 </div>
@@ -201,14 +207,10 @@ const Billing = () => {
                         style={{ marginTop: 16 }}
                     >
                         {requesting
-                            ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }}/> Submitting...</>
-                            : <><Zap size={16}/> Request Upgrade <ArrowRight size={16}/></>
+                            ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }}/> {t('billing.requesting')}</>
+                            : <><Zap size={16}/> {t('billing.btnUpgrade')} <ArrowRight size={16} style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }}/></>
                         }
                     </button>
-
-                    <div style={{ textAlign: 'center', marginTop: 12, fontSize: 12, color: 'var(--text-muted)' }}>
-                        🔒 No credit card required now. Our team will guide you through payment.
-                    </div>
                 </div>
             )}
         </div>

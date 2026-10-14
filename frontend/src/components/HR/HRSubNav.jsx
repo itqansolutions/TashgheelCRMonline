@@ -1,16 +1,18 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, CheckCircle2, DollarSign, Sliders, Wallet, Clock, Cpu } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const HRSubNav = () => {
+  const { t } = useLanguage();
   const links = [
-    { path: '/hr/dashboard', label: 'Attendance', icon: <LayoutDashboard size={16} /> },
-    { path: '/hr/approvals', label: 'Approvals', icon: <CheckCircle2 size={16} /> },
-    { path: '/hr/payroll', label: 'Payroll Engine', icon: <DollarSign size={16} /> },
-    { path: '/hr/activity-definition', label: 'Activity Definition', icon: <Sliders size={16} /> },
-    { path: '/hr/activity-balance', label: 'Activity Balance', icon: <Wallet size={16} /> },
-    { path: '/hr/shifts', label: 'Shifts & Rules', icon: <Clock size={16} /> },
-    { path: '/hr/devices', label: 'ZkTeco Devices', icon: <Cpu size={16} /> },
+    { path: '/hr/dashboard', label: t('hr.subNav.attendance', 'Attendance'), icon: <LayoutDashboard size={16} /> },
+    { path: '/hr/approvals', label: t('hr.subNav.approvals', 'Approvals'), icon: <CheckCircle2 size={16} /> },
+    { path: '/hr/payroll', label: t('hr.subNav.payrollEngine', 'Payroll Engine'), icon: <DollarSign size={16} /> },
+    { path: '/hr/activity-definition', label: t('hr.subNav.activityDefinition', 'Activity Definition'), icon: <Sliders size={16} /> },
+    { path: '/hr/activity-balance', label: t('hr.subNav.activityBalance', 'Activity Balance'), icon: <Wallet size={16} /> },
+    { path: '/hr/shifts', label: t('hr.subNav.shiftsRules', 'Shifts & Rules'), icon: <Clock size={16} /> },
+    { path: '/hr/devices', label: t('hr.subNav.zktecoDevices', 'ZkTeco Devices'), icon: <Cpu size={16} /> },
   ];
 
   return (

@@ -1342,7 +1342,8 @@ exports.receivePurchaseOrderItems = async (req, res) => {
   try {
     const tenantId = req.user.tenant_id;
     const { id } = req.params;
-    const { items, warehouse_id, notes } = req.body;
+    const { items, warehouse_id, notes, idempotency_key, idempotencyKey: bodyIdempKey } = req.body || {};
+    const idempotencyKey = req.headers['idempotency-key'] || idempotency_key || bodyIdempKey || null;
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
@@ -1370,6 +1371,28 @@ exports.receivePurchaseOrderItems = async (req, res) => {
     if (req.branchId && po.branch_id && String(po.branch_id) !== String(req.branchId)) {
       await client.query('ROLLBACK');
       return res.status(403).json({ success: false, message: 'Branch mismatch: PO belongs to another branch.' });
+    }
+
+    // Idempotency check: if this exact operation was already committed, replay safely
+    if (idempotencyKey && po.notes && po.notes.includes(`[IdempotencyKey:${idempotencyKey}]`)) {
+      const existingItemsRes = await client.query(
+        `SELECT poi.*, p.name AS product_name, p.sku AS product_sku, p.unit AS product_unit
+         FROM purchase_order_items poi
+         JOIN products p ON poi.product_id = p.id
+         WHERE poi.po_id = $1
+         ORDER BY poi.id ASC`,
+        [id]
+      );
+      await client.query('ROLLBACK');
+      return res.status(200).json({
+        success: true,
+        message: 'تم استلام البضاعة بنجاح (معالجة مسبقة).',
+        data: {
+          ...po,
+          items: existingItemsRes.rows,
+          idempotent_replay: true
+        }
+      });
     }
 
     // Status validation: Allowed ONLY if sent_to_vendor or partially_received
@@ -1416,7 +1439,7 @@ exports.receivePurchaseOrderItems = async (req, res) => {
     }
 
     const whRes = await client.query(
-      `SELECT id, name, is_active FROM warehouses WHERE id = $1 AND tenant_id::text = $2::text`,
+      `SELECT id, name, is_active, branch_id FROM warehouses WHERE id = $1 AND tenant_id::text = $2::text`,
       [targetWarehouseId, String(tenantId)]
     );
 
@@ -1433,6 +1456,14 @@ exports.receivePurchaseOrderItems = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `Destination warehouse '${whRes.rows[0].name}' is inactive.`
+      });
+    }
+
+    if (po.branch_id && whRes.rows[0].branch_id && String(whRes.rows[0].branch_id) !== String(po.branch_id)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        success: false,
+        message: `Destination warehouse '${whRes.rows[0].name}' belongs to another branch.`
       });
     }
 
@@ -1457,8 +1488,9 @@ exports.receivePurchaseOrderItems = async (req, res) => {
       poiMap.set(`prod_${row.product_id}`, row);
     });
 
-    // 4. Validate all receiving quantities before making any changes
-    const validatedItems = [];
+    // 4. Validate and aggregate receiving quantities
+    // Protect against duplicate entries for the same item in a single payload
+    const itemQtyMap = new Map();
 
     for (let i = 0; i < items.length; i++) {
       const itm = items[i];
@@ -1490,6 +1522,14 @@ exports.receivePurchaseOrderItems = async (req, res) => {
         });
       }
 
+      const currentAccum = itemQtyMap.get(matchedPoi.id) || 0;
+      itemQtyMap.set(matchedPoi.id, round2(currentAccum + receivedNow));
+    }
+
+    const validatedItems = [];
+
+    for (const [poiId, totalReceivedNow] of itemQtyMap.entries()) {
+      const matchedPoi = poiMap.get(String(poiId));
       const orderedQty = parseFloat(matchedPoi.quantity);
       const alreadyReceived = parseFloat(matchedPoi.received_quantity || 0);
       const remainingQty = round2(orderedQty - alreadyReceived);
@@ -1502,17 +1542,17 @@ exports.receivePurchaseOrderItems = async (req, res) => {
         });
       }
 
-      if (receivedNow > remainingQty) {
+      if (totalReceivedNow > remainingQty) {
         await client.query('ROLLBACK');
         return res.status(400).json({
           success: false,
-          message: `Cannot receive ${receivedNow} units. Remaining quantity is only ${remainingQty} units.`
+          message: `Cannot receive ${totalReceivedNow} units. Remaining quantity is only ${remainingQty} units.`
         });
       }
 
       validatedItems.push({
         poi: matchedPoi,
-        receivedNow: round2(receivedNow)
+        receivedNow: totalReceivedNow
       });
     }
 
@@ -1568,7 +1608,7 @@ exports.receivePurchaseOrderItems = async (req, res) => {
       );
     }
 
-    // 6. Recalculate overall PO receiving status
+    // 6. Recalculate overall PO receiving status from freshly updated items
     const statusQuery = await client.query(
       `SELECT 
          SUM(quantity) AS total_ordered,
@@ -1588,9 +1628,13 @@ exports.receivePurchaseOrderItems = async (req, res) => {
       nextStatus = 'completed';
     }
 
-    const receivingNote = notes 
+    let receivingNote = notes 
       ? `${po.notes ? po.notes + ' | ' : ''}Received Note: ${notes}` 
-      : po.notes;
+      : (po.notes || '');
+
+    if (idempotencyKey) {
+      receivingNote = `${receivingNote ? receivingNote + ' ' : ''}[IdempotencyKey:${idempotencyKey}]`;
+    }
 
     const updatedPoRes = await client.query(
       `UPDATE purchase_orders
@@ -1601,7 +1645,7 @@ exports.receivePurchaseOrderItems = async (req, res) => {
          updated_at = NOW()
        WHERE id = $4 AND tenant_id = $5
        RETURNING *`,
-      [nextStatus, targetWarehouseId, receivingNote, id, tenantId]
+      [nextStatus, targetWarehouseId, receivingNote || null, id, tenantId]
     );
 
     // Fetch refreshed items for response

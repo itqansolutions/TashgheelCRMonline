@@ -1,22 +1,27 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Wallet, BookOpen, BarChart3, CreditCard, Lock, FileSpreadsheet } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const FinanceSubNav = () => {
+  const { t, isRTL } = useLanguage();
   const links = [
-    { path: '/erp/accounts', label: 'Chart of Accounts', icon: <Wallet size={16} /> },
-    { path: '/erp/journals', label: 'General Ledger', icon: <BookOpen size={16} /> },
-    { path: '/erp/reports', label: 'Financial Reports', icon: <BarChart3 size={16} /> },
-    { path: '/erp/banking', label: 'Bank Reconciliation', icon: <CreditCard size={16} /> },
-    { path: '/erp/closing', label: 'Period Closing', icon: <Lock size={16} /> },
-    { path: '/erp/entries', label: 'Entries', icon: <FileSpreadsheet size={16} /> },
+    { path: '/erp/accounts', label: t('subNav.finance.accounts'), icon: <Wallet size={16} /> },
+    { path: '/erp/journals', label: t('subNav.finance.journals'), icon: <BookOpen size={16} /> },
+    { path: '/erp/reports', label: t('subNav.finance.reports'), icon: <BarChart3 size={16} /> },
+    { path: '/erp/banking', label: t('subNav.finance.banking'), icon: <CreditCard size={16} /> },
+    { path: '/erp/closing', label: t('subNav.finance.closing'), icon: <Lock size={16} /> },
+    { path: '/erp/entries', label: t('subNav.finance.entries'), icon: <FileSpreadsheet size={16} /> },
   ];
 
   return (
-    <div style={{
-      display: 'flex', gap: '6px', overflowX: 'auto', padding: '12px 24px',
-      background: 'white', borderBottom: '1px solid #e2e8f0', marginBottom: '16px'
-    }}>
+    <div
+      dir={isRTL ? 'rtl' : 'ltr'}
+      style={{
+        display: 'flex', gap: '6px', overflowX: 'auto', padding: '12px 24px',
+        background: 'white', borderBottom: '1px solid #e2e8f0', marginBottom: '16px'
+      }}
+    >
       {links.map((link) => (
         <NavLink
           key={link.path}
