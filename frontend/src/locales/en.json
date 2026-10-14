@@ -2206,7 +2206,13 @@
       "statusSigned": "Signed",
       "statusActive": "Active",
       "statusCompleted": "Completed",
-      "statusCancelled": "Cancelled"
+      "statusCancelled": "Cancelled",
+      "btnAttachments": "Documents",
+      "attachmentsTitle": "Documents & Attachments",
+      "noAttachments": "No documents attached to this contract yet.",
+      "confirmDeleteAttachment": "Are you sure you want to delete this document?",
+      "toastAttachmentDeleted": "Document deleted successfully",
+      "toastAttachmentDeleteFailed": "Failed to delete document"
     },
     "installments": {
       "title": "Installments",

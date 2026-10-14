@@ -2206,7 +2206,13 @@
       "statusSigned": "موقّع",
       "statusActive": "نشط",
       "statusCompleted": "مكتمل",
-      "statusCancelled": "ملغى"
+      "statusCancelled": "ملغى",
+      "btnAttachments": "المستندات",
+      "attachmentsTitle": "المستندات والمرفقات",
+      "noAttachments": "لا توجد مستندات أو مرفقات مسجلة لهذا العقد حتى الآن.",
+      "confirmDeleteAttachment": "هل أنت متأكد من حذف هذا المستند نهائيًا؟",
+      "toastAttachmentDeleted": "تم حذف المستند بنجاح",
+      "toastAttachmentDeleteFailed": "فشل حذف المستند"
     },
     "installments": {
       "title": "جدول الأقساط والتحصيل",

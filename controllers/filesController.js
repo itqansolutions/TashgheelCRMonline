@@ -129,8 +129,8 @@ exports.getAttachments = async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT * FROM attachments WHERE linked_type = $1 AND linked_id = $2 AND tenant_id::text = $3::text AND (branch_id::text = $4::text OR branch_id IS NULL) ORDER BY created_at DESC',
-      [entityType, entityId, tenant_id, branch_id]
+      'SELECT * FROM attachments WHERE linked_type = $1 AND linked_id = $2 AND tenant_id::text = $3::text AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) ORDER BY created_at DESC',
+      [entityType, entityId, tenant_id, branch_id || null]
     );
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
@@ -153,8 +153,8 @@ exports.deleteAttachment = async (req, res) => {
   try {
     // 1. Get file details AND enforce Tenant isolation
     const fileResult = await db.query(
-      'SELECT * FROM attachments WHERE id = $1 AND tenant_id::text = $2::text AND (branch_id::text = $3::text OR branch_id IS NULL)',
-      [req.params.id, tenant_id, branch_id]
+      'SELECT * FROM attachments WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)',
+      [req.params.id, tenant_id, branch_id || null]
     );
     if (fileResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'File not found' });
@@ -206,8 +206,8 @@ exports.getFiles = async (req, res) => {
 
   try {
     const result = await db.query(
-      'SELECT * FROM attachments WHERE tenant_id::text = $1::text AND (branch_id::text = $2::text OR branch_id IS NULL) ORDER BY created_at DESC',
-      [tenant_id, branch_id]
+      'SELECT * FROM attachments WHERE tenant_id::text = $1::text AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL) ORDER BY created_at DESC',
+      [tenant_id, branch_id || null]
     );
     res.json({ status: 'success', data: result.rows });
   } catch (err) {

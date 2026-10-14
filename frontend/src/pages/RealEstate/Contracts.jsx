@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { FileText } from 'lucide-react';
+import { FileText, Download, Trash2, Paperclip } from 'lucide-react';
 import api from '../../services/api';
 import Modal from '../../components/Common/Modal';
+import FileUploader from '../../components/Common/FileUploader';
 import { useLanguage } from '../../context/LanguageContext';
 import {
   WorkspaceHeader, StatCards, FilterChips, SimpleTable, Badge, ActionButton, DealFilterBanner,
@@ -29,6 +30,56 @@ const Contracts = () => {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
+  const [activeAttachmentContract, setActiveAttachmentContract] = useState(null);
+  const [contractAttachments, setContractAttachments] = useState([]);
+  const [loadingAttachments, setLoadingAttachments] = useState(false);
+
+  const loadContractAttachments = async (contractId) => {
+    setLoadingAttachments(true);
+    try {
+      const res = await api.get(`/files/contract/${contractId}`);
+      setContractAttachments(res.data.data || []);
+    } catch (err) {
+      toast.error(err.response?.data?.message || t('realEstate.contracts.toastAttachmentLoadError', 'Failed to load attachments'));
+      setContractAttachments([]);
+    } finally {
+      setLoadingAttachments(false);
+    }
+  };
+
+  const openAttachments = (c) => {
+    setActiveAttachmentContract(c);
+    loadContractAttachments(c.id);
+  };
+
+  const handleDeleteAttachment = async (attachmentId) => {
+    if (!window.confirm(t('realEstate.contracts.confirmDeleteAttachment'))) return;
+    try {
+      await api.delete(`/files/${attachmentId}`);
+      toast.success(t('realEstate.contracts.toastAttachmentDeleted'));
+      if (activeAttachmentContract) {
+        loadContractAttachments(activeAttachmentContract.id);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || t('realEstate.contracts.toastAttachmentDeleteFailed'));
+    }
+  };
+
+  const handleDownloadFile = (filePath, originalName) => {
+    const token = localStorage.getItem('token');
+    const cleanPath = (filePath || '').replace(/\\/g, '/');
+    const baseUrl = api.defaults.baseURL.replace('/api', '');
+    const separator = cleanPath.includes('?') ? '&' : '?';
+    const url = `${baseUrl}/${cleanPath}${token ? `${separator}token=${encodeURIComponent(token)}` : ''}`;
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', originalName || 'contract_document');
+    link.setAttribute('target', '_blank');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const nextStepMap = {
     Draft: { status: 'Generated', label: t('realEstate.contracts.btnGenerate'), color: '#2563eb' },
@@ -191,6 +242,10 @@ const Contracts = () => {
               {t('realEstate.contracts.btnEdit')}
             </ActionButton>
           )}
+          <ActionButton outline color="#0284c7" onClick={() => openAttachments(c)}>
+            <Paperclip size={13} style={{ marginInlineEnd: '4px' }} />
+            {t('realEstate.contracts.btnAttachments')}
+          </ActionButton>
           <ActionButton outline color="#2563eb" onClick={() => navigate(`/installments?deal_id=${c.deal_id}`)}>
             {t('realEstate.contracts.btnInstallments')}
           </ActionButton>
@@ -285,6 +340,126 @@ const Contracts = () => {
                 {t('realEstate.contracts.commercialFrozenNotice', { status: getStatusLabel(editing.status) })}
               </div>
             )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!activeAttachmentContract}
+        onClose={() => setActiveAttachmentContract(null)}
+        title={activeAttachmentContract ? `${t('realEstate.contracts.attachmentsTitle')} — #${activeAttachmentContract.contract_number}` : ''}
+        footer={
+          <button
+            className="btn-cancel"
+            onClick={() => setActiveAttachmentContract(null)}
+            style={{ background: '#f1f5f9', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, border: 'none', cursor: 'pointer' }}
+          >
+            {t('realEstate.common.cancel')}
+          </button>
+        }
+      >
+        {activeAttachmentContract && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', fontSize: '13px' }}>
+              <div><strong>{t('realEstate.contracts.colCustomer')}:</strong> {activeAttachmentContract.customer_name || '—'}</div>
+              <div><strong>{t('realEstate.contracts.colUnit')}:</strong> {activeAttachmentContract.unit_number || '—'}</div>
+              <div><strong>{t('realEstate.contracts.colValue')}:</strong> {fmtMoney(activeAttachmentContract.contract_value, t('realEstate.common.currencySuffix'))}</div>
+              <Badge color={STATUS_COLOR[activeAttachmentContract.status]}>{getStatusLabel(activeAttachmentContract.status)}</Badge>
+            </div>
+
+            <FileUploader
+              linkedType="contract"
+              linkedId={activeAttachmentContract.id}
+              onUploadSuccess={() => loadContractAttachments(activeAttachmentContract.id)}
+            />
+
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '8px', color: '#334155' }}>
+                {t('realEstate.contracts.attachmentsTitle')} ({contractAttachments.length})
+              </div>
+              {loadingAttachments ? (
+                <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '13px' }}>
+                  {t('common.loading')}
+                </div>
+              ) : contractAttachments.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', color: '#94a3b8', fontSize: '13px' }}>
+                  {t('realEstate.contracts.noAttachments')}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '260px', overflowY: 'auto' }}>
+                  {contractAttachments.map((att) => (
+                    <div
+                      key={att.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        background: '#ffffff',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        gap: '10px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                        <FileText size={18} color="#2563eb" style={{ flexShrink: 0 }} />
+                        <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                          <div
+                            style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}
+                            title={att.original_name}
+                          >
+                            {att.original_name}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                            {fmtDate(att.created_at)}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadFile(att.file_path, att.original_name)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: '#eff6ff',
+                            color: '#2563eb',
+                            border: '1px solid #bfdbfe',
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Download size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAttachment(att.id)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            border: '1px solid #fecaca',
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Modal>
