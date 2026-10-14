@@ -2065,6 +2065,7 @@ exports.getTreasuryAccounts = async (req, res) => {
                       AND p.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
                       AND (COALESCE(p.status, 'active') != 'cancelled')
+                      AND p.payment_date::date <= CURRENT_DATE
                 ), 0) +
                 COALESCE((
                     SELECT SUM(fv.amount)
@@ -2075,15 +2076,17 @@ exports.getTreasuryAccounts = async (req, res) => {
                       AND fv.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
                       AND (COALESCE(fv.status, 'active') != 'cancelled')
+                      AND fv.voucher_date::date <= CURRENT_DATE
                 ), 0) AS total_incoming,
 
-                -- Outgoing: sum of expenses + vendor payments linked to this account
+                -- Outgoing: sum of expenses + all payment vouchers linked to this account
                 COALESCE((
                     SELECT SUM(e.amount)
                     FROM expenses e
                     WHERE e.treasury_account_id = ta.id
                       AND e.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
+                      AND e.expense_date::date <= CURRENT_DATE
                 ), 0) +
                 COALESCE((
                     SELECT SUM(fv.amount)
@@ -2093,6 +2096,7 @@ exports.getTreasuryAccounts = async (req, res) => {
                       AND fv.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
                       AND (COALESCE(fv.status, 'active') != 'cancelled')
+                      AND fv.voucher_date::date <= CURRENT_DATE
                 ), 0) AS total_outgoing,
 
                 -- This month incoming (payments + on-account receipts)
@@ -2404,21 +2408,20 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
 
                 UNION ALL
 
-                -- OUTGOING: Vendor Payments
+                -- OUTGOING: Payment Vouchers (all parties: vendor, employee, other)
                 SELECT
                     fv.id::text                                             AS source_id,
-                    'Vendor Payment'                                        AS txn_type,
+                    'Payment Voucher'                                       AS txn_type,
                     'out'                                                   AS direction,
                     fv.voucher_date::date                                   AS txn_date,
                     fv.voucher_number                                       AS reference,
-                    CONCAT('Payment to Vendor — ', fv.party_name)           AS description,
+                    CONCAT('Payment Voucher — ', COALESCE(fv.party_name, 'N/A')) AS description,
                     fv.amount                                               AS amount,
                     COALESCE(fv.payment_method, 'cash')                     AS payment_method,
                     fv.notes
                 FROM finance_vouchers fv
                 WHERE fv.treasury_account_id = $1
                   AND fv.voucher_type = 'payment'
-                  AND fv.party_type = 'vendor'
                   AND fv.tenant_id::text = $2::text
                   AND ($3::text IS NULL OR fv.branch_id::text = $3::text OR fv.branch_id IS NULL)
                   AND (COALESCE(fv.status, 'active') != 'cancelled')
@@ -2429,32 +2432,36 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
 
         // Current balance: independent of the date filter (which only limits displayed rows).
         // Uses exactly the same inclusion rules as getTreasuryAccounts (list endpoint) so both screens agree:
-        //   IN : non-cancelled payments + non-cancelled on-account receipts (invoice_id IS NULL)
-        //   OUT: expenses + non-cancelled payment vouchers
+        //   IN : non-cancelled payments + non-cancelled on-account receipts (invoice_id IS NULL) <= CURRENT_DATE
+        //   OUT: expenses + non-cancelled payment vouchers <= CURRENT_DATE
         const balRes = await db.query(`
             SELECT
                 COALESCE((SELECT SUM(p.amount) FROM payments p
                           WHERE p.treasury_account_id = $1
                             AND p.tenant_id::text = $2::text
                             AND ($3::text IS NULL OR p.branch_id::text = $3::text OR p.branch_id IS NULL)
-                            AND (COALESCE(p.status, 'active') != 'cancelled')), 0) +
+                            AND (COALESCE(p.status, 'active') != 'cancelled')
+                            AND p.payment_date::date <= CURRENT_DATE), 0) +
                 COALESCE((SELECT SUM(fv.amount) FROM finance_vouchers fv
                           WHERE fv.treasury_account_id = $1
                             AND fv.voucher_type = 'receipt'
                             AND fv.invoice_id IS NULL
                             AND fv.tenant_id::text = $2::text
                             AND ($3::text IS NULL OR fv.branch_id::text = $3::text OR fv.branch_id IS NULL)
-                            AND (COALESCE(fv.status, 'active') != 'cancelled')), 0) AS total_incoming,
+                            AND (COALESCE(fv.status, 'active') != 'cancelled')
+                            AND fv.voucher_date::date <= CURRENT_DATE), 0) AS total_incoming,
                 COALESCE((SELECT SUM(e.amount) FROM expenses e
                           WHERE e.treasury_account_id = $1
                             AND e.tenant_id::text = $2::text
-                            AND ($3::text IS NULL OR e.branch_id::text = $3::text OR e.branch_id IS NULL)), 0) +
+                            AND ($3::text IS NULL OR e.branch_id::text = $3::text OR e.branch_id IS NULL)
+                            AND e.expense_date::date <= CURRENT_DATE), 0) +
                 COALESCE((SELECT SUM(fv.amount) FROM finance_vouchers fv
                           WHERE fv.treasury_account_id = $1
                             AND fv.voucher_type = 'payment'
                             AND fv.tenant_id::text = $2::text
                             AND ($3::text IS NULL OR fv.branch_id::text = $3::text OR fv.branch_id IS NULL)
-                            AND (COALESCE(fv.status, 'active') != 'cancelled')), 0) AS total_outgoing
+                            AND (COALESCE(fv.status, 'active') != 'cancelled')
+                            AND fv.voucher_date::date <= CURRENT_DATE), 0) AS total_outgoing
         `, [account_id, tenant_id, branch_id ? String(branch_id) : null]);
 
         const currentBalance =

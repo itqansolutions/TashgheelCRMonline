@@ -118,7 +118,8 @@ test('Treasury: date filter limits displayed rows ONLY, not the current balance'
   assert.deepEqual(txnCall.params.slice(3), ['2026-10-01', '2026-10-02']);
   const balCall = calls.find(c => /AS total_incoming/.test(c.sql));
   assert.equal(balCall.params.length, 3, 'balance query must receive NO date params');
-  assert.doesNotMatch(balCall.sql, /txn_date|date_from|voucher_date|payment_date|expense_date/);
+  assert.doesNotMatch(balCall.sql, /txn_date|date_from|date_to|\$4|\$5/);
+  assert.match(balCall.sql, /CURRENT_DATE/, 'balance query must enforce CURRENT_DATE ceiling');
   assert.equal(res.body.transactions.length, 0);
   assert.equal(res.body.account.current_balance, 1300, 'balance unchanged by an empty filter window');
 });
@@ -163,7 +164,21 @@ test('SQL guards: tenant scoping, cancelled exclusion, no duplicate-producing jo
 
   // Same inclusion rules as the accounts list endpoint (so both screens agree)
   const list = src.slice(src.indexOf('exports.getTreasuryAccounts'), src.indexOf('exports.createTreasuryAccount'));
-  for (const rule of ["fv.voucher_type = 'receipt'", 'fv.invoice_id IS NULL', "fv.voucher_type = 'payment'", "!= 'cancelled'"]) {
+  for (const rule of [
+    "fv.voucher_type = 'receipt'",
+    'fv.invoice_id IS NULL',
+    "fv.voucher_type = 'payment'",
+    "!= 'cancelled'",
+    'p.payment_date::date <= CURRENT_DATE',
+    'fv.voucher_date::date <= CURRENT_DATE',
+    'e.expense_date::date <= CURRENT_DATE'
+  ]) {
     assert.ok(list.includes(rule) && balSql.includes(rule), `rule "${rule}" must exist in both list and detail balance`);
   }
+
+  // Ensure all payment vouchers (not just vendor) are included in transactions
+  const txnStart = body.indexOf('SELECT * FROM (');
+  const txnSql = body.slice(txnStart, body.indexOf(') txns', txnStart));
+  assert.doesNotMatch(txnSql, /fv\.party_type = 'vendor'/, 'transactions must not restrict payment vouchers to vendors only');
+  assert.match(txnSql, /'Payment Voucher'/, 'transactions must label outgoing vouchers generally as Payment Voucher');
 });
