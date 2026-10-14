@@ -10,10 +10,18 @@ const db = require('../config/db');
 exports.getCancellations = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const { deal_id, contract_id, unit_id } = req.query;
+    const branch_id = (req.user?.role === 'admin')
+        ? (req.query.branch_id || null)
+        : (req.branchId || req.user?.branch_id || null);
 
     try {
         let whereClause = `WHERE rc.tenant_id::text = $1::text`;
         const params = [tenant_id];
+
+        if (branch_id) {
+            params.push(String(branch_id));
+            whereClause += ` AND ($${params.length}::text IS NULL OR COALESCE(rc.branch_id, d.branch_id)::text = $${params.length}::text OR (rc.branch_id IS NULL AND d.branch_id IS NULL))`;
+        }
 
         if (deal_id) {
             params.push(parseInt(deal_id));
@@ -29,7 +37,7 @@ exports.getCancellations = async (req, res) => {
         }
 
         const result = await db.query(`
-            SELECT 
+            SELECT
                 rc.*,
                 d.title as deal_title,
                 d.value as deal_value,
@@ -81,7 +89,7 @@ exports.processCancellation = async (req, res) => {
 
         // 1. Lock and verify deal
         const dealRes = await client.query(`
-            SELECT id, title, value, pipeline_stage, unit_id
+            SELECT id, title, value, pipeline_stage, unit_id, branch_id
             FROM deals
             WHERE id = $1 AND tenant_id::text = $2::text
             FOR UPDATE
@@ -93,6 +101,10 @@ exports.processCancellation = async (req, res) => {
         }
 
         const deal = dealRes.rows[0];
+        if (req.user?.role !== 'admin' && branch_id && deal.branch_id && String(deal.branch_id) !== String(branch_id)) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized.' });
+        }
 
         // 2. Prevent duplicate cancellation
         const existingCancel = await client.query(`
@@ -238,6 +250,9 @@ exports.processCancellation = async (req, res) => {
 // @route   PATCH /api/re-cancellations/:id/refund
 exports.updateRefundStatus = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
+    const branch_id = (req.user?.role === 'admin')
+        ? null
+        : (req.branchId || req.user?.branch_id || null);
     const { id } = req.params;
     const { refund_status, refund_date, notes } = req.body;
 
@@ -248,10 +263,19 @@ exports.updateRefundStatus = async (req, res) => {
 
     try {
         const checkRes = await db.query(`
-            SELECT id FROM re_cancellations WHERE id::text = $1::text AND tenant_id::text = $2::text
+            SELECT rc.id, rc.branch_id, d.branch_id as deal_branch_id
+            FROM re_cancellations rc
+            LEFT JOIN deals d ON rc.deal_id = d.id
+            WHERE rc.id::text = $1::text AND rc.tenant_id::text = $2::text
         `, [id, tenant_id]);
 
         if (checkRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Cancellation record not found or unauthorized.' });
+        }
+
+        const cancelRow = checkRes.rows[0];
+        const cancelBranch = cancelRow.branch_id || cancelRow.deal_branch_id;
+        if (branch_id && cancelBranch && String(cancelBranch) !== String(branch_id)) {
             return res.status(404).json({ status: 'error', message: 'Cancellation record not found or unauthorized.' });
         }
 

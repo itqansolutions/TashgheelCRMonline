@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/reHandoversController');
 const authMiddleware = require('../middleware/auth');
+const branchScope = require('../middleware/branchScope');
 
 router.use(authMiddleware);
+router.use(branchScope);
 
 router.get('/', ctrl.getHandovers);
 router.post('/', ctrl.createHandover);

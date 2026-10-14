@@ -11,10 +11,18 @@ const accessScopeService = require('../services/accessScopeService');
 exports.getHandovers = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const { deal_id, contract_id, unit_id, status } = req.query;
+    const branch_id = (req.user?.role === 'admin')
+        ? (req.query.branch_id || null)
+        : (req.branchId || req.user?.branch_id || null);
 
     try {
         let whereClause = `WHERE rh.tenant_id::text = $1::text`;
         const params = [tenant_id];
+
+        if (branch_id) {
+            params.push(String(branch_id));
+            whereClause += ` AND ($${params.length}::text IS NULL OR COALESCE(rh.branch_id, d.branch_id)::text = $${params.length}::text OR (rh.branch_id IS NULL AND d.branch_id IS NULL))`;
+        }
 
         if (deal_id) {
             params.push(parseInt(deal_id));
@@ -41,7 +49,7 @@ exports.getHandovers = async (req, res) => {
         params.push(...scope.params);
 
         const result = await db.query(`
-            SELECT 
+            SELECT
                 rh.*,
                 d.title as deal_title,
                 d.value as deal_value,
@@ -91,7 +99,7 @@ exports.createHandover = async (req, res) => {
     try {
         // 1. Verify Deal
         const dealRes = await db.query(`
-            SELECT id, title, client_id, unit_id
+            SELECT id, title, client_id, unit_id, branch_id
             FROM deals
             WHERE id = $1 AND tenant_id::text = $2::text
         `, [parseInt(deal_id), tenant_id]);
@@ -101,6 +109,10 @@ exports.createHandover = async (req, res) => {
         }
 
         const deal = dealRes.rows[0];
+        if (req.user?.role !== 'admin' && branch_id && deal.branch_id && String(deal.branch_id) !== String(branch_id)) {
+            return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized.' });
+        }
+
         if (!deal.unit_id) {
             return res.status(400).json({ status: 'error', message: 'Cannot create handover for a deal without a linked unit.' });
         }
@@ -180,9 +192,15 @@ exports.updateHandoverStatus = async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        const branch_id = (req.user?.role === 'admin')
+            ? null
+            : (req.branchId || req.user?.branch_id || null);
+
         const hoRes = await client.query(`
-            SELECT * FROM re_handovers
-            WHERE id::text = $1::text AND tenant_id::text = $2::text
+            SELECT rh.*, d.branch_id as deal_branch_id
+            FROM re_handovers rh
+            LEFT JOIN deals d ON rh.deal_id = d.id
+            WHERE rh.id::text = $1::text AND rh.tenant_id::text = $2::text
             FOR UPDATE
         `, [id, tenant_id]);
 
@@ -192,6 +210,11 @@ exports.updateHandoverStatus = async (req, res) => {
         }
 
         const ho = hoRes.rows[0];
+        const hoBranch = ho.branch_id || ho.deal_branch_id;
+        if (branch_id && hoBranch && String(hoBranch) !== String(branch_id)) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ status: 'error', message: 'Handover record not found or unauthorized.' });
+        }
 
         if (status === 'Handed Over') {
             const contractRes = await client.query(`
@@ -215,8 +238,8 @@ exports.updateHandoverStatus = async (req, res) => {
         }
 
         const isDelivered = status === 'Handed Over';
-        const actualDate = isDelivered 
-            ? (actual_handover_date || new Date().toISOString().split('T')[0]) 
+        const actualDate = isDelivered
+            ? (actual_handover_date || new Date().toISOString().split('T')[0])
             : ho.actual_handover_date;
 
         const keysFlag = isDelivered ? true : (keys_handed_over !== undefined ? Boolean(keys_handed_over) : ho.keys_handed_over);
@@ -269,19 +292,30 @@ exports.updateHandoverStatus = async (req, res) => {
 // @route   DELETE /api/re-handovers/:id
 exports.deleteHandover = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
+    const branch_id = (req.user?.role === 'admin')
+        ? null
+        : (req.branchId || req.user?.branch_id || null);
     const { id } = req.params;
 
     try {
         const hoRes = await db.query(`
-            SELECT id, status FROM re_handovers
-            WHERE id::text = $1::text AND tenant_id::text = $2::text
+            SELECT rh.id, rh.status, rh.branch_id, d.branch_id as deal_branch_id
+            FROM re_handovers rh
+            LEFT JOIN deals d ON rh.deal_id = d.id
+            WHERE rh.id::text = $1::text AND rh.tenant_id::text = $2::text
         `, [id, tenant_id]);
 
         if (hoRes.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Handover not found or unauthorized.' });
         }
 
-        if (hoRes.rows[0].status === 'Handed Over') {
+        const ho = hoRes.rows[0];
+        const hoBranch = ho.branch_id || ho.deal_branch_id;
+        if (branch_id && hoBranch && String(hoBranch) !== String(branch_id)) {
+            return res.status(404).json({ status: 'error', message: 'Handover not found or unauthorized.' });
+        }
+
+        if (ho.status === 'Handed Over') {
             return res.status(400).json({ status: 'error', message: 'Cannot delete a finalized handover.' });
         }
 

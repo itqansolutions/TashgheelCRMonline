@@ -17,6 +17,7 @@ export const formatN2 = (val) => {
 
 const UnitsRegistry = () => {
     const { user } = useAuth();
+    const { t, isRTL } = useLanguage();
     const [searchParams] = useSearchParams();
     const { users, customers, fetchCustomers, fetchUsers } = useData();
     const [units, setUnits] = useState([]);

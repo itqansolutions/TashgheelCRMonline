@@ -18,7 +18,7 @@ exports.getUnits = async (req, res) => {
         }
 
         let query = `
-            SELECT 
+            SELECT
                 ru.*,
                 c.name as vendor_name,
                 u.name as responsible_person_name,
@@ -68,16 +68,16 @@ exports.getUnits = async (req, res) => {
         res.json({ status: 'success', data: result.rows || [] });
     } catch (err) {
         console.error('[Units API Error]:', err.message);
-        
+
         // --- GRACEFUL DEGRADATION ---
         const isTableMissing = err.message.includes('relation') && err.message.includes('does not exist');
         const isTimeout = err.message.includes('timeout') || err.message.includes('terminated');
 
         if (isTableMissing || isTimeout) {
-            return res.status(200).json({ 
-                status: 'success', 
-                data: [], 
-                message: 'Unit inventory is currently being synchronized with the cloud. Please refresh in a moment.' 
+            return res.status(200).json({
+                status: 'success',
+                data: [],
+                message: 'Unit inventory is currently being synchronized with the cloud. Please refresh in a moment.'
             });
         }
 
@@ -91,12 +91,12 @@ const isUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-
 // @desc    Create a new unit
 // @route   POST /api/re-units
 exports.createUnit = async (req, res) => {
-    const { 
-        name, project_name, unit_number, type, floor, area_sqm, price, 
+    const {
+        name, project_name, unit_number, type, floor, area_sqm, price,
         vendor_id, assigned_to, responsible_person_id, transaction_type, rooms, location,
         developer_id, project_id, phase_id, building_id
     } = req.body;
-    
+
     const tenant_id = String(req.user.tenant_id);
     const branch_id = req.branchId || req.user?.branch_id || null;
 
@@ -104,7 +104,7 @@ exports.createUnit = async (req, res) => {
     const cleanVendorId = (vendor_id !== undefined && vendor_id !== null && String(vendor_id).trim() !== '' && String(vendor_id) !== 'null') ? String(vendor_id).trim() : null;
     const cleanAssignedTo = (assigned_to !== undefined && assigned_to !== null && String(assigned_to).trim() !== '' && String(assigned_to) !== 'null') ? String(assigned_to).trim() : null;
     const cleanResponsibleId = (responsible_person_id !== undefined && responsible_person_id !== null && String(responsible_person_id).trim() !== '' && String(responsible_person_id) !== 'null') ? String(responsible_person_id).trim() : null;
-    
+
     // Developer & Project hierarchy IDs (validate UUID format so invalid values never crash Postgres)
     const cleanDevId = (developer_id && isUuid(developer_id)) ? developer_id : null;
     const cleanProjId = (project_id && isUuid(project_id)) ? project_id : null;
@@ -127,7 +127,7 @@ exports.createUnit = async (req, res) => {
 
     const insertSql = `
         INSERT INTO re_units (
-            tenant_id, branch_id, name, project_name, unit_number, type, floor, area_sqm, price, 
+            tenant_id, branch_id, name, project_name, unit_number, type, floor, area_sqm, price,
             vendor_id, assigned_to, responsible_person_id, transaction_type, rooms, location, status,
             developer_id, project_id, phase_id, building_id
         )
@@ -144,7 +144,7 @@ exports.createUnit = async (req, res) => {
             if (dbErr.message && dbErr.message.includes('invalid input syntax for type uuid')) {
                 console.warn('[Auto-Healing] Detected UUID type collision on re_units. Converting columns to VARCHAR(255)...');
                 await db.query(`
-                    ALTER TABLE re_units 
+                    ALTER TABLE re_units
                     ALTER COLUMN assigned_to TYPE VARCHAR(255) USING assigned_to::text,
                     ALTER COLUMN vendor_id TYPE VARCHAR(255) USING vendor_id::text,
                     ALTER COLUMN responsible_person_id TYPE VARCHAR(255) USING responsible_person_id::text
@@ -154,7 +154,7 @@ exports.createUnit = async (req, res) => {
                 throw dbErr;
             }
         }
-        
+
         const newUnit = result.rows[0];
 
         // AUTO-TASK: If an employee is assigned, create a task notification in their queue
@@ -191,12 +191,13 @@ exports.createUnit = async (req, res) => {
 exports.updateUnit = async (req, res) => {
     const { id } = req.params;
     const tenant_id = String(req.user.tenant_id);
-    const branch_id = String(req.branchId || req.user?.branch_id);
+    const branch_id = req.branchId || req.user?.branch_id || null;
 
     // Dynamic PATCH: only update fields that were explicitly sent in the request body
+    // NOTE: 'status' is deliberately EXCLUDED from allowedFields to prevent direct manual tampering
     const allowedFields = [
-        'name', 'project_name', 'unit_number', 'type', 'floor', 
-        'area_sqm', 'price', 'status', 'vendor_id', 'assigned_to', 
+        'name', 'project_name', 'unit_number', 'type', 'floor',
+        'area_sqm', 'price', 'vendor_id', 'assigned_to',
         'responsible_person_id', 'transaction_type', 'rooms', 'location',
         'developer_id', 'project_id', 'phase_id', 'building_id'
     ];
@@ -222,43 +223,92 @@ exports.updateUnit = async (req, res) => {
         }
     }
 
+    let isDisputeTransition = false;
+    let disputeDetails = null;
+    let currentUnit = null;
+
     if (req.body.hasOwnProperty('status')) {
         const targetStatus = req.body.status;
         const ALLOWED_UNIT_STATUSES = ['Available', 'Reserved', 'Contracted', 'Handed Over', 'Under Dispute'];
         if (!ALLOWED_UNIT_STATUSES.includes(targetStatus)) {
-            return res.status(400).json({ status: 'error', message: `Invalid unit status. Allowed: ${ALLOWED_UNIT_STATUSES.join(', ')}` });
+            return res.status(400).json({
+                status: 'error',
+                code: 'INVALID_STATUS',
+                message: `Invalid unit status. Allowed: ${ALLOWED_UNIT_STATUSES.join(', ')}`
+            });
         }
 
-        // Fetch current unit status to validate state machine transitions
+        // Fetch current unit status to validate
         const currentRes = await db.query(
-            `SELECT status FROM re_units WHERE id = $1::uuid AND tenant_id::text = $2::text`,
-            [id, tenant_id]
+            `SELECT id, status, branch_id FROM re_units WHERE id = $1::uuid AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)`,
+            [id, tenant_id, branch_id ? String(branch_id) : null]
         );
         if (currentRes.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
         }
-        const curr = currentRes.rows[0].status;
-
-        const ALLOWED_MANUAL_TRANSITIONS = {
-            'Available': ['Reserved', 'Under Dispute'],
-            'Reserved': ['Available', 'Contracted', 'Under Dispute'],
-            'Contracted': ['Handed Over', 'Available', 'Under Dispute'],
-            'Handed Over': ['Under Dispute'],
-            'Under Dispute': ['Available', 'Contracted']
-        };
+        currentUnit = currentRes.rows[0];
+        const curr = currentUnit.status;
 
         if (curr !== targetStatus) {
-            const allowedNext = ALLOWED_MANUAL_TRANSITIONS[curr] || [];
-            if (!allowedNext.includes(targetStatus)) {
+            const userRole = req.user?.role;
+            const isManagerOrAdmin = ['admin', 'manager'].includes(userRole);
+            const reason = req.body.reason || req.body.dispute_reason || req.body.resolution_reason || req.body.notes;
+
+            // Administrative Dispute Workflow:
+            if (targetStatus === 'Under Dispute') {
+                if (!isManagerOrAdmin) {
+                    return res.status(403).json({
+                        status: 'error',
+                        code: 'UNAUTHORIZED_STATUS_CHANGE',
+                        message: 'Only admin or manager can place a unit Under Dispute.'
+                    });
+                }
+                if (!reason || !reason.trim()) {
+                    return res.status(400).json({
+                        status: 'error',
+                        code: 'REASON_REQUIRED',
+                        message: 'A reason is required to place a unit Under Dispute.'
+                    });
+                }
+                isDisputeTransition = true;
+                disputeDetails = { from: curr, to: targetStatus, reason: reason.trim() };
+                setClauses.push(`status = $${paramIdx}`);
+                values.push(targetStatus);
+                paramIdx++;
+            } else if (curr === 'Under Dispute' && targetStatus === 'Available') {
+                if (!isManagerOrAdmin) {
+                    return res.status(403).json({
+                        status: 'error',
+                        code: 'UNAUTHORIZED_STATUS_CHANGE',
+                        message: 'Only admin or manager can resolve a unit from Under Dispute.'
+                    });
+                }
+                if (!reason || !reason.trim()) {
+                    return res.status(400).json({
+                        status: 'error',
+                        code: 'REASON_REQUIRED',
+                        message: 'A resolution reason is required to restore a disputed unit to Available.'
+                    });
+                }
+                isDisputeTransition = true;
+                disputeDetails = { from: curr, to: targetStatus, reason: reason.trim() };
+                setClauses.push(`status = $${paramIdx}`);
+                values.push(targetStatus);
+                paramIdx++;
+            } else {
                 return res.status(400).json({
                     status: 'error',
-                    message: `Invalid transition from '${curr}' to '${targetStatus}'. Direct jumps are prohibited.`
+                    code: 'DIRECT_STATUS_CHANGE_PROHIBITED',
+                    message: `Direct manual transition to '${targetStatus}' is prohibited. Unit lifecycle changes must occur through legitimate workflows (Reservation, Deal/Contract, Handover, or Cancellation).`
                 });
             }
         }
     }
 
     if (setClauses.length === 0) {
+        if (req.body.hasOwnProperty('status') && currentUnit && currentUnit.status === req.body.status) {
+            return res.json({ status: 'success', data: currentUnit, message: 'Status is already unchanged.' });
+        }
         return res.status(400).json({ status: 'error', message: 'No fields to update' });
     }
 
@@ -266,16 +316,16 @@ exports.updateUnit = async (req, res) => {
     setClauses.push(`updated_at = NOW()`);
 
     // Append WHERE clause parameters
-    values.push(id, tenant_id, branch_id);
+    values.push(id, tenant_id, branch_id ? String(branch_id) : null);
     const whereP1 = paramIdx;
     const whereP2 = paramIdx + 1;
     const whereP3 = paramIdx + 2;
 
     const updateSql = `
-        UPDATE re_units 
+        UPDATE re_units
         SET ${setClauses.join(', ')}
-        WHERE id = $${whereP1}::uuid 
-          AND tenant_id::text = $${whereP2}::text 
+        WHERE id = $${whereP1}::uuid
+          AND tenant_id::text = $${whereP2}::text
           AND ($${whereP3}::text IS NULL OR branch_id::text = $${whereP3}::text OR branch_id IS NULL)
         RETURNING *
     `;
@@ -288,7 +338,7 @@ exports.updateUnit = async (req, res) => {
             if (dbErr.message && dbErr.message.includes('invalid input syntax for type uuid')) {
                 console.warn('[Auto-Healing] Altering re_units columns on updateUnit...');
                 await db.query(`
-                    ALTER TABLE re_units 
+                    ALTER TABLE re_units
                     ALTER COLUMN assigned_to TYPE VARCHAR(255) USING assigned_to::text,
                     ALTER COLUMN vendor_id TYPE VARCHAR(255) USING vendor_id::text,
                     ALTER COLUMN responsible_person_id TYPE VARCHAR(255) USING responsible_person_id::text
@@ -302,7 +352,28 @@ exports.updateUnit = async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
         }
-        res.json({ status: 'success', data: result.rows[0] });
+
+        const updatedUnit = result.rows[0];
+
+        // Audit log dispute changes to system_logs
+        if (isDisputeTransition && disputeDetails) {
+            try {
+                const { logAction, ACTIONS } = require('../services/loggerService');
+                logAction({
+                    userId: req.user?.id || null,
+                    tenantId: tenant_id,
+                    action: ACTIONS.UPDATE,
+                    entityType: 'UnitStatus',
+                    entityId: id,
+                    details: disputeDetails,
+                    req
+                });
+            } catch (logErr) {
+                console.warn('[Dispute Audit Log Warning]:', logErr.message);
+            }
+        }
+
+        res.json({ status: 'success', data: updatedUnit });
     } catch (err) {
         console.error('[Unit Update Error]', err.message, err.stack);
         res.status(500).json({ status: 'error', message: err.message });
@@ -315,11 +386,11 @@ exports.updateUnit = async (req, res) => {
 exports.getUnitById = async (req, res) => {
     const { id } = req.params;
     const tenant_id = String(req.user.tenant_id);
-    const branch_id = String(req.branchId || req.user?.branch_id);
+    const branch_id = req.branchId || req.user?.branch_id || null;
 
     try {
         const result = await db.query(`
-            SELECT 
+            SELECT
                 ru.*,
                 c.name as vendor_name,
                 u.name as responsible_person_name,
@@ -328,10 +399,10 @@ exports.getUnitById = async (req, res) => {
             LEFT JOIN customers c ON ru.vendor_id::text = c.id::text
             LEFT JOIN users u ON ru.responsible_person_id::text = u.id::text
             LEFT JOIN users emp ON ru.assigned_to::text = emp.id::text
-            WHERE ru.id = $1::uuid 
-              AND ru.tenant_id::text = $2::text 
-              AND ru.branch_id::text = $3::text
-        `, [id, tenant_id, branch_id]);
+            WHERE ru.id = $1::uuid
+              AND ru.tenant_id::text = $2::text
+              AND ($3::text IS NULL OR ru.status = 'Available' OR ru.branch_id::text = $3::text OR ru.branch_id IS NULL)
+        `, [id, tenant_id, branch_id ? String(branch_id) : null]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
@@ -350,18 +421,24 @@ exports.getUnitById = async (req, res) => {
 exports.deleteUnit = async (req, res) => {
     const { id } = req.params;
     const tenant_id = String(req.user.tenant_id);
-    const branch_id = String(req.branchId || req.user?.branch_id);
+    const branch_id = req.branchId || req.user?.branch_id || null;
 
     try {
-        // Safety: Can only delete Available units
-        const check = await db.query('SELECT status FROM re_units WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [id, tenant_id, branch_id]);
+        // Safety: Can only delete Available units in the user's branch (or global)
+        const check = await db.query(
+            'SELECT status FROM re_units WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)',
+            [id, tenant_id, branch_id ? String(branch_id) : null]
+        );
         if (check.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Unit not found' });
-        
+
         if (check.rows[0].status !== 'Available') {
             return res.status(400).json({ status: 'error', message: `Cannot delete a unit with status '${check.rows[0].status}'. Only Available units can be removed.` });
         }
 
-        await db.query('DELETE FROM re_units WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [id, tenant_id, branch_id]);
+        await db.query(
+            'DELETE FROM re_units WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)',
+            [id, tenant_id, branch_id ? String(branch_id) : null]
+        );
         res.json({ status: 'success', message: 'Unit removed from inventory' });
     } catch (err) {
         console.error('[Unit Delete Error]', err.message);

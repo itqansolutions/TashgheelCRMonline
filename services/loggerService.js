@@ -34,36 +34,41 @@ const LOG_LEVELS = {
  * Core logging function - Asynchronous and non-blocking
  */
 const logAction = async (data) => {
-  const { 
-    userId, 
-    action, 
-    entityType, 
-    entityId, 
-    details, 
-    req, 
+  const {
+    userId,
+    action,
+    entityType,
+    entityId,
+    details,
+    req,
     level = LOG_LEVELS.INFO,
-    tenantId 
+    tenantId
   } = data;
 
   // Run logging in the next tick to avoid blocking the API response
   setImmediate(async () => {
     try {
-      const ipAddress = req?.ip || req?.headers['x-forwarded-for'] || 'unknown';
-      const userAgent = req?.headers['user-agent'] || 'unknown';
-      
-      // Attempt to resolve tenant_id if not explicitly provided
-      const resolvedTenant = tenantId || req?.user?.tenant_id || '00000000-0000-0000-0000-000000000000';
+      const ipAddress = req?.ip || req?.headers?.['x-forwarded-for'] || 'unknown';
+      const userAgent = req?.headers?.['user-agent'] || 'unknown';
+
+      // Attempt to resolve tenant_id if not explicitly provided (ensure valid UUID format for postgres)
+      const rawTenant = tenantId || req?.user?.tenant_id;
+      const isUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+      const resolvedTenant = (rawTenant && isUuid(rawTenant)) ? rawTenant : '00000000-0000-0000-0000-000000000000';
+
+      const rawUserId = userId || req?.user?.id || null;
+      const cleanUserId = rawUserId && !isNaN(parseInt(rawUserId, 10)) ? parseInt(rawUserId, 10) : null;
 
       await db.query(`
         INSERT INTO system_logs (
-          user_id, action, entity_type, entity_id, details, 
+          user_id, action, entity_type, entity_id, details,
           ip_address, user_agent, level, tenant_id
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `, [
-        userId || req?.user?.id || null, 
-        action, 
-        entityType, 
-        entityId || null, 
+        cleanUserId,
+        action,
+        entityType,
+        entityId || null,
         details ? (typeof details === 'string' ? details : JSON.stringify(details)) : null,
         ipAddress,
         userAgent,

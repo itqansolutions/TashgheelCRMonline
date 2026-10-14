@@ -19,10 +19,18 @@ function addMonths(date, months) {
 exports.getInstallments = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const { contract_id, deal_id, status, overdue } = req.query;
+    const branch_id = (req.user?.role === 'admin')
+        ? (req.query.branch_id || null)
+        : (req.branchId || req.user?.branch_id || null);
 
     try {
         let whereClause = `WHERE ri.tenant_id::text = $1::text`;
         const params = [tenant_id];
+
+        if (branch_id) {
+            params.push(String(branch_id));
+            whereClause += ` AND ($${params.length}::text IS NULL OR COALESCE(ri.branch_id, d.branch_id, rc.branch_id)::text = $${params.length}::text OR (ri.branch_id IS NULL AND d.branch_id IS NULL AND rc.branch_id IS NULL))`;
+        }
 
         if (contract_id) {
             params.push(contract_id);
@@ -47,7 +55,7 @@ exports.getInstallments = async (req, res) => {
         params.push(...scope.params);
 
         const result = await db.query(`
-            SELECT 
+            SELECT
                 ri.*,
                 rc.contract_number,
                 rc.contract_value,
@@ -112,12 +120,12 @@ exports.getInstallments = async (req, res) => {
 exports.generateSchedule = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const branch_id = req.branchId || req.user?.branch_id || null;
-    const { 
-        contract_id, 
-        down_payment = 0, 
-        number_of_installments, 
+    const {
+        contract_id,
+        down_payment = 0,
+        number_of_installments,
         frequency = 'monthly', // 'monthly', 'quarterly', 'semi-annual', 'annual'
-        start_date 
+        start_date
     } = req.body;
 
     if (!contract_id) {
@@ -144,9 +152,10 @@ exports.generateSchedule = async (req, res) => {
 
         // 1. Fetch contract with FOR UPDATE
         const contractRes = await client.query(`
-            SELECT id, deal_id, contract_value, status
-            FROM re_contracts
-            WHERE id::text = $1::text AND tenant_id::text = $2::text
+            SELECT rc.id, rc.deal_id, rc.branch_id, rc.contract_value, rc.status, d.branch_id as deal_branch_id
+            FROM re_contracts rc
+            LEFT JOIN deals d ON rc.deal_id = d.id
+            WHERE rc.id::text = $1::text AND rc.tenant_id::text = $2::text
             FOR UPDATE
         `, [contract_id, tenant_id]);
 
@@ -156,6 +165,12 @@ exports.generateSchedule = async (req, res) => {
         }
 
         const contract = contractRes.rows[0];
+        const contractBranch = contract.branch_id || contract.deal_branch_id;
+        if (req.user?.role !== 'admin' && branch_id && contractBranch && String(contractBranch) !== String(branch_id)) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ status: 'error', message: 'Contract not found or unauthorized.' });
+        }
+        const effectiveBranchId = branch_id || contractBranch || null;
         const contractValue = parseFloat(contract.contract_value) || 0;
         const dpAmount = Math.max(0, parseFloat(down_payment) || 0);
 
@@ -203,7 +218,7 @@ exports.generateSchedule = async (req, res) => {
                     due_date, amount, paid_amount, status, notes, tenant_id, branch_id
                 ) VALUES ($1, $2, $3, 'down_payment', $4, $5, 0, 'Pending', 'Initial Down Payment', $6, $7)
                 RETURNING *
-            `, [contract.id, contract.deal_id, 0, dpDate, dpAmount, tenant_id, branch_id]);
+            `, [contract.id, contract.deal_id, 0, dpDate, dpAmount, tenant_id, effectiveBranchId]);
             generatedInstallments.push(dpRes.rows[0]);
         }
 
@@ -222,14 +237,14 @@ exports.generateSchedule = async (req, res) => {
                 ) VALUES ($1, $2, $3, 'installment', $4, $5, 0, 'Pending', $6, $7, $8)
                 RETURNING *
             `, [
-                contract.id, 
-                contract.deal_id, 
-                seq, 
-                dueDate, 
-                amount, 
-                `Installment #${seq} (${frequency})`, 
-                tenant_id, 
-                branch_id
+                contract.id,
+                contract.deal_id,
+                seq,
+                dueDate,
+                amount,
+                `Installment #${seq} (${frequency})`,
+                tenant_id,
+                effectiveBranchId
             ]);
             generatedInstallments.push(instRes.rows[0]);
             seq++;
@@ -278,8 +293,11 @@ exports.recordPayment = async (req, res) => {
 
         // 1. Fetch and lock installment
         const instRes = await client.query(`
-            SELECT * FROM re_installments
-            WHERE id::text = $1::text AND tenant_id::text = $2::text
+            SELECT ri.*, d.branch_id as deal_branch_id, rc.branch_id as contract_branch_id
+            FROM re_installments ri
+            LEFT JOIN deals d ON ri.deal_id = d.id
+            LEFT JOIN re_contracts rc ON ri.contract_id = rc.id
+            WHERE ri.id::text = $1::text AND ri.tenant_id::text = $2::text
             FOR UPDATE
         `, [id, tenant_id]);
 
@@ -289,6 +307,12 @@ exports.recordPayment = async (req, res) => {
         }
 
         const inst = instRes.rows[0];
+        const branch_id = req.branchId || req.user?.branch_id || null;
+        const instBranch = inst.branch_id || inst.deal_branch_id || inst.contract_branch_id;
+        if (req.user?.role !== 'admin' && branch_id && instBranch && String(instBranch) !== String(branch_id)) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ status: 'error', message: 'Installment not found or unauthorized.' });
+        }
         const currentPaid = parseFloat(inst.paid_amount) || 0;
         const totalDue = parseFloat(inst.amount) || 0;
         const newPaidTotal = Number((currentPaid + payAmount).toFixed(2));
@@ -426,6 +450,9 @@ exports.recordPayment = async (req, res) => {
 // @route   GET /api/re-installments/:id/payments
 exports.getInstallmentPayments = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
+    const branch_id = (req.user?.role === 'admin')
+        ? (req.query.branch_id || null)
+        : (req.branchId || req.user?.branch_id || null);
     const { id } = req.params;
     try {
         const params = [id, tenant_id];
@@ -434,12 +461,18 @@ exports.getInstallmentPayments = async (req, res) => {
         });
         params.push(...scope.params);
         const instRes = await db.query(`
-            SELECT ri.id FROM re_installments ri
+            SELECT ri.id, ri.branch_id, d.branch_id as deal_branch_id, rc.branch_id as contract_branch_id
+            FROM re_installments ri
             JOIN re_contracts rc ON ri.contract_id = rc.id AND rc.tenant_id::text = ri.tenant_id::text
             JOIN deals d ON d.id = rc.deal_id AND d.tenant_id::text = rc.tenant_id::text
             WHERE ri.id::text = $1::text AND ri.tenant_id::text = $2::text AND (${scope.sql})
         `, params);
         if (instRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Installment not found or unauthorized.' });
+        }
+        const instRow = instRes.rows[0];
+        const instBranch = instRow.branch_id || instRow.deal_branch_id || instRow.contract_branch_id;
+        if (req.user?.role !== 'admin' && branch_id && instBranch && String(instBranch) !== String(branch_id)) {
             return res.status(404).json({ status: 'error', message: 'Installment not found or unauthorized.' });
         }
         let rows = [];
@@ -463,19 +496,31 @@ exports.getInstallmentPayments = async (req, res) => {
 // @route   DELETE /api/re-installments/:id
 exports.deleteInstallment = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
+    const branch_id = (req.user?.role === 'admin')
+        ? null
+        : (req.branchId || req.user?.branch_id || null);
     const { id } = req.params;
 
     try {
         const checkRes = await db.query(`
-            SELECT id, paid_amount FROM re_installments
-            WHERE id::text = $1::text AND tenant_id::text = $2::text
+            SELECT ri.id, ri.paid_amount, ri.branch_id, d.branch_id as deal_branch_id, rc.branch_id as contract_branch_id
+            FROM re_installments ri
+            LEFT JOIN deals d ON ri.deal_id = d.id
+            LEFT JOIN re_contracts rc ON ri.contract_id = rc.id
+            WHERE ri.id::text = $1::text AND ri.tenant_id::text = $2::text
         `, [id, tenant_id]);
 
         if (checkRes.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Installment not found or unauthorized.' });
         }
 
-        if (parseFloat(checkRes.rows[0].paid_amount) > 0) {
+        const row = checkRes.rows[0];
+        const instBranch = row.branch_id || row.deal_branch_id || row.contract_branch_id;
+        if (branch_id && instBranch && String(instBranch) !== String(branch_id)) {
+            return res.status(404).json({ status: 'error', message: 'Installment not found or unauthorized.' });
+        }
+
+        if (parseFloat(row.paid_amount) > 0) {
             return res.status(400).json({ status: 'error', message: 'Cannot delete an installment that has payments recorded.' });
         }
 

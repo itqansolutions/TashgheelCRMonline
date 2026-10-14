@@ -18,7 +18,7 @@ test('Real Estate Unit Lifecycle State Machine & Guardrails Test Suite', async (
   await t.test('reUnitsController prevents invalid transitions and allows valid lifecycle transitions', async () => {
     const reUnitsController = require('../controllers/reUnitsController');
 
-    // Case A: Prohibited jump Available -> Handed Over
+    // Case A: Prohibited direct manual jump Available -> Handed Over
     const resA = {
       statusCode: null,
       data: null,
@@ -26,8 +26,8 @@ test('Real Estate Unit Lifecycle State Machine & Guardrails Test Suite', async (
       json(d) { this.data = d; return this; }
     };
     db.query = async (sql, params) => {
-      if (sql.includes('SELECT status FROM re_units')) {
-        return { rows: [{ status: 'Available' }] };
+      if (sql.includes('FROM re_units')) {
+        return { rows: [{ id: '00000000-0000-0000-0000-000000000001', status: 'Available' }] };
       }
       return { rows: [] };
     };
@@ -36,9 +36,9 @@ test('Real Estate Unit Lifecycle State Machine & Guardrails Test Suite', async (
       resA
     );
     assert.equal(resA.statusCode, 400);
-    assert.match(resA.data.message, /Invalid transition from 'Available' to 'Handed Over'/);
+    assert.equal(resA.data.code, 'DIRECT_STATUS_CHANGE_PROHIBITED');
 
-    // Case B: Prohibited jump Available -> Contracted directly
+    // Case B: Prohibited direct manual jump Available -> Contracted
     const resB = {
       statusCode: null,
       data: null,
@@ -50,30 +50,21 @@ test('Real Estate Unit Lifecycle State Machine & Guardrails Test Suite', async (
       resB
     );
     assert.equal(resB.statusCode, 400);
-    assert.match(resB.data.message, /Invalid transition from 'Available' to 'Contracted'/);
+    assert.equal(resB.data.code, 'DIRECT_STATUS_CHANGE_PROHIBITED');
 
-    // Case C: Valid transition Available -> Reserved
+    // Case C: Prohibited direct manual transition Available -> Reserved (must occur via Reservation/Deal flow)
     const resC = {
-      statusCode: 200,
+      statusCode: null,
       data: null,
       status(c) { this.statusCode = c; return this; },
       json(d) { this.data = d; return this; }
-    };
-    db.query = async (sql, params) => {
-      if (sql.includes('SELECT status FROM re_units')) {
-        return { rows: [{ status: 'Available' }] };
-      }
-      if (sql.includes('UPDATE re_units')) {
-        return { rows: [{ id: '00000000-0000-0000-0000-000000000001', status: 'Reserved' }] };
-      }
-      return { rows: [] };
     };
     await reUnitsController.updateUnit(
       { params: { id: '00000000-0000-0000-0000-000000000001' }, body: { status: 'Reserved' }, user: { tenant_id: 't1' } },
       resC
     );
-    assert.equal(resC.statusCode, 200);
-    assert.equal(resC.data.data.status, 'Reserved');
+    assert.equal(resC.statusCode, 400);
+    assert.equal(resC.data.code, 'DIRECT_STATUS_CHANGE_PROHIBITED');
 
     // Case D: Prohibited jump Under Dispute -> Handed Over
     const resD = {
@@ -83,8 +74,8 @@ test('Real Estate Unit Lifecycle State Machine & Guardrails Test Suite', async (
       json(d) { this.data = d; return this; }
     };
     db.query = async (sql) => {
-      if (sql.includes('SELECT status FROM re_units')) {
-        return { rows: [{ status: 'Under Dispute' }] };
+      if (sql.includes('FROM re_units')) {
+        return { rows: [{ id: '00000000-0000-0000-0000-000000000001', status: 'Under Dispute' }] };
       }
       return { rows: [] };
     };
@@ -93,9 +84,9 @@ test('Real Estate Unit Lifecycle State Machine & Guardrails Test Suite', async (
       resD
     );
     assert.equal(resD.statusCode, 400);
-    assert.match(resD.data.message, /Invalid transition from 'Under Dispute' to 'Handed Over'/);
+    assert.equal(resD.data.code, 'DIRECT_STATUS_CHANGE_PROHIBITED');
 
-    // Case E: Valid resolution Under Dispute -> Available
+    // Case E: Valid resolution Under Dispute -> Available by admin/manager with reason
     const resE = {
       statusCode: 200,
       data: null,
@@ -103,20 +94,66 @@ test('Real Estate Unit Lifecycle State Machine & Guardrails Test Suite', async (
       json(d) { this.data = d; return this; }
     };
     db.query = async (sql) => {
-      if (sql.includes('SELECT status FROM re_units')) {
-        return { rows: [{ status: 'Under Dispute' }] };
-      }
       if (sql.includes('UPDATE re_units')) {
+        return { rows: [{ id: '00000000-0000-0000-0000-000000000001', status: 'Available' }] };
+      }
+      if (sql.includes('FROM re_units')) {
+        return { rows: [{ id: '00000000-0000-0000-0000-000000000001', status: 'Under Dispute' }] };
+      }
+      return { rows: [] };
+    };
+    await reUnitsController.updateUnit(
+      {
+        params: { id: '00000000-0000-0000-0000-000000000001' },
+        body: { status: 'Available', reason: 'Dispute amicably resolved in court' },
+        user: { id: 'u1', role: 'admin', tenant_id: 't1' }
+      },
+      resE
+    );
+    assert.equal(resE.statusCode, 200);
+    assert.equal(resE.data.data.status, 'Available');
+
+    // Case F: Placing Under Dispute without reason is rejected
+    const resF = {
+      statusCode: null,
+      data: null,
+      status(c) { this.statusCode = c; return this; },
+      json(d) { this.data = d; return this; }
+    };
+    db.query = async (sql) => {
+      if (sql.includes('FROM re_units')) {
         return { rows: [{ id: '00000000-0000-0000-0000-000000000001', status: 'Available' }] };
       }
       return { rows: [] };
     };
     await reUnitsController.updateUnit(
-      { params: { id: '00000000-0000-0000-0000-000000000001' }, body: { status: 'Available' }, user: { tenant_id: 't1' } },
-      resE
+      {
+        params: { id: '00000000-0000-0000-0000-000000000001' },
+        body: { status: 'Under Dispute' },
+        user: { id: 'u1', role: 'admin', tenant_id: 't1' }
+      },
+      resF
     );
-    assert.equal(resE.statusCode, 200);
-    assert.equal(resE.data.data.status, 'Available');
+    assert.equal(resF.statusCode, 400);
+    assert.equal(resF.data.code, 'REASON_REQUIRED');
+
+    // Case G: Placing Under Dispute by regular agent is rejected (403)
+    const resG = {
+      statusCode: null,
+      data: null,
+      status(c) { this.statusCode = c; return this; },
+      json(d) { this.data = d; return this; }
+    };
+    await reUnitsController.updateUnit(
+      {
+        params: { id: '00000000-0000-0000-0000-000000000001' },
+        body: { status: 'Under Dispute', reason: 'Attempt by agent' },
+        user: { id: 'u1', role: 'agent', tenant_id: 't1' }
+      },
+      resG
+    );
+    assert.equal(resG.statusCode, 403);
+    assert.equal(resG.data.code, 'UNAUTHORIZED_STATUS_CHANGE');
   });
 
   // 2. DealsController won/closed stage does NOT write 'Sold'

@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/reCancellationsController');
 const authMiddleware = require('../middleware/auth');
+const branchScope = require('../middleware/branchScope');
 
 router.use(authMiddleware);
+router.use(branchScope);
 
 router.get('/', ctrl.getCancellations);
 router.post('/', ctrl.processCancellation);
