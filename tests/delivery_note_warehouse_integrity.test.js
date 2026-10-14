@@ -76,7 +76,7 @@ test('Delivery Note warehouse integrity', async (t) => {
     await withTransaction(mockClient, () => DeliveryNoteService.confirmDeliveryNote('tenant-1', 'branch-1', 'dn-2', 9));
     assert.ok(movement);
     assert.equal(movement.params[1], 'wh-2');
-    assert.equal(movement.params[5], 'branch-1');
+    assert.equal(movement.params[4], 'branch-1');
   });
 
   await t.test('confirmation rejects a quantity beyond the remaining Sales Order quantity', async () => {

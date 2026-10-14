@@ -8,9 +8,11 @@ const ItemCard = () => {
   const [products, setProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [loading, setLoading] = useState(true);
+  const [cardLoading, setCardLoading] = useState(false);
 
-  // Product audit trail logs
+  // Product audit trail logs + summary (from ledger)
   const [auditTrail, setAuditTrail] = useState([]);
+  const [card, setCard] = useState(null);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -29,7 +31,35 @@ const ItemCard = () => {
     fetchProducts();
   }, []);
 
-  const selectedProduct = products.find(p => String(p.id) === String(selectedProductId)) || products[0];
+  useEffect(() => {
+    if (!selectedProductId) return;
+    let cancelled = false;
+    const fetchCard = async () => {
+      setCardLoading(true);
+      try {
+        const res = await api.get(`/inventory/item-card/${selectedProductId}`);
+        if (cancelled) return;
+        const data = res.data.data;
+        setCard(data);
+        // Newest first for display; running balance was computed chronologically
+        setAuditTrail([...(data.movements || [])].reverse());
+      } catch (err) {
+        if (cancelled) return;
+        setCard(null);
+        setAuditTrail([]);
+        toast.error('Failed to load item card');
+      } finally {
+        if (!cancelled) setCardLoading(false);
+      }
+    };
+    fetchCard();
+    return () => { cancelled = true; };
+  }, [selectedProductId]);
+
+  const selectedProduct = products.find(p => String(p.id) === String(selectedProductId));
+  const isService = card && card.is_inventory_item === false;
+  const fmtNum = (n) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 4 });
+  const fmtMoney = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div>
@@ -67,20 +97,24 @@ const ItemCard = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 800, color: '#38bdf8', background: 'rgba(56,189,248,0.15)', padding: '4px 10px', borderRadius: '6px', fontFamily: 'monospace' }}>
-                  {selectedProduct.sku || 'SKU-001'}
+                  {selectedProduct.sku || '—'}
                 </span>
                 <h2 style={{ margin: '8px 0 4px 0', fontSize: '24px', fontWeight: 800 }}>{selectedProduct.name}</h2>
-                <span style={{ fontSize: '13px', color: '#94a3b8' }}>Category: {selectedProduct.category || 'General Products'}</span>
+                <span style={{ fontSize: '13px', color: '#94a3b8' }}>Category: {selectedProduct.category || '—'}</span>
               </div>
 
               <div style={{ display: 'flex', gap: '20px' }}>
                 <div style={{ background: 'rgba(255,255,255,0.08)', padding: '14px 20px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.1)' }}>
                   <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>Current Stock</span>
-                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#38bdf8' }}>{selectedProduct.stock_quantity || 450} Units</span>
+                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#38bdf8' }}>
+                    {cardLoading || !card ? '…' : isService ? 'Service – not stocked' : `${fmtNum(card.current_stock)} ${card.product?.unit || 'Units'}`}
+                  </span>
                 </div>
                 <div style={{ background: 'rgba(255,255,255,0.08)', padding: '14px 20px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>Avg Unit Cost</span>
-                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#4ade80' }}>${parseFloat(selectedProduct.cost_price || 15).toFixed(2)}</span>
+                  <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block', fontWeight: 700 }}>Product Cost (stored)</span>
+                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#4ade80' }}>
+                    {cardLoading || !card ? '…' : (card.cost_price == null ? '—' : `$${fmtMoney(card.cost_price)}`)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -103,15 +137,22 @@ const ItemCard = () => {
                 <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Qty In</th>
                 <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Qty Out</th>
                 <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Running Balance</th>
-                <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Unit Price</th>
-                <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Total Balance Valuation</th>
+                <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Unit Cost (stored)</th>
+                <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Balance Valuation (at stored cost)</th>
               </tr>
             </thead>
             <tbody>
+              {auditTrail.length === 0 && (
+                <tr>
+                  <td colSpan={9} style={{ padding: '28px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
+                    {cardLoading ? 'Loading…' : isService ? 'Service items have no stock movements.' : 'No approved stock movements for this item.'}
+                  </td>
+                </tr>
+              )}
               {auditTrail.map((log) => (
                 <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '14px 18px', fontSize: '13px', color: '#64748b' }}>
-                    {log.date}
+                    {log.date ? new Date(log.date).toLocaleString() : '—'}
                   </td>
                   <td style={{ padding: '14px 18px', fontFamily: 'monospace', fontWeight: 800, color: '#0ea5e9' }}>
                     {log.doc_no}
@@ -123,19 +164,19 @@ const ItemCard = () => {
                     🏢 {log.warehouse}
                   </td>
                   <td style={{ padding: '14px 18px', fontWeight: 800, color: log.qty_in > 0 ? '#10b981' : '#cbd5e1' }}>
-                    {log.qty_in > 0 ? `+${log.qty_in}` : '-'}
+                    {log.qty_in > 0 ? `+${fmtNum(log.qty_in)}` : '-'}
                   </td>
                   <td style={{ padding: '14px 18px', fontWeight: 800, color: log.qty_out > 0 ? '#ef4444' : '#cbd5e1' }}>
-                    {log.qty_out > 0 ? `-${log.qty_out}` : '-'}
+                    {log.qty_out > 0 ? `-${fmtNum(log.qty_out)}` : '-'}
                   </td>
                   <td style={{ padding: '14px 18px', fontWeight: 800, color: '#0f172a' }}>
-                    {log.balance} units
+                    {fmtNum(log.balance)} units
                   </td>
                   <td style={{ padding: '14px 18px', fontWeight: 600, color: '#64748b' }}>
-                    ${log.unit_price.toFixed(2)}
+                    {log.unit_price == null ? '—' : `$${fmtMoney(log.unit_price)}`}
                   </td>
                   <td style={{ padding: '14px 18px', fontWeight: 800, color: '#0ea5e9' }}>
-                    ${log.total_val.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {log.total_val == null ? '—' : `$${fmtMoney(log.total_val)}`}
                   </td>
                 </tr>
               ))}

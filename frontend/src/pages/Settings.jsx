@@ -9,6 +9,7 @@ import {
   Users, Layers, Sliders, ShieldCheck, Zap, DollarSign, Activity, ChevronRight, Briefcase, Tag
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 
 const TABS = [
   'Branding & Identity',
@@ -22,6 +23,7 @@ const TABS = [
 
 const Settings = () => {
   const { user } = useAuth();
+  const { fetchTenant } = useData();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   
@@ -32,8 +34,13 @@ const Settings = () => {
     name: '', address: '', phone: '', logo_url: '',
     tax_no: '', reg_no: '', currency: 'EGP',
     tax_rate: 0, invoice_prefix: 'INV-',
+    invoice_header_title: 'فاتورة ضريبية',
+    invoice_header_subtitle: '',
     invoice_footer: '', terms: '',
-    quotation_prefix: 'QUO-', quotation_footer: '', quotation_terms: '',
+    quotation_prefix: 'QUO-',
+    quotation_header_title: 'عرض أسعار',
+    quotation_header_subtitle: '',
+    quotation_footer: '', quotation_terms: '',
     primary_color: '#6366f1'
   });
   
@@ -127,6 +134,7 @@ const Settings = () => {
       if (res.data.status === 'success') {
         toast.success('Settings updated successfully');
         if (res.data.data) setTenant(prev => ({ ...prev, ...res.data.data }));
+        if (typeof fetchTenant === 'function') fetchTenant();
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update settings');
@@ -457,12 +465,27 @@ const Settings = () => {
                 <div className="preview-header">
                   <div>
                     {tenant.logo_url ? <img src={`/${tenant.logo_url.replace(/\\/g, '/')}`} className="preview-logo" alt="Logo" /> : <div className="preview-company-name">{tenant.name || 'COMPANY NAME'}</div>}
-                    <div style={{ marginTop: '8px', fontSize: '8px', color: '#64748b' }}>
+                    {previewMode === 'Invoice' ? (
+                      tenant.invoice_header_subtitle && (
+                        <div style={{ fontSize: '8px', fontWeight: 700, color: '#4b5563', marginTop: '2px' }}>
+                          {tenant.invoice_header_subtitle}
+                        </div>
+                      )
+                    ) : (
+                      tenant.quotation_header_subtitle && (
+                        <div style={{ fontSize: '8px', fontWeight: 700, color: '#4b5563', marginTop: '2px' }}>
+                          {tenant.quotation_header_subtitle}
+                        </div>
+                      )
+                    )}
+                    <div style={{ marginTop: '6px', fontSize: '8px', color: '#64748b' }}>
                       {tenant.address || 'Company Address Line'}
                     </div>
                   </div>
                   <div className="preview-title">
-                    <h2 style={{ fontSize: '16px', margin: 0, color: tenant.primary_color || '#6366f1' }}>{previewMode.toUpperCase()}</h2>
+                    <h2 style={{ fontSize: '15px', margin: 0, color: previewMode === 'Quotation' ? '#d97706' : (tenant.primary_color || '#6366f1') }}>
+                      {previewMode === 'Quotation' ? (tenant.quotation_header_title || 'QUOTATION') : (tenant.invoice_header_title || 'INVOICE')}
+                    </h2>
                     <div>{previewMode === 'Quotation' ? (tenant.quotation_prefix || 'QUO-') : (tenant.invoice_prefix || 'INV-')}1001</div>
                   </div>
                 </div>
@@ -717,6 +740,14 @@ const Settings = () => {
                 <form onSubmit={handleUpdate}>
                   <div className="form-grid">
                     <div className="form-group">
+                      <label>Quotation Header Title (عنوان رأس عرض السعر)</label>
+                      <input type="text" value={tenant.quotation_header_title || ''} onChange={(e) => setTenant({...tenant, quotation_header_title: e.target.value})} placeholder="عرض أسعار / PRICE QUOTATION" />
+                    </div>
+                    <div className="form-group">
+                      <label>Quotation Header Subtitle (العنوان الفرعي للترويسة)</label>
+                      <input type="text" value={tenant.quotation_header_subtitle || ''} onChange={(e) => setTenant({...tenant, quotation_header_subtitle: e.target.value})} placeholder="مثال: عروض أسعار وتوريدات معتمدة" />
+                    </div>
+                    <div className="form-group">
                       <label>Quotation Number Prefix</label>
                       <input type="text" value={tenant.quotation_prefix || 'QUO-'} onChange={(e) => setTenant({...tenant, quotation_prefix: e.target.value})} />
                     </div>
@@ -759,6 +790,14 @@ const Settings = () => {
               </div>
               <div className="card-body">
                 <div className="form-grid">
+                  <div className="form-group">
+                    <label>Invoice Header Title (عنوان رأس الفاتورة)</label>
+                    <input type="text" value={tenant.invoice_header_title || ''} onChange={(e) => setTenant({...tenant, invoice_header_title: e.target.value})} placeholder="فاتورة ضريبية / TAX INVOICE" />
+                  </div>
+                  <div className="form-group">
+                    <label>Invoice Header Subtitle (العنوان الفرعي للترويسة)</label>
+                    <input type="text" value={tenant.invoice_header_subtitle || ''} onChange={(e) => setTenant({...tenant, invoice_header_subtitle: e.target.value})} placeholder="مثال: لحلول الأعمال والتجارة الذكية" />
+                  </div>
                   <div className="form-group">
                     <label>Invoice Number Prefix</label>
                     <input type="text" value={tenant.invoice_prefix || 'INV-'} onChange={(e) => setTenant({...tenant, invoice_prefix: e.target.value})} />

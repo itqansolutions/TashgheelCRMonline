@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
+import { isInvalidDateRange } from '../../utils/dateRange';
 import toast from 'react-hot-toast';
 import {
   Landmark, Wallet, Plus, X, ChevronRight, RefreshCw,
@@ -268,6 +269,10 @@ const Treasury = () => {
 
   const fetchTransactions = useCallback(async (accountId) => {
     if (!accountId) return;
+    if (isInvalidDateRange(dateFrom, dateTo)) {
+      toast.error(t('common.invalidDateRange'), { id: 'invalid-date-range' });
+      return;
+    }
     setTxnLoading(true);
     try {
       const params = new URLSearchParams();

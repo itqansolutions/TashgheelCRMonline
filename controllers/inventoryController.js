@@ -55,6 +55,42 @@ exports.getMovements = async (req, res) => {
     }
 };
 
+// @desc    Item movement card (ledger-based) for one product
+// @route   GET /api/inventory/item-card/:productId
+// @access  Private
+exports.getItemCard = async (req, res) => {
+    try {
+        const { warehouseId, from, to } = req.query;
+        const isPosInt = (v) => /^\d+$/.test(String(v)) && Number(v) <= 2147483647;
+
+        if (!isPosInt(req.params.productId)) {
+            return res.status(404).json({ status: 'error', message: 'Product not found' });
+        }
+        if (warehouseId !== undefined && warehouseId !== '' && !isPosInt(warehouseId)) {
+            return res.status(400).json({ status: 'error', message: 'Invalid warehouseId' });
+        }
+        const parseDate = (v) => (v === undefined || v === '' ? null : new Date(v));
+        const fromDate = parseDate(from);
+        const toDate = parseDate(to);
+        if ((fromDate && isNaN(fromDate.getTime())) || (toDate && isNaN(toDate.getTime()))) {
+            return res.status(400).json({ status: 'error', message: 'Invalid date filter' });
+        }
+
+        const data = await inventoryStockService.getItemCard(req.user.tenant_id, req.params.productId, {
+            warehouseId: warehouseId ? Number(warehouseId) : null,
+            branchId: req.branchId || null, // same branch scope as GET /inventory/stock
+            from: fromDate,
+            to: toDate
+        });
+        if (!data) return res.status(404).json({ status: 'error', message: 'Product not found' });
+        res.json({ status: 'success', data });
+    } catch (err) {
+        console.error('getItemCard error:', err);
+        res.status(500).json({ status: 'error', message: 'Failed to load item card' });
+    }
+};
+
+
 // @desc    Get Stock aggregate list for the branch
 // @route   GET /api/inventory/stock
 // @access  Private

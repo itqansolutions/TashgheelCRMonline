@@ -52,6 +52,11 @@ const ensureVouchersTable = async () => {
         await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS installment_id VARCHAR(255);`);
         await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255);`);
         await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS contract_id VARCHAR(255);`);
+        // Treasury linkage columns (migrations 001/002) — ensure present so treasury queries never 500 on older DBs
+        await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS treasury_account_id INTEGER;`);
+        await db.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS treasury_account_id INTEGER;`).catch(() => {});
+        await db.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS treasury_account_id INTEGER;`).catch(() => {});
+        await db.query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'cash';`).catch(() => {});
 
         // Create indexes safely after ensuring columns exist
         await db.query(`CREATE INDEX IF NOT EXISTS idx_finance_vouchers_status ON finance_vouchers(status);`);
@@ -302,6 +307,7 @@ const generateInvoiceNumber = async (tenant_id, branch_id, queryClient = null) =
 
 // Helper to generate Voucher Number (delegates to concurrency-safe services/voucherNumbering.js)
 const { generateVoucherNumber: sharedGenerateVoucherNumber } = require('../services/voucherNumbering');
+const { validateDateRange } = require('../utils/dateRange');
 const generateVoucherNumber = async (tenant_id, branch_id, voucher_type, queryExecutor = null) => {
     await ensureVouchersTable();
     if (queryExecutor) {
@@ -951,13 +957,15 @@ exports.getInvoiceDetails = async (req, res) => {
             ORDER BY ii.id ASC
         `, [invoice_id]);
         const paymentsRes = await db.query("SELECT * FROM payments WHERE invoice_id::text = $1::text AND tenant_id::text = $2::text AND (COALESCE(status, 'active') != 'cancelled') ORDER BY payment_date DESC", [invoice_id, tenant_id]);
+        const tenantRes = await db.query("SELECT * FROM tenants WHERE id::text = $1::text", [tenant_id]);
 
         res.json({
             status: 'success',
             data: {
                 invoice: invRes.rows[0],
                 items: itemsRes.rows,
-                payments: paymentsRes.rows
+                payments: paymentsRes.rows,
+                tenant: tenantRes.rows[0] || null
             }
         });
     } catch (err) {
@@ -1780,6 +1788,9 @@ exports.getCustomerStatement = async (req, res) => {
     const customer_id = req.params.id;
     const { date_from, date_to, type } = req.query; // optional filters
 
+    const rangeError = validateDateRange(date_from, date_to);
+    if (rangeError) return res.status(400).json({ status: 'error', message: rangeError });
+
     await ensureInvoicesTable();
 
     try {
@@ -2293,7 +2304,11 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
     const account_id = req.params.id;
     const { date_from, date_to } = req.query;
 
+    const rangeError = validateDateRange(date_from, date_to);
+    if (rangeError) return res.status(400).json({ status: 'error', message: rangeError });
+
     try {
+        await ensureVouchersTable();
         // Ownership check
         const accRes = await db.query(`
             SELECT * FROM treasury_accounts
@@ -2331,12 +2346,17 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
                 FROM payments p
                 LEFT JOIN invoices i   ON i.id::text  = p.invoice_id::text
                 LEFT JOIN customers c  ON c.id::text  = COALESCE(i.customer_id, i.client_id)::text
-                LEFT JOIN finance_vouchers fv
-                    ON fv.invoice_id = i.id
-                    AND fv.voucher_type = 'receipt'
-                    AND fv.tenant_id::text = $2::text
-                    AND ABS(fv.amount - p.amount) < 0.01
-                    AND fv.voucher_date = p.payment_date::date
+                LEFT JOIN LATERAL (
+                    SELECT fv2.voucher_number
+                    FROM finance_vouchers fv2
+                    WHERE fv2.invoice_id = i.id
+                      AND fv2.voucher_type = 'receipt'
+                      AND fv2.tenant_id::text = $2::text
+                      AND ABS(fv2.amount - p.amount) < 0.01
+                      AND fv2.voucher_date = p.payment_date::date
+                    ORDER BY fv2.id
+                    LIMIT 1
+                ) fv ON true
                 WHERE p.treasury_account_id = $1
                   AND p.tenant_id::text = $2::text
                   AND ($3::text IS NULL OR p.branch_id::text = $3::text OR p.branch_id IS NULL)
@@ -2407,11 +2427,41 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
             ORDER BY txn_date DESC, direction ASC
         `, dateParams);
 
-        // Compute current balance for this account
+        // Current balance: independent of the date filter (which only limits displayed rows).
+        // Uses exactly the same inclusion rules as getTreasuryAccounts (list endpoint) so both screens agree:
+        //   IN : non-cancelled payments + non-cancelled on-account receipts (invoice_id IS NULL)
+        //   OUT: expenses + non-cancelled payment vouchers
+        const balRes = await db.query(`
+            SELECT
+                COALESCE((SELECT SUM(p.amount) FROM payments p
+                          WHERE p.treasury_account_id = $1
+                            AND p.tenant_id::text = $2::text
+                            AND ($3::text IS NULL OR p.branch_id::text = $3::text OR p.branch_id IS NULL)
+                            AND (COALESCE(p.status, 'active') != 'cancelled')), 0) +
+                COALESCE((SELECT SUM(fv.amount) FROM finance_vouchers fv
+                          WHERE fv.treasury_account_id = $1
+                            AND fv.voucher_type = 'receipt'
+                            AND fv.invoice_id IS NULL
+                            AND fv.tenant_id::text = $2::text
+                            AND ($3::text IS NULL OR fv.branch_id::text = $3::text OR fv.branch_id IS NULL)
+                            AND (COALESCE(fv.status, 'active') != 'cancelled')), 0) AS total_incoming,
+                COALESCE((SELECT SUM(e.amount) FROM expenses e
+                          WHERE e.treasury_account_id = $1
+                            AND e.tenant_id::text = $2::text
+                            AND ($3::text IS NULL OR e.branch_id::text = $3::text OR e.branch_id IS NULL)), 0) +
+                COALESCE((SELECT SUM(fv.amount) FROM finance_vouchers fv
+                          WHERE fv.treasury_account_id = $1
+                            AND fv.voucher_type = 'payment'
+                            AND fv.tenant_id::text = $2::text
+                            AND ($3::text IS NULL OR fv.branch_id::text = $3::text OR fv.branch_id IS NULL)
+                            AND (COALESCE(fv.status, 'active') != 'cancelled')), 0) AS total_outgoing
+        `, [account_id, tenant_id, branch_id ? String(branch_id) : null]);
+
         const currentBalance =
             parseFloat(acc.opening_balance || 0) +
-            result.rows.filter(t => t.direction === 'in').reduce((s, t) => s + parseFloat(t.amount), 0) -
-            result.rows.filter(t => t.direction === 'out').reduce((s, t) => s + parseFloat(t.amount), 0);
+            parseFloat(balRes.rows[0]?.total_incoming || 0) -
+            parseFloat(balRes.rows[0]?.total_outgoing || 0);
+
 
         res.json({
             status: 'success',
@@ -2445,6 +2495,9 @@ exports.getFinancialReports = async (req, res) => {
     }
 
     const { date_from, date_to } = req.query;
+
+    const rangeError = validateDateRange(date_from, date_to);
+    if (rangeError) return res.status(400).json({ status: 'error', message: rangeError });
 
     await ensureInvoicesTable();
 

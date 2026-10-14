@@ -371,6 +371,102 @@ class InventoryStockService {
             client.release();
         }
     }
+
+    /**
+     * Item Movement Card: chronological approved ledger for one product with running balance.
+     * Direction rules MIRROR the established balance logic (getProductStock / getStockList /
+     * getWarehouseStockList) so the card total equals Stock Balances for the same scope:
+     *  - Warehouse scope: +qty if to_warehouse = w AND type IN (in, adjustment, transfer);
+     *                     -qty if from_warehouse = w AND type IN (out, adjustment, transfer).
+     *  - Branch scope:    same, matching warehouses.branch_id (transfers between branches move stock).
+     *  - Company scope:   in(+), out(-), adjustment by to/from warehouse, transfer = 0.
+     * Only status = 'approved' movements are counted.
+     * NOTE: stock_movements has no per-movement cost. `cost_price` is the product's STORED cost
+     * (not a verified weighted average) and is used only as an indicative valuation rate.
+     *
+     * @param {string} tenantId
+     * @param {number|string} productId  (validated integer by caller)
+     * @param {{warehouseId?: number|null, branchId?: string|null, from?: Date|null, to?: Date|null}} opts
+     * @returns {Promise<Object|null>} null when the product does not belong to the tenant
+     */
+    async getItemCard(tenantId, productId, { warehouseId = null, branchId = null, from = null, to = null } = {}) {
+        const tid = tenantId ? String(tenantId) : null;
+        const pRes = await db.query(`
+            SELECT id, name, sku, category, unit, cost_price,
+                   COALESCE(is_inventory_item, true) AS is_inventory_item
+            FROM products
+            WHERE id = $1 AND tenant_id::text = $2::text
+        `, [productId, tid]);
+        if (pRes.rows.length === 0) return null;
+        const product = pRes.rows[0];
+        const costPrice = product.cost_price === null || product.cost_price === undefined
+            ? null : parseFloat(product.cost_price);
+
+        if (product.is_inventory_item === false) {
+            return { product, is_inventory_item: false, current_stock: null, cost_price: costPrice, movements: [] };
+        }
+
+        const mRes = await db.query(`
+            SELECT m.id, m.type, m.quantity, m.reference_type, m.reference_id, m.created_at,
+                   m.from_warehouse_id, m.to_warehouse_id,
+                   wf.name AS from_warehouse_name, wt.name AS to_warehouse_name,
+                   wf.branch_id AS from_branch_id, wt.branch_id AS to_branch_id
+            FROM stock_movements m
+            LEFT JOIN warehouses wf ON m.from_warehouse_id = wf.id
+            LEFT JOIN warehouses wt ON m.to_warehouse_id = wt.id
+            WHERE m.product_id = $1 AND m.tenant_id::text = $2::text AND m.status = 'approved'
+            ORDER BY m.created_at ASC, m.id ASC
+        `, [productId, tid]);
+
+        const wid = warehouseId ? Number(warehouseId) : null;
+        const bid = !wid && branchId ? String(branchId) : null;
+        const IN_TYPES = ['in', 'adjustment', 'transfer'];
+        const OUT_TYPES = ['out', 'adjustment', 'transfer'];
+
+        let balance = 0;
+        const rows = [];
+        for (const m of mRes.rows) {
+            const q = parseFloat(m.quantity) || 0;
+            let qtyIn = 0, qtyOut = 0;
+            if (wid) {
+                if (Number(m.to_warehouse_id) === wid && IN_TYPES.includes(m.type)) qtyIn = q;
+                if (Number(m.from_warehouse_id) === wid && OUT_TYPES.includes(m.type)) qtyOut = q;
+            } else if (bid) {
+                if (m.to_branch_id && String(m.to_branch_id) === bid && IN_TYPES.includes(m.type)) qtyIn = q;
+                if (m.from_branch_id && String(m.from_branch_id) === bid && OUT_TYPES.includes(m.type)) qtyOut = q;
+            } else if (m.type === 'in') qtyIn = q;
+            else if (m.type === 'out') qtyOut = q;
+            else if (m.type === 'adjustment') {
+                if (m.to_warehouse_id) qtyIn = q; else if (m.from_warehouse_id) qtyOut = q;
+            }
+            if ((wid || bid) && qtyIn === 0 && qtyOut === 0) continue; // outside this scope
+            balance += qtyIn - qtyOut;
+            rows.push({
+                id: m.id,
+                date: m.created_at,
+                doc_no: m.reference_id ? `${m.reference_type || 'DOC'}-${m.reference_id}` : `MOV-${m.id}`,
+                type: m.type,
+                reference_type: m.reference_type,
+                warehouse: [m.from_warehouse_name, m.to_warehouse_name].filter(Boolean).join(' → ') || '—',
+                qty_in: qtyIn,
+                qty_out: qtyOut,
+                balance,
+                unit_price: costPrice,
+                total_val: costPrice === null ? null : balance * costPrice
+            });
+        }
+
+        // Date filter applies to displayed rows only; running balance still includes prior history.
+        const fromTs = from ? from.getTime() : null;
+        const toTs = to ? to.getTime() + 86399999 : null;
+        const movements = rows.filter(r => {
+            const t = new Date(r.date).getTime();
+            return (fromTs === null || t >= fromTs) && (toTs === null || t <= toTs);
+        });
+
+        return { product, is_inventory_item: true, current_stock: balance, cost_price: costPrice, movements };
+    }
+
 }
 
 module.exports = new InventoryStockService();

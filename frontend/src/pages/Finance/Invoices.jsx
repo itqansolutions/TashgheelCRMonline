@@ -1041,7 +1041,7 @@ const FinanceDashboard = () => {
                                           onChange={e => setFormData({...formData, customer_id: e.target.value})}
                                           style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
                                         >
-                                            <option value="">-- Select Customer --</option>
+                                            <option value="">{t('finance.invoices.selectCustomer', '-- Select Customer --')}</option>
                                             {customers.map(c => <option key={c.id} value={c.id} style={{color:'black'}}>{c.name}</option>)}
                                         </select>
                                         {isRealEstate && (

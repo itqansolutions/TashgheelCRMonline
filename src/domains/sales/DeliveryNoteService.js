@@ -210,7 +210,7 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
     for (const item of items) {
       // The product lock serializes deliveries for this SKU while the warehouse ledger is checked.
       const pRes = await client.query(`
-        SELECT avg_cost, name, is_inventory_item FROM products
+        SELECT COALESCE(cost_price, 0) AS cost_price, name, is_inventory_item FROM products
         WHERE id::text = $1::text AND tenant_id::text = $2::text
         FOR UPDATE
       `, [String(item.product_id), String(tenantId)]);
@@ -220,7 +220,7 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
         throw new Error(`Product ${item.product_id} is not an inventory item; cannot confirm delivery.`);
       }
       const isInventoryItem = true;
-      const currentAvgCost = Number(product.avg_cost || 0);
+      const currentUnitCost = Number(product.cost_price ?? product.avg_cost ?? 0);
 
       if (!dn.warehouse_id) {
         throw new Error('Delivery Note has no source warehouse for its inventory items.');
@@ -286,24 +286,17 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
       }
 
       if (isInventoryItem) {
-        const itemCOGS = Number(item.quantity_delivered) * currentAvgCost;
+        const itemCOGS = Number(item.quantity_delivered) * currentUnitCost;
         totalCOGSValue += itemCOGS;
 
-        await client.query('UPDATE delivery_note_items SET unit_cost = $1 WHERE id = $2', [currentAvgCost, item.id]);
+        await client.query('UPDATE delivery_note_items SET unit_cost = $1 WHERE id = $2', [currentUnitCost, item.id]);
 
         // Record outbound stock movement for physical inventory only.
         await client.query(`
         INSERT INTO stock_movements
-          (type, product_id, from_warehouse_id, quantity, unit_cost, status, tenant_id, branch_id, reference_type, reference_id, created_by)
-        VALUES ('out', $1, $2, $3, $4, 'approved', $5, $6, 'delivery_note', $7, $8)
-        `, [item.product_id, dn.warehouse_id, item.quantity_delivered, currentAvgCost, String(tenantId), dn.branch_id || branchId || null, dn.id, userId]);
-
-        // Update the company-wide cache only for physical inventory.
-        await client.query(`
-        UPDATE products
-        SET current_qty = COALESCE(current_qty, 0) - $1
-        WHERE id::text = $2::text AND tenant_id::text = $3::text
-        `, [item.quantity_delivered, String(item.product_id), String(tenantId)]);
+          (type, product_id, from_warehouse_id, quantity, status, tenant_id, branch_id, reference_type, reference_id, created_by)
+        VALUES ('out', $1, $2, $3, 'approved', $4, $5, 'delivery_note', $6, $7)
+        `, [item.product_id, dn.warehouse_id, item.quantity_delivered, String(tenantId), dn.branch_id || branchId || null, dn.id, userId]);
       }
 
       // Update quantity_delivered on sales_order_item

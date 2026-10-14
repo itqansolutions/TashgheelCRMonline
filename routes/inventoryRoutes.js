@@ -20,6 +20,7 @@ router.post('/stock-take', inventoryController.recordStockTake);
 
 // Stock & Movements
 router.get('/stock', inventoryController.getStockList);
+router.get('/item-card/:productId', inventoryController.getItemCard);
 router.get('/movements', inventoryController.getMovements);
 router.post('/movements', inventoryController.createMovement);
 router.put('/movements/:id/approve', inventoryController.approveMovement);

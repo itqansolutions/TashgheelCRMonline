@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
+import { isInvalidDateRange } from '../../utils/dateRange';
 import toast from 'react-hot-toast';
 import {
   Users, AlertTriangle, Clock, TrendingUp, Search, ChevronRight,
@@ -93,6 +94,10 @@ const StatementDrawer = ({ customerId, onClose }) => {
   const [view, setView]         = useState('statement'); // 'statement' | 'aging'
 
   const load = useCallback(async () => {
+    if (isInvalidDateRange(dateFrom, dateTo)) {
+      toast.error(t('common.invalidDateRange'), { id: 'invalid-date-range' });
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams();

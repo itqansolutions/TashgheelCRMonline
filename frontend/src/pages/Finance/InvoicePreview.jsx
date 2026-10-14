@@ -6,6 +6,7 @@ import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useBranch } from '../../context/BranchContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { useData } from '../../context/DataContext';
 
 const InvoicePreview = () => {
     const { id } = useParams();
@@ -13,6 +14,7 @@ const InvoicePreview = () => {
     const { user } = useAuth();
     const { currentBranch } = useBranch();
     const { t, isRTL } = useLanguage();
+    const { tenant: contextTenant } = useData();
     
     const [invoiceData, setInvoiceData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -65,7 +67,8 @@ const InvoicePreview = () => {
     );
     if (!invoiceData) return null;
 
-    const { invoice, items, payments } = invoiceData;
+    const { invoice, items, payments, tenant: apiTenant } = invoiceData;
+    const tenant = apiTenant || contextTenant || {};
 
     return (
         <div style={{ maxWidth: '1000px', margin: '0 auto', direction: isRTL ? 'rtl' : 'ltr' }}>
@@ -126,13 +129,37 @@ const InvoicePreview = () => {
 
             <div className="print-container" ref={componentRef}>
                 <div className="invoice-header">
-                    <div>
-                        <div className="org-brand">ITQAN SOLUTIONS</div>
-                        <div className="org-sub">Advanced System Providers</div>
-                        <div className="org-sub">{currentBranch?.address || 'Corporate HQ'}</div>
+                    <div style={{ maxWidth: '58%' }}>
+                        {tenant?.logo_url && (
+                            <img 
+                                src={`/${tenant.logo_url.replace(/\\/g, '/')}`} 
+                                alt={tenant.name || 'Company Logo'} 
+                                style={{ maxHeight: '60px', maxWidth: '200px', objectFit: 'contain', marginBottom: '8px', display: 'block' }} 
+                            />
+                        )}
+                        <div className="org-brand">{tenant?.name || currentBranch?.name || 'TASHGHEEL CRM'}</div>
+                        {tenant?.invoice_header_subtitle && (
+                            <div className="org-sub" style={{ fontWeight: 700, color: '#374151', fontSize: '13px', marginTop: '3px' }}>
+                                {tenant.invoice_header_subtitle}
+                            </div>
+                        )}
+                        {(currentBranch?.address || tenant?.address) && (
+                            <div className="org-sub" style={{ marginTop: '3px' }}>
+                                {currentBranch?.address || tenant?.address}
+                            </div>
+                        )}
+                        {(tenant?.phone || tenant?.tax_no || tenant?.reg_no) && (
+                            <div className="org-sub" style={{ fontSize: '11px', marginTop: '4px', color: '#4b5563', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {tenant.phone && <span>📞 <span className="num-en">{tenant.phone}</span></span>}
+                                {tenant.tax_no && <span>| {isRTL ? 'ب.ض:' : 'Tax ID:'} <span className="num-en">{tenant.tax_no}</span></span>}
+                                {tenant.reg_no && <span>| {isRTL ? 'س.ت:' : 'CR:'} <span className="num-en">{tenant.reg_no}</span></span>}
+                            </div>
+                        )}
                     </div>
                     <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
-                        <h1 className="inv-title">{t('finance.invoicePreview.title')}</h1>
+                        <h1 className="inv-title" style={{ color: tenant?.primary_color || '#4f46e5' }}>
+                            {tenant?.invoice_header_title || t('finance.invoicePreview.title')}
+                        </h1>
                         <div className="org-sub">{t('finance.invoicePreview.invoiceNo')} <strong className="num-en" style={{ color: '#111827' }}>{invoice.invoice_number}</strong></div>
                         <div className="org-sub">{t('finance.invoicePreview.date')} <span className="num-en">{new Date(invoice.created_at).toLocaleDateString('en-GB')}</span></div>
                     </div>
@@ -167,7 +194,7 @@ const InvoicePreview = () => {
                     </div>
                     <div className="meta-box">
                         <span className="meta-label">{t('finance.invoicePreview.paymentTerms')}</span>
-                        <div className="meta-value">{t('finance.invoicePreview.dueOnReceipt')}</div>
+                        <div className="meta-value">{tenant?.terms || t('finance.invoicePreview.dueOnReceipt')}</div>
                         <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
                             {t('finance.invoicePreview.status')} <span style={{ textTransform: 'uppercase', fontWeight: 700 }}>
                                 {t(`finance.invoices.statuses.${(invoice.status || '').toLowerCase()}`) || invoice.status}
@@ -255,8 +282,8 @@ const InvoicePreview = () => {
                     </div>
                 </div>
 
-                <div style={{ marginTop: '60px', textAlign: 'center', fontSize: '11px', color: '#9ca3af', borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
-                    {t('finance.invoicePreview.footerNote')}
+                <div style={{ marginTop: '60px', textAlign: 'center', fontSize: '12px', color: '#6b7280', borderTop: '1px solid #e5e7eb', paddingTop: '16px', whiteSpace: 'pre-wrap' }}>
+                    {tenant?.invoice_footer || t('finance.invoicePreview.footerNote')}
                 </div>
             </div>
         </div>

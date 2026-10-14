@@ -72,6 +72,9 @@ exports.getQuotationById = async (req, res) => {
     
     quotation.items = itemsResult.rows;
     
+    const tenantRes = await db.query('SELECT * FROM tenants WHERE id::text = $1::text', [tenant_id]);
+    quotation.tenant = tenantRes.rows[0] || null;
+    
     res.json({ status: 'success', data: quotation });
   } catch (err) {
     console.error('[Quotation Detail Error]', err.message);

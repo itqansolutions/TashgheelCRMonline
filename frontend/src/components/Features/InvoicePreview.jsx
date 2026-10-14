@@ -3,7 +3,8 @@ import { useData } from '../../context/DataContext';
 import { Mail, Phone, MapPin, Globe, CreditCard, Building2 } from 'lucide-react';
 
 const InvoicePreview = ({ invoice }) => {
-  const { settings } = useData();
+  const { settings, tenant } = useData();
+  const branding = invoice?.tenant || tenant || {};
 
   if (!invoice) return null;
 
@@ -148,14 +149,19 @@ const InvoicePreview = ({ invoice }) => {
       <div className="invoice-box">
         {/* Header */}
         <div className="header-section">
-          <div className="logo-placeholder">
-            {settings?.company_logo ? (
-              <img src={`/${settings.company_logo}`} alt="Company Logo" />
+          <div className="logo-placeholder" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', height: 'auto' }}>
+            {branding?.logo_url || settings?.company_logo ? (
+              <img src={`/${(branding?.logo_url || settings?.company_logo).replace(/\\/g, '/')}`} alt="Company Logo" style={{ maxHeight: '60px', maxWidth: '180px', objectFit: 'contain', marginBottom: '8px' }} />
             ) : null}
-            <span className="comp-name">{settings?.company_name || 'Tashgheel CRM'}</span>
+            <span className="comp-name">{branding?.name || settings?.company_name || 'Tashgheel CRM'}</span>
+            {branding?.invoice_header_subtitle && (
+              <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>
+                {branding.invoice_header_subtitle}
+              </div>
+            )}
           </div>
           <div className="invoice-title-block">
-            <h1>Invoice</h1>
+            <h1>{branding?.invoice_header_title || 'Invoice'}</h1>
             <div className="inv-meta">
               <div># {invoice.invoice_number}</div>
               <div>Date: {new Date(invoice.created_at).toLocaleDateString()}</div>

@@ -6,22 +6,31 @@ import {
   MapPin, Phone, Hash, FileText, Save, Eye
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useData } from '../../context/DataContext';
 
 const CompanySettings = () => {
   const { user } = useAuth();
+  const { fetchTenant } = useData();
   const fileInputRef = useRef(null);
   
   const [tenant, setTenant] = useState({
     name: '', address: '', phone: '', logo_url: '',
     tax_no: '', reg_no: '', currency: 'EGP',
     tax_rate: 0, invoice_prefix: 'INV-',
+    invoice_header_title: 'فاتورة ضريبية',
+    invoice_header_subtitle: '',
     invoice_footer: '', terms: '',
-    quotation_prefix: 'QUO-', quotation_footer: '', quotation_terms: ''
+    quotation_prefix: 'QUO-',
+    quotation_header_title: 'عرض أسعار',
+    quotation_header_subtitle: '',
+    quotation_footer: '', quotation_terms: '',
+    primary_color: '#6366f1'
   });
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [previewMode, setPreviewMode] = useState('Invoice');
 
   useEffect(() => {
     fetchTenantDetails();
@@ -44,6 +53,9 @@ const CompanySettings = () => {
     try {
       await api.put(`/tenants/${user.tenant_id}`, tenant);
       toast.success('Company settings updated successfully');
+      if (typeof fetchTenant === 'function') {
+        fetchTenant();
+      }
     } catch (err) {
       toast.error('Failed to update company settings');
     } finally {
@@ -104,6 +116,9 @@ const CompanySettings = () => {
         /* Invoice Preview Styles */
         .preview-pane { position: sticky; top: 24px; }
         .preview-box { background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .preview-tabs { display: flex; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+        .preview-tab { flex: 1; text-align: center; padding: 10px 12px; font-size: 11px; font-weight: 800; cursor: pointer; color: #64748b; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .preview-tab.active { background: white; color: #6366f1; border-bottom-color: #6366f1; }
         .a4-preview { width: 100%; aspect-ratio: 1 / 1.414; background: white; padding: 30px; font-size: 10px; color: #1e293b; overflow-y: auto; }
         .preview-header { display: flex; justify-content: space-between; margin-bottom: 30px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px; }
         .preview-logo { max-height: 40px; max-width: 120px; object-fit: contain; }
@@ -219,16 +234,38 @@ const CompanySettings = () => {
           <div className="settings-card">
             <div className="card-header">
               <FileText size={16} color="#6366f1" />
-              <h3>Invoice Branding</h3>
+              <h3>Invoice Branding & Header (ترويسة وهوية الفاتورة)</h3>
             </div>
             <div className="card-body">
-              <div className="form-group">
-                <label>Terms & Conditions (Default)</label>
-                <textarea style={{ height: '80px' }} value={tenant.terms || ''} onChange={(e) => setTenant({...tenant, terms: e.target.value})} placeholder="Payment is due within 30 days..." />
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Invoice Header Title (عنوان رأس الفاتورة)</label>
+                  <input 
+                    type="text" 
+                    value={tenant.invoice_header_title || ''} 
+                    onChange={(e) => setTenant({...tenant, invoice_header_title: e.target.value})} 
+                    placeholder="فاتورة ضريبية / TAX INVOICE" 
+                  />
+                  <small style={{ fontSize: '11px', color: '#94a3b8' }}>النص الرئيسي الظاهر أعلى الفاتورة (الافتراضي: فاتورة ضريبية)</small>
+                </div>
+                <div className="form-group">
+                  <label>Invoice Header Subtitle / Tagline (العنوان الفرعي للترويسة)</label>
+                  <input 
+                    type="text" 
+                    value={tenant.invoice_header_subtitle || ''} 
+                    onChange={(e) => setTenant({...tenant, invoice_header_subtitle: e.target.value})} 
+                    placeholder="مثال: لحلول الأعمال والتجارة الذكية" 
+                  />
+                  <small style={{ fontSize: '11px', color: '#94a3b8' }}>سطر وصفي أو شعار يظهر أسفل اسم الشركة في رأس الفاتورة</small>
+                </div>
+              </div>
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label>Terms & Conditions (شروط وأحكام الفاتورة)</label>
+                <textarea style={{ height: '70px' }} value={tenant.terms || ''} onChange={(e) => setTenant({...tenant, terms: e.target.value})} placeholder="شروط السداد والدفع، مواعيد الاستحقاق، بيانات الحساب البنكي..." />
               </div>
               <div className="form-group">
-                <label>Invoice Footer / Note</label>
-                <textarea style={{ height: '60px' }} value={tenant.invoice_footer || ''} onChange={(e) => setTenant({...tenant, invoice_footer: e.target.value})} placeholder="Thank you for your business!" />
+                <label>Invoice Footer / Note (تذييل الفاتورة)</label>
+                <textarea style={{ height: '50px' }} value={tenant.invoice_footer || ''} onChange={(e) => setTenant({...tenant, invoice_footer: e.target.value})} placeholder="شكراً لتعاملكم معنا / Thank you for choosing us!" />
               </div>
             </div>
           </div>
@@ -236,16 +273,38 @@ const CompanySettings = () => {
           <div className="settings-card">
             <div className="card-header">
               <FileText size={16} color="#f59e0b" />
-              <h3>Quotation Branding</h3>
+              <h3>Quotation Branding & Header (ترويسة وهوية عرض السعر)</h3>
             </div>
             <div className="card-body">
-              <div className="form-group">
-                <label>Quotation Terms & Conditions</label>
-                <textarea style={{ height: '80px' }} value={tenant.quotation_terms || ''} onChange={(e) => setTenant({...tenant, quotation_terms: e.target.value})} placeholder="Validity, payment terms..." />
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Quotation Header Title (عنوان رأس عرض السعر)</label>
+                  <input 
+                    type="text" 
+                    value={tenant.quotation_header_title || ''} 
+                    onChange={(e) => setTenant({...tenant, quotation_header_title: e.target.value})} 
+                    placeholder="عرض أسعار / PRICE QUOTATION" 
+                  />
+                  <small style={{ fontSize: '11px', color: '#94a3b8' }}>النص الرئيسي الظاهر أعلى عرض السعر (الافتراضي: عرض أسعار)</small>
+                </div>
+                <div className="form-group">
+                  <label>Quotation Header Subtitle / Tagline (العنوان الفرعي للترويسة)</label>
+                  <input 
+                    type="text" 
+                    value={tenant.quotation_header_subtitle || ''} 
+                    onChange={(e) => setTenant({...tenant, quotation_header_subtitle: e.target.value})} 
+                    placeholder="مثال: عروض أسعار هندسية معتمدة" 
+                  />
+                  <small style={{ fontSize: '11px', color: '#94a3b8' }}>سطر وصفي يظهر أسفل اسم الشركة في عرض السعر</small>
+                </div>
+              </div>
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <label>Quotation Terms & Conditions (شروط وصلاحية العرض)</label>
+                <textarea style={{ height: '70px' }} value={tenant.quotation_terms || ''} onChange={(e) => setTenant({...tenant, quotation_terms: e.target.value})} placeholder="الأسعار سارية لمدة 15 يوماً من تاريخ الإصدار..." />
               </div>
               <div className="form-group">
-                <label>Quotation Footer / Note</label>
-                <textarea style={{ height: '60px' }} value={tenant.quotation_footer || ''} onChange={(e) => setTenant({...tenant, quotation_footer: e.target.value})} placeholder="Thank you for the opportunity!" />
+                <label>Quotation Footer / Note (تذييل عرض السعر)</label>
+                <textarea style={{ height: '50px' }} value={tenant.quotation_footer || ''} onChange={(e) => setTenant({...tenant, quotation_footer: e.target.value})} placeholder="نتطلع للتعاون المثمر معكم..." />
               </div>
             </div>
           </div>
@@ -261,24 +320,56 @@ const CompanySettings = () => {
           <Eye size={16} /> <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase' }}>Live A4 Preview</span>
         </div>
         <div className="preview-box">
+          <div className="preview-tabs">
+            <div className={`preview-tab ${previewMode === 'Invoice' ? 'active' : ''}`} onClick={() => setPreviewMode('Invoice')}>
+              INVOICE PREVIEW
+            </div>
+            <div className={`preview-tab ${previewMode === 'Quotation' ? 'active' : ''}`} onClick={() => setPreviewMode('Quotation')}>
+              QUOTATION PREVIEW
+            </div>
+          </div>
+
           <div className="a4-preview">
             <div className="preview-header">
               <div>
-                {tenant.logo_url ? <img src={`/${tenant.logo_url}`} className="preview-logo" alt="Logo" /> : <div className="preview-company-name">{tenant.name || 'TASHGHEEL CRM'}</div>}
-                <div style={{ marginTop: '10px', fontSize: '8px', color: '#64748b', whiteSpace: 'pre-wrap' }}>
+                {tenant.logo_url ? (
+                  <img src={`/${tenant.logo_url.replace(/\\/g, '/')}`} className="preview-logo" alt="Logo" />
+                ) : (
+                  <div className="preview-company-name">{tenant.name || 'TASHGHEEL CRM'}</div>
+                )}
+                {previewMode === 'Invoice' ? (
+                  tenant.invoice_header_subtitle && (
+                    <div style={{ fontSize: '8px', fontWeight: '700', color: '#4b5563', marginTop: '3px' }}>
+                      {tenant.invoice_header_subtitle}
+                    </div>
+                  )
+                ) : (
+                  tenant.quotation_header_subtitle && (
+                    <div style={{ fontSize: '8px', fontWeight: '700', color: '#4b5563', marginTop: '3px' }}>
+                      {tenant.quotation_header_subtitle}
+                    </div>
+                  )
+                )}
+                <div style={{ marginTop: '6px', fontSize: '8px', color: '#64748b', whiteSpace: 'pre-wrap' }}>
                   {tenant.address || 'Cairo, Egypt'}<br/>
                   Phone: {tenant.phone || '+20 --- --- ----'}
                 </div>
               </div>
               <div className="preview-title">
-                <h2 style={{ fontSize: '20px', margin: 0 }}>Invoice</h2>
-                <div style={{ marginTop: '5px' }}>{tenant.invoice_prefix || 'INV-'}00234</div>
+                <h2 style={{ fontSize: '18px', margin: 0, color: previewMode === 'Quotation' ? '#d97706' : '#6366f1' }}>
+                  {previewMode === 'Invoice' ? (tenant.invoice_header_title || 'INVOICE') : (tenant.quotation_header_title || 'QUOTATION')}
+                </h2>
+                <div style={{ marginTop: '5px' }}>
+                  {previewMode === 'Invoice' ? (tenant.invoice_prefix || 'INV-') : (tenant.quotation_prefix || 'QUO-')}00234
+                </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
               <div>
-                <div style={{ fontWeight: '800', marginBottom: '4px' }}>BILL TO:</div>
+                <div style={{ fontWeight: '800', marginBottom: '4px' }}>
+                  {previewMode === 'Invoice' ? 'BILL TO:' : 'PREPARED FOR:'}
+                </div>
                 <div>John Doe Ltd.<br/>john@example.com</div>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -323,14 +414,22 @@ const CompanySettings = () => {
 
             <div className="preview-footer">
               <div style={{ fontWeight: '800', marginBottom: '4px' }}>TERMS:</div>
-              <div style={{ marginBottom: '15px' }}>{tenant.terms || 'Payment within 15 days.'}</div>
-              <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>{tenant.invoice_footer || 'Thank you for choosing us!'}</div>
-              {tenant.tax_no && <div style={{ marginTop: '10px', fontSize: '7px' }}>TAX ID: {tenant.tax_no} | REG: {tenant.reg_no}</div>}
+              <div style={{ marginBottom: '15px' }}>
+                {previewMode === 'Invoice' ? (tenant.terms || 'Payment within 15 days.') : (tenant.quotation_terms || 'Prices valid for 15 days.')}
+              </div>
+              <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                {previewMode === 'Invoice' ? (tenant.invoice_footer || 'Thank you for choosing us!') : (tenant.quotation_footer || 'Thank you for the opportunity!')}
+              </div>
+              {tenant.tax_no && (
+                <div style={{ marginTop: '10px', fontSize: '7px' }}>
+                  TAX ID: {tenant.tax_no} {tenant.reg_no ? `| REG: ${tenant.reg_no}` : ''}
+                </div>
+              )}
             </div>
           </div>
         </div>
         <p style={{ marginTop: '16px', fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>
-          This preview represents a standard professional A4 invoice. Actual layouts may vary slightly.
+          This preview represents a standard professional A4 document. Actual layouts may vary slightly.
         </p>
       </div>
     </div>

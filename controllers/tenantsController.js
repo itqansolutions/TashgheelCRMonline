@@ -84,6 +84,15 @@ exports.updateTenant = async (req, res) => {
     }
     const oldData = oldResult.rows[0];
 
+    // Ensure new header columns exist
+    await db.query(`
+      ALTER TABLE tenants 
+      ADD COLUMN IF NOT EXISTS invoice_header_title VARCHAR(255) DEFAULT 'فاتورة ضريبية',
+      ADD COLUMN IF NOT EXISTS invoice_header_subtitle VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS quotation_header_title VARCHAR(255) DEFAULT 'عرض أسعار',
+      ADD COLUMN IF NOT EXISTS quotation_header_subtitle VARCHAR(255);
+    `);
+
     // 2. Perform Update
     let query, params;
     
@@ -93,6 +102,8 @@ exports.updateTenant = async (req, res) => {
       currency, tax_rate, invoice_prefix, invoice_footer, terms,
       quotation_prefix, quotation_footer, quotation_terms,
       primary_color,
+      invoice_header_title, invoice_header_subtitle,
+      quotation_header_title, quotation_header_subtitle,
       plan, status, subscription_end
     } = req.body;
 
@@ -103,8 +114,10 @@ exports.updateTenant = async (req, res) => {
           SET name = $1, address = $2, phone = $3, tax_no = $4, reg_no = $5, logo_url = $6,
               currency = $7, tax_rate = $8, invoice_prefix = $9, invoice_footer = $10, terms = $11,
               quotation_prefix = $12, quotation_footer = $13, quotation_terms = $14,
-              primary_color = $15, plan = $16, status = $17, subscription_end = $18
-          WHERE id::text = $19::text RETURNING *`;
+              primary_color = $15, invoice_header_title = $16, invoice_header_subtitle = $17,
+              quotation_header_title = $18, quotation_header_subtitle = $19,
+              plan = $20, status = $21, subscription_end = $22
+          WHERE id::text = $23::text RETURNING *`;
         
         params = [
           name || oldData.name,
@@ -122,6 +135,10 @@ exports.updateTenant = async (req, res) => {
           quotation_footer !== undefined ? quotation_footer : oldData.quotation_footer,
           quotation_terms !== undefined ? quotation_terms : oldData.quotation_terms,
           primary_color !== undefined ? primary_color : oldData.primary_color,
+          invoice_header_title !== undefined ? invoice_header_title : (oldData.invoice_header_title || 'فاتورة ضريبية'),
+          invoice_header_subtitle !== undefined ? invoice_header_subtitle : oldData.invoice_header_subtitle,
+          quotation_header_title !== undefined ? quotation_header_title : (oldData.quotation_header_title || 'عرض أسعار'),
+          quotation_header_subtitle !== undefined ? quotation_header_subtitle : oldData.quotation_header_subtitle,
           plan || oldData.plan,
           status || oldData.status,
           (subscription_end && subscription_end.trim() !== "") ? subscription_end : (oldData.subscription_end || null),
@@ -134,8 +151,9 @@ exports.updateTenant = async (req, res) => {
           SET name = $1, address = $2, phone = $3, tax_no = $4, reg_no = $5, logo_url = $6,
               currency = $7, tax_rate = $8, invoice_prefix = $9, invoice_footer = $10, terms = $11,
               quotation_prefix = $12, quotation_footer = $13, quotation_terms = $14,
-              primary_color = $15
-          WHERE id::text = $16::text RETURNING *`;
+              primary_color = $15, invoice_header_title = $16, invoice_header_subtitle = $17,
+              quotation_header_title = $18, quotation_header_subtitle = $19
+          WHERE id::text = $20::text RETURNING *`;
         
         params = [
           name || oldData.name,
@@ -153,6 +171,10 @@ exports.updateTenant = async (req, res) => {
           quotation_footer !== undefined ? quotation_footer : oldData.quotation_footer,
           quotation_terms !== undefined ? quotation_terms : oldData.quotation_terms,
           primary_color !== undefined ? primary_color : oldData.primary_color,
+          invoice_header_title !== undefined ? invoice_header_title : (oldData.invoice_header_title || 'فاتورة ضريبية'),
+          invoice_header_subtitle !== undefined ? invoice_header_subtitle : oldData.invoice_header_subtitle,
+          quotation_header_title !== undefined ? quotation_header_title : (oldData.quotation_header_title || 'عرض أسعار'),
+          quotation_header_subtitle !== undefined ? quotation_header_subtitle : oldData.quotation_header_subtitle,
           id
         ];
     }

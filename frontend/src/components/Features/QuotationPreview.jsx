@@ -7,8 +7,8 @@ const QuotationPreview = ({ quotation }) => {
   const { tenant } = useData();
   const { t, isRTL } = useLanguage();
   
-  // Backwards compatibility / Fallback to settings if tenant is empty
-  const branding = tenant?.id ? tenant : {};
+  // Prefer quotation.tenant if attached, fallback to context tenant
+  const branding = quotation?.tenant || (tenant?.id ? tenant : {}) || {};
 
   if (!quotation) return null;
 
@@ -161,15 +161,35 @@ const QuotationPreview = ({ quotation }) => {
       <div className="quotation-box">
         {/* Header */}
         <div className="header-section">
-          <div className="logo-placeholder">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: isRTL ? 'flex-start' : 'flex-start', maxWidth: '58%' }}>
             {branding?.logo_url ? (
-              <img src={`/${branding.logo_url.replace(/\\/g, '/')}`} alt="Logo" />
+              <img src={`/${branding.logo_url.replace(/\\/g, '/')}`} alt="Logo" style={{ maxHeight: '60px', maxWidth: '180px', objectFit: 'contain', marginBottom: '8px' }} />
             ) : null}
-            {!branding?.logo_url && <span className="comp-name">{branding?.name || 'Tashgheel CRM'}</span>}
-            {branding?.logo_url && branding?.name && <span className="comp-name" style={{ fontSize: '14px', color: '#64748b' }}>{branding.name}</span>}
+            <div className="comp-name" style={{ fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>
+              {branding?.name || 'Tashgheel CRM'}
+            </div>
+            {branding?.quotation_header_subtitle && (
+              <div style={{ fontSize: '13px', color: '#4b5563', fontWeight: 600, marginTop: '3px' }}>
+                {branding.quotation_header_subtitle}
+              </div>
+            )}
+            {branding?.address && (
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>
+                {branding.address}
+              </div>
+            )}
+            {(branding?.phone || branding?.tax_no || branding?.reg_no) && (
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {branding.phone && <span>📞 <span className="num-en">{branding.phone}</span></span>}
+                {branding.tax_no && <span>| {isRTL ? 'ب.ض:' : 'Tax ID:'} <span className="num-en">{branding.tax_no}</span></span>}
+                {branding.reg_no && <span>| {isRTL ? 'س.ت:' : 'CR:'} <span className="num-en">{branding.reg_no}</span></span>}
+              </div>
+            )}
           </div>
           <div className="quotation-title-block">
-            <h1>{t('finance.quotationPreview.title')}</h1>
+            <h1 style={{ color: branding?.primary_color || '#f59e0b' }}>
+              {branding?.quotation_header_title || t('finance.quotationPreview.title')}
+            </h1>
             <div className="quot-meta">
               <div>{t('finance.quotationPreview.ref')} <span className="num-en">{quotation.number || `${branding?.quotation_prefix || 'QUO-'}${quotation.id}`}</span></div>
               <div>{t('finance.quotationPreview.date')} <span className="num-en">{new Date(quotation.created_at).toLocaleDateString('en-GB')}</span></div>

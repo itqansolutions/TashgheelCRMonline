@@ -349,6 +349,10 @@ const reconcileDatabase = async () => {
             await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_footer TEXT`);
             await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_prefix VARCHAR(10) DEFAULT 'QUO-'`);
             await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS primary_color VARCHAR(20) DEFAULT '#f59e0b'`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS invoice_header_title VARCHAR(255) DEFAULT 'فاتورة ضريبية'`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS invoice_header_subtitle VARCHAR(255)`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_header_title VARCHAR(255) DEFAULT 'عرض أسعار'`);
+            await db.query(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS quotation_header_subtitle VARCHAR(255)`);
 
             // Resilient Fix for Tasks (500 Error Fix)
             await db.query(`ALTER TABLE tasks ALTER COLUMN parent_id TYPE VARCHAR(255)`);
@@ -1006,7 +1010,7 @@ const reconcileDatabase = async () => {
                 sales_order_id UUID REFERENCES sales_orders(id) ON DELETE RESTRICT,
                 customer_id INTEGER REFERENCES customers(id) ON DELETE RESTRICT,
                 delivery_date DATE DEFAULT CURRENT_DATE,
-                warehouse_id UUID,
+                warehouse_id INTEGER,
                 status VARCHAR(30) DEFAULT 'draft',
                 accounting_status VARCHAR(20) DEFAULT 'unposted',
                 journal_entry_id UUID REFERENCES journal_entries(id),
@@ -1015,6 +1019,32 @@ const reconcileDatabase = async () => {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(tenant_id, number)
             )
+        `);
+
+        // Reconcile warehouse_id data type to INTEGER (corrects legacy UUID definition)
+        // Strict Data Preservation Policy: Fails explicitly if non-NULL UUID records exist to prevent silent data loss.
+        await db.query(`
+            DO $$
+            DECLARE
+                non_null_wh_count INTEGER;
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'delivery_notes'
+                      AND column_name = 'warehouse_id'
+                      AND data_type = 'uuid'
+                ) THEN
+                    SELECT COUNT(*) INTO non_null_wh_count
+                    FROM delivery_notes
+                    WHERE warehouse_id IS NOT NULL;
+
+                    IF non_null_wh_count > 0 THEN
+                        RAISE EXCEPTION 'Cannot alter delivery_notes.warehouse_id from UUID to INTEGER: % existing records have non-NULL warehouse_id that requires manual mapping.', non_null_wh_count;
+                    ELSE
+                        ALTER TABLE delivery_notes ALTER COLUMN warehouse_id TYPE INTEGER;
+                    END IF;
+                END IF;
+            END $$;
         `);
 
         await db.query(`

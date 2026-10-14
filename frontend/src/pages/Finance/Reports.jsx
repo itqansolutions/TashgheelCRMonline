@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
+import { isInvalidDateRange } from '../../utils/dateRange';
 import toast from 'react-hot-toast';
 import {
   BarChart3, TrendingUp, TrendingDown, DollarSign,
@@ -80,6 +81,10 @@ const Reports = ({ onSelectCustomer }) => {
   }, []);
 
   const fetchReports = useCallback(async () => {
+    if (isInvalidDateRange(dateFrom, dateTo)) {
+      toast.error(t('common.invalidDateRange'), { id: 'invalid-date-range' });
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -396,7 +401,7 @@ const Reports = ({ onSelectCustomer }) => {
                       const pct = receivables_aging?.buckets?.total > 0 ? (amount / receivables_aging.buckets.total) * 100 : 0;
                       if (pct <= 0) return null;
                       return (
-                        <div key={bucket} style={{ width: `${pct}%`, background: AGING_COLORS[bucket] }} title={`${bucket}: ${fmt(amount)} ${t('common.currency', 'EGP')}`} />
+                        <div key={bucket} style={{ width: `${pct}%`, background: AGING_COLORS[bucket] }} title={`${t(`finance.reports.agingReport.${bucket}`, bucket)}: ${fmt(amount)} ${t('common.currency', 'EGP')}`} />
                       );
                     })}
                   </div>
@@ -493,7 +498,7 @@ const Reports = ({ onSelectCustomer }) => {
                   {(sales?.by_status || []).map(st => (
                     <div key={st.status} style={{ border: '1px solid var(--glass-border)', padding: '14px', borderRadius: '10px' }}>
                       <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                        {t(`finance.customerAccounts.statuses.${st.status}`, st.status)}
+                        {t(`finance.invoices.statuses.${(st.status || '').toLowerCase()}`, st.status)}
                       </div>
                       <div style={{ fontSize: '20px', fontWeight: 900, margin: '4px 0' }}>
                         <span className="num-en">{fmt(st.total_amount)}</span> <span style={{ fontSize: '11px' }}>{t('common.currency', 'EGP')}</span>
