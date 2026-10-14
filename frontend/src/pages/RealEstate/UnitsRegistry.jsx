@@ -610,17 +610,17 @@ const UnitsRegistry = () => {
   { key: 'Under Dispute', label: t('realEstate.unitsRegistry.tabUnderDispute') },
 ].map(tab => (
                         <button 
-                            key={tab}
-                            onClick={() => setFilter(tab)}
+                            key={tab.key}
+                            onClick={() => setFilter(tab.key)}
                             style={{ 
                                 padding: '8px 14px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 800,
-                                background: filter === tab ? 'white' : 'transparent',
-                                color: filter === tab ? 'var(--primary)' : 'var(--text-muted)',
-                                boxShadow: filter === tab ? 'var(--shadow-md)' : 'none',
+                                background: filter === tab.key ? 'white' : 'transparent',
+                                color: filter === tab.key ? 'var(--primary)' : 'var(--text-muted)',
+                                boxShadow: filter === tab.key ? 'var(--shadow-md)' : 'none',
                                 transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                             }}
                         >
-                            {tab}
+                            {tab.label}
                         </button>
                     ))}
                 </div>
