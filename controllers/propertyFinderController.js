@@ -90,26 +90,27 @@ exports.saveSettings = async (req, res) => {
   const {
     api_key,
     api_secret,
-    environment = 'sandbox',
-    country_code = 'EG',
-    is_enabled = true,
-    listing_sync_enabled = true,
-    lead_sync_enabled = true,
-    auto_publish = false,
-    default_assigned_to = null,
-    default_lead_source_id = null
+    environment,
+    country_code,
+    is_enabled,
+    listing_sync_enabled,
+    lead_sync_enabled,
+    auto_publish,
+    default_assigned_to,
+    default_lead_source_id
   } = req.body;
 
   try {
     // Check existing settings
     const existing = await db.query(
-      `SELECT api_key_encrypted, api_secret_encrypted, webhook_secret_encrypted FROM property_finder_settings WHERE tenant_id::text = $1::text`,
+      `SELECT * FROM property_finder_settings WHERE tenant_id::text = $1::text`,
       [tenantId]
     );
 
-    let encryptedKey = existing.rows[0]?.api_key_encrypted || null;
-    let encryptedSecret = existing.rows[0]?.api_secret_encrypted || null;
-    let encryptedWebhookSecret = existing.rows[0]?.webhook_secret_encrypted || null;
+    const existingRow = existing.rows[0] || {};
+    let encryptedKey = existingRow.api_key_encrypted || null;
+    let encryptedSecret = existingRow.api_secret_encrypted || null;
+    let encryptedWebhookSecret = existingRow.webhook_secret_encrypted || null;
 
     // Only update credentials if a non-masked value was submitted
     if (api_key && !api_key.includes('••••')) {
@@ -124,6 +125,31 @@ exports.saveSettings = async (req, res) => {
       const generatedWebhookSecret = crypto.randomBytes(24).toString('hex');
       encryptedWebhookSecret = encrypt(generatedWebhookSecret);
     }
+
+    const finalEnvironment = environment !== undefined
+      ? (environment === 'production' ? 'production' : 'sandbox')
+      : (existingRow.environment || 'sandbox');
+    const finalCountryCode = country_code !== undefined
+      ? (country_code ? country_code.toUpperCase() : 'EG')
+      : (existingRow.country_code || 'EG');
+    const finalIsEnabled = is_enabled !== undefined
+      ? Boolean(is_enabled)
+      : (existingRow.is_enabled ?? false);
+    const finalListingSync = listing_sync_enabled !== undefined
+      ? Boolean(listing_sync_enabled)
+      : (existingRow.listing_sync_enabled ?? true);
+    const finalLeadSync = lead_sync_enabled !== undefined
+      ? Boolean(lead_sync_enabled)
+      : (existingRow.lead_sync_enabled ?? true);
+    const finalAutoPublish = auto_publish !== undefined
+      ? Boolean(auto_publish)
+      : (existingRow.auto_publish ?? false);
+    const finalAssignedTo = default_assigned_to !== undefined
+      ? (default_assigned_to || null)
+      : (existingRow.default_assigned_to || null);
+    const finalLeadSourceId = default_lead_source_id !== undefined
+      ? (default_lead_source_id || null)
+      : (existingRow.default_lead_source_id || null);
 
     const upsertSql = `
       INSERT INTO property_finder_settings (
@@ -153,15 +179,15 @@ exports.saveSettings = async (req, res) => {
       tenantId,
       encryptedKey,
       encryptedSecret,
-      environment === 'production' ? 'production' : 'sandbox',
-      country_code ? country_code.toUpperCase() : 'EG',
-      Boolean(is_enabled),
-      Boolean(listing_sync_enabled),
-      Boolean(lead_sync_enabled),
-      Boolean(auto_publish),
+      finalEnvironment,
+      finalCountryCode,
+      finalIsEnabled,
+      finalListingSync,
+      finalLeadSync,
+      finalAutoPublish,
       encryptedWebhookSecret,
-      default_assigned_to || null,
-      default_lead_source_id || null
+      finalAssignedTo,
+      finalLeadSourceId
     ]);
 
     await propertyFinderSyncService.logIntegrationEvent(
@@ -174,9 +200,11 @@ exports.saveSettings = async (req, res) => {
       status: 'success',
       message: 'Integration settings saved successfully.',
       data: {
-        environment,
-        country_code,
-        is_enabled: Boolean(is_enabled),
+        environment: finalEnvironment,
+        country_code: finalCountryCode,
+        is_enabled: finalIsEnabled,
+        listing_sync_enabled: finalListingSync,
+        lead_sync_enabled: finalLeadSync,
         is_connected: result.rows[0].is_connected
       }
     });
@@ -268,6 +296,47 @@ exports.disconnect = async (req, res) => {
   }
 };
 
+/**
+ * Helper to map sync & operation errors to appropriate HTTP status codes.
+ * Precondition / Configuration issues -> 400 Bad Request
+ * Upstream Provider errors (RFC 7807) -> Upstream Status (401, 403, 422, etc.)
+ * Internal / Unexpected errors -> 500 Internal Server Error
+ */
+function mapSyncErrorToResponse(err, res, context = 'Operation') {
+  const msg = err.message || '';
+
+  // Configuration & Precondition checks (Client/Tenant configuration error)
+  if (
+    msg.includes('currently disabled') ||
+    msg.includes('not configured') ||
+    msg.includes('credentials are missing') ||
+    msg.includes('Lead sync is disabled')
+  ) {
+    return res.status(400).json({
+      status: 'error',
+      code: 'INTEGRATION_PRECONDITION_FAILED',
+      message: msg
+    });
+  }
+
+  // Upstream / API errors carrying HTTP status from PropertyFinderClient (e.g. 401, 403, 404, 429, 502)
+  if (err.status && typeof err.status === 'number' && err.status >= 400 && err.status < 600) {
+    return res.status(err.status).json({
+      status: 'error',
+      code: 'PROVIDER_API_ERROR',
+      message: msg,
+      details: err.details || null
+    });
+  }
+
+  // Internal Server / Database / unexpected error
+  return res.status(500).json({
+    status: 'error',
+    code: 'INTERNAL_SERVER_ERROR',
+    message: msg
+  });
+}
+
 // 5. Trigger Listing Import
 exports.triggerImport = async (req, res) => {
   const tenantId = req.user?.tenant_id ? String(req.user.tenant_id) : null;
@@ -284,7 +353,7 @@ exports.triggerImport = async (req, res) => {
     });
   } catch (err) {
     console.error('[PF Import Error]:', err.message);
-    res.status(500).json({ status: 'error', message: err.message });
+    return mapSyncErrorToResponse(err, res, 'Listing Import');
   }
 };
 
@@ -304,7 +373,7 @@ exports.triggerLeadSync = async (req, res) => {
     });
   } catch (err) {
     console.error('[PF Lead Sync Error]:', err.message);
-    res.status(500).json({ status: 'error', message: err.message });
+    return mapSyncErrorToResponse(err, res, 'Lead Sync');
   }
 };
 

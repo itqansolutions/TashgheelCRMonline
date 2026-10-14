@@ -421,4 +421,129 @@ test('Property Finder Enterprise Integration Test Suite', async (suite) => {
     assert.equal(driftLog.severity, 'warn');
     assert.match(driftLog.message, /Tashgheel master field ownership policy preserved local price/);
   });
+
+  // --------------------------------------------------------------------------
+  // 9. CONTROLLER UX ERROR MAPPING & PRECONDITION VALIDATION
+  // --------------------------------------------------------------------------
+  await suite.test('9. Controller Error Mapping & Precondition Handling', async () => {
+    const testTenant = '44444444-4444-4444-4444-444444444444';
+
+    // Mock DB: settings exists but is_enabled = false
+    db.query = async (sql, params) => {
+      if (sql.includes('SELECT * FROM property_finder_settings')) {
+        return {
+          rows: [{
+            tenant_id: testTenant,
+            api_key_encrypted: encrypt('key_1'),
+            api_secret_encrypted: encrypt('sec_1'),
+            environment: 'sandbox',
+            is_enabled: false,
+            country_code: 'EG'
+          }]
+        };
+      }
+      return { rows: [] };
+    };
+
+    let importStatus = null;
+    let importBody = null;
+    const mockResImport = {
+      status: (code) => {
+        importStatus = code;
+        return { json: (body) => { importBody = body; } };
+      }
+    };
+
+    await propertyFinderController.triggerImport(
+      { user: { tenant_id: testTenant, role: 'admin' }, body: {} },
+      mockResImport
+    );
+
+    assert.equal(importStatus, 400, 'Must return HTTP 400 Bad Request when integration is disabled, not 500');
+    assert.equal(importBody.code, 'INTEGRATION_PRECONDITION_FAILED');
+    assert.match(importBody.message, /currently disabled/);
+
+    let leadStatus = null;
+    let leadBody = null;
+    const mockResLead = {
+      status: (code) => {
+        leadStatus = code;
+        return { json: (body) => { leadBody = body; } };
+      }
+    };
+
+    await propertyFinderController.triggerLeadSync(
+      { user: { tenant_id: testTenant, role: 'admin' }, body: {} },
+      mockResLead
+    );
+
+    assert.equal(leadStatus, 400, 'Must return HTTP 400 Bad Request when lead sync is disabled, not 500');
+    assert.equal(leadBody.code, 'INTEGRATION_PRECONDITION_FAILED');
+    assert.match(leadBody.message, /currently disabled/);
+  });
+
+  // --------------------------------------------------------------------------
+  // 10. PARTIAL SETTINGS SAVE (INDEPENDENT SYNC CONTROLS)
+  // --------------------------------------------------------------------------
+  await suite.test('10. Partial Settings Save Preserves Credentials & Environment', async () => {
+    const testTenant = '55555555-5555-5555-5555-555555555555';
+    let savedRow = null;
+
+    db.query = async (sql, params) => {
+      if (sql.includes('SELECT * FROM property_finder_settings')) {
+        return {
+          rows: [{
+            tenant_id: testTenant,
+            api_key_encrypted: encrypt('existing_key'),
+            api_secret_encrypted: encrypt('existing_secret'),
+            environment: 'production',
+            country_code: 'EG',
+            is_enabled: false,
+            listing_sync_enabled: true,
+            lead_sync_enabled: false
+          }]
+        };
+      }
+      if (sql.includes('INSERT INTO property_finder_settings')) {
+        savedRow = {
+          tenant_id: params[0],
+          api_key_encrypted: params[1],
+          api_secret_encrypted: params[2],
+          environment: params[3],
+          country_code: params[4],
+          is_enabled: params[5],
+          listing_sync_enabled: params[6],
+          lead_sync_enabled: params[7],
+          is_connected: true
+        };
+        return { rows: [savedRow] };
+      }
+      return { rows: [] };
+    };
+
+    let responseData = null;
+    const mockRes = {
+      json: (data) => { responseData = data; },
+      status: () => mockRes
+    };
+
+    // Save only sync toggles (no credentials or environment passed)
+    await propertyFinderController.saveSettings(
+      {
+        user: { tenant_id: testTenant, role: 'admin' },
+        body: {
+          is_enabled: true,
+          listing_sync_enabled: true,
+          lead_sync_enabled: true
+        }
+      },
+      mockRes
+    );
+
+    assert.equal(responseData.status, 'success');
+    assert.equal(responseData.data.is_enabled, true, 'is_enabled was updated to true');
+    assert.equal(responseData.data.environment, 'production', 'environment was preserved as production');
+    assert.ok(savedRow.api_key_encrypted, 'Credentials were not wiped during partial sync settings save');
+  });
 });
+

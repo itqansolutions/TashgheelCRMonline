@@ -5,7 +5,7 @@ import {
   Building, ShieldCheck, RefreshCw, Key, CheckCircle2,
   AlertTriangle, XCircle, ArrowRight, ExternalLink,
   DownloadCloud, UploadCloud, Globe, Lock, Clock, History,
-  Trash2, Play, Users, Check
+  Trash2, Play, Users, Check, Activity, Power
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -13,6 +13,7 @@ const PropertyFinderSettings = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingSync, setSavingSync] = useState(false);
   const [testing, setTesting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [syncingLeads, setSyncingLeads] = useState(false);
@@ -42,7 +43,13 @@ const PropertyFinderSettings = () => {
   const [environment, setEnvironment] = useState('sandbox');
   const [listingSync, setListingSync] = useState(true);
   const [leadSync, setLeadSync] = useState(true);
-  const [isEnabled, setIsEnabled] = useState(true);
+  const [isEnabled, setIsEnabled] = useState(false);
+
+  // Unsaved sync settings indicator
+  const hasUnsavedSyncSettings =
+    isEnabled !== Boolean(settings.is_enabled) ||
+    listingSync !== Boolean(settings.listing_sync_enabled) ||
+    leadSync !== Boolean(settings.lead_sync_enabled);
 
   // Logs state
   const [logs, setLogs] = useState([]);
@@ -64,7 +71,7 @@ const PropertyFinderSettings = () => {
       setEnvironment(data.environment || 'sandbox');
       setListingSync(data.listing_sync_enabled ?? true);
       setLeadSync(data.lead_sync_enabled ?? true);
-      setIsEnabled(data.is_enabled ?? true);
+      setIsEnabled(Boolean(data.is_enabled));
       setApiKeyInput(data.api_key_masked || '');
       setApiSecretInput(data.api_secret_masked || '');
     } catch (err) {
@@ -99,12 +106,29 @@ const PropertyFinderSettings = () => {
         listing_sync_enabled: listingSync,
         lead_sync_enabled: leadSync
       });
-      toast.success('Property Finder integration settings saved successfully.');
+      toast.success('Property Finder credentials saved successfully.');
       fetchSettings();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to save settings.');
+      toast.error(err.response?.data?.message || 'Failed to save credentials.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveSyncSettings = async () => {
+    try {
+      setSavingSync(true);
+      await api.put('/propertyfinder/settings', {
+        is_enabled: isEnabled,
+        listing_sync_enabled: listingSync,
+        lead_sync_enabled: leadSync
+      });
+      toast.success('Integration settings saved successfully.');
+      fetchSettings();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save integration settings.');
+    } finally {
+      setSavingSync(false);
     }
   };
 
@@ -198,7 +222,19 @@ const PropertyFinderSettings = () => {
         </div>
 
         {/* Status Badges */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {/* Active / Inactive Badge (Persisted Server State Only) */}
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
+            background: settings.is_enabled ? '#eff6ff' : '#f8fafc',
+            color: settings.is_enabled ? '#1d4ed8' : '#64748b',
+            border: `1px solid ${settings.is_enabled ? '#bfdbfe' : '#cbd5e1'}`
+          }}>
+            {settings.is_enabled ? <Activity size={14} color="#2563eb" /> : <Power size={14} color="#64748b" />}
+            {settings.is_enabled ? 'Active' : 'Inactive'}
+          </span>
+
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: '6px',
             padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
@@ -344,11 +380,21 @@ const PropertyFinderSettings = () => {
 
           {/* Card 2: Synchronization Preferences */}
           <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
-              <RefreshCw size={18} color="#0284c7" /> Synchronization Controls
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#1e293b' }}>
+                <RefreshCw size={18} color="#0284c7" /> Synchronization Controls
+              </h3>
+              <span style={{
+                fontSize: '11px', fontWeight: 600, padding: '4px 8px', borderRadius: '6px',
+                background: settings.is_enabled ? '#eff6ff' : '#f1f5f9',
+                color: settings.is_enabled ? '#2563eb' : '#64748b',
+                border: `1px solid ${settings.is_enabled ? '#bfdbfe' : '#e2e8f0'}`
+              }}>
+                Saved State: {settings.is_enabled ? 'Active' : 'Inactive'}
+              </span>
+            </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                 <div>
                   <strong style={{ fontSize: '13px', color: '#1e293b', display: 'block' }}>Integration Enabled</strong>
@@ -389,35 +435,95 @@ const PropertyFinderSettings = () => {
               </div>
             </div>
 
-            {/* Quick Actions */}
+            {/* Dedicated Save Button for Sync & Enablement Settings */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleSaveSyncSettings}
+                disabled={savingSync}
+                style={{
+                  padding: '10px 20px', borderRadius: '8px', border: 'none', background: '#0284c7',
+                  color: 'white', fontWeight: 600, fontSize: '13px', cursor: savingSync ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '6px'
+                }}
+              >
+                <CheckCircle2 size={16} /> {savingSync ? 'Saving Settings...' : 'Save Integration Settings'}
+              </button>
+
+              {hasUnsavedSyncSettings && (
+                <span style={{
+                  fontSize: '12px', color: '#b45309', background: '#fffbeb',
+                  border: '1px solid #fef3c7', padding: '6px 10px', borderRadius: '6px',
+                  display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 500
+                }}>
+                  <AlertTriangle size={14} /> Unsaved settings changes (click Save to apply)
+                </span>
+              )}
+            </div>
+
+            {/* Quick Actions / Manual Operations */}
             <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
-              <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '12px' }}>
+              <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '8px' }}>
                 Manual Operations
               </h4>
+
+              {/* Informative banners when actions are disabled */}
+              {!settings.is_enabled ? (
+                <div style={{
+                  padding: '10px 14px', borderRadius: '8px', background: '#fffbeb', border: '1px solid #fde68a',
+                  color: '#92400e', fontSize: '12px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px'
+                }}>
+                  <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                  <span>
+                    Integration is currently <strong>Inactive</strong>. Turn on <strong>Integration Enabled</strong> above and click <strong>Save Integration Settings</strong> before running manual operations.
+                  </span>
+                </div>
+              ) : !settings.is_connected ? (
+                <div style={{
+                  padding: '10px 14px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0',
+                  color: '#475569', fontSize: '12px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px'
+                }}>
+                  <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                  <span>
+                    Connection not verified. Click <strong>Test Connection</strong> to verify your credentials with Property Finder before syncing.
+                  </span>
+                </div>
+              ) : null}
+
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button
                   type="button"
                   onClick={handleImportListings}
-                  disabled={importing || !settings.is_connected}
+                  disabled={importing || !settings.is_enabled || !settings.is_connected}
+                  title={!settings.is_enabled ? 'Enable integration and save settings first' : (!settings.is_connected ? 'Verify connection first' : 'Import Listings from PF')}
                   style={{
-                    padding: '10px 18px', borderRadius: '8px', border: 'none', background: '#059669',
-                    color: 'white', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                    padding: '10px 18px', borderRadius: '8px', border: 'none',
+                    background: (!settings.is_enabled || !settings.is_connected) ? '#94a3b8' : '#059669',
+                    color: 'white', fontWeight: 600, fontSize: '13px',
+                    cursor: (!settings.is_enabled || !settings.is_connected || importing) ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    opacity: (!settings.is_enabled || !settings.is_connected) ? 0.7 : 1
                   }}
                 >
                   <DownloadCloud size={16} /> {importing ? 'Importing Listings...' : 'Import Listings from PF'}
                 </button>
+
                 <button
                   type="button"
                   onClick={handleSyncLeads}
-                  disabled={syncingLeads || !settings.is_connected}
+                  disabled={syncingLeads || !settings.is_enabled || !settings.is_connected}
+                  title={!settings.is_enabled ? 'Enable integration and save settings first' : (!settings.is_connected ? 'Verify connection first' : 'Sync Leads from PF')}
                   style={{
-                    padding: '10px 18px', borderRadius: '8px', border: 'none', background: '#0284c7',
-                    color: 'white', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                    padding: '10px 18px', borderRadius: '8px', border: 'none',
+                    background: (!settings.is_enabled || !settings.is_connected) ? '#94a3b8' : '#0284c7',
+                    color: 'white', fontWeight: 600, fontSize: '13px',
+                    cursor: (!settings.is_enabled || !settings.is_connected || syncingLeads) ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    opacity: (!settings.is_enabled || !settings.is_connected) ? 0.7 : 1
                   }}
                 >
                   <DownloadCloud size={16} /> {syncingLeads ? 'Syncing Leads...' : 'Sync Leads from PF'}
                 </button>
-
               </div>
             </div>
           </div>
