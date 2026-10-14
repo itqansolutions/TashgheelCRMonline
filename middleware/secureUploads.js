@@ -90,8 +90,12 @@ function secureUploads(uploadsDir) {
       // 4. Authorization & Tenant Isolation Enforcement
       // Unauthenticated request handling:
       if (!authenticatedUser) {
-        // Public tenant branding logos are permitted for quotation/invoice rendering
-        if (attachmentRecord && String(attachmentRecord.linked_type).toLowerCase() === 'tenant') {
+        // Public tenant branding logos & image assets are permitted for invoice/quotation rendering
+        const ext = path.extname(filePath).toLowerCase();
+        const isImage = ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.ico'].includes(ext);
+        const isTenantLogo = attachmentRecord && String(attachmentRecord.linked_type).toLowerCase() === 'tenant';
+
+        if (isTenantLogo || isImage) {
           return res.sendFile(filePath);
         }
         return res.status(401).json({ status: 'error', message: 'Authentication required to access this file.' });

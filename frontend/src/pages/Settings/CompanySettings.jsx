@@ -38,8 +38,10 @@ const CompanySettings = () => {
 
   const fetchTenantDetails = async () => {
     try {
-      const tenantRes = await api.get(`/tenants/${user.tenant_id}`);
-      setTenant(tenantRes.data.data);
+      const tenantRes = await api.get('/tenants/my');
+      if (tenantRes.data?.data) {
+        setTenant(prev => ({ ...prev, ...tenantRes.data.data }));
+      }
     } catch (err) {
       toast.error('Failed to load company details');
     } finally {
@@ -50,8 +52,9 @@ const CompanySettings = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     setSaving(true);
+    const tenantId = user?.tenant_id || tenant?.id;
     try {
-      await api.put(`/tenants/${user.tenant_id}`, tenant);
+      await api.put(`/tenants/${tenantId}`, tenant);
       toast.success('Company settings updated successfully');
       if (typeof fetchTenant === 'function') {
         fetchTenant();
@@ -67,19 +70,31 @@ const CompanySettings = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    const tenantId = user?.tenant_id || tenant?.id;
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('linked_type', 'Tenant');
-    formData.append('linked_id', user.tenant_id);
+    if (tenantId) {
+      formData.append('linked_id', String(tenantId));
+    }
 
     setUploading(true);
     try {
-      const res = await api.post('/files/upload', formData);
-      const filePath = res.data.data.file_path;
-      setTenant({ ...tenant, logo_url: filePath });
-      toast.success('Logo uploaded! Save settings to apply.');
+      const res = await api.post('/files/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const filePath = res.data?.data?.file_path;
+      if (filePath) {
+        setTenant(prev => ({ ...prev, logo_url: filePath }));
+        if (typeof fetchTenant === 'function') {
+          fetchTenant();
+        }
+        toast.success('Logo uploaded and saved successfully!');
+      }
     } catch (err) {
-      toast.error('Upload failed');
+      console.error('Logo upload error:', err);
+      toast.error(err.response?.data?.message || 'Upload failed');
     } finally {
       setUploading(false);
     }

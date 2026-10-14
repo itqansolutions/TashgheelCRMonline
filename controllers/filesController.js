@@ -23,7 +23,14 @@ exports.uploadFile = async (req, res) => {
     return res.status(401).json({ status: 'error', message: 'Tenant context is missing.' });
   }
 
-  if (!linked_type || linked_id === undefined || linked_id === null || String(linked_id).trim() === '') {
+  let effectiveLinkedId = linked_id;
+  if (!effectiveLinkedId || effectiveLinkedId === 'undefined' || effectiveLinkedId === 'null' || String(effectiveLinkedId).trim() === '') {
+    if (String(linked_type).toLowerCase() === 'tenant') {
+      effectiveLinkedId = String(tenant_id);
+    }
+  }
+
+  if (!linked_type || !effectiveLinkedId || String(effectiveLinkedId).trim() === '') {
     console.error(`[Upload] Missing metadata: Type=${linked_type}, ID=${linked_id}`);
     if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     return res.status(400).json({ status: 'error', message: 'Entity linkage information (type/id) is missing.' });
@@ -43,12 +50,22 @@ exports.uploadFile = async (req, res) => {
         req.file.mimetype, 
         storedFilePath, 
         linked_type, 
-        String(linked_id), 
+        String(effectiveLinkedId), 
         req.user?.id || null, 
         tenant_id, 
         branch_id
       ]
     );
+
+    // If uploading a tenant logo/asset, automatically update the tenant's logo_url in database
+    if (String(linked_type).toLowerCase() === 'tenant') {
+      try {
+        await db.query('UPDATE tenants SET logo_url = $1 WHERE id::text = $2::text', [storedFilePath, tenant_id]);
+        console.log(`[Upload] Auto-updated tenant ${tenant_id} logo_url to ${storedFilePath}`);
+      } catch (tErr) {
+        console.warn('[Upload] Failed auto-updating tenant logo_url:', tErr.message);
+      }
+    }
 
     console.log('[UPLOAD SUCCESS] File linked:', result.rows[0].id);
     res.status(201).json({ status: 'success', data: result.rows[0] });

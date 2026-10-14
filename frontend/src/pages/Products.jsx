@@ -5,10 +5,12 @@ import toast from 'react-hot-toast';
 import { Plus, Package, Tag, DollarSign, List } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
-
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
+import WarehouseSubNav from '../components/Warehouse/WarehouseSubNav';
 
 const Products = () => {
+  const { t, isRTL } = useLanguage();
   const { user } = useAuth();
   const { products, fetchProducts, loading } = useData();
   const isRealEstate = user?.template_name === 'real_estate';
@@ -55,34 +57,36 @@ const Products = () => {
     try {
       if (editingProduct) {
         await api.put(`/products/${editingProduct.id}`, formData);
-        toast.success('Product updated successfully');
+        toast.success(t('inventory.products.productUpdated'));
       } else {
         await api.post('/products', formData);
-        toast.success('Product added successfully');
+        toast.success(t('inventory.products.productAdded'));
       }
       fetchProducts(false);
       setIsModalOpen(false);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Something went wrong');
+      toast.error(err.response?.data?.message || t('inventory.products.somethingWrong'));
     }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
+    if (window.confirm(t('inventory.products.confirmDelete'))) {
       try {
         await api.delete(`/products/${id}`);
-        toast.success('Product deleted');
+        toast.success(t('inventory.products.productDeleted'));
         fetchProducts(false);
       } catch (err) {
-        toast.error('Failed to delete product');
+        toast.error(t('inventory.products.failedDelete'));
       }
     }
   };
 
+  const currencyLabel = t('common.currency', 'EGP');
+
   const columns = [
     { 
       key: 'name', 
-      label: 'Product Name',
+      label: t('inventory.products.productName'),
       render: (val) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{ padding: '8px', borderRadius: '8px', background: '#f0fdf4', color: '#16a34a' }}>
@@ -92,27 +96,28 @@ const Products = () => {
         </div>
       )
     },
-    { key: 'sku', label: 'SKU' },
-    { key: 'unit', label: 'Unit', render: (val) => val || 'piece' },
-    { key: 'is_inventory_item', label: 'Inventory', render: (val) => val === false ? 'Service / Non-stock' : 'Stock item' },
-    { key: 'category', label: 'Category' },
+    { key: 'sku', label: t('inventory.products.sku'), render: (val) => <span className="num-en">{val || '—'}</span> },
+    { key: 'unit', label: t('inventory.products.unit'), render: (val) => val || t('inventory.products.piece') },
+    { key: 'is_inventory_item', label: t('inventory.products.inventoryType'), render: (val) => val === false ? t('inventory.products.serviceNonStock') : t('inventory.products.stockItem') },
+    { key: 'category', label: t('inventory.products.category') },
     { 
       key: 'cost_price', 
-      label: 'Cost',
-      render: (val) => `${val} EGP`
+      label: t('inventory.products.cost'),
+      render: (val) => <span><span className="num-en">{val}</span> {currencyLabel}</span>
     },
     { 
       key: 'selling_price', 
-      label: 'Price',
-      render: (val) => <span style={{ fontWeight: '700', color: 'var(--primary)' }}>{val} EGP</span>
+      label: t('inventory.products.price'),
+      render: (val) => <span style={{ fontWeight: '700', color: 'var(--primary)' }}><span className="num-en">{val}</span> {currencyLabel}</span>
     }
   ];
 
   return (
-    <div className="products-page">
+    <div className="products-page" dir={isRTL ? 'rtl' : 'ltr'}>
+      <WarehouseSubNav />
       <style>{`
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-        .btn-add { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding: 0 24px; }
+        .btn-add { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; border: none; }
         
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .form-group { margin-bottom: 16px; }
@@ -120,77 +125,79 @@ const Products = () => {
         .form-group label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 500; }
         .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; background: var(--bg-main); outline: none; }
         
-        .btn-cancel { background: #f1f5f9; color: var(--text-muted); padding: 10px 20px; border-radius: 8px; font-weight: 600; }
-        .btn-save { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; }
+        .btn-cancel { background: #f1f5f9; color: var(--text-muted); padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; }
+        .btn-save { background: var(--primary); color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; }
       `}</style>
 
       <div className="page-header">
         <div>
-          <h2 style={{ fontSize: '24px', fontWeight: '800' }}>Products & Services</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Manage your catalog, pricing, and costs.</p>
+          <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0 }}>{t('inventory.products.title')}</h2>
+          <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0' }}>{t('inventory.products.subtitle')}</p>
         </div>
         <button label="add product control" className="btn-add" onClick={() => handleOpenModal()}>
           <Plus size={20} />
-          Add Product
+          {t('inventory.products.addProduct')}
         </button>
       </div>
 
-      <DataTable 
-        title="Product Catalog"
-        columns={columns}
-        data={products || []}
-        loading={loading}
-        onEdit={handleOpenModal}
-        onDelete={handleDelete}
-      />
+      <div style={{ padding: '0 24px' }}>
+        <DataTable 
+          title={t('inventory.products.catalogTitle')}
+          columns={columns}
+          data={products || []}
+          loading={loading}
+          onEdit={handleOpenModal}
+          onDelete={handleDelete}
+        />
+      </div>
 
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)}
-        title={editingProduct ? 'Edit Product' : 'Add New Product'}
+        title={editingProduct ? t('inventory.products.editProduct') : t('inventory.products.newProduct')}
         footer={
           <>
-            <button label="cancel addition" className="btn-cancel" onClick={() => setIsModalOpen(false)}>Cancel</button>
+            <button label="cancel addition" className="btn-cancel" onClick={() => setIsModalOpen(false)}>{t('common.cancel')}</button>
             <button label="save addition" className="btn-save" onClick={handleSubmit}>
-              {editingProduct ? 'Update Product' : 'Create Product'}
+              {editingProduct ? t('inventory.products.updateProduct') : t('inventory.products.createProduct')}
             </button>
           </>
         }
       >
-        <form className="form-grid">
+        <form className="form-grid" dir={isRTL ? 'rtl' : 'ltr'}>
           <div className="form-group full">
-            <label>Product Name</label>
+            <label>{t('inventory.products.productName')}</label>
             <input 
               type="text" 
-              placeholder="e.g. Premium Subscription"
+              placeholder={t('inventory.products.namePlaceholder')}
               value={formData.name}
               onChange={(e) => setFormData({...formData, name: e.target.value})}
               required
             />
           </div>
           <div className="form-group">
-            <label>SKU / ID</label>
+            <label>{t('inventory.products.sku')}</label>
             <input 
               type="text" 
-              placeholder="e.g. PRD-001"
+              placeholder={t('inventory.products.skuPlaceholder')}
               value={formData.sku}
               onChange={(e) => setFormData({...formData, sku: e.target.value})}
             />
           </div>
           <div className="form-group">
-            <label>Category</label>
+            <label>{t('inventory.products.category')}</label>
             <input 
               type="text" 
-              placeholder="e.g. Services"
+              placeholder={t('inventory.products.categoryPlaceholder')}
               value={formData.category}
               onChange={(e) => setFormData({...formData, category: e.target.value})}
             />
           </div>
           <div className="form-group">
-            <label>Unit of Measure</label>
+            <label>{t('inventory.products.unitOfMeasure')}</label>
             <input 
               type="text" 
-              placeholder="e.g. piece, kg, box, meter"
+              placeholder={t('inventory.products.unitPlaceholder')}
               value={formData.unit}
               onChange={(e) => setFormData({...formData, unit: e.target.value})}
             />
@@ -203,29 +210,31 @@ const Products = () => {
               onChange={(e) => setFormData({ ...formData, is_inventory_item: e.target.checked })}
               style={{ width: '16px', height: '16px' }}
             />
-            <label htmlFor="is_inventory_item" style={{ margin: 0 }}>Track this item in inventory</label>
+            <label htmlFor="is_inventory_item" style={{ margin: 0, cursor: 'pointer' }}>{t('inventory.products.trackInventory')}</label>
           </div>
           <div className="form-group">
-            <label>Cost Price (EGP)</label>
+            <label>{t('inventory.products.costPrice', { currency: currencyLabel })}</label>
             <input 
               type="number" 
+              className="num-en"
               value={formData.cost_price}
               onChange={(e) => setFormData({...formData, cost_price: e.target.value})}
             />
           </div>
           <div className="form-group">
-            <label>Selling Price (EGP)</label>
+            <label>{t('inventory.products.sellingPrice', { currency: currencyLabel })}</label>
             <input 
               type="number" 
+              className="num-en"
               value={formData.selling_price}
               onChange={(e) => setFormData({...formData, selling_price: e.target.value})}
             />
           </div>
           <div className="form-group full">
-            <label>Description</label>
+            <label>{t('inventory.products.description')}</label>
             <textarea 
               rows="3"
-              placeholder="Brief details about the product"
+              placeholder={t('inventory.products.descriptionPlaceholder')}
               value={formData.description}
               onChange={(e) => setFormData({...formData, description: e.target.value})}
             ></textarea>

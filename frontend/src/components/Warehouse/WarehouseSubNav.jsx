@@ -1,22 +1,29 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { ShoppingBag, Building, ArrowLeftRight, Scale, ShieldCheck, CreditCard } from 'lucide-react';
+import { ShoppingBag, Building, ArrowLeftRight, Scale, ShieldCheck, CreditCard, TrendingUp } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const WarehouseSubNav = () => {
+  const { t, isRTL } = useLanguage();
+
   const links = [
-    { path: '/products', label: 'Products', icon: <ShoppingBag size={16} /> },
-    { path: '/inventory/warehouses', label: 'Warehouses', icon: <Building size={16} /> },
-    { path: '/inventory/balances', label: 'Stock Balances', icon: <Scale size={16} /> },
-    { path: '/inventory/movements', label: 'Movements Ledger', icon: <ArrowLeftRight size={16} /> },
-    { path: '/inventory/keepers', label: 'Keepers', icon: <ShieldCheck size={16} /> },
-    { path: '/inventory/item-card', label: 'Item Card', icon: <CreditCard size={16} /> },
+    { path: '/products', label: t('inventory.subNav.products'), icon: <ShoppingBag size={16} /> },
+    { path: '/inventory/warehouses', label: t('inventory.subNav.warehouses'), icon: <Building size={16} /> },
+    { path: '/inventory/balances', label: t('inventory.subNav.balances'), icon: <Scale size={16} /> },
+    { path: '/inventory/movements', label: t('inventory.subNav.movements'), icon: <ArrowLeftRight size={16} /> },
+    { path: '/inventory/keepers', label: t('inventory.subNav.keepers'), icon: <ShieldCheck size={16} /> },
+    { path: '/inventory/item-card', label: t('inventory.subNav.itemCard'), icon: <CreditCard size={16} /> },
+    { path: '/inventory/transaction-impact', label: t('inventory.subNav.transactionImpact'), icon: <TrendingUp size={16} /> },
   ];
 
   return (
-    <div style={{
-      display: 'flex', gap: '6px', overflowX: 'auto', padding: '12px 24px',
-      background: 'white', borderBottom: '1px solid #e2e8f0', marginBottom: '16px'
-    }}>
+    <div
+      dir={isRTL ? 'rtl' : 'ltr'}
+      style={{
+        display: 'flex', gap: '6px', overflowX: 'auto', padding: '12px 24px',
+        background: 'white', borderBottom: '1px solid #e2e8f0', marginBottom: '16px'
+      }}
+    >
       {links.map((link) => (
         <NavLink
           key={link.path}

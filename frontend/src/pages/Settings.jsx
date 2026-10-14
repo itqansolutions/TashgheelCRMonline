@@ -161,10 +161,16 @@ const Settings = () => {
       const res = await api.post('/files/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const filePath = res.data.data.file_path;
-      setTenant({ ...tenant, logo_url: filePath });
-      toast.success('Logo uploaded! Click Save Settings to apply.');
+      const filePath = res.data?.data?.file_path;
+      if (filePath) {
+        setTenant(prev => ({ ...prev, logo_url: filePath }));
+        if (typeof fetchTenant === 'function') {
+          fetchTenant();
+        }
+        toast.success('Logo uploaded and saved successfully!');
+      }
     } catch (err) {
+      console.error('Logo upload error:', err);
       toast.error(err.response?.data?.message || 'Upload failed');
     } finally {
       setUploading(false);

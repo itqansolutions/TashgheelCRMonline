@@ -29,14 +29,13 @@ const storage = multer.diskStorage({
 
 // File Filter (for specific types)
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|pdf|docx|doc|webp|svg|gif/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype.toLowerCase());
+  const allowedExtensions = ['.jpeg', '.jpg', '.png', '.pdf', '.docx', '.doc', '.webp', '.svg', '.gif'];
+  const ext = path.extname(file.originalname).toLowerCase();
 
-  if (extname && mimetype) {
+  if (allowedExtensions.includes(ext) || (file.mimetype && file.mimetype.startsWith('image/'))) {
     return cb(null, true);
   } else {
-    cb(new Error('Error: File type not supported! (Allowed: JPEG, JPG, PNG, WEBP, SVG, GIF, PDF, DOCX, DOC)'));
+    cb(new Error('File type not supported! (Allowed: JPEG, JPG, PNG, WEBP, SVG, GIF, PDF, DOCX, DOC)'));
   }
 };
 
@@ -57,7 +56,18 @@ router.get('/', filesController.getFiles);
 // @route   POST api/files/upload
 // @desc    Upload file and link to entity
 // @access  Private
-router.post('/upload', upload.single('file'), filesController.uploadFile);
+router.post('/upload', (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      console.error('[Multer Error]:', err.message);
+      return res.status(400).json({ status: 'error', message: `Upload error: ${err.message}` });
+    } else if (err) {
+      console.error('[File Filter Error]:', err.message);
+      return res.status(400).json({ status: 'error', message: err.message || 'File upload failed' });
+    }
+    next();
+  });
+}, filesController.uploadFile);
 
 // @route   GET api/files/:entityType/:entityId
 // @desc    Get attachments for entity
