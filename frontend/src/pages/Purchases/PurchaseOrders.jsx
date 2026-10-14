@@ -590,10 +590,15 @@ const PurchaseOrders = () => {
 
           <button
             onClick={() => {
-              setRouteAForm(prev => ({
+              setFromPrForm(prev => ({
                 ...prev,
-                warehouse_id: warehouses[0]?.id || '',
-                expected_delivery_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
+                warehouse_id: prev.warehouse_id || warehouses[0]?.id || '',
+                expected_delivery_date: prev.expected_delivery_date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
+              }));
+              setDirectForm(prev => ({
+                ...prev,
+                warehouse_id: prev.warehouse_id || warehouses[0]?.id || '',
+                expected_delivery_date: prev.expected_delivery_date || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]
               }));
               setShowCreateModal(true);
             }}
