@@ -1343,7 +1343,7 @@ exports.receivePurchaseOrderItems = async (req, res) => {
     const tenantId = req.user.tenant_id;
     const { id } = req.params;
     const { items, warehouse_id, notes, idempotency_key, idempotencyKey: bodyIdempKey } = req.body || {};
-    const idempotencyKey = req.headers['idempotency-key'] || idempotency_key || bodyIdempKey || null;
+    const idempotencyKey = req.headers?.['idempotency-key'] || idempotency_key || bodyIdempKey || null;
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
