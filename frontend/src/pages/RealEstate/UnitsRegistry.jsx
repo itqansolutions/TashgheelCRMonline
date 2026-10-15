@@ -694,8 +694,10 @@ const UnitsRegistry = () => {
                                                         style={{ padding: '12px 16px', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s', background: config.bg, color: config.color, border: `1px solid ${config.color}40`, display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '110px' }}
                                                         onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = `0 6px 12px ${config.bg}`; }}
                                                         onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                            <span className="num-en" style={{ fontWeight: 900, fontSize: '16px' }}>{u.unit_number}</span>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+                                                            <span style={{ fontWeight: 900, fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }} title={u.name || u.unit_number}>
+                                                                {u.name || (String(u.unit_number).length > 15 ? String(u.unit_number).slice(0, 10) + '…' : u.unit_number)}
+                                                            </span>
                                                             {config.icon}
                                                         </div>
                                                         <div style={{ fontSize: '10px', fontWeight: 800, opacity: 0.9, textTransform: 'uppercase' }}>
@@ -725,7 +727,9 @@ const UnitsRegistry = () => {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                                         <div>
                                             <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '4px' }}>{u.project_name || 'Individual'}</div>
-                                            <div style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.unitPrefix', { number: u.unit_number })}</div>
+                                            <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--text-main)', lineHeight: 1.3 }}>
+                                                {u.name || (String(u.unit_number).length > 15 ? u.unit_number : t('realEstate.unitsRegistry.unitPrefix', { number: u.unit_number }))}
+                                            </div>
                                         </div>
                                         <span style={{ background: config.bg, color: config.color, padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 900 }}>{u.status}</span>
                                     </div>
@@ -776,7 +780,16 @@ const UnitsRegistry = () => {
                                     <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafafa', cursor: 'pointer', transition: 'background 0.15s' }}
                                         onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
                                         onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? 'white' : '#fafafa'}>
-                                        <td style={{ padding: '14px 16px', fontWeight: 900, fontSize: '15px', color: 'var(--text-main)' }}><span className="num-en">{u.unit_number}</span></td>
+                                        <td style={{ padding: '14px 16px', fontWeight: 900, fontSize: '14px', color: 'var(--text-main)', maxWidth: '280px' }}>
+                                            <div style={{ wordBreak: 'break-word', lineHeight: 1.3 }}>
+                                                {u.name || (String(u.unit_number).length > 15 ? u.unit_number : t('realEstate.unitsRegistry.unitPrefix', { number: u.unit_number }))}
+                                            </div>
+                                            {u.name && u.unit_number && u.name !== u.unit_number && (
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginTop: '2px' }}>
+                                                    Ref: <span className="num-en">{u.unit_number}</span>
+                                                </div>
+                                            )}
+                                        </td>
                                         <td style={{ padding: '14px 16px', fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>{u.project_name || '—'}</td>
                                         <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700 }}>{u.type}</td>
                                         <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700 }}><span className="num-en">{u.area_sqm}</span> m²</td>
@@ -1050,9 +1063,14 @@ const UnitsRegistry = () => {
                                                 {selectedUnit.phase_name ? ` • ${selectedUnit.phase_name}` : ''}
                                                 {selectedUnit.building_name ? ` • ${selectedUnit.building_name}` : ''}
                                             </div>
-                                            <h2 style={{ fontSize: '20px', margin: 0, fontWeight: 900, color: 'var(--text-main)', wordBreak: 'break-all', overflowWrap: 'anywhere', lineHeight: 1.3 }}>
-                                                {t('realEstate.unitsRegistry.unitPrefix', { number: selectedUnit.unit_number })}
+                                            <h2 style={{ fontSize: '20px', margin: 0, fontWeight: 900, color: 'var(--text-main)', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3 }}>
+                                                {selectedUnit.name || (String(selectedUnit.unit_number).length > 15 ? selectedUnit.unit_number : t('realEstate.unitsRegistry.unitPrefix', { number: selectedUnit.unit_number }))}
                                             </h2>
+                                            {selectedUnit.name && selectedUnit.unit_number && selectedUnit.name !== selectedUnit.unit_number && (
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', fontWeight: 600 }}>
+                                                    Ref: <span className="num-en">{selectedUnit.unit_number}</span>
+                                                </div>
+                                            )}
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: isRTL ? 'flex-start' : 'flex-end', gap: '8px', flexShrink: 0 }}>
                                             <button 

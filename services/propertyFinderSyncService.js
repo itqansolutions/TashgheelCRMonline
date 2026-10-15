@@ -73,6 +73,49 @@ function normalizePropertyType(pfType) {
 }
 
 /**
+ * Extract numerical price from Property Finder Atlas listing payload.
+ * Supports:
+ * - Direct number/string: listing.price = 79999
+ * - Complex nested object: listing.price.amounts.monthly, amounts.yearly, amounts.sale, amounts.total
+ * - Fallbacks: listing.price.amount, listing.amount, listing.target_price
+ */
+function extractListingPrice(listing) {
+  if (!listing) return 0;
+  const p = listing.price;
+  if (typeof p === 'number' && !isNaN(p)) return p;
+  if (typeof p === 'string' && p.trim() !== '' && !isNaN(Number(p))) return Number(p);
+  if (p && typeof p === 'object') {
+    const amounts = p.amounts || {};
+    const val = amounts.monthly || amounts.yearly || amounts.total || amounts.sale || amounts.price || p.amount || p.value;
+    if (val !== undefined && val !== null && !isNaN(Number(val))) return Number(val);
+  }
+  const alt = listing.amount || listing.target_price || listing.offering_price;
+  if (alt !== undefined && alt !== null && !isNaN(Number(alt))) return Number(alt);
+  return 0;
+}
+
+/**
+ * Extract human-readable title / description from Property Finder Atlas listing payload.
+ * Supports multilingual { ar: '...', en: '...' } objects and plain strings.
+ */
+function extractListingTitle(listing) {
+  if (!listing) return '';
+  const t = listing.title;
+  if (typeof t === 'string' && t.trim() !== '') return t.trim();
+  if (t && typeof t === 'object') {
+    const localized = t.ar || t.en || Object.values(t)[0];
+    if (localized && typeof localized === 'string' && localized.trim() !== '') return localized.trim();
+  }
+  const d = listing.description;
+  if (typeof d === 'string' && d.trim() !== '') return d.trim().slice(0, 100);
+  if (d && typeof d === 'object') {
+    const localized = d.ar || d.en || Object.values(d)[0];
+    if (localized && typeof localized === 'string' && localized.trim() !== '') return localized.trim().slice(0, 100);
+  }
+  return '';
+}
+
+/**
  * Map Property Finder external publication status to Tashgheel internal status.
  */
 function mapExternalStatus(externalStatus) {
@@ -119,12 +162,13 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
         }
 
         const pubStatus = mapExternalStatus(listing.status);
-        const price = Number(listing.price) || 0;
+        const price = extractListingPrice(listing);
         const areaSqm = Number(listing.area_sqm || listing.area || listing.size) || null;
         const rooms = Number(listing.bedrooms || listing.rooms) || 0;
         const unitType = normalizePropertyType(listing.property_type || listing.type);
         const projectName = listing.location?.community || listing.location?.city || listing.project_name || 'Imported Property';
-        const unitNumber = listing.reference || listing.unit_number || `PF-${extId}`;
+        const listingTitle = extractListingTitle(listing);
+        const unitNumber = listingTitle || listing.reference || listing.unit_number || `PF-${extId}`;
         const locationText = [listing.location?.sub_community, listing.location?.community, listing.location?.city].filter(Boolean).join(', ') || 'Egypt';
 
         // 1. Check if mapping already exists for this tenant & external listing ID
@@ -147,7 +191,18 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
               );
               if (localUnitRes.rows.length > 0) {
                 const localUnit = localUnitRes.rows[0];
-                if (Number(localUnit.price) !== price && price > 0) {
+                const localPrice = Number(localUnit.price) || 0;
+                if (localPrice === 0 && price > 0) {
+                  // Backfill unpriced unit
+                  await db.query(
+                    `UPDATE re_units 
+                     SET price = $1,
+                         name = COALESCE(NULLIF(name, ''), $2),
+                         unit_number = CASE WHEN unit_number = $3 AND $2 <> '' THEN $2 ELSE unit_number END
+                     WHERE id::text = $4::text AND tenant_id::text = $5::text`,
+                    [price, listingTitle || unitNumber, listing.reference || '', existingMapping.unit_id, tenantId]
+                  );
+                } else if (localPrice !== price && price > 0) {
                   await logIntegrationEvent(
                     tenantId,
                     'external_price_drift_detected',
@@ -177,15 +232,26 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
         // 2. Check if a local unit with the same unit_number exists in this tenant
         const unitMatch = await db.query(
           `SELECT id, name, unit_number, project_name FROM re_units 
-           WHERE tenant_id::text = $1::text AND LOWER(TRIM(unit_number)) = LOWER(TRIM($2))
+           WHERE tenant_id::text = $1::text AND (
+             LOWER(TRIM(unit_number)) = LOWER(TRIM($2))
+             OR ($3::text <> '' AND LOWER(TRIM(unit_number)) = LOWER(TRIM($3)))
+           )
            LIMIT 1`,
-          [tenantId, unitNumber]
+          [tenantId, unitNumber, listing.reference || '']
         );
 
         let targetUnitId;
         if (unitMatch.rows.length > 0) {
           // Link existing unit
           targetUnitId = unitMatch.rows[0].id;
+          if (price > 0) {
+            await db.query(
+              `UPDATE re_units SET price = CASE WHEN price = 0 OR price IS NULL THEN $1 ELSE price END,
+                                  name = COALESCE(NULLIF(name, ''), $2)
+               WHERE id = $3::uuid AND tenant_id::text = $4::text`,
+              [price, listingTitle || unitNumber, targetUnitId, tenantId]
+            ).catch(() => {});
+          }
           stats.linkedExisting++;
         } else {
           // Create new re_units record
@@ -197,7 +263,7 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
              ) RETURNING id`,
             [
               tenantId,
-              listing.title || `PF Unit ${unitNumber}`,
+              listingTitle || `PF Unit ${unitNumber}`,
               projectName,
               unitNumber,
               unitType,
