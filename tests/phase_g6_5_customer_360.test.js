@@ -319,4 +319,43 @@ test('Phase G-6.5: Customer 360 Aggregation Suite', async (t) => {
     assert.equal(real_estate.collections[0].voucher_number, 'RV-RE-01');
     assert.equal(real_estate.handovers.length, 1);
   });
+
+  // 7. PostgreSQL Data Type Protection: Asserts COALESCE inside deals join casts to text
+  await t.test('7. Type Safety: Ensures COALESCE(inv.deal_id::text, q.deal_id::text) prevents varchar/integer mismatch', async () => {
+    const req = {
+      user: { id: 'usr-1', tenant_id: 'tenant-100', branch_id: 'branch-1' },
+      branchId: 'branch-1',
+      params: { id: 'cust-1' }
+    };
+    const res = {
+      status: () => res,
+      json: () => res
+    };
+
+    let checkedInvoiceQuery = false;
+    let checkedPaymentQuery = false;
+
+    db.query = async (sql) => {
+      if (typeof sql === 'string' && (sql.includes('ALTER TABLE') || sql.includes('CREATE TABLE'))) {
+        return { rows: [] };
+      }
+      if (sql.includes('FROM customers c')) {
+        return { rows: [{ id: 'cust-1', name: 'Buyer Test', tenant_id: 'tenant-100', branch_id: 'branch-1' }] };
+      }
+      if (sql.includes('FROM invoices inv')) {
+        checkedInvoiceQuery = true;
+        assert.ok(sql.includes('COALESCE(inv.deal_id::text, q.deal_id::text) = d.id::text'), 'Invoices query must cast COALESCE args to text');
+      }
+      if (sql.includes('FROM payments p') && sql.includes('JOIN invoices inv')) {
+        checkedPaymentQuery = true;
+        assert.ok(sql.includes('COALESCE(inv.deal_id::text, q.deal_id::text) = d.id::text'), 'Payments query must cast COALESCE args to text');
+      }
+      return { rows: [] };
+    };
+
+    await customersController.getCustomer360(req, res);
+    assert.ok(checkedInvoiceQuery, 'Invoices query should have been executed and verified');
+    assert.ok(checkedPaymentQuery, 'Payments query should have been executed and verified');
+  });
 });
+

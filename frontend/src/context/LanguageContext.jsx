@@ -68,11 +68,14 @@ export const LanguageProvider = ({ children }) => {
       return keys[keys.length - 1] || keyPath;
     }
 
-    // 5. Interpolate params: {count} or :count
+    // 5. Interpolate params: {{count}}, {count} or :count
     if (params && typeof params === 'object') {
       Object.keys(params).forEach((paramKey) => {
-        result = result.replace(new RegExp(`{${paramKey}}`, 'g'), params[paramKey]);
-        result = result.replace(new RegExp(`:${paramKey}`, 'g'), params[paramKey]);
+        const rawVal = params[paramKey];
+        const val = rawVal !== undefined && rawVal !== null ? rawVal : '';
+        result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), val);
+        result = result.replace(new RegExp(`{${paramKey}}`, 'g'), val);
+        result = result.replace(new RegExp(`:${paramKey}`, 'g'), val);
       });
     }
 

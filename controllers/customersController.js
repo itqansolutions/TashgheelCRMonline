@@ -436,8 +436,8 @@ exports.getCustomerStatement = async (req, res) => {
       `SELECT inv.id, inv.invoice_number, inv.total_amount, inv.status, inv.due_date, inv.created_at,
               COALESCE(d.title, inv.notes) as deal_title
        FROM invoices inv
-       LEFT JOIN quotations q ON inv.quotation_id = q.id
-       LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id) = d.id
+       LEFT JOIN quotations q ON inv.quotation_id::text = q.id::text
+       LEFT JOIN deals d ON COALESCE(inv.deal_id::text, q.deal_id::text) = d.id::text
        WHERE (inv.client_id::text = $1::text OR inv.customer_id::text = $1::text OR d.client_id::text = $1::text)
          AND inv.tenant_id::text = $2::text
        ORDER BY inv.created_at DESC`,
@@ -451,9 +451,9 @@ exports.getCustomerStatement = async (req, res) => {
               COALESCE(fv.voucher_number, 'PMT-' || p.id::text) as voucher_number
        FROM payments p
        JOIN invoices inv ON p.invoice_id::text = inv.id::text
-       LEFT JOIN quotations q ON inv.quotation_id = q.id
-       LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id) = d.id
-       LEFT JOIN finance_vouchers fv ON p.voucher_id = fv.id
+       LEFT JOIN quotations q ON inv.quotation_id::text = q.id::text
+       LEFT JOIN deals d ON COALESCE(inv.deal_id::text, q.deal_id::text) = d.id::text
+       LEFT JOIN finance_vouchers fv ON p.voucher_id::text = fv.id::text
        WHERE (inv.client_id::text = $1::text OR inv.customer_id::text = $1::text OR d.client_id::text = $1::text)
          AND p.tenant_id::text = $2::text
          AND (COALESCE(p.status, 'active') != 'cancelled')
@@ -627,7 +627,7 @@ exports.getCustomer360 = async (req, res) => {
         FROM invoices inv
         LEFT JOIN sales_orders so ON inv.sales_order_id::text = so.id::text
         LEFT JOIN quotations q ON inv.quotation_id::text = q.id::text
-        LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id)::text = d.id::text
+        LEFT JOIN deals d ON COALESCE(inv.deal_id::text, q.deal_id::text) = d.id::text
         WHERE (inv.client_id::text = $1::text OR inv.customer_id::text = $1::text OR d.client_id::text = $1::text)
           AND inv.tenant_id::text = $2::text
         ORDER BY inv.created_at DESC
@@ -654,7 +654,7 @@ exports.getCustomer360 = async (req, res) => {
         FROM payments p
         JOIN invoices inv ON p.invoice_id::text = inv.id::text
         LEFT JOIN quotations q ON inv.quotation_id::text = q.id::text
-        LEFT JOIN deals d ON COALESCE(inv.deal_id, q.deal_id)::text = d.id::text
+        LEFT JOIN deals d ON COALESCE(inv.deal_id::text, q.deal_id::text) = d.id::text
         LEFT JOIN finance_vouchers fv ON p.voucher_id::text = fv.id::text
         WHERE (inv.client_id::text = $1::text OR inv.customer_id::text = $1::text OR d.client_id::text = $1::text)
           AND p.tenant_id::text = $2::text

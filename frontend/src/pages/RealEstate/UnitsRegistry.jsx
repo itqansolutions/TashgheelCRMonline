@@ -155,9 +155,29 @@ const UnitsRegistry = () => {
             setShowManageHierarchyModal(true);
         } else if (tab === 'projects' || tab === 'phases' || tab === 'buildings') {
             setHierarchyTab('projects');
-            setShowManageHierarchyModal(true);
         }
     }, [searchParams]);
+
+    // Close topmost modal on Escape key
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                if (showQuickBuildingModal) setShowQuickBuildingModal(false);
+                else if (showQuickPhaseModal) setShowQuickPhaseModal(false);
+                else if (showQuickProjModal) setShowQuickProjModal(false);
+                else if (showQuickDevModal) setShowQuickDevModal(false);
+                else if (showMatchBuyersModal) setShowMatchBuyersModal(false);
+                else if (selectedUnit) setSelectedUnit(null);
+                else if (showAddModal) setShowAddModal(false);
+                else if (showManageHierarchyModal) setShowManageHierarchyModal(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [
+        showQuickBuildingModal, showQuickPhaseModal, showQuickProjModal, showQuickDevModal,
+        showMatchBuyersModal, selectedUnit, showAddModal, showManageHierarchyModal
+    ]);
 
     const handlePriceChange = (e) => {
         const raw = e.target.value.replace(/,/g, '');
@@ -783,11 +803,18 @@ const UnitsRegistry = () => {
 
             {/* Redesigned Add Unit Modal */}
             {showAddModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.4)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                <div 
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowAddModal(false);
+                    }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.4)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}
+                >
                     <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '650px', padding: '40px', background: 'white', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
                         <button 
+                            type="button"
                             onClick={() => setShowAddModal(false)}
-                            style={{ position: 'absolute', top: '24px', right: '24px', padding: '8px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                            style={{ position: 'absolute', top: '24px', [isRTL ? 'left' : 'right']: '24px', padding: '8px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                            title={t('common.close') || 'Close'}
                         >
                             <X size={18}/>
                         </button>
@@ -1004,32 +1031,61 @@ const UnitsRegistry = () => {
 
             {/* Read-Only Unit Details Modal */}
             {selectedUnit && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}>
-                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '500px', padding: '0', background: 'white', position: 'relative', overflow: 'hidden' }}>
+                <div 
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setSelectedUnit(null);
+                    }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}
+                >
+                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '540px', maxHeight: '90vh', overflowY: 'auto', padding: '0', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.25)' }}>
                         {(() => {
                             const config = getStatusConfig(selectedUnit.status);
                             return (
                                 <>
-                                    <div style={{ padding: '24px 32px', background: config.bg, borderBottom: `1px solid ${config.color}40`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div>
-                                            <div style={{ fontSize: '12px', fontWeight: 900, color: config.color, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
+                                    <div style={{ padding: '20px 24px', background: config.bg, borderBottom: `1px solid ${config.color}40`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '12px', fontWeight: 900, color: config.color, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px', wordBreak: 'break-word' }}>
                                                 {selectedUnit.developer_name ? `${selectedUnit.developer_name} • ` : ''}
                                                 {selectedUnit.project_name || t('realEstate.unitsRegistry.individual')}
                                                 {selectedUnit.phase_name ? ` • ${selectedUnit.phase_name}` : ''}
                                                 {selectedUnit.building_name ? ` • ${selectedUnit.building_name}` : ''}
                                             </div>
-                                            <h2 style={{ fontSize: '28px', margin: 0, fontWeight: 900, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.unitPrefix', { number: selectedUnit.unit_number })}</h2>
+                                            <h2 style={{ fontSize: '20px', margin: 0, fontWeight: 900, color: 'var(--text-main)', wordBreak: 'break-all', overflowWrap: 'anywhere', lineHeight: 1.3 }}>
+                                                {t('realEstate.unitsRegistry.unitPrefix', { number: selectedUnit.unit_number })}
+                                            </h2>
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                                            <button onClick={() => setSelectedUnit(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-main)' }}><X size={24}/></button>
-                                            <div style={{ background: 'white', color: config.color, padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 900, boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: isRTL ? 'flex-start' : 'flex-end', gap: '8px', flexShrink: 0 }}>
+                                            <button 
+                                                type="button"
+                                                onClick={() => setSelectedUnit(null)} 
+                                                title={t('common.close') || 'إغلاق'}
+                                                aria-label={t('common.close') || 'إغلاق'}
+                                                style={{ 
+                                                    width: '36px', 
+                                                    height: '36px', 
+                                                    borderRadius: '50%', 
+                                                    background: 'rgba(0,0,0,0.06)', 
+                                                    border: 'none', 
+                                                    cursor: 'pointer', 
+                                                    color: 'var(--text-main)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.12)'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.06)'; }}
+                                            >
+                                                <X size={20}/>
+                                            </button>
+                                            <div style={{ background: 'white', color: config.color, padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 900, boxShadow: '0 2px 4px rgba(0,0,0,0.05)', whiteSpace: 'nowrap' }}>
                                                 {selectedUnit.status || 'Available'}
                                             </div>
                                         </div>
                                     </div>
                                     
-                                    <div style={{ padding: '32px' }}>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
+                                    <div style={{ padding: '28px 24px' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px' }}>
                                             <div>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerType')}</div>
                                                 <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>{selectedUnit.type}</div>
@@ -1044,7 +1100,7 @@ const UnitsRegistry = () => {
                                             </div>
                                             <div>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerLayout')}</div>
-                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.drawerFloorRooms', { floor: selectedUnit.floor, rooms: selectedUnit.rooms })}</div>
+                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.drawerFloorRooms', { floor: selectedUnit.floor || '—', rooms: selectedUnit.rooms ?? '—' })}</div>
                                             </div>
                                         </div>
 
@@ -1178,24 +1234,51 @@ const UnitsRegistry = () => {
                                             </div>
                                         </div>
 
-                                        <div style={{ display: 'flex', gap: '12px' }}>
-                                            <button 
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                            <div style={{ display: 'flex', gap: '12px' }}>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => handleOpenMatchBuyers(selectedUnit)}
+                                                    className="btn-primary-premium"
+                                                    style={{ flex: 1, justifyContent: 'center', background: '#3b82f6', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)' }}
+                                                >
+                                                    <Sparkles size={16} /> {t('realEstate.unitsRegistry.btnMatchBuyers')}
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        handleDelete(selectedUnit.id);
+                                                        setSelectedUnit(null);
+                                                    }}
+                                                    className="btn-primary-premium"
+                                                    style={{ flex: 1, justifyContent: 'center', background: 'var(--danger)', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}
+                                                >
+                                                    <Trash2 size={16} /> {t('realEstate.unitsRegistry.btnDisableDelete')}
+                                                </button>
+                                            </div>
+                                            <button
                                                 type="button"
-                                                onClick={() => handleOpenMatchBuyers(selectedUnit)}
-                                                className="btn-primary-premium"
-                                                style={{ flex: 1, justifyContent: 'center', background: '#3b82f6', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)' }}
-                                            >
-                                                <Sparkles size={16} /> {t('realEstate.unitsRegistry.btnMatchBuyers')}
-                                            </button>
-                                            <button 
-                                                onClick={() => {
-                                                    handleDelete(selectedUnit.id);
-                                                    setSelectedUnit(null);
+                                                onClick={() => setSelectedUnit(null)}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '12px',
+                                                    borderRadius: '10px',
+                                                    border: '1.5px solid var(--border)',
+                                                    background: '#f8fafc',
+                                                    color: 'var(--text-main)',
+                                                    fontWeight: 800,
+                                                    fontSize: '13px',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '8px'
                                                 }}
-                                                className="btn-primary-premium"
-                                                style={{ flex: 1, justifyContent: 'center', background: 'var(--danger)', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)' }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
                                             >
-                                                <Trash2 size={16} /> {t('realEstate.unitsRegistry.btnDisableDelete')}
+                                                <X size={16} /> {t('common.close') || 'إغلاق'}
                                             </button>
                                         </div>
                                     </div>
@@ -1208,18 +1291,28 @@ const UnitsRegistry = () => {
 
             {/* 🎯 Matched Buyer Leads Modal */}
             {showMatchBuyersModal && matchedBuyersUnit && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '20px' }}>
+                <div 
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowMatchBuyersModal(false);
+                    }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '20px' }}
+                >
                     <div className="ap-card" style={{ width: '100%', maxWidth: '750px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', background: 'white', borderRadius: '16px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-                            <div>
-                                <h3 style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', gap: '16px' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <h3 style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '8px', wordBreak: 'break-word' }}>
                                     <Sparkles size={20} color="#eab308" /> {t('realEstate.unitsRegistry.matchBuyersTitle')}
                                 </h3>
-                                <div style={{ fontSize: '13px', color: '#64748b' }}>
+                                <div style={{ fontSize: '13px', color: '#64748b', wordBreak: 'break-word' }}>
                                     <span>{t('realEstate.unitsRegistry.matchBuyersDesc', { unit: matchedBuyersUnit.unit_number, project: matchedBuyersUnit.project_name || t('realEstate.unitsRegistry.individual'), price: Number(matchedBuyersUnit.price).toLocaleString('en-US'), area: matchedBuyersUnit.area_sqm, rooms: matchedBuyersUnit.rooms })}</span>
                                 </div>
                             </div>
-                            <button onClick={() => setShowMatchBuyersModal(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <button 
+                                type="button"
+                                onClick={() => setShowMatchBuyersModal(false)} 
+                                title={t('common.close') || 'Close'}
+                                style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                            >
                                 <X size={18} />
                             </button>
                         </div>
@@ -1305,7 +1398,12 @@ const UnitsRegistry = () => {
 
             {/* Quick Add Developer Modal */}
             {showQuickDevModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}>
+                <div 
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowQuickDevModal(false);
+                    }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}
+                >
                     <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
                         <button 
                             type="button"
@@ -1377,7 +1475,12 @@ const UnitsRegistry = () => {
 
             {/* Quick Add Project Modal */}
             {showQuickProjModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}>
+                <div 
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowQuickProjModal(false);
+                    }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}
+                >
                     <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '500px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
                         <button 
                             type="button"
@@ -1453,7 +1556,12 @@ const UnitsRegistry = () => {
 
             {/* Quick Add Phase Modal */}
             {showQuickPhaseModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}>
+                <div 
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowQuickPhaseModal(false);
+                    }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}
+                >
                     <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
                         <button 
                             type="button"
@@ -1511,7 +1619,12 @@ const UnitsRegistry = () => {
 
             {/* Quick Add Building Modal */}
             {showQuickBuildingModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}>
+                <div 
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowQuickBuildingModal(false);
+                    }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}
+                >
                     <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
                         <button 
                             type="button"
@@ -1593,7 +1706,12 @@ const UnitsRegistry = () => {
 
             {/* Full Developers & Projects Management Modal */}
             {showManageHierarchyModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1150, padding: '20px' }}>
+                <div 
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) setShowManageHierarchyModal(false);
+                    }}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1150, padding: '20px' }}
+                >
                     <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '850px', padding: '0', background: 'white', position: 'relative', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
                         {/* Header */}
                         <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
