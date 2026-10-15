@@ -482,6 +482,19 @@ const pick = (...vals) => {
   return '';
 };
 
+// Contacts may arrive as an array [{type:'phone', value:'..'}] or an object {phone:'..'} under `contacts`.
+function fromContacts(obj, types) {
+  const c = obj && obj.contacts;
+  if (!c) return '';
+  if (Array.isArray(c)) {
+    const hit = c.find(x => x && types.includes(String(x.type || x.kind || x.channel || '').toLowerCase())
+      && pick(x.value, x.number, x.phone, x.email, x.address));
+    return hit ? pick(hit.value, hit.number, hit.phone, hit.email, hit.address) : '';
+  }
+  if (typeof c === 'object') return pick(...types.map(t => c[t]));
+  return '';
+}
+
 /**
  * Normalizes a Property Finder lead (API item or webhook payload) into a flat shape.
  * The official schema is partner-gated and was NOT verifiable by us, so this accepts the
@@ -515,8 +528,10 @@ function normalizeLead(raw) {
     channel,
     name: pick(r.contact_name, r.name, r.sender_name, r.senderName, sender.name, sender.fullName, lead.name,
       [sender.firstName, sender.lastName].filter(Boolean).join(' ')) || 'Property Finder Lead',
-    phone: pick(r.contact_phone, r.phone, r.mobile, r.senderPhone, sender.phone, sender.mobile, sender.phoneNumber, lead.phone),
-    email: pick(r.contact_email, r.email, r.senderEmail, sender.email, lead.email).toLowerCase(),
+    phone: pick(r.contact_phone, r.phone, r.mobile, r.senderPhone, sender.phone, sender.mobile, sender.phoneNumber, lead.phone,
+      fromContacts(sender, ['phone', 'mobile', 'whatsapp', 'tel']), fromContacts(r, ['phone', 'mobile', 'whatsapp', 'tel'])),
+    email: pick(r.contact_email, r.email, r.senderEmail, sender.email, lead.email,
+      fromContacts(sender, ['email']), fromContacts(r, ['email'])).toLowerCase(),
     message: pick(r.enquiry_message, r.message, r.notes, r.comment, lead.message),
     assignedExternalAgent: pick(r.agentId, r.agent_id, r.assignedTo, r.assigned_to) || null
   };
