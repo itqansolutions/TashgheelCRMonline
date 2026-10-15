@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink } from 'lucide-react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
@@ -494,7 +495,7 @@ const UnitsRegistry = () => {
     }, {});
 
     return (
-        <div className="wow-reveal" dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
+        <div dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
             {/* Header Section */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>
                 <div>
@@ -815,14 +816,15 @@ const UnitsRegistry = () => {
 
 
             {/* Redesigned Add Unit Modal */}
-            {showAddModal && (
+            {showAddModal && createPortal(
                 <div 
+                    dir={isRTL ? 'rtl' : 'ltr'}
                     onClick={(e) => {
                         if (e.target === e.currentTarget) setShowAddModal(false);
                     }}
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.4)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}
+                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
                 >
-                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '650px', padding: '40px', background: 'white', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+                    <div className="ap-card" style={{ width: '100%', maxWidth: '650px', padding: '40px', background: 'white', position: 'relative', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
                         <button 
                             type="button"
                             onClick={() => setShowAddModal(false)}
@@ -1039,23 +1041,25 @@ const UnitsRegistry = () => {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Read-Only Unit Details Modal */}
-            {selectedUnit && (
+            {selectedUnit && createPortal(
                 <div 
+                    dir={isRTL ? 'rtl' : 'ltr'}
                     onClick={(e) => {
                         if (e.target === e.currentTarget) setSelectedUnit(null);
                     }}
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}
+                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
                 >
-                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '540px', maxHeight: '90vh', overflowY: 'auto', padding: '0', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.25)' }}>
+                    <div className="ap-card" style={{ width: '100%', maxWidth: '540px', maxHeight: 'min(90vh, 760px)', display: 'flex', flexDirection: 'column', padding: '0', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)', overflow: 'hidden' }}>
                         {(() => {
                             const config = getStatusConfig(selectedUnit.status);
                             return (
                                 <>
-                                    <div style={{ padding: '20px 24px', background: config.bg, borderBottom: `1px solid ${config.color}40`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                                    <div style={{ padding: '20px 24px', background: config.bg, borderBottom: `1px solid ${config.color}40`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexShrink: 0 }}>
                                         <div style={{ flex: 1, minWidth: 0 }}>
                                             <div style={{ fontSize: '12px', fontWeight: 900, color: config.color, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px', wordBreak: 'break-word' }}>
                                                 {selectedUnit.developer_name ? `${selectedUnit.developer_name} • ` : ''}
@@ -1102,7 +1106,7 @@ const UnitsRegistry = () => {
                                         </div>
                                     </div>
                                     
-                                    <div style={{ padding: '28px 24px' }}>
+                                    <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px' }}>
                                             <div>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerType')}</div>
@@ -1304,18 +1308,20 @@ const UnitsRegistry = () => {
                             );
                         })()}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* 🎯 Matched Buyer Leads Modal */}
-            {showMatchBuyersModal && matchedBuyersUnit && (
+            {showMatchBuyersModal && matchedBuyersUnit && createPortal(
                 <div 
+                    dir={isRTL ? 'rtl' : 'ltr'}
                     onClick={(e) => {
                         if (e.target === e.currentTarget) setShowMatchBuyersModal(false);
                     }}
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '20px' }}
+                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
                 >
-                    <div className="ap-card" style={{ width: '100%', maxWidth: '750px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', background: 'white', borderRadius: '16px' }}>
+                    <div className="ap-card" style={{ width: '100%', maxWidth: '750px', maxHeight: 'min(90vh, 800px)', overflowY: 'auto', padding: '28px', background: 'white', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', gap: '16px' }}>
                             <div style={{ flex: 1, minWidth: 0 }}>
                                 <h3 style={{ fontSize: '20px', fontWeight: 900, color: 'var(--text-main)', margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: '8px', wordBreak: 'break-word' }}>
@@ -1411,22 +1417,25 @@ const UnitsRegistry = () => {
                             </div>
                         )}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Quick Add Developer Modal */}
-            {showQuickDevModal && (
+            {showQuickDevModal && createPortal(
                 <div 
+                    dir={isRTL ? 'rtl' : 'ltr'}
                     onClick={(e) => {
                         if (e.target === e.currentTarget) setShowQuickDevModal(false);
                     }}
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}
+                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
                 >
-                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                    <div className="ap-card" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
                         <button 
                             type="button"
                             onClick={() => setShowQuickDevModal(false)}
-                            style={{ position: 'absolute', top: '20px', right: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                            style={{ position: 'absolute', top: '20px', [isRTL ? 'left' : 'right']: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                            title={t('common.close') || 'Close'}
                         >
                             <X size={16}/>
                         </button>
@@ -1488,22 +1497,25 @@ const UnitsRegistry = () => {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Quick Add Project Modal */}
-            {showQuickProjModal && (
+            {showQuickProjModal && createPortal(
                 <div 
+                    dir={isRTL ? 'rtl' : 'ltr'}
                     onClick={(e) => {
                         if (e.target === e.currentTarget) setShowQuickProjModal(false);
                     }}
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}
+                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
                 >
-                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '500px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                    <div className="ap-card" style={{ width: '100%', maxWidth: '500px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
                         <button 
                             type="button"
                             onClick={() => setShowQuickProjModal(false)}
-                            style={{ position: 'absolute', top: '20px', right: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                            style={{ position: 'absolute', top: '20px', [isRTL ? 'left' : 'right']: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                            title={t('common.close') || 'Close'}
                         >
                             <X size={16}/>
                         </button>
@@ -1569,22 +1581,25 @@ const UnitsRegistry = () => {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Quick Add Phase Modal */}
-            {showQuickPhaseModal && (
+            {showQuickPhaseModal && createPortal(
                 <div 
+                    dir={isRTL ? 'rtl' : 'ltr'}
                     onClick={(e) => {
                         if (e.target === e.currentTarget) setShowQuickPhaseModal(false);
                     }}
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}
+                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
                 >
-                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                    <div className="ap-card" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
                         <button 
                             type="button"
                             onClick={() => setShowQuickPhaseModal(false)}
-                            style={{ position: 'absolute', top: '20px', right: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                            style={{ position: 'absolute', top: '20px', [isRTL ? 'left' : 'right']: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                            title={t('common.close') || 'Close'}
                         >
                             <X size={16}/>
                         </button>
@@ -1632,22 +1647,25 @@ const UnitsRegistry = () => {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Quick Add Building Modal */}
-            {showQuickBuildingModal && (
+            {showQuickBuildingModal && createPortal(
                 <div 
+                    dir={isRTL ? 'rtl' : 'ltr'}
                     onClick={(e) => {
                         if (e.target === e.currentTarget) setShowQuickBuildingModal(false);
                     }}
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1250, padding: '20px' }}
+                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
                 >
-                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+                    <div className="ap-card" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
                         <button 
                             type="button"
                             onClick={() => setShowQuickBuildingModal(false)}
-                            style={{ position: 'absolute', top: '20px', right: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                            style={{ position: 'absolute', top: '20px', [isRTL ? 'left' : 'right']: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
+                            title={t('common.close') || 'Close'}
                         >
                             <X size={16}/>
                         </button>
@@ -1719,18 +1737,20 @@ const UnitsRegistry = () => {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Full Developers & Projects Management Modal */}
-            {showManageHierarchyModal && (
+            {showManageHierarchyModal && createPortal(
                 <div 
+                    dir={isRTL ? 'rtl' : 'ltr'}
                     onClick={(e) => {
                         if (e.target === e.currentTarget) setShowManageHierarchyModal(false);
                     }}
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(2, 6, 23, 0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1150, padding: '20px' }}
+                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
                 >
-                    <div className="ap-card wow-reveal" style={{ width: '100%', maxWidth: '850px', padding: '0', background: 'white', position: 'relative', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px' }}>
+                    <div className="ap-card" style={{ width: '100%', maxWidth: '850px', padding: '0', background: 'white', position: 'relative', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
                         {/* Header */}
                         <div style={{ padding: '24px 32px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
@@ -1976,7 +1996,8 @@ const UnitsRegistry = () => {
                             )}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
