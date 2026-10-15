@@ -378,6 +378,7 @@
     "statusBlacklisted": "Blacklisted",
     "statusCustomer": "Customer",
     "customerName": "Customer Name",
+    "entryDate": "Entry Date",
     "fullName": "Full Name",
     "phone": "Phone / Mobile",
     "email": "Email Address",

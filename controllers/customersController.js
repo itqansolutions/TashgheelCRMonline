@@ -13,6 +13,9 @@ async function ensureCustomerColumns() {
   const run = async (sql) => {
     try { await db.query(sql); } catch (e) { /* ignore – column already exists */ }
   };
+  await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
+  await run(`ALTER TABLE customers ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP`);
+  await run(`UPDATE customers SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL`);
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS source VARCHAR(100) DEFAULT 'Direct'`);
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS notes TEXT`);
   await run(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS meta_form_name VARCHAR(255)`);
@@ -149,7 +152,7 @@ exports.getCustomers = async (req, res) => {
       query += ` AND (c.manager_id IS NULL OR c.manager_id = '')`;
   }
 
-  query += ` ORDER BY c.created_at DESC`;
+  query += ` ORDER BY c.created_at DESC NULLS LAST, c.id DESC`;
 
   try {
     const result = await db.query(query, params);

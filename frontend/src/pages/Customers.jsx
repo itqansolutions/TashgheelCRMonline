@@ -212,6 +212,11 @@ const Customers = () => {
         (areaFilter === 'no_area' ? !c.area_id : String(c.area_id) === String(areaFilter));
 
     return matchesSearch && matchesEntity && matchesRooms && matchesSource && matchesClassification && matchesArea;
+  }).sort((a, b) => {
+    const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    if (timeB !== timeA) return timeB - timeA;
+    return (Number(b.id) || 0) - (Number(a.id) || 0);
   });
 
   const getStatusLabel = (s) => {
@@ -244,6 +249,19 @@ const Customers = () => {
       label: t('customers.phone', 'Phone / Mobile'),
       render: (val) => val ? (
         <span className="num-en" style={{ fontWeight: '700', direction: 'ltr', display: 'inline-block', color: '#1e293b' }}>{val}</span>
+      ) : <span style={{ color: '#94a3b8' }}>—</span>
+    },
+    {
+      key: 'created_at',
+      label: t('customers.entryDate', 'Entry Date'),
+      render: (val) => val ? (
+        <span className="num-en" style={{ fontSize: '12px', color: '#475569', fontWeight: '600', whiteSpace: 'nowrap' }}>
+          {new Date(val).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          })}
+        </span>
       ) : <span style={{ color: '#94a3b8' }}>—</span>
     },
     {

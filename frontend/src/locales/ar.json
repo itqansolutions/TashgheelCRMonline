@@ -378,6 +378,7 @@
     "statusBlacklisted": "محظور",
     "statusCustomer": "عميل متعاقد",
     "customerName": "اسم العميل",
+    "entryDate": "تاريخ الدخول",
     "fullName": "الاسم بالكامل",
     "phone": "رقم الهاتف",
     "email": "البريد الإلكتروني",
