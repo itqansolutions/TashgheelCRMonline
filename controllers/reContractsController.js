@@ -264,6 +264,29 @@ exports.createContract = async (req, res) => {
             });
         }
 
+        // Multi-deal safety: Ensure this unit reservation is not actively held by a DIFFERENT deal
+        const otherResHolder = await client.query(`
+            SELECT id, title FROM deals
+            WHERE unit_id::text = $1::text
+              AND tenant_id::text = $2::text
+              AND id != $3
+              AND LOWER(COALESCE(pipeline_stage, '')) NOT IN ('lost', 'cancelled', 'canceled')
+              AND (
+                  COALESCE((custom_fields->>'is_unit_reservation')::boolean, false) = true
+                  OR LOWER(COALESCE(pipeline_stage, '')) IN ('reserved', 'reservation', 'حجز')
+              )
+            LIMIT 1
+        `, [String(deal.unit_id), tenant_id, deal.id]);
+
+        if (otherResHolder.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                status: 'error',
+                code: 'UNIT_RESERVED_BY_OTHER_DEAL',
+                message: `Cannot create contract: this unit is currently reserved under another active deal (#${otherResHolder.rows[0].id}).`
+            });
+        }
+
         // 2. Prevent duplicate contract for same deal
         const existingRes = await client.query(`
             SELECT id, contract_number, status FROM re_contracts WHERE deal_id = $1 AND tenant_id::text = $2::text

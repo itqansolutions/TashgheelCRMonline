@@ -233,10 +233,13 @@ class PropertyFinderClient {
   /**
    * Retrieve list of properties from Property Finder with pagination.
    */
-  async getListings({ page = 1, limit = 50, status = null, updatedAfter = null } = {}) {
+  async getListings({ page = 1, perPage = null, limit = MAX_PER_PAGE, status = null, updatedAfter = null } = {}) {
+    const cleanPage = Math.max(1, Number(page) || 1);
+    const effectivePerPage = Math.min(MAX_PER_PAGE, Math.max(1, Number(perPage ?? limit) || MAX_PER_PAGE));
     const params = {
-      page,
-      limit,
+      page: cleanPage,
+      perPage: effectivePerPage,
+      limit: effectivePerPage,
       country: this.countryCode
     };
     if (status) params.status = status;
@@ -348,13 +351,49 @@ class PropertyFinderClient {
 
   /**
    * Determine whether another page exists (supports several pagination envelope shapes).
+   * Ensures null or empty pagination totals never override a valid nextPage indicator
+   * or prematurely terminate pagination on a full page.
    */
   static hasNextPage(response, page, leadsOnPage, perPage) {
     const p = response?.pagination || response?.meta || {};
-    const totalPages = Number(p.totalPages || p.total_pages || p.lastPage || p.last_page);
-    if (Number.isFinite(totalPages) && totalPages > 0) return page < totalPages;
+
+    // 1. Explicit nextPage indicator always takes precedence over missing/null/zero totals
     if (p.nextPage || p.next_page || response?.next) return true;
-    return leadsOnPage >= perPage; // fall back: a full page implies there may be more
+    if (p.hasNextPage === true || p.has_next_page === true) return true;
+    if (p.hasNextPage === false || p.has_next_page === false) return false;
+
+    const rawPerPage = [p.perPage, p.per_page, p.limit, perPage].find(
+      v => v !== null && v !== undefined && String(v).trim() !== '' && Number(v) > 0
+    );
+    const effectivePerPage = rawPerPage !== undefined ? Number(rawPerPage) : 50;
+
+    // 2. Explicit totalPages (ignore null, undefined, or empty string)
+    const rawTotalPages = [p.totalPages, p.total_pages, p.lastPage, p.last_page].find(
+      v => v !== null && v !== undefined && String(v).trim() !== ''
+    );
+    if (rawTotalPages !== undefined) {
+      const totalPages = Number(rawTotalPages);
+      if (Number.isFinite(totalPages) && totalPages > 0) {
+        return page < totalPages;
+      }
+    }
+
+    // 3. Explicit total item count (ignore null, undefined, or empty string so Number(null) !== 0)
+    const rawTotalItems = [p.total, p.totalCount, p.total_count].find(
+      v => v !== null && v !== undefined && String(v).trim() !== ''
+    );
+    if (rawTotalItems !== undefined) {
+      const totalItems = Number(rawTotalItems);
+      if (Number.isFinite(totalItems) && totalItems >= 0) {
+        if (totalItems === 0 && leadsOnPage > 0) {
+          return leadsOnPage >= effectivePerPage;
+        }
+        return page * effectivePerPage < totalItems;
+      }
+    }
+
+    // 4. Fallback: a full page implies there may be another page
+    return leadsOnPage >= effectivePerPage;
   }
 
 

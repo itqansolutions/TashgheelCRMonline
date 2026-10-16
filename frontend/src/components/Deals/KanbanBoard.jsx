@@ -1,5 +1,5 @@
 import React from 'react';
-import { MoreHorizontal, Calendar, Zap, AlertCircle, TrendingUp, Handshake, Mail, User, Target } from 'lucide-react';
+import { MoreHorizontal, Calendar, Zap, AlertCircle, TrendingUp, Handshake, Mail, User, Target, Building2 } from 'lucide-react';
 import { safeArray } from '../../utils/dataUtils';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -138,6 +138,21 @@ const KanbanBoard = ({ deals, pipelineStages, onEdit }) => {
                     <div className="k-metric-pill" style={{ background: `${getProbabilityColor(deal.probability || 0)}15`, color: getProbabilityColor(deal.probability || 0) }}>
                       <Target size={12}/> <span className="num-en">{deal.probability || 0}%</span> {t('deals.win', 'Win')}
                     </div>
+                    {deal.unit_id && (deal.unit_number || deal.unit_name || deal.unit_project) && (
+                      <div className="k-metric-pill" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1' }}>
+                        <Building2 size={12} />
+                        <span>
+                          {deal.unit_project ? `${deal.unit_project} • ` : ''}
+                          <span className="num-en">{deal.unit_number || deal.unit_name}</span>
+                        </span>
+                      </div>
+                    )}
+                    {!deal.unit_id && deal.source_type === 'property_finder' && (deal.custom_fields?.pf_listing_reference || deal.custom_fields?.pf_listing_id || deal.custom_fields?.pf_project_id) && (
+                      <div className="k-metric-pill" style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#b45309' }}>
+                        <Building2 size={12} />
+                        <span>PF: <span className="num-en">{deal.custom_fields?.pf_listing_reference || deal.custom_fields?.pf_listing_id || deal.custom_fields?.pf_project_id}</span></span>
+                      </div>
+                    )}
                     {(deal.is_overdue || deal.sla?.isOverdue) && (
                       <div className="k-metric-pill" style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontWeight: 900 }}>
                         <AlertCircle size={12} color="#dc2626" />

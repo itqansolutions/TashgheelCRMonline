@@ -37,6 +37,81 @@ async function ensureDealColumns() {
 const FINAL_DEAL_STAGES = ['closed', 'won'];
 const isFinalStage = (stage) => FINAL_DEAL_STAGES.includes(String(stage || '').trim().toLowerCase());
 
+const RESERVATION_STAGES = new Set(['reserved', 'reservation', 'حجز']);
+const isReservationStage = (stage) => RESERVATION_STAGES.has(String(stage || '').trim().toLowerCase());
+
+const isExplicitlyReservingDeal = (deal) => {
+  if (!deal) return false;
+  if (isReservationStage(deal.pipeline_stage)) return true;
+  const cf = deal.custom_fields && typeof deal.custom_fields === 'object' ? deal.custom_fields : {};
+  return cf.is_unit_reservation === true || String(cf.is_unit_reservation || '').toLowerCase() === 'true';
+};
+
+/**
+ * Safely releases a unit from 'Reserved' back to 'Available' when a deal is lost or deleted.
+ * Guarantees:
+ * 1. Never modifies unit status unless its current status is 'Reserved' (protects Contracted, Handed Over, Under Dispute).
+ * 2. Never releases a unit if another active (non-lost, non-cancelled) deal holds an active reservation on the unit.
+ * 3. If the lost/deleted deal was the reserving deal (and no other deal holds a reservation), releases the unit
+ *    even if other early-stage (Lead / Site Visit / Negotiation) deals exist on the same unit.
+ */
+async function releaseUnitIfReservedByDeal(queryable, { unitId, dealRow, tenantId }) {
+  if (!unitId || !dealRow) return { released: false, reason: 'missing_unit_or_deal' };
+
+  const unitRes = await queryable.query(
+    `SELECT id, status FROM re_units
+     WHERE id::text = $1::text AND tenant_id::text = $2::text
+     FOR UPDATE`,
+    [String(unitId), String(tenantId)]
+  );
+  if (unitRes.rows.length === 0) {
+    return { released: false, reason: 'unit_not_found' };
+  }
+
+  const currentStatus = String(unitRes.rows[0].status || '').trim().toLowerCase();
+  if (currentStatus !== 'reserved') {
+    return { released: false, reason: `unit_status_is_${currentStatus}` };
+  }
+
+  const otherActiveRes = await queryable.query(
+    `SELECT id, pipeline_stage, custom_fields FROM deals
+     WHERE unit_id::text = $1::text
+       AND id::text != $2::text
+       AND tenant_id::text = $3::text
+       AND LOWER(COALESCE(pipeline_stage, '')) NOT IN ('lost', 'cancelled')`,
+    [String(unitId), String(dealRow.id), String(tenantId)]
+  );
+
+  const otherActiveDeals = otherActiveRes.rows || [];
+  const hasOtherExplicitReservation = otherActiveDeals.some(d => isExplicitlyReservingDeal(d));
+  if (hasOtherExplicitReservation) {
+    return { released: false, reason: 'other_deal_holds_reservation' };
+  }
+
+  const wasExplicitlyReserving = isExplicitlyReservingDeal(dealRow);
+  const shouldRelease = wasExplicitlyReserving || otherActiveDeals.length === 0;
+  if (!shouldRelease) {
+    return { released: false, reason: 'lost_deal_was_not_reservation_holder' };
+  }
+
+  const upd = await queryable.query(
+    `UPDATE re_units
+     SET status = 'Available',
+         reservation_expires_at = NULL,
+         reservation_extended_at = NULL,
+         reservation_extended_by = NULL,
+         reservation_extension_count = 0,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id::text = $1::text
+       AND tenant_id::text = $2::text
+       AND LOWER(status) = 'reserved'
+     RETURNING id, status`,
+    [String(unitId), String(tenantId)]
+  );
+
+  return { released: upd.rows.length > 0 };
+}
+
 async function getDealLockState(queryable, deal, tenantId) {
   if (isFinalStage(deal.pipeline_stage)) {
     return { locked: true, reason: `Deal is ${deal.pipeline_stage}` };
@@ -60,7 +135,7 @@ async function getDealLockState(queryable, deal, tenantId) {
 
 const normScalar = (v) => (v === undefined || v === null || v === '') ? '' : String(v);
 // Operational (non-commercial) custom fields that stay editable on locked deals
-const NON_COMMERCIAL_FIELDS = new Set(['visit_date', 'visit_result', 'visit_notes']);
+const NON_COMMERCIAL_FIELDS = new Set(['visit_date', 'visit_result', 'visit_notes', 'is_unit_reservation', 'reserved_at']);
 const stableJson = (obj) => {
   const src = (obj && typeof obj === 'object') ? obj : {};
   const out = {};
@@ -72,6 +147,7 @@ const stableJson = (obj) => {
   });
   return JSON.stringify(out);
 };
+
 
 
 // @desc    Get all deals
@@ -149,6 +225,7 @@ exports.getDeals = async (req, res) => {
         u.name as assigned_to_name,
         ru.project_name as unit_project,
         ru.unit_number as unit_number,
+        ru.name as unit_name,
         ru.status as unit_status,
         ru.reservation_expires_at as unit_reservation_expires_at,
         ru.reservation_extended_at as unit_reservation_extended_at,
@@ -245,6 +322,7 @@ exports.getDealById = async (req, res) => {
         p.name as product_name,
         ru.project_name as unit_project,
         ru.unit_number as unit_number,
+        ru.name as unit_name,
         ru.status as unit_status,
         ru.reservation_expires_at as unit_reservation_expires_at,
         ru.reservation_extended_at as unit_reservation_extended_at,
@@ -358,6 +436,11 @@ exports.createDeal = async (req, res) => {
     const client = await db.connect();
     let newDeal;
     let reservationHours = 48;
+    const shouldReserveOnCreate = Boolean(
+      req.body.reserve_unit === true ||
+      req.body.reserve_unit === 'true' ||
+      isReservationStage(pipeline_stage)
+    );
 
     try {
       await client.query('BEGIN');
@@ -388,7 +471,8 @@ exports.createDeal = async (req, res) => {
         if (targetUnit.status?.toLowerCase() !== 'available') {
           await client.query('ROLLBACK');
           return res.status(400).json({ 
-            status: 'error', 
+            status: 'error',
+            code: 'UNIT_NOT_AVAILABLE',
             message: `This unit is already ${targetUnit.status}. Please select an Available unit.` 
           });
         }
@@ -398,28 +482,33 @@ exports.createDeal = async (req, res) => {
           cleanValue = Number(targetUnit.price);
         }
 
-        // Fetch custom reservation hours setting
-        try {
-          const settingsRes = await client.query("SELECT value FROM settings WHERE key = 'reservation_duration_hours'");
-          if (settingsRes.rows.length > 0 && !isNaN(settingsRes.rows[0].value)) {
-            reservationHours = parseInt(settingsRes.rows[0].value);
+        if (shouldReserveOnCreate) {
+          // Fetch custom reservation hours setting
+          try {
+            const settingsRes = await client.query("SELECT value FROM settings WHERE key = 'reservation_duration_hours'");
+            if (settingsRes.rows.length > 0 && !isNaN(settingsRes.rows[0].value)) {
+              reservationHours = parseInt(settingsRes.rows[0].value);
+            }
+          } catch (e) {
+            console.error('Settings fetch error:', e.message);
           }
-        } catch (e) {
-          console.error('Settings fetch error:', e.message);
-        }
 
-        // Update unit to Reserved inside the transaction
-        await client.query(
-          `UPDATE re_units 
-           SET status = 'Reserved', 
-               reservation_expires_at = CURRENT_TIMESTAMP + INTERVAL '${reservationHours} hours',
-               reservation_extended_at = NULL,
-               reservation_extended_by = NULL,
-               reservation_extension_count = 0,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id::text = $1::text AND tenant_id::text = $2::text`,
-          [cleanUnitId, String(tenant_id)]
-        );
+          // Update unit to Reserved inside the transaction
+          await client.query(
+            `UPDATE re_units 
+             SET status = 'Reserved', 
+                 reservation_expires_at = CURRENT_TIMESTAMP + INTERVAL '${reservationHours} hours',
+                 reservation_extended_at = NULL,
+                 reservation_extended_by = NULL,
+                 reservation_extension_count = 0,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+            [cleanUnitId, String(tenant_id)]
+          );
+
+          cleanCustomFields.is_unit_reservation = true;
+          cleanCustomFields.reserved_at = new Date().toISOString();
+        }
       }
 
       // 2. Insert Deal inside transaction
@@ -451,7 +540,7 @@ exports.createDeal = async (req, res) => {
     }
 
     // 3. Post-commit side effects: Audit Logging & Notifications
-    if (cleanUnitId) {
+    if (cleanUnitId && shouldReserveOnCreate) {
       logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: cleanUnitId, details: { deal_id: newDeal.id, status_change: 'Reserved', expires_in_hours: reservationHours } });
     }
 
@@ -519,7 +608,7 @@ exports.createDeal = async (req, res) => {
 // @route   PUT /api/deals/:id
 // @access  Private
 exports.updateDeal = async (req, res) => {
-  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields, probability, expected_close_date, next_action, source_type, source_id } = req.body;
+  const { title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, custom_fields, unit_id, probability, expected_close_date, next_action, source_type, source_id } = req.body;
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id || null;
 
@@ -548,6 +637,16 @@ exports.updateDeal = async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
     const oldData = oldResult.rows[0];
+
+    const requestedUnitId = (unit_id !== undefined && unit_id !== null && String(unit_id).trim() !== '') ? String(unit_id).trim() : null;
+    if (oldData.unit_id && requestedUnitId && String(oldData.unit_id) !== String(requestedUnitId)) {
+      return res.status(400).json({
+        status: 'error',
+        code: 'UNIT_ALREADY_LINKED',
+        message: 'Cannot overwrite an already linked property unit on an existing deal.'
+      });
+    }
+    const isLinkingUnit = !oldData.unit_id && Boolean(requestedUnitId);
 
     // DEFINITIVE SANITIZATION
     const cleanClientId = (client_id !== undefined && client_id !== null && client_id !== '') ? (!isNaN(client_id) ? parseInt(client_id) : client_id) : oldData.client_id;
@@ -582,6 +681,7 @@ exports.updateDeal = async (req, res) => {
     };
 
     const changesDetails =
+      isLinkingUnit ||
       isChangingField(title, oldData.title) ||
       (value !== undefined && Number(value || 0) !== Number(oldData.value || 0)) ||
       isChangingField(client_id, oldData.client_id) ||
@@ -636,6 +736,7 @@ exports.updateDeal = async (req, res) => {
     const lock = await getDealLockState(db, oldData, tenant_id);
     if (lock.locked) {
       const violations = [];
+      if (isLinkingUnit) violations.push('unit');
       if (normScalar(cleanClientId) !== normScalar(oldData.client_id)) violations.push('customer');
       if (Number(cleanValue || 0) !== Number(oldData.value || 0)) violations.push('deal value');
       if (normScalar(cleanAssignedTo) !== normScalar(oldData.assigned_to)) violations.push('owner');
@@ -654,13 +755,100 @@ exports.updateDeal = async (req, res) => {
       }
     }
 
+    let cleanUnitId = oldData.unit_id || null;
+    if (isLinkingUnit) {
+      const unitCheck = await db.query(
+        `SELECT id, status, project_name, unit_number, name, price, branch_id
+         FROM re_units
+         WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+        [requestedUnitId, String(tenant_id)]
+      );
+      if (unitCheck.rows.length === 0) {
+        return res.status(404).json({ status: 'error', message: 'Unit not found.' });
+      }
+      const targetUnit = unitCheck.rows[0];
+      if (targetUnit.branch_id && branch_id && String(targetUnit.branch_id) !== String(branch_id) && req.user?.role !== 'admin') {
+        return res.status(403).json({ status: 'error', message: 'Unauthorized: Unit belongs to a different branch.' });
+      }
+      if (String(targetUnit.status || '').trim().toLowerCase() !== 'available') {
+        return res.status(400).json({
+          status: 'error',
+          code: 'UNIT_NOT_AVAILABLE',
+          message: `This unit is already ${targetUnit.status || 'unavailable'}. Please select an Available unit.`
+        });
+      }
+      cleanUnitId = String(targetUnit.id);
+    }
+
+    const effectiveNextStage = pipeline_stage || oldData.pipeline_stage;
+    const isMovingToLost = changesStage && String(effectiveNextStage || '').trim().toLowerCase() === 'lost';
+    const isRequestingReserve = Boolean(
+      req.body.reserve_unit === true ||
+      req.body.reserve_unit === 'true' ||
+      (changesStage && isReservationStage(effectiveNextStage))
+    );
+
+    if (cleanUnitId && isRequestingReserve) {
+      const uRes = await db.query(
+        `SELECT id, status, branch_id FROM re_units WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+        [String(cleanUnitId), String(tenant_id)]
+      );
+      if (uRes.rows.length === 0) {
+        return res.status(404).json({ status: 'error', message: 'Unit not found.' });
+      }
+      const uRow = uRes.rows[0];
+      const uStatus = String(uRow.status || '').trim().toLowerCase();
+      const alreadyReservedByThisDeal = uStatus === 'reserved' && isExplicitlyReservingDeal(oldData);
+      if (uStatus !== 'available' && !alreadyReservedByThisDeal) {
+        return res.status(409).json({
+          status: 'error',
+          code: 'UNIT_NOT_AVAILABLE',
+          message: `This unit is already ${uRow.status || 'unavailable'}. Only an Available unit can be reserved.`
+        });
+      }
+      if (uStatus === 'available') {
+        await db.query(
+          `UPDATE re_units
+           SET status = 'Reserved',
+               reservation_expires_at = CURRENT_TIMESTAMP + INTERVAL '48 hours',
+               reservation_extended_at = NULL,
+               reservation_extended_by = NULL,
+               reservation_extension_count = 0,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id::text = $1::text AND tenant_id::text = $2::text AND LOWER(status) = 'available'`,
+          [String(cleanUnitId), String(tenant_id)]
+        );
+      }
+      cleanCustomFields.is_unit_reservation = true;
+      cleanCustomFields.reserved_at = cleanCustomFields.reserved_at || new Date().toISOString();
+    } else if (isMovingToLost && cleanCustomFields.is_unit_reservation) {
+      cleanCustomFields.is_unit_reservation = false;
+    }
+
     // 2. Perform Update (With phase 2 metrics)
     const result = await db.query(
       `UPDATE deals 
-       SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, probability = $9, expected_close_date = $10, next_action = $11, source_type = $12, source_id = $13, updated_at = CURRENT_TIMESTAMP 
+       SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, probability = $9, expected_close_date = $10, next_action = $11, source_type = $12, source_id = $13, unit_id = COALESCE(unit_id, $17), updated_at = CURRENT_TIMESTAMP 
        WHERE id = $14 AND tenant_id::text = $15::text AND ($16::text IS NULL OR branch_id::text = $16::text OR branch_id IS NULL) RETURNING *`,
-      [title || oldData.title, cleanValue, pipeline_stage || oldData.pipeline_stage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, cleanCustomFields, cleanProbability, cleanExpectedDate, next_action !== undefined ? next_action : (oldData.next_action || ''), cleanSourceType, cleanSourceId, req.params.id, tenant_id, branch_id]
+      [title || oldData.title, cleanValue, pipeline_stage || oldData.pipeline_stage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, cleanCustomFields, cleanProbability, cleanExpectedDate, next_action !== undefined ? next_action : (oldData.next_action || ''), cleanSourceType, cleanSourceId, req.params.id, tenant_id, branch_id, cleanUnitId]
     );
+
+    if (isMovingToLost && cleanUnitId) {
+      await releaseUnitIfReservedByDeal(db, {
+        unitId: cleanUnitId,
+        dealRow: oldData,
+        tenantId: tenant_id
+      });
+    }
+
+    if (isLinkingUnit && oldData.source_type === 'property_finder' && oldData.source_id) {
+      await db.query(
+        `UPDATE property_finder_lead_mappings
+         SET unit_id = COALESCE(unit_id, $1::uuid)
+         WHERE tenant_id::text = $2::text AND external_lead_id = $3 AND unit_id IS NULL`,
+        [cleanUnitId, tenant_id, String(oldData.source_id)]
+      ).catch(() => {});
+    }
 
     // Audit Logging
     logUpdate(req, 'Deal', req.params.id, oldData, result.rows[0]);
@@ -786,13 +974,50 @@ exports.updateDealStatus = async (req, res) => {
       const lowerStage = cleanStage.toLowerCase();
       // 3. Real Estate Automation: Unit Status Transitions
       const unitIdRes = await client.query(
-        'SELECT unit_id FROM deals WHERE id = $1 AND tenant_id::text = $2::text',
+        'SELECT unit_id, custom_fields FROM deals WHERE id = $1 AND tenant_id::text = $2::text',
         [req.params.id, tenant_id]
       );
-      const unit_id = unitIdRes.rows[0]?.unit_id;
+      const unit_id = unitIdRes.rows[0]?.unit_id || result.rows[0]?.unit_id;
+      const dealCustomFields = unitIdRes.rows[0]?.custom_fields || result.rows[0]?.custom_fields || {};
 
       if (unit_id) {
-          if (lowerStage === 'closed' || lowerStage === 'won') {
+          if (isReservationStage(cleanStage)) {
+              const unitLockRes = await client.query(
+                `SELECT id, status FROM re_units WHERE id::text = $1::text AND tenant_id::text = $2::text FOR UPDATE`,
+                [String(unit_id), String(tenant_id)]
+              );
+              if (unitLockRes.rows.length > 0) {
+                const uStatus = String(unitLockRes.rows[0].status || '').trim().toLowerCase();
+                const alreadyMine = uStatus === 'reserved' && isExplicitlyReservingDeal({ pipeline_stage: oldStage, custom_fields: dealCustomFields });
+                if (uStatus !== 'available' && !alreadyMine) {
+                  await client.query('ROLLBACK');
+                  return res.status(409).json({
+                    status: 'error',
+                    code: 'UNIT_NOT_AVAILABLE',
+                    message: `Cannot reserve unit: Unit is currently ${unitLockRes.rows[0].status}.`
+                  });
+                }
+                if (uStatus === 'available') {
+                  await client.query(
+                    `UPDATE re_units
+                     SET status = 'Reserved',
+                         reservation_expires_at = CURRENT_TIMESTAMP + INTERVAL '48 hours',
+                         reservation_extended_at = NULL,
+                         reservation_extended_by = NULL,
+                         reservation_extension_count = 0,
+                         updated_at = CURRENT_TIMESTAMP
+                     WHERE id::text = $1::text AND tenant_id::text = $2::text AND LOWER(status) = 'available'`,
+                    [String(unit_id), String(tenant_id)]
+                  );
+                }
+                const nextCf = { ...(typeof dealCustomFields === 'object' ? dealCustomFields : {}), is_unit_reservation: true, reserved_at: new Date().toISOString() };
+                await client.query(
+                  `UPDATE deals SET custom_fields = $1 WHERE id = $2 AND tenant_id::text = $3::text`,
+                  [nextCf, req.params.id, tenant_id]
+                );
+                if (result.rows[0]) result.rows[0].custom_fields = nextCf;
+              }
+          } else if (lowerStage === 'closed' || lowerStage === 'won') {
               // Real Estate: Deal winning or closure does not mark the unit 'Sold'.
               // The unit remains 'Reserved' until contract is Signed (which transitions it to 'Contracted').
               // If a signed contract already exists, the unit is already 'Contracted'.
@@ -818,28 +1043,23 @@ exports.updateDealStatus = async (req, res) => {
                 }
               }
           } else if (lowerStage === 'lost') {
-              // P2 Guard: Check if another active (non-lost, non-won) deal references the same unit for this tenant
-              const otherActiveDeals = await client.query(
-                `SELECT id FROM deals 
-                 WHERE unit_id::text = $1::text 
-                   AND id::text != $2::text 
-                   AND tenant_id::text = $3::text 
-                   AND LOWER(COALESCE(pipeline_stage, '')) <> 'lost' 
-                 LIMIT 1`,
-                [unit_id, req.params.id, tenant_id]
-              );
+              await releaseUnitIfReservedByDeal(client, {
+                unitId: unit_id,
+                dealRow: {
+                  id: req.params.id,
+                  pipeline_stage: oldStage,
+                  custom_fields: dealCustomFields
+                },
+                tenantId: tenant_id
+              });
 
-              if (otherActiveDeals.rows.length === 0) {
-                  await client.query(`
-                      UPDATE re_units 
-                      SET status = 'Available', 
-                          reservation_expires_at = NULL, 
-                          reservation_extended_at = NULL, 
-                          reservation_extended_by = NULL, 
-                          reservation_extension_count = 0, 
-                          updated_at = CURRENT_TIMESTAMP 
-                      WHERE id::text = $1::text AND tenant_id::text = $2::text
-                  `, [unit_id, tenant_id]);
+              if (dealCustomFields && dealCustomFields.is_unit_reservation) {
+                const clearedCf = { ...dealCustomFields, is_unit_reservation: false };
+                await client.query(
+                  `UPDATE deals SET custom_fields = $1 WHERE id = $2 AND tenant_id::text = $3::text`,
+                  [clearedCf, req.params.id, tenant_id]
+                );
+                if (result.rows[0]) result.rows[0].custom_fields = clearedCf;
               }
           }
       }
@@ -948,19 +1168,14 @@ exports.deleteDeal = async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
 
-    // Real Estate Automation: Revert unit status if linked
+    // Real Estate Automation: Safely revert unit status only if unit is currently Reserved by this deal
     const unit_id = result.rows[0].unit_id;
     if (unit_id) {
-        await db.query(`
-            UPDATE re_units 
-            SET status = 'Available', 
-                reservation_expires_at = NULL, 
-                reservation_extended_at = NULL, 
-                reservation_extended_by = NULL, 
-                reservation_extension_count = 0, 
-                updated_at = CURRENT_TIMESTAMP 
-            WHERE id::text = $1::text AND tenant_id::text = $2::text
-        `, [unit_id, tenant_id]);
+        await releaseUnitIfReservedByDeal(db, {
+          unitId: unit_id,
+          dealRow: result.rows[0],
+          tenantId: tenant_id
+        });
     }
 
     // Clean up orphaned RE payment records
@@ -973,6 +1188,153 @@ exports.deleteDeal = async (req, res) => {
   } catch (err) {
     console.error('[Deal Delete Error]', err);
     res.status(500).json({ status: 'error', message: err.message || 'Server error' });
+  }
+};
+
+// @desc    Explicitly reserve the linked unit for this deal (atomic concurrency lock)
+// @route   POST /api/deals/:id/reserve-unit
+// @access  Private (deal.edit_details)
+exports.reserveDealUnit = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id || null;
+  const client = db.connect ? await db.connect() : await db.pool.connect();
+
+  try {
+    await ensureDealColumns();
+    await client.query('BEGIN');
+
+    const scope = await accessScopeService.buildScopePredicate({
+      user: req.user,
+      tableAlias: 'deals',
+      assigneeCol: 'assigned_to',
+      paramIndex: 4
+    });
+    let chkWhere = 'id::text = $1::text AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)';
+    const chkParams = [req.params.id, tenant_id, branch_id];
+    if (scope.sql && scope.sql !== '1=1') {
+      chkWhere += ` AND ${scope.sql}`;
+      chkParams.push(...scope.params);
+    }
+
+    const dealRes = await client.query(
+      `SELECT * FROM deals WHERE ${chkWhere} FOR UPDATE`,
+      chkParams
+    );
+    if (dealRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
+    }
+
+    const deal = dealRes.rows[0];
+    if (!deal.unit_id) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ status: 'error', code: 'NO_LINKED_UNIT', message: 'This deal is not linked to any property unit.' });
+    }
+
+    const stageLc = String(deal.pipeline_stage || '').trim().toLowerCase();
+    if (['lost', 'cancelled'].includes(stageLc)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ status: 'error', code: 'INVALID_DEAL_STAGE', message: `Cannot reserve a unit for a ${deal.pipeline_stage} deal.` });
+    }
+
+    const unitRes = await client.query(
+      `SELECT * FROM re_units WHERE id::text = $1::text AND tenant_id::text = $2::text FOR UPDATE`,
+      [String(deal.unit_id), String(tenant_id)]
+    );
+    if (unitRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ status: 'error', message: 'Linked unit not found.' });
+    }
+
+    const targetUnit = unitRes.rows[0];
+    if (targetUnit.branch_id && branch_id && String(targetUnit.branch_id) !== String(branch_id) && req.user?.role !== 'admin') {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ status: 'error', message: 'Unauthorized: Unit belongs to a different branch.' });
+    }
+
+    const uStatus = String(targetUnit.status || '').trim().toLowerCase();
+    if (uStatus === 'reserved' && isExplicitlyReservingDeal(deal)) {
+      await client.query('COMMIT');
+      return res.json({ status: 'success', data: deal, unit: targetUnit, message: 'Unit is already reserved for this deal.' });
+    }
+
+    if (uStatus !== 'available') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        status: 'error',
+        code: 'UNIT_NOT_AVAILABLE',
+        message: `This unit is already ${targetUnit.status || 'unavailable'}. Only an Available unit can be reserved.`
+      });
+    }
+
+    let reservationHours = 48;
+    try {
+      const settingsRes = await client.query("SELECT value FROM settings WHERE key = 'reservation_duration_hours'");
+      if (settingsRes.rows.length > 0 && !isNaN(settingsRes.rows[0].value)) {
+        reservationHours = parseInt(settingsRes.rows[0].value, 10);
+      }
+    } catch (_) {}
+
+    const updUnitRes = await client.query(
+      `UPDATE re_units
+       SET status = 'Reserved',
+           reservation_expires_at = CURRENT_TIMESTAMP + INTERVAL '${reservationHours} hours',
+           reservation_extended_at = NULL,
+           reservation_extended_by = NULL,
+           reservation_extension_count = 0,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id::text = $1::text AND tenant_id::text = $2::text AND LOWER(status) = 'available'
+       RETURNING *`,
+      [String(deal.unit_id), String(tenant_id)]
+    );
+
+    if (updUnitRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        status: 'error',
+        code: 'UNIT_NOT_AVAILABLE',
+        message: 'Unit could not be reserved because it is no longer Available.'
+      });
+    }
+
+    const updatedCustomFields = {
+      ...(deal.custom_fields && typeof deal.custom_fields === 'object' ? deal.custom_fields : {}),
+      is_unit_reservation: true,
+      reserved_at: new Date().toISOString()
+    };
+
+    const updDealRes = await client.query(
+      `UPDATE deals
+       SET custom_fields = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 AND tenant_id::text = $3::text
+       RETURNING *`,
+      [updatedCustomFields, deal.id, String(tenant_id)]
+    );
+
+    await client.query('COMMIT');
+
+    try {
+      logAction({
+        req,
+        action: ACTIONS.AUTOMATION,
+        entityType: 'Unit',
+        entityId: deal.unit_id,
+        details: { deal_id: deal.id, status_change: 'Reserved', expires_in_hours: reservationHours }
+      });
+    } catch (_) {}
+
+    res.json({
+      status: 'success',
+      data: updDealRes.rows[0],
+      unit: updUnitRes.rows[0],
+      message: 'Unit reserved successfully.'
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[Reserve Deal Unit Error]:', err.message);
+    res.status(err.statusCode || 500).json({ status: 'error', message: err.message || 'Failed to reserve unit' });
+  } finally {
+    client.release();
   }
 };
 
@@ -1088,3 +1450,4 @@ exports.reassignDeal = async (req, res) => {
     });
   }
 };
+

@@ -577,19 +577,30 @@ async function getRealEstateCollectionsFlow(tenantId, hasFinanceAccess) {
 /**
  * Real Estate Top Salesmen & Commissions
  */
-async function getRealEstateCommissionsOverview(tenantId, hasFinanceAccess) {
+async function getRealEstateCommissionsOverview(tenantId, hasFinanceAccess, timeFilter = 'THIS_MONTH') {
     try {
-        // Salesmen performance rankings by closed deals
+        const timeFilterLogic = (col) => {
+            if (timeFilter === 'THIS_MONTH') {
+                return `${col} >= date_trunc('month', CURRENT_DATE) AND ${col} < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'`;
+            } else if (timeFilter === 'LAST_MONTH') {
+                return `${col} >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month') AND ${col} < date_trunc('month', CURRENT_DATE)`;
+            }
+            return `${col} > NOW() - INTERVAL '1 year'`;
+        };
+
+        // Salesmen performance rankings by contracted deals in period
         const topAgentsRes = await db.query(`
             SELECT 
                 u.id as user_id,
                 u.name as user_name,
-                COUNT(d.id) as deals_count,
-                COALESCE(SUM(d.value), 0) as total_deal_value
+                COUNT(rc.id) as deals_count,
+                COALESCE(SUM(rc.contract_value), 0) as total_deal_value
             FROM users u
             JOIN deals d ON d.assigned_to::text = u.id::text AND d.tenant_id::text = u.tenant_id::text
+            JOIN re_contracts rc ON rc.deal_id = d.id AND rc.tenant_id::text = u.tenant_id::text
             WHERE u.tenant_id::text = $1::text
-            AND LOWER(COALESCE(d.pipeline_stage, '')) IN ('won', 'closed')
+            AND (rc.status IS NULL OR rc.status != 'Cancelled')
+            AND ${timeFilterLogic('rc.contract_date')}
             GROUP BY u.id, u.name
             ORDER BY total_deal_value DESC
             LIMIT 5

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink } from 'lucide-react';
+import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, Users, Handshake, Activity, Filter, Calendar, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink } from 'lucide-react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -66,10 +66,42 @@ const UnitsRegistry = () => {
     // Form and N2 price state
     const [priceDisplay, setPriceDisplay] = useState('');
 
-    // Sync the employee dropdown to the unit's current assignee when modal opens
+    // Unit Overview Card State (Phase 3 & Phase 4)
+    const [unitOverview, setUnitOverview] = useState(null);
+    const [overviewLoading, setOverviewLoading] = useState(false);
+    const [overviewSearch, setOverviewSearch] = useState('');
+    const [overviewStageFilter, setOverviewStageFilter] = useState('all');
+    const [overviewRepFilter, setOverviewRepFilter] = useState('all');
+    const [overviewSourceFilter, setOverviewSourceFilter] = useState('all');
+    const [overviewStatusFilter, setOverviewStatusFilter] = useState('all');
+
+    const fetchUnitOverview = async (unitId) => {
+        if (!unitId) return;
+        setOverviewLoading(true);
+        try {
+            const res = await api.get(`/re-units/${unitId}/overview`);
+            if (res.data?.data) {
+                setUnitOverview(res.data.data);
+            }
+        } catch (err) {
+            console.warn('[Unit Overview Load Warning]:', err.message);
+        } finally {
+            setOverviewLoading(false);
+        }
+    };
+
+    // Sync the employee dropdown and fetch unit overview when modal opens
     useEffect(() => {
         if (selectedUnit) {
             setAssigningEmployee(selectedUnit.assigned_to || '');
+            fetchUnitOverview(selectedUnit.id);
+        } else {
+            setUnitOverview(null);
+            setOverviewSearch('');
+            setOverviewStageFilter('all');
+            setOverviewRepFilter('all');
+            setOverviewSourceFilter('all');
+            setOverviewStatusFilter('all');
         }
     }, [selectedUnit?.id]);
 
@@ -157,7 +189,15 @@ const UnitsRegistry = () => {
         } else if (tab === 'projects' || tab === 'phases' || tab === 'buildings') {
             setHierarchyTab('projects');
         }
-    }, [searchParams]);
+
+        const targetUnitId = searchParams.get('unit_id') || searchParams.get('id');
+        if (targetUnitId && units && units.length > 0) {
+            const found = units.find(u => String(u.id) === String(targetUnitId));
+            if (found) {
+                setSelectedUnit(found);
+            }
+        }
+    }, [searchParams, units]);
 
     // Close topmost modal on Escape key
     useEffect(() => {
@@ -1054,9 +1094,38 @@ const UnitsRegistry = () => {
                     }}
                     style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
                 >
-                    <div className="ap-card" style={{ width: '100%', maxWidth: '540px', maxHeight: 'min(90vh, 760px)', display: 'flex', flexDirection: 'column', padding: '0', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)', overflow: 'hidden' }}>
+                    <div className="ap-card" style={{ width: '100%', maxWidth: '860px', maxHeight: 'min(92vh, 840px)', display: 'flex', flexDirection: 'column', padding: '0', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)', overflow: 'hidden' }}>
                         {(() => {
                             const config = getStatusConfig(selectedUnit.status);
+                            const kpis = unitOverview?.kpis || {
+                                distinct_customers_count: 0,
+                                total_deals_count: 0,
+                                active_deals_count: 0,
+                                distinct_sales_reps_count: 0
+                            };
+                            const activeResDeal = unitOverview?.active_reservation_deal;
+
+                            // Filter deals locally according to user selection
+                            const rawDeals = unitOverview?.deals || [];
+                            const filteredOverviewDeals = rawDeals.filter(d => {
+                                if (overviewStageFilter !== 'all' && String(d.pipeline_stage || '').toLowerCase() !== overviewStageFilter.toLowerCase()) return false;
+                                if (overviewRepFilter !== 'all' && String(d.assigned_to || '') !== overviewRepFilter) return false;
+                                if (overviewSourceFilter !== 'all' && !String(d.source || '').toLowerCase().includes(overviewSourceFilter.toLowerCase())) return false;
+                                if (overviewStatusFilter === 'active' && !d.is_active) return false;
+                                if (overviewStatusFilter === 'closed' && d.is_active) return false;
+                                if (overviewStatusFilter !== 'all' && overviewStatusFilter !== 'active' && overviewStatusFilter !== 'closed' && d.deal_status !== overviewStatusFilter) return false;
+                                if (overviewSearch && overviewSearch.trim() !== '') {
+                                    const q = overviewSearch.trim().toLowerCase();
+                                    const match = String(d.customer_name || '').toLowerCase().includes(q) ||
+                                                  String(d.customer_phone || '').toLowerCase().includes(q) ||
+                                                  String(d.deal_title || '').toLowerCase().includes(q) ||
+                                                  String(d.sales_rep_name || '').toLowerCase().includes(q) ||
+                                                  String(d.pf_lead_id || '').toLowerCase().includes(q);
+                                    if (!match) return false;
+                                }
+                                return true;
+                            });
+
                             return (
                                 <>
                                     <div style={{ padding: '20px 24px', background: config.bg, borderBottom: `1px solid ${config.color}40`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexShrink: 0 }}>
@@ -1067,7 +1136,7 @@ const UnitsRegistry = () => {
                                                 {selectedUnit.phase_name ? ` • ${selectedUnit.phase_name}` : ''}
                                                 {selectedUnit.building_name ? ` • ${selectedUnit.building_name}` : ''}
                                             </div>
-                                            <h2 style={{ fontSize: '20px', margin: 0, fontWeight: 900, color: 'var(--text-main)', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3 }}>
+                                            <h2 style={{ fontSize: '22px', margin: 0, fontWeight: 900, color: 'var(--text-main)', wordBreak: 'break-word', overflowWrap: 'anywhere', lineHeight: 1.3 }}>
                                                 {selectedUnit.name || (String(selectedUnit.unit_number).length > 15 ? selectedUnit.unit_number : t('realEstate.unitsRegistry.unitPrefix', { number: selectedUnit.unit_number }))}
                                             </h2>
                                             {selectedUnit.name && selectedUnit.unit_number && selectedUnit.name !== selectedUnit.unit_number && (
@@ -1107,31 +1176,97 @@ const UnitsRegistry = () => {
                                     </div>
                                     
                                     <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px' }}>
-                                            <div>
+                                        {/* Core Specs Grid */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' }}>
+                                            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerType')}</div>
-                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>{selectedUnit.type}</div>
+                                                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)' }}>{selectedUnit.type}</div>
                                             </div>
-                                            <div>
+                                            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerMarketValue')}</div>
-                                                <div style={{ fontSize: '18px', fontWeight: 900, color: 'var(--primary)' }}><span className="num-en">{Number(selectedUnit.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> {t('realEstate.common.currencySuffix')}</div>
+                                                <div style={{ fontSize: '15px', fontWeight: 900, color: 'var(--primary)' }}><span className="num-en">{Number(selectedUnit.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> {t('realEstate.common.currencySuffix')}</div>
                                             </div>
-                                            <div>
+                                            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerArea')}</div>
-                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}><span className="num-en">{selectedUnit.area_sqm}</span> m²</div>
+                                                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)' }}><span className="num-en">{selectedUnit.area_sqm}</span> m²</div>
                                             </div>
-                                            <div>
+                                            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerLayout')}</div>
-                                                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.drawerFloorRooms', { floor: selectedUnit.floor || '—', rooms: selectedUnit.rooms ?? '—' })}</div>
+                                                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.drawerFloorRooms', { floor: selectedUnit.floor || '—', rooms: selectedUnit.rooms ?? '—' })}</div>
+                                            </div>
+                                        </div>
+
+                                        {/* ─── 4 RBAC-Scoped KPIs (Condition 3) ─── */}
+                                        <div style={{ marginBottom: '20px' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                                                <div style={{ background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#2563eb', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Users size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: '11px', color: '#1e40af', fontWeight: 800 }}>{isRTL ? 'العملاء المهتمون' : 'Distinct Customers'}</div>
+                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#1e3a8a' }} className="num-en">{overviewLoading ? '...' : kpis.distinct_customers_count}</div>
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)', border: '1px solid #e9d5ff', borderRadius: '12px', padding: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#7c3aed', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Handshake size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: '11px', color: '#6b21a8', fontWeight: 800 }}>{isRTL ? 'إجمالي الصفقات' : 'Total Deals'}</div>
+                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#581c87' }} className="num-en">{overviewLoading ? '...' : kpis.total_deals_count}</div>
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#16a34a', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Activity size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: '11px', color: '#166534', fontWeight: 800 }}>{isRTL ? 'الصفقات النشطة' : 'Active Deals'}</div>
+                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#14532d' }} className="num-en">{overviewLoading ? '...' : kpis.active_deals_count}</div>
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', border: '1px solid #fde68a', borderRadius: '12px', padding: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#d97706', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <UserCheck size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: '11px', color: '#92400e', fontWeight: 800 }}>{isRTL ? 'مسؤولو المبيعات' : 'Sales Reps'}</div>
+                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#78350f' }} className="num-en">{overviewLoading ? '...' : kpis.distinct_sales_reps_count}</div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
                                         {/* Active Reservation & Extension */}
                                         {selectedUnit.status === 'Reserved' && (
-                                            <div style={{ background: '#fffbeb', padding: '16px', borderRadius: '12px', border: '1px solid #fde68a', marginBottom: '16px' }}>
-                                                <div style={{ fontSize: '11px', color: '#b45309', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <Clock size={13}/> {t('realEstate.unitsRegistry.activeReservation')}
+                                            <div style={{ background: '#fffbeb', padding: '16px', borderRadius: '12px', border: '1px solid #fde68a', marginBottom: '20px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                    <div style={{ fontSize: '11px', color: '#b45309', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <Clock size={13}/> {t('realEstate.unitsRegistry.activeReservation')}
+                                                    </div>
+                                                    {activeResDeal && (
+                                                        <span style={{ fontSize: '11px', background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                                                            {isRTL ? 'حاجز الوحدة الصريح' : 'Reservation Holder'}
+                                                        </span>
+                                                    )}
                                                 </div>
+                                                {activeResDeal && (
+                                                    <div style={{ fontSize: '12px', color: '#92400e', background: 'rgba(255,255,255,0.7)', padding: '8px 12px', borderRadius: '8px', marginBottom: '10px', border: '1px solid #fde68a' }}>
+                                                        <strong>{isRTL ? 'الصفقة الحاجزة:' : 'Reserving Deal:'}</strong>{' '}
+                                                        <a href={`/deals?deal_id=${activeResDeal.deal_id}`} style={{ color: '#b45309', fontWeight: 800, textDecoration: 'underline' }}>
+                                                            {activeResDeal.deal_title}
+                                                        </a>{' '}
+                                                        • <strong>{isRTL ? 'العميل:' : 'Customer:'}</strong>{' '}
+                                                        <a href={`/customers?customer360=${activeResDeal.customer_id}`} style={{ color: '#b45309', fontWeight: 800, textDecoration: 'underline' }}>
+                                                            {activeResDeal.customer_name}
+                                                        </a>{' '}
+                                                        • <strong>{isRTL ? 'المسؤول:' : 'Owner:'}</strong> {activeResDeal.sales_rep_name}
+                                                    </div>
+                                                )}
                                                 <div style={{ fontSize: '13px', color: '#92400e', marginBottom: '10px' }}>
                                                     <strong>{t('realEstate.unitsRegistry.lblExpires')}</strong> {selectedUnit.reservation_expires_at ? <span className="num-en">{new Date(selectedUnit.reservation_expires_at).toLocaleString('en-US')}</span> : t('realEstate.unitsRegistry.notSet')}
                                                     {Number(selectedUnit.reservation_extension_count) > 0 && (
@@ -1158,6 +1293,198 @@ const UnitsRegistry = () => {
                                                 </div>
                                             </div>
                                         )}
+
+                                        {/* ─── Integrated Deals & Interested Prospects Section (Condition 1 & 3) ─── */}
+                                        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1.5px solid #e2e8f0', padding: '18px', marginBottom: '20px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <Handshake size={18} color="var(--primary)" />
+                                                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: 'var(--text-main)' }}>
+                                                        {isRTL ? 'العملاء والصفقات المرتبطة بالوحدة' : 'Linked Deals & Interested Prospects'}
+                                                    </h3>
+                                                    <span style={{ fontSize: '11px', fontWeight: 800, background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '12px' }} className="num-en">
+                                                        {filteredOverviewDeals.length}
+                                                    </span>
+                                                </div>
+                                                <a 
+                                                    href={`/deals?new=1&unit_id=${selectedUnit.id}`}
+                                                    style={{ fontSize: '12px', fontWeight: 800, color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(99, 102, 241, 0.08)', padding: '6px 12px', borderRadius: '8px' }}
+                                                >
+                                                    <Plus size={13} strokeWidth={3} /> {isRTL ? 'إنشاء صفقة على هذه الوحدة' : 'Create Deal on this Unit'}
+                                                </a>
+                                            </div>
+
+                                            {/* Filters Bar */}
+                                            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                <div style={{ flex: 1, minWidth: '160px', position: 'relative' }}>
+                                                    <Search size={14} style={{ position: 'absolute', [isRTL ? 'right' : 'left']: '10px', top: '10px', color: '#94a3b8' }} />
+                                                    <input 
+                                                        type="text"
+                                                        value={overviewSearch}
+                                                        onChange={e => setOverviewSearch(e.target.value)}
+                                                        placeholder={isRTL ? 'بحث بالعميل، الهاتف، الصفقة، المسؤول...' : 'Search customer, phone, deal...'}
+                                                        style={{ width: '100%', height: '34px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', [isRTL ? 'paddingRight' : 'paddingLeft']: '30px', [isRTL ? 'paddingLeft' : 'paddingRight']: '10px' }}
+                                                    />
+                                                </div>
+
+                                                {/* Stage Filter */}
+                                                <select 
+                                                    value={overviewStageFilter} 
+                                                    onChange={e => setOverviewStageFilter(e.target.value)}
+                                                    style={{ height: '34px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', padding: '0 8px', background: 'white' }}
+                                                >
+                                                    <option value="all">{isRTL ? 'كل المراحل' : 'All Stages'}</option>
+                                                    {(unitOverview?.filter_options?.stages || []).map(stg => (
+                                                        <option key={stg} value={stg}>{stg}</option>
+                                                    ))}
+                                                </select>
+
+                                                {/* Sales Rep Filter */}
+                                                <select 
+                                                    value={overviewRepFilter} 
+                                                    onChange={e => setOverviewRepFilter(e.target.value)}
+                                                    style={{ height: '34px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', padding: '0 8px', background: 'white' }}
+                                                >
+                                                    <option value="all">{isRTL ? 'كل مسؤولي المبيعات' : 'All Sales Reps'}</option>
+                                                    {(unitOverview?.filter_options?.sales_reps || []).map(r => (
+                                                        <option key={r.id} value={r.id}>{r.name}</option>
+                                                    ))}
+                                                </select>
+
+                                                {/* Status Filter */}
+                                                <select 
+                                                    value={overviewStatusFilter} 
+                                                    onChange={e => setOverviewStatusFilter(e.target.value)}
+                                                    style={{ height: '34px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', padding: '0 8px', background: 'white' }}
+                                                >
+                                                    <option value="all">{isRTL ? 'كل الحالات' : 'All Status'}</option>
+                                                    <option value="active">{isRTL ? 'نشطة' : 'Active'}</option>
+                                                    <option value="won">{isRTL ? 'ناجحة (Won)' : 'Won'}</option>
+                                                    <option value="lost">{isRTL ? 'مفقودة (Lost)' : 'Lost'}</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Deals List */}
+                                            {overviewLoading ? (
+                                                <div style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontSize: '13px' }}>
+                                                    {isRTL ? 'جارٍ تحميل الصفقات والعملاء المرتبطين...' : 'Loading linked prospects and deals...'}
+                                                </div>
+                                            ) : filteredOverviewDeals.length === 0 ? (
+                                                <div style={{ textAlign: 'center', padding: '24px', background: '#f8fafc', borderRadius: '10px', color: '#64748b', fontSize: '13px' }}>
+                                                    {isRTL ? 'لا توجد صفقات أو عملاء مسجلين على هذه الوحدة تطابق الفلتر' : 'No matching deals or prospects linked to this unit.'}
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    {filteredOverviewDeals.map(d => {
+                                                        const isReserving = d.is_unit_reservation;
+                                                        return (
+                                                            <div 
+                                                                key={d.deal_id} 
+                                                                style={{ 
+                                                                    border: `1px solid ${isReserving ? '#fde68a' : '#e2e8f0'}`, 
+                                                                    background: isReserving ? '#fffdf7' : '#ffffff',
+                                                                    borderRadius: '10px', 
+                                                                    padding: '12px 14px',
+                                                                    display: 'flex', 
+                                                                    flexDirection: 'column', 
+                                                                    gap: '8px' 
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+                                                                    <div>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                                            <a 
+                                                                                href={`/deals?deal_id=${d.deal_id}`} 
+                                                                                style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)', textDecoration: 'none' }}
+                                                                                title={isRTL ? 'فتح تفاصيل الصفقة' : 'Open Deal'}
+                                                                            >
+                                                                                {d.deal_title}
+                                                                            </a>
+                                                                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--primary)', background: '#eff6ff', padding: '2px 8px', borderRadius: '6px' }}>
+                                                                                <span className="num-en">{Number(d.value || 0).toLocaleString('en-US')}</span> {t('realEstate.common.currencySuffix')}
+                                                                            </span>
+                                                                            <span style={{ fontSize: '11px', fontWeight: 800, color: '#334155', background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px' }}>
+                                                                                {d.pipeline_stage}
+                                                                            </span>
+                                                                            {isReserving && (
+                                                                                <span style={{ fontSize: '10px', fontWeight: 800, background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: '6px', border: '1px solid #fde68a' }}>
+                                                                                    {isRTL ? 'حاجز الوحدة' : 'Unit Reserver'}
+                                                                                </span>
+                                                                            )}
+                                                                            <span style={{
+                                                                                fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px',
+                                                                                background: d.deal_status === 'won' ? '#dcfce7' : d.deal_status === 'lost' ? '#fee2e2' : '#e0e7ff',
+                                                                                color: d.deal_status === 'won' ? '#15803d' : d.deal_status === 'lost' ? '#b91c1c' : '#3730a3'
+                                                                            }}>
+                                                                                {d.deal_status.toUpperCase()}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', gap: '12px', marginTop: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                                <User size={13} />
+                                                                                <strong>{isRTL ? 'العميل:' : 'Customer:'}</strong>{' '}
+                                                                                <a 
+                                                                                    href={`/customers?customer360=${d.customer_id}`} 
+                                                                                    style={{ color: '#0284c7', fontWeight: 700, textDecoration: 'none' }}
+                                                                                    title={isRTL ? 'فتح Customer 360' : 'Open Customer 360'}
+                                                                                >
+                                                                                    {d.customer_name}
+                                                                                </a>
+                                                                                {d.customer_phone && <span className="num-en" style={{ color: '#64748b' }}>({d.customer_phone})</span>}
+                                                                            </span>
+                                                                            <span>•</span>
+                                                                            <span>
+                                                                                <strong>{isRTL ? 'المسؤول:' : 'Owner:'}</strong> {d.sales_rep_name}
+                                                                            </span>
+                                                                            <span>•</span>
+                                                                            <span style={{ color: '#0369a1', fontWeight: 600 }}>
+                                                                                {d.source}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                                                        <a
+                                                                            href={`/customers?customer360=${d.customer_id}`}
+                                                                            style={{ padding: '5px 10px', background: '#f0f9ff', color: '#0284c7', borderRadius: '6px', fontSize: '11px', fontWeight: 800, textDecoration: 'none', border: '1px solid #bae6fd' }}
+                                                                        >
+                                                                            360°
+                                                                        </a>
+                                                                        <a
+                                                                            href={`/deals?deal_id=${d.deal_id}`}
+                                                                            style={{ padding: '5px 10px', background: '#f8fafc', color: 'var(--text-main)', borderRadius: '6px', fontSize: '11px', fontWeight: 800, textDecoration: 'none', border: '1px solid #cbd5e1' }}
+                                                                        >
+                                                                            Deal
+                                                                        </a>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Last & Next Follow-up row */}
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.02)', padding: '6px 10px', borderRadius: '6px', fontSize: '11px', color: '#64748b', flexWrap: 'wrap', gap: '8px' }}>
+                                                                    <div>
+                                                                        <span>{isRTL ? 'آخر متابعة:' : 'Last Activity:'}</span>{' '}
+                                                                        <span className="num-en">{d.last_followup_at ? new Date(d.last_followup_at).toLocaleDateString('en-GB') : '—'}</span>
+                                                                        {d.last_followup_summary && <span style={{ marginLeft: '4px', fontStyle: 'italic' }}>({d.last_followup_summary.length > 40 ? d.last_followup_summary.slice(0, 40) + '...' : d.last_followup_summary})</span>}
+                                                                    </div>
+                                                                    <div>
+                                                                        <span>{isRTL ? 'المتابعة القادمة:' : 'Next SLA:'}</span>{' '}
+                                                                        <span className="num-en" style={{ fontWeight: 700, color: d.is_overdue ? '#dc2626' : '#16a34a' }}>
+                                                                            {d.next_followup_at ? new Date(d.next_followup_at).toLocaleDateString('en-GB') : (isRTL ? 'مستقرة' : 'On Track')}
+                                                                        </span>
+                                                                        {d.is_overdue && (
+                                                                            <span style={{ marginLeft: '4px', color: '#dc2626', fontWeight: 800 }}>
+                                                                                [{isRTL ? 'متأخرة' : 'OVERDUE'}]
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
 
                                         <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
                                             <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>

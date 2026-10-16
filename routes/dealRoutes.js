@@ -37,6 +37,11 @@ router.patch('/:id/status', requireDealPermission('deal.update_stage'), dealsCon
 // @access  Private (deal.delete)
 router.delete('/:id', requireDealPermission('deal.delete'), dealsController.deleteDeal);
 
+// @route   POST api/deals/:id/reserve-unit
+// @desc    Explicitly reserve the linked property unit for this deal (48h lock)
+// @access  Private (deal.edit_details)
+router.post('/:id/reserve-unit', requireDealPermission('deal.edit_details'), dealsController.reserveDealUnit);
+
 // @route   POST api/deals/:id/extend-reservation
 // @desc    Extend reservation for deal's linked unit
 // @access  Private (deal.extend_sla)

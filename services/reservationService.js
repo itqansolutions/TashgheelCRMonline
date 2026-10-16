@@ -43,11 +43,18 @@ const scanAndReleaseExpiredReservations = async () => {
 
             // Find active (open) deals associated with this unit
             const dealRes = await db.query(`
-                SELECT id, title 
+                SELECT id, title, pipeline_stage, custom_fields
                 FROM deals 
                 WHERE unit_id::text = $1::text AND tenant_id::text = $2::text
                 AND LOWER(COALESCE(pipeline_stage, '')) NOT IN ('won', 'lost', 'closed')
             `, [unit.id, unit.tenant_id]);
+
+            const reservingDeals = dealRes.rows.filter(d => {
+                const cf = (d.custom_fields && typeof d.custom_fields === 'object') ? d.custom_fields : {};
+                const stage = String(d.pipeline_stage || '').trim().toLowerCase();
+                return cf.is_unit_reservation === true || cf.is_unit_reservation === 'true' || ['reserved', 'reservation', 'حجز'].includes(stage);
+            });
+            const dealsToExpire = reservingDeals.length > 0 ? reservingDeals : dealRes.rows;
 
             // Release the unit back to the market
             await db.query(`
@@ -61,13 +68,19 @@ const scanAndReleaseExpiredReservations = async () => {
                 WHERE id = $1
             `, [unit.id]);
 
-            // Close the associated deals as 'Lost'
-            for (const deal of dealRes.rows) {
+            // Close the expired reserving deal(s) as 'Lost'
+            for (const deal of dealsToExpire) {
+                const nextCf = {
+                    ...((deal.custom_fields && typeof deal.custom_fields === 'object') ? deal.custom_fields : {}),
+                    is_unit_reservation: false
+                };
                 await db.query(`
                     UPDATE deals 
-                    SET pipeline_stage = 'lost', updated_at = CURRENT_TIMESTAMP 
+                    SET pipeline_stage = 'lost',
+                        custom_fields = $2::jsonb,
+                        updated_at = CURRENT_TIMESTAMP 
                     WHERE id = $1
-                `, [deal.id]);
+                `, [deal.id, JSON.stringify(nextCf)]);
 
                 // Record the action in system logs (Audit Oracle logic simulation)
                 await db.query(`

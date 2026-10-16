@@ -498,12 +498,12 @@ const Deals = () => {
   };
 
   const handleUnitChange = (unitId) => {
-      const unit = (reUnits || []).find(u => u.id === unitId);
+      const unit = (reUnits || []).find(u => String(u.id) === String(unitId));
       setFormData({
           ...formData,
           unit_id: unitId,
-          value: unit ? unit.price : formData.value,
-          title: unit ? `${unit.project_name} - Unit ${unit.unit_number}` : formData.title
+          value: (!editingDeal || !Number(formData.value)) && unit ? unit.price : formData.value,
+          title: (!editingDeal || !formData.title) && unit ? `${unit.project_name} - Unit ${unit.unit_number}` : formData.title
       });
   };
 
@@ -524,6 +524,27 @@ const Deals = () => {
       handleCloseModal();
     } catch (err) {
       toast.error(err.response?.data?.message || t('deals.failedToSave', 'Failed to save deal'));
+    }
+  };
+
+  const handleReserveUnit = async (dealId) => {
+    try {
+      const res = await api.post(`/deals/${dealId}/reserve-unit`);
+      toast.success(
+        isRTL
+          ? 'تم حجز الوحدة العقارية لهذه الصفقة لمدة 48 ساعة بنجاح'
+          : (res.data?.message || 'Unit reserved for 48 hours')
+      );
+      fetchDeals(false);
+      if (isRealEstate) fetchReUnits();
+      if (editingDeal && editingDeal.id === dealId && res.data?.data) {
+        setEditingDeal(prev => ({
+          ...prev,
+          ...res.data.data
+        }));
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || (isRTL ? 'تعذر حجز الوحدة العقارية' : 'Failed to reserve unit'));
     }
   };
 
@@ -586,13 +607,21 @@ const Deals = () => {
           {/* REAL ESTATE UNIT BADGE */}
           {isRealEstate && item.unit_id && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', [isRTL ? 'marginRight' : 'marginLeft']: '30px', marginTop: '4px' }}>
-                   <div style={{ 
-                        display: 'flex', alignItems: 'center', gap: '6px', 
-                        fontSize: '11px', color: '#0ea5e9', background: '#f0f9ff',
-                        padding: '2px 10px', borderRadius: '6px', border: '1px solid #bae6fd',
-                        fontWeight: 800
-                   }}>
+                   <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/re-units?unit_id=${item.unit_id}`);
+                        }}
+                        title={isRTL ? 'اضغط لعرض بطاقة الوحدة الشاملة وجميع العملاء والصفقات المرتبطة' : 'Click to open Unit Overview Card'}
+                        style={{ 
+                          display: 'flex', alignItems: 'center', gap: '6px', 
+                          fontSize: '11px', color: '#0ea5e9', background: '#f0f9ff',
+                          padding: '2px 10px', borderRadius: '6px', border: '1px solid #bae6fd',
+                          fontWeight: 800, cursor: 'pointer'
+                        }}
+                   >
                         <Building2 size={12} /> {item.unit_project} • {t('deals.unitProject', 'Unit')} <span className="num-en">{item.unit_number}</span>
+                        {item.unit_name && item.unit_name !== item.unit_number ? <span>({item.unit_name})</span> : null}
                    </div>
                    
                    {/* RESERVATION STATUS / EXPIRATION BADGE */}
@@ -646,6 +675,24 @@ const Deals = () => {
                        })()
                    )}
               </div>
+          )}
+
+          {/* PROPERTY FINDER UNLINKED FALLBACK BADGE */}
+          {!item.unit_id && item.source_type === 'property_finder' && (item.custom_fields?.pf_listing_reference || item.custom_fields?.pf_listing_id || item.custom_fields?.pf_project_id) && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', [isRTL ? 'marginRight' : 'marginLeft']: '30px', marginTop: '4px' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                fontSize: '11px', color: '#b45309', background: '#fffbeb',
+                padding: '2px 10px', borderRadius: '6px', border: '1px solid #fde68a',
+                fontWeight: 700
+              }}>
+                <Building2 size={12} />
+                <span>
+                  Property Finder {item.custom_fields?.lead_type === 'project' ? 'Project' : 'Listing'}:{' '}
+                  <span className="num-en">{item.custom_fields?.pf_listing_reference || item.custom_fields?.pf_listing_id || item.custom_fields?.pf_project_id}</span>
+                </span>
+              </div>
+            </div>
           )}
 
           {/* VISUAL CARDS FOR CUSTOM FIELDS (Polish Sprint) */}
@@ -1028,21 +1075,31 @@ const Deals = () => {
                 <label style={{ color: '#0369a1', fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                     <Building2 size={14} /> {t('deals.selectPropertyUnit', 'SELECT PROPERTY UNIT (REAL ESTATE)')}
                 </label>
+                {!editingDeal?.unit_id && editingDeal?.source_type === 'property_finder' && (editingDeal?.custom_fields?.pf_listing_reference || editingDeal?.custom_fields?.pf_listing_id || editingDeal?.custom_fields?.pf_project_id) && (
+                  <div style={{ fontSize: '11px', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '6px 10px', borderRadius: '6px', marginBottom: '8px', fontWeight: 700 }}>
+                    Property Finder {editingDeal.custom_fields?.lead_type === 'project' ? 'Project' : 'Listing'} ID:{' '}
+                    <span className="num-en">{editingDeal.custom_fields?.pf_listing_reference || editingDeal.custom_fields?.pf_listing_id || editingDeal.custom_fields?.pf_project_id}</span>
+                  </div>
+                )}
                 <select 
                     className="ap-input" 
                     style={{ border: '1px solid #0ea5e9' }}
                     value={formData.unit_id} 
-                    disabled={!!editingDeal || isDetailsDisabled}
+                    disabled={Boolean(editingDeal?.unit_id) || isDetailsDisabled}
                     onChange={(e) => handleUnitChange(e.target.value)}
                 >
                     <option value="">{t('deals.selectAvailableUnit', '-- Select Available Unit --')}</option>
                     {(reUnits || []).filter(u => u.status === 'Available' || String(u.id) === String(formData.unit_id)).map(u => (
                         <option key={u.id} value={u.id}>
-                            {u.project_name} | Unit {u.unit_number} ({u.area}m²) - {Number(u.price).toLocaleString('en-US')} {t('common.currency', 'EGP')}
+                            {u.project_name} | Unit {u.unit_number}{u.name && u.name !== u.unit_number ? ` (${u.name})` : ''} ({u.area}m²) - {Number(u.price).toLocaleString('en-US')} {t('common.currency', 'EGP')}
                         </option>
                     ))}
                 </select>
-                <p style={{ fontSize: '11px', color: '#0284c7', marginTop: '6px' }}>{t('deals.unitAutoValueHint', 'Selecting a unit will automatically set the deal value and reserve the unit.')}</p>
+                <p style={{ fontSize: '11px', color: '#0284c7', marginTop: '6px' }}>
+                  {isRTL 
+                    ? 'ربط الوحدة يحدد قيمة الصفقة تلقائياً ويتيح التنافس بين عدة صفقات وعملاء دون تجميدها إلا عند الحجز الصريح.'
+                    : t('deals.unitAutoValueHint', 'Selecting a unit will set the deal value. The unit remains available for other prospects until explicitly reserved.')}
+                </p>
             </div>
           )}
 
@@ -1202,8 +1259,32 @@ const Deals = () => {
                 <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#166534' }}>
                   <Building2 size={18} color="#16a34a"/> {t('deals.unitReservationStatus', 'Unit Reservation Status')}
                 </h4>
-                <div style={{ padding: '4px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '6px', fontSize: '11px', fontWeight: 800, border: '1px solid #86efac' }}>
-                  {getReservationStatusLabel(editingDeal.unit_status)}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleCloseModal();
+                      navigate(`/re-units?unit_id=${editingDeal.unit_id}`);
+                    }}
+                    style={{
+                      padding: '4px 10px',
+                      background: '#0284c7',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <Layers size={12} /> {isRTL ? 'بطاقة الوحدة الشاملة' : 'Unit Overview Card'}
+                  </button>
+                  <div style={{ padding: '4px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '6px', fontSize: '11px', fontWeight: 800, border: '1px solid #86efac' }}>
+                    {getReservationStatusLabel(editingDeal.unit_status || 'Available')}
+                  </div>
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px', fontSize: '12px' }}>
@@ -1216,34 +1297,47 @@ const Deals = () => {
                 <div>
                   <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.reservationExpires', 'Reservation Expires:')}</span>
                   <span style={{ fontWeight: 800, color: editingDeal.unit_reservation_expires_at && new Date(editingDeal.unit_reservation_expires_at) < new Date() ? '#dc2626' : '#166534' }}>
-                    {editingDeal.unit_reservation_expires_at ? <span className="num-en">{new Date(editingDeal.unit_reservation_expires_at).toLocaleString('en-GB')}</span> : t('deals.active', 'Active')}
+                    {editingDeal.unit_reservation_expires_at ? <span className="num-en">{new Date(editingDeal.unit_reservation_expires_at).toLocaleString('en-GB')}</span> : (editingDeal.unit_status === 'Reserved' ? t('deals.active', 'Active') : (isRTL ? 'متاحة (غير محجوزة)' : 'Available (Not Reserved)'))}
                   </span>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #dcfce7', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 700 }}>
-                  {editingDeal.unit_reservation_extension_count > 0 
-                    ? t('deals.extendedTimes', 'Extended {count} time(s)').replace('{count}', editingDeal.unit_reservation_extension_count) 
-                    : t('deals.activeReservation', 'Active Reservation')}
+                  {editingDeal.unit_status === 'Reserved'
+                    ? (editingDeal.unit_reservation_extension_count > 0 
+                        ? t('deals.extendedTimes', 'Extended {count} time(s)').replace('{count}', editingDeal.unit_reservation_extension_count) 
+                        : t('deals.activeReservation', 'Active Reservation'))
+                    : (isRTL ? 'الوحدة متاحة لعروض متعددة — يمكنك تأكيد الحجز لمدة 48 ساعة عند الجدية' : 'Unit is available for multi-deal inquiries — reserve explicitly when buyer commits')}
                 </span>
-                {canExtendSla && (
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {editingDeal.unit_status !== 'Reserved' && (
                     <button
                       type="button"
-                      onClick={() => handleExtendReservation(editingDeal.id, 24)}
-                      style={{ padding: '6px 14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                      onClick={() => handleReserveUnit(editingDeal.id)}
+                      style={{ padding: '6px 14px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                     >
-                      {t('deals.extend24h', 'Extend +24h')}
+                      <Clock size={12} /> {isRTL ? 'حجز الوحدة (48 ساعة)' : 'Reserve Unit (48h)'}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handleExtendReservation(editingDeal.id, 48)}
-                      style={{ padding: '6px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      {t('deals.extend48h', 'Extend +48h')}
-                    </button>
-                  </div>
-                )}
+                  )}
+                  {editingDeal.unit_status === 'Reserved' && canExtendSla && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleExtendReservation(editingDeal.id, 24)}
+                        style={{ padding: '6px 14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        {t('deals.extend24h', 'Extend +24h')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExtendReservation(editingDeal.id, 48)}
+                        style={{ padding: '6px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        {t('deals.extend48h', 'Extend +48h')}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           )}

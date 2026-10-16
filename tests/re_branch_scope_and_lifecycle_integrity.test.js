@@ -441,8 +441,31 @@ test('Phase B: Branch Scope Enforcement Tests', async (t) => {
     assert.ok(queryParams.includes('branch-cairo'));
   });
 
-  await t.test('Cancellations: Non-admin cannot process cancellation for deal in another branch (404)', async () => {
+  await t.test('Cancellations: Unauthorized user without deal.delete cannot process cancellation (403)', async () => {
     const res = createMockRes();
+    await reCancellationsController.processCancellation(
+      {
+        body: { deal_id: 55, cancellation_reason: 'Client relocated' },
+        user: { id: 'u-1', tenant_id: 'tenant-100', role: 'agent' },
+        branchId: 'branch-cairo'
+      },
+      res
+    );
+
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.data.code, 'PERMISSION_DENIED');
+  });
+
+  await t.test('Cancellations: Authorized user cannot process cancellation for deal in another branch (404)', async () => {
+    const res = createMockRes();
+    const origQuery = db.query;
+    db.query = async (sql, params) => {
+      if (sql && sql.includes('FROM user_access')) {
+        return { rows: [{ page_path: 'deal.delete', can_access: true }] };
+      }
+      return { rows: [] };
+    };
+
     const mockClient = {
       query: async (sql) => {
         if (sql === 'BEGIN' || sql === 'ROLLBACK') return {};
@@ -455,17 +478,21 @@ test('Phase B: Branch Scope Enforcement Tests', async (t) => {
     };
     db.connect = async () => mockClient;
 
-    await reCancellationsController.processCancellation(
-      {
-        body: { deal_id: 55, cancellation_reason: 'Client relocated' },
-        user: { id: 'u-1', tenant_id: 'tenant-100', role: 'agent' },
-        branchId: 'branch-cairo'
-      },
-      res
-    );
+    try {
+      await reCancellationsController.processCancellation(
+        {
+          body: { deal_id: 55, cancellation_reason: 'Client relocated' },
+          user: { id: 'u-1', tenant_id: 'tenant-100', role: 'agent' },
+          branchId: 'branch-cairo'
+        },
+        res
+      );
 
-    assert.equal(res.statusCode, 404);
-    assert.match(res.data.message, /not found or unauthorized/i);
+      assert.equal(res.statusCode, 404);
+      assert.match(res.data.message, /not found or unauthorized/i);
+    } finally {
+      db.query = origQuery;
+    }
   });
 
   // 4. Payments MVP Branch Isolation

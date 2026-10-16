@@ -571,7 +571,7 @@ exports.getCustomer360 = async (req, res) => {
       // Deals
       db.query(`
         SELECT d.*, u.name as assigned_to_name, p.name as product_name,
-               ru.unit_number, ru.project_name as unit_project_name, ru.status as unit_status,
+               ru.unit_number, ru.name as unit_name, ru.project_name as unit_project_name, ru.status as unit_status,
                ru.reservation_expires_at as unit_reservation_expires_at,
                ru.reservation_extended_at as unit_reservation_extended_at
         FROM deals d

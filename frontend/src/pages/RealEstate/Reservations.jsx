@@ -51,11 +51,33 @@ const Reservations = () => {
     };
   };
 
-  const reservations = useMemo(() => (deals || []).filter(d =>
-    d.unit_id &&
-    String(d.unit_status || '').toLowerCase() === 'reserved' &&
-    !OPEN_STAGE_EXCLUDE.includes(String(d.pipeline_stage || '').toLowerCase())
-  ), [deals]);
+  const reservations = useMemo(() => {
+    const candidateDeals = (deals || []).filter(d =>
+      d.unit_id &&
+      String(d.unit_status || '').toLowerCase() === 'reserved' &&
+      !OPEN_STAGE_EXCLUDE.includes(String(d.pipeline_stage || '').toLowerCase())
+    );
+    const byUnit = new Map();
+    for (const d of candidateDeals) {
+      const uid = String(d.unit_id);
+      if (!byUnit.has(uid)) byUnit.set(uid, []);
+      byUnit.get(uid).push(d);
+    }
+    const result = [];
+    for (const unitDeals of byUnit.values()) {
+      const explicitHolders = unitDeals.filter(d => {
+        const cf = (d.custom_fields && typeof d.custom_fields === 'object') ? d.custom_fields : {};
+        const stg = String(d.pipeline_stage || '').trim().toLowerCase();
+        return cf.is_unit_reservation === true || cf.is_unit_reservation === 'true' || ['reserved', 'reservation', 'حجز'].includes(stg);
+      });
+      if (explicitHolders.length > 0) {
+        result.push(...explicitHolders);
+      } else {
+        result.push(...unitDeals);
+      }
+    }
+    return result;
+  }, [deals]);
 
   const rows = useMemo(() => reservations.filter(d => {
     const tVal = timeLeft(d.unit_reservation_expires_at);

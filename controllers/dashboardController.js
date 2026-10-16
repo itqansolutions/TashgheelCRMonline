@@ -67,8 +67,9 @@ exports.getBranchSummary = async (req, res) => {
 
         // --- Execute Optimized Queries ---
         
-        // 1. Revenue (Template-Aware Switch)
+        // 1. Revenue (Template-Aware Switch) & Cash Collected
         let revenue = 0;
+        let cash_collected = 0;
         if (templateName === 'real_estate') {
             const revRes = await db.query(`
                 SELECT COALESCE(SUM(amount), 0) as total 
@@ -79,14 +80,25 @@ exports.getBranchSummary = async (req, res) => {
                 AND ${timeFilterLogic('voucher_date')}
             `, queryParams);
             revenue = parseFloat(revRes.rows[0].total);
+            cash_collected = revenue;
         } else {
             const revRes = await db.query(`
                 SELECT COALESCE(SUM(total_amount), 0) as total 
                 FROM invoices 
                 WHERE tenant_id::text = $1::text ${branchFilter}
+                AND (status IS NULL OR status != 'cancelled')
                 AND ${timeFilterLogic('created_at')}
             `, queryParams);
             revenue = parseFloat(revRes.rows[0].total);
+
+            const cashRes = await db.query(`
+                SELECT COALESCE(SUM(amount), 0) as total
+                FROM payments
+                WHERE tenant_id::text = $1::text ${branchFilter}
+                AND (COALESCE(status, 'active') != 'cancelled')
+                AND ${timeFilterLogic('payment_date')}
+            `, queryParams);
+            cash_collected = parseFloat(cashRes.rows[0].total);
         }
 
         // 2. Expenses
@@ -150,11 +162,11 @@ exports.getBranchSummary = async (req, res) => {
             prevRevenue = parseFloat(prevRevRes.rows[0].total);
         } else {
             const prevRevRes = await db.query(`
-                SELECT COALESCE(SUM(amount), 0) as total 
-                FROM payments 
-                WHERE tenant_id::text = $1::text ${branchFilter} 
-                AND (COALESCE(status, 'active') != 'cancelled')
-                AND ${prevTimeFilterLogic('payment_date')}
+                SELECT COALESCE(SUM(total_amount), 0) as total
+                FROM invoices
+                WHERE tenant_id::text = $1::text ${branchFilter}
+                AND (status IS NULL OR status != 'cancelled')
+                AND ${prevTimeFilterLogic('created_at')}
             `, queryParams);
             prevRevenue = parseFloat(prevRevRes.rows[0].total);
         }
@@ -240,6 +252,7 @@ exports.getBranchSummary = async (req, res) => {
 
         const payload = {
             revenue,
+            cash_collected,
             expenses,
             profit,
             profitMargin,
@@ -281,7 +294,7 @@ exports.getBranchSummary = async (req, res) => {
             return res.json({ 
                 status: 'success', 
                 data: {
-                    revenue: 0, expenses: 0, profit: 0, profitMargin: 0,
+                    revenue: 0, cash_collected: 0, expenses: 0, profit: 0, profitMargin: 0,
                     winRate: 0, wonDeals: 0, totalDeals: 0,
                     taskCompletion: 0, completedTasks: 0, totalTasks: 0,
                     viewMode, insights: [{ type: 'info', message: 'Metrics are currently being initialized. Please check back in a moment.' }],
@@ -315,6 +328,10 @@ exports.getComparison = async (req, res) => {
     try {
         console.log(`[BI-ENGINE] Running Branch Comparison/Leaderboard Query | Time: ${timeFilter}`);
         
+        // 0. Fetch Industry Template Context
+        const tenantRes = await db.query('SELECT template_name FROM tenants WHERE id::text = $1::text', [tenant_id]);
+        const templateName = tenantRes.rows[0]?.template_name;
+
         // Define filters based on time filter
         const timeFilterLogic = (col) => {
             if (timeFilter === 'THIS_MONTH') {
@@ -325,13 +342,17 @@ exports.getComparison = async (req, res) => {
             return `${col} > NOW() - INTERVAL '1 year'`;
         };
 
+        const revenueSubquery = templateName === 'real_estate'
+            ? `COALESCE((SELECT SUM(amount) FROM finance_vouchers fv WHERE fv.branch_id::text = b.id::text AND fv.tenant_id::text = b.tenant_id::text AND fv.voucher_type = 'receipt' AND (COALESCE(fv.status, 'active') != 'cancelled') AND ${timeFilterLogic('fv.voucher_date')}), 0)`
+            : `COALESCE((SELECT SUM(total_amount) FROM invoices inv WHERE inv.branch_id::text = b.id::text AND inv.tenant_id::text = b.tenant_id::text AND (inv.status IS NULL OR inv.status != 'cancelled') AND ${timeFilterLogic('inv.created_at')}), 0)`;
+
         // CTEs to calculate branch-level aggregations safely
         const query = `
             WITH branch_metrics AS (
                 SELECT 
                     b.id as branch_id,
                     b.name as branch_name,
-                    COALESCE((SELECT SUM(amount) FROM payments p WHERE p.branch_id::text = b.id::text AND p.tenant_id::text = b.tenant_id::text AND (COALESCE(p.status, 'active') != 'cancelled') AND ${timeFilterLogic('p.payment_date')}), 0) as revenue,
+                    ${revenueSubquery} as revenue,
                     COALESCE((SELECT SUM(amount) FROM expenses e WHERE e.branch_id::text = b.id::text AND e.tenant_id::text = b.tenant_id::text AND ${timeFilterLogic('e.expense_date')}), 0) as expenses,
                     
                     COALESCE((SELECT COUNT(*) FROM deals d WHERE d.branch_id::text = b.id::text AND d.tenant_id::text = b.tenant_id::text AND d.pipeline_stage = 'won' AND ${timeFilterLogic('d.created_at')}), 0) as won_deals,
@@ -469,7 +490,7 @@ exports.getDashboardSummary = async (req, res) => {
                 dashboardService.getRealEstateExpiringReservations(tenant_id),
                 dashboardService.getRealEstateContractsAndInstallments(tenant_id),
                 dashboardService.getRealEstateCollectionsFlow(tenant_id, hasFinanceAccess),
-                dashboardService.getRealEstateCommissionsOverview(tenant_id, hasFinanceAccess),
+                dashboardService.getRealEstateCommissionsOverview(tenant_id, hasFinanceAccess, timeFilter),
                 dashboardService.getRealEstateUpcomingHandovers(tenant_id)
             ]);
 

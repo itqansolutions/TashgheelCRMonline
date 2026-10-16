@@ -588,7 +588,10 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>
                             {t('customers.pipelineStage', 'Pipeline Stage:')} <span style={{ fontWeight: 700, color: '#4f46e5' }}>{d.pipeline_stage}</span>
                             {d.unit_number && (
-                              <span> • {t('customers.unit', 'Unit:')} <strong className="num-en" style={{ color: '#0369a1' }}>{d.unit_number}</strong>{d.unit_project_name ? ` (${d.unit_project_name})` : ''}</span>
+                              <span> • {t('customers.unit', 'Unit:')} <strong className="num-en" style={{ color: '#0369a1' }}>{d.unit_number}</strong>{d.unit_name && d.unit_name !== d.unit_number ? ` - ${d.unit_name}` : ''}{d.unit_project_name ? ` (${d.unit_project_name})` : ''}</span>
+                            )}
+                            {!d.unit_id && (d.pf_listing_reference || d.pf_listing_id || d.pf_project_id) && (
+                              <span> • <strong className="num-en" style={{ color: '#d97706' }}>{d.pf_listing_reference ? `PF Ref: ${d.pf_listing_reference}` : d.pf_listing_id ? `PF ID: ${d.pf_listing_id}` : `PF Project: ${d.pf_project_id}`}</strong> ({isRTL ? 'غير مربوط بوحدة' : 'Unlinked'})</span>
                             )}
                             {d.product_name && ` • ${t('customers.product', 'Product:')} ${d.product_name}`}
                             {` • ${t('customers.assigned', 'Assigned:')} ${d.assigned_to_name || t('customers.unassigned', 'Unassigned')}`}

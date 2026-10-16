@@ -363,10 +363,14 @@ class ReTargetService {
     const contractsSql = `
       SELECT
         rc.id, rc.contract_value, rc.unit_id, rc.status as contract_status,
-        canc.created_at as cancelled_at
+        canc.cancelled_at
       FROM re_contracts rc
       JOIN deals d ON rc.deal_id = d.id AND d.tenant_id::text = rc.tenant_id::text
-      LEFT JOIN re_cancellations canc ON (canc.contract_id = rc.id OR canc.deal_id = d.id) AND canc.tenant_id::text = rc.tenant_id::text
+      LEFT JOIN LATERAL (
+        SELECT MIN(c.created_at) AS cancelled_at
+        FROM re_cancellations c
+        WHERE c.tenant_id::text = rc.tenant_id::text AND c.contract_id = rc.id
+      ) canc ON TRUE
       WHERE rc.tenant_id::text = $1::text
         AND (rc.contract_date AT TIME ZONE '${timezone}' >= $2::timestamp
          AND rc.contract_date AT TIME ZONE '${timezone}' < $3::timestamp)
@@ -379,14 +383,19 @@ class ReTargetService {
     let eligibleContractsCount = 0;
 
     cRes.rows.forEach(c => {
-      // Contract is active if status in ('Signed', 'Active', 'Completed')
-      // If status is 'Cancelled':
-      // - If cancelled during this period (cancelled_at < endLocal), exclude from achievement (same-period cancellation)
-      // - If cancelled after this period ended (cancelled_at >= endLocal), historical achievement of closed period is preserved!
-      const isSamePeriodCancelled = c.contract_status === 'Cancelled' &&
-        (!c.cancelled_at || new Date(c.cancelled_at).toISOString() < new Date(endLocal).toISOString());
+      // Contract contributes to target achievement if:
+      // 1. It is currently active: status in ('Signed', 'Active', 'Completed')
+      // 2. OR it was cancelled in a subsequent/future period (cancelled_at >= endLocal),
+      //    meaning it was valid throughout this closed period (historical preservation).
+      // Prudent Rule: If status is 'Cancelled' and cancelled_at is missing OR in this period (< endLocal),
+      // it is strictly EXCLUDED from achievement.
+      const isHistoricalClosedPreserved = c.contract_status === 'Cancelled' &&
+        Boolean(c.cancelled_at) &&
+        new Date(c.cancelled_at).toISOString() >= new Date(endLocal).toISOString();
 
-      if (['Signed', 'Active', 'Completed'].includes(c.contract_status) || (!isSamePeriodCancelled && c.contract_status === 'Cancelled')) {
+      const isContributing = ['Signed', 'Active', 'Completed'].includes(c.contract_status) || isHistoricalClosedPreserved;
+
+      if (isContributing) {
         grossContractsValue += parseFloat(c.contract_value) || 0;
         if (c.unit_id) activeUnits.add(c.unit_id);
         eligibleContractsCount++;
@@ -397,7 +406,7 @@ class ReTargetService {
     // Separate same-period cancellations from prior-period cancellation settlements (deductions)
     const cancelSql = `
       SELECT
-        canc.id, canc.total_paid_amount, canc.deduction_amount, canc.refundable_amount,
+        canc.id, canc.contract_id, canc.deal_id, canc.total_paid_amount, canc.deduction_amount, canc.refundable_amount,
         rc.contract_value, rc.contract_date
       FROM re_cancellations canc
       JOIN deals d ON canc.deal_id = d.id AND d.tenant_id::text = canc.tenant_id::text
@@ -414,14 +423,31 @@ class ReTargetService {
     let priorPeriodCancellationsValue = 0;
     let cancelledPaidAmount = 0;
 
+    const seenPriorContracts = new Set();
+    const seenSamePeriodContracts = new Set();
+
     cancelRes.rows.forEach(canc => {
-      cancelledPaidAmount += parseFloat(canc.total_paid_amount) || 0;
+      // Deal-level reservation cancellation (no contract associated) -> skip contract deduction
+      if (!canc.contract_id) {
+        return;
+      }
+
+      const contractIdStr = String(canc.contract_id);
       const isPriorPeriod = canc.contract_date && (new Date(canc.contract_date).toISOString() < new Date(startLocal).toISOString());
+
       if (isPriorPeriod) {
-        priorPeriodCancellationsCount++;
-        priorPeriodCancellationsValue += parseFloat(canc.contract_value) || 0;
+        if (!seenPriorContracts.has(contractIdStr)) {
+          seenPriorContracts.add(contractIdStr);
+          priorPeriodCancellationsCount++;
+          priorPeriodCancellationsValue += parseFloat(canc.contract_value) || 0;
+          cancelledPaidAmount += parseFloat(canc.total_paid_amount) || 0;
+        }
       } else {
-        samePeriodCancellationsCount++;
+        if (!seenSamePeriodContracts.has(contractIdStr)) {
+          seenSamePeriodContracts.add(contractIdStr);
+          samePeriodCancellationsCount++;
+          cancelledPaidAmount += parseFloat(canc.total_paid_amount) || 0;
+        }
       }
     });
 
@@ -551,12 +577,16 @@ class ReTargetService {
         rc.contract_date, rc.status as contract_status,
         c.name as customer_name, c.phone as customer_phone,
         ru.unit_number, ru.project_name, ru.type as unit_type,
-        canc.created_at as cancelled_at, canc.cancellation_reason
+        canc.cancelled_at, canc.cancellation_reason
       FROM re_contracts rc
       JOIN deals d ON rc.deal_id = d.id AND d.tenant_id::text = rc.tenant_id::text
       LEFT JOIN customers c ON rc.customer_id = c.id
       LEFT JOIN re_units ru ON rc.unit_id::text = ru.id::text AND ru.tenant_id::text = rc.tenant_id::text
-      LEFT JOIN re_cancellations canc ON (canc.contract_id = rc.id OR canc.deal_id = d.id) AND canc.tenant_id::text = rc.tenant_id::text
+      LEFT JOIN LATERAL (
+        SELECT MIN(c.created_at) AS cancelled_at, MIN(c.cancellation_reason) AS cancellation_reason
+        FROM re_cancellations c
+        WHERE c.tenant_id::text = rc.tenant_id::text AND c.contract_id = rc.id
+      ) canc ON TRUE
       WHERE rc.tenant_id::text = $1::text
         AND d.assigned_to::text = $2::text
         AND (rc.contract_date AT TIME ZONE '${timezone}' >= $3::timestamp
@@ -570,10 +600,13 @@ class ReTargetService {
     const unitsContracted = new Set();
 
     contractsRes.rows.forEach(c => {
-      const isSamePeriodCancelled = c.contract_status === 'Cancelled' &&
-        (!c.cancelled_at || new Date(c.cancelled_at).toISOString() < new Date(endLocal).toISOString());
+      const isHistoricalClosedPreserved = c.contract_status === 'Cancelled' &&
+        Boolean(c.cancelled_at) &&
+        new Date(c.cancelled_at).toISOString() >= new Date(endLocal).toISOString();
 
-      if (['Signed', 'Active', 'Completed'].includes(c.contract_status) || (!isSamePeriodCancelled && c.contract_status === 'Cancelled')) {
+      const isContributing = ['Signed', 'Active', 'Completed'].includes(c.contract_status) || isHistoricalClosedPreserved;
+
+      if (isContributing) {
         activeContracts.push(c);
         grossContractValue += parseFloat(c.contract_value) || 0;
         if (c.unit_number) unitsContracted.add(c.unit_number);
@@ -701,7 +734,7 @@ class ReTargetService {
     // 6. Fetch Cancellations & Settlements occurred during this period
     const cancelRes = await runner.query(`
       SELECT
-        canc.id, canc.total_paid_amount, canc.deduction_amount, canc.refundable_amount,
+        canc.id, canc.contract_id, canc.deal_id, canc.total_paid_amount, canc.deduction_amount, canc.refundable_amount,
         canc.cancellation_reason, canc.created_at as cancelled_at,
         rc.contract_number, rc.contract_value, rc.contract_date,
         c.name as customer_name, ru.project_name, ru.unit_number
@@ -718,9 +751,11 @@ class ReTargetService {
     `, [tenant_id, String(user_id), startLocal, endLocal]);
 
     let priorPeriodDeduction = 0;
+    const seenPriorContracts = new Set();
     const cancellationsList = cancelRes.rows.map(row => {
       const isPriorPeriod = row.contract_date && (new Date(row.contract_date).toISOString() < new Date(startLocal).toISOString());
-      if (isPriorPeriod) {
+      if (isPriorPeriod && row.contract_id && !seenPriorContracts.has(String(row.contract_id))) {
+        seenPriorContracts.add(String(row.contract_id));
         priorPeriodDeduction += parseFloat(row.contract_value) || 0;
       }
       return {

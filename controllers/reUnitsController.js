@@ -415,6 +415,369 @@ exports.getUnitById = async (req, res) => {
     }
 };
 
+// @desc    Get comprehensive Unit Overview Card (unit details + 4 distinct RBAC-scoped KPIs + RBAC-scoped deals/customers list)
+// @route   GET /api/re-units/:id/overview
+// @access  Private (RBAC-scoped)
+exports.getUnitOverview = async (req, res) => {
+    const { id } = req.params;
+    const tenant_id = req.user?.tenant_id ? String(req.user.tenant_id) : null;
+    const branch_id = req.branchId || req.user?.branch_id || null;
+    const { stage, assigned_to, source, status, search } = req.query;
+
+    if (!tenant_id) {
+        return res.status(400).json({ status: 'error', message: 'Tenant context missing' });
+    }
+    if (!isUuid(id)) {
+        return res.status(400).json({ status: 'error', message: 'Invalid unit ID format' });
+    }
+
+    try {
+        // 1. Fetch Unit Details with Hierarchy & Property Finder Listing Mapping
+        const unitRes = await db.query(`
+            SELECT
+                ru.*,
+                c.name as vendor_name,
+                u.name as responsible_person_name,
+                emp.name as assigned_to_name,
+                dev.name as developer_name,
+                COALESCE(proj.name, ru.project_name) as project_name,
+                phase.name as phase_name,
+                bld.name as building_name,
+                pflm.publication_status as pf_publication_status,
+                pflm.external_listing_id as pf_external_listing_id,
+                pflm.portal_url as pf_portal_url,
+                pflm.rejection_reason as pf_rejection_reason,
+                pflm.reference_code as pf_reference_code
+            FROM re_units ru
+            LEFT JOIN customers c ON ru.vendor_id::text = c.id::text AND c.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN users u ON ru.responsible_person_id::text = u.id::text AND u.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN users emp ON ru.assigned_to::text = emp.id::text AND emp.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN re_developers dev ON ru.developer_id::text = dev.id::text AND dev.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN re_projects proj ON ru.project_id::text = proj.id::text AND proj.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN re_phases phase ON ru.phase_id::text = phase.id::text AND phase.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN re_buildings bld ON ru.building_id::text = bld.id::text AND bld.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN property_finder_listing_mappings pflm ON ru.id = pflm.unit_id AND pflm.tenant_id::text = ru.tenant_id::text
+            WHERE ru.id = $1::uuid
+              AND ru.tenant_id::text = $2::text
+              AND ($3::text IS NULL OR ru.status = 'Available' OR ru.branch_id::text = $3::text OR ru.branch_id IS NULL)
+            LIMIT 1
+        `, [id, tenant_id, branch_id ? String(branch_id) : null]);
+
+        if (unitRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+        }
+
+        const unit = unitRes.rows[0];
+
+        // 2. Build strict RBAC Scope Predicate for Deals on this Unit
+        const accessScopeService = require('../services/accessScopeService');
+        const dealParams = [id, tenant_id, branch_id ? String(branch_id) : null];
+        const scope = await accessScopeService.buildScopePredicate({
+            user: req.user,
+            tableAlias: 'd',
+            assigneeCol: 'assigned_to',
+            paramIndex: 4
+        });
+        dealParams.push(...scope.params);
+
+        const dealsRes = await db.query(`
+            SELECT
+                d.id as deal_id,
+                d.title as deal_title,
+                d.value,
+                d.pipeline_stage,
+                d.client_id as customer_id,
+                d.assigned_to,
+                d.branch_id,
+                d.custom_fields,
+                d.sla_deadline_at,
+                d.sla_extended_count,
+                d.created_at,
+                d.updated_at,
+                c.name as customer_name,
+                c.phone as customer_phone,
+                c.email as customer_email,
+                c.status as customer_status,
+                COALESCE(ls.name, 'Direct') as customer_source_name,
+                u.name as sales_rep_name,
+                u.email as sales_rep_email,
+                u.role as sales_rep_role,
+                pf.pf_lead_id,
+                pf.channel as pf_channel,
+                pf.pf_mapping_status
+            FROM deals d
+            LEFT JOIN customers c ON d.client_id::text = c.id::text AND d.tenant_id::text = c.tenant_id::text
+            LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
+            LEFT JOIN users u ON d.assigned_to::text = u.id::text AND d.tenant_id::text = u.tenant_id::text
+            LEFT JOIN LATERAL (
+                SELECT pflm.pf_lead_id, pflm.channel, pflm.status as pf_mapping_status
+                FROM property_finder_lead_mappings pflm
+                WHERE pflm.deal_id = d.id AND pflm.tenant_id::text = d.tenant_id::text
+                ORDER BY pflm.updated_at DESC NULLS LAST
+                LIMIT 1
+            ) pf ON true
+            WHERE d.unit_id::text = $1::text
+              AND d.tenant_id::text = $2::text
+              AND ($3::text IS NULL OR d.branch_id::text = $3::text OR d.branch_id IS NULL)
+              AND (${scope.sql})
+            ORDER BY d.created_at DESC, d.id DESC
+        `, dealParams);
+
+        const rawDeals = dealsRes.rows || [];
+
+        // 3. Enrich deals with latest activity & next follow-up task (best-effort, non-blocking)
+        const dealIds = rawDeals.map(r => String(r.deal_id));
+        const customerIds = [...new Set(rawDeals.map(r => r.customer_id ? String(r.customer_id) : null).filter(Boolean))];
+
+        const latestActivityByDeal = new Map();
+        const latestActivityByCustomer = new Map();
+        const nextTaskByDeal = new Map();
+        const nextTaskByCustomer = new Map();
+
+        if (dealIds.length > 0) {
+            try {
+                const actRes = await db.query(`
+                    SELECT entity_type, entity_id::text as entity_id, action, title, details, meta, created_at
+                    FROM activities
+                    WHERE tenant_id::text = $1::text
+                      AND (
+                          (LOWER(entity_type) = 'deal' AND entity_id::text = ANY($2::text[]))
+                          OR (LOWER(entity_type) = 'customer' AND entity_id::text = ANY($3::text[]))
+                      )
+                    ORDER BY created_at DESC
+                `, [tenant_id, dealIds, customerIds]);
+
+                for (const act of actRes.rows) {
+                    const summary = (act.meta?.changes?.note?.to) || act.details || act.title || act.action || 'Activity';
+                    const entry = {
+                        at: act.created_at,
+                        type: act.action || 'interaction',
+                        summary
+                    };
+                    const eType = String(act.entity_type || '').toLowerCase();
+                    if (eType === 'deal' && !latestActivityByDeal.has(act.entity_id)) {
+                        latestActivityByDeal.set(act.entity_id, entry);
+                    } else if (eType === 'customer' && !latestActivityByCustomer.has(act.entity_id)) {
+                        latestActivityByCustomer.set(act.entity_id, entry);
+                    }
+                }
+            } catch (actErr) {
+                // Non-fatal if activities table is absent or differs
+            }
+
+            try {
+                const taskRes = await db.query(`
+                    SELECT parent_type, parent_id::text as parent_id, title, due_date, status, priority, created_at
+                    FROM tasks
+                    WHERE tenant_id::text = $1::text
+                      AND LOWER(COALESCE(status, 'todo')) NOT IN ('done', 'completed', 'cancelled')
+                      AND (
+                          (LOWER(parent_type) = 'deal' AND parent_id::text = ANY($2::text[]))
+                          OR (LOWER(parent_type) = 'customer' AND parent_id::text = ANY($3::text[]))
+                      )
+                    ORDER BY due_date ASC NULLS LAST, created_at DESC
+                `, [tenant_id, dealIds, customerIds]);
+
+                for (const t of taskRes.rows) {
+                    const pType = String(t.parent_type || '').toLowerCase();
+                    if (pType === 'deal' && !nextTaskByDeal.has(t.parent_id)) {
+                        nextTaskByDeal.set(t.parent_id, t);
+                    } else if (pType === 'customer' && !nextTaskByCustomer.has(t.parent_id)) {
+                        nextTaskByCustomer.set(t.parent_id, t);
+                    }
+                }
+            } catch (taskErr) {
+                // Non-fatal
+            }
+        }
+
+        const CLOSED_STAGES = new Set(['won', 'lost', 'closed', 'cancelled', 'canceled']);
+        const now = new Date();
+
+        const scopedDeals = rawDeals.map(row => {
+            const stageRaw = String(row.pipeline_stage || 'Lead').trim();
+            const stageLower = stageRaw.toLowerCase();
+            const isClosed = CLOSED_STAGES.has(stageLower);
+            const isActive = !isClosed;
+            let dealStatus = 'active';
+            if (stageLower === 'won' || stageLower === 'closed') dealStatus = 'won';
+            else if (stageLower === 'lost' || stageLower === 'cancelled' || stageLower === 'canceled') dealStatus = 'lost';
+
+            const cf = (row.custom_fields && typeof row.custom_fields === 'object') ? row.custom_fields : {};
+            const isUnitReservation = (
+                cf.is_unit_reservation === true ||
+                cf.is_unit_reservation === 'true' ||
+                ['reserved', 'reservation', 'حجز'].includes(stageLower)
+            );
+
+            // Resolve channel / source
+            let sourceChannel = 'Manual';
+            if (row.pf_lead_id || cf.pf_lead_id || cf.source === 'Property Finder') {
+                const ch = row.pf_channel || cf.pf_channel || cf.channel;
+                sourceChannel = ch ? `Property Finder (${ch})` : 'Property Finder';
+            } else if (cf.source) {
+                sourceChannel = String(cf.source);
+            } else if (row.customer_source_name && row.customer_source_name !== 'Direct') {
+                sourceChannel = row.customer_source_name;
+            }
+
+            const dealAct = latestActivityByDeal.get(String(row.deal_id))
+                || (row.customer_id ? latestActivityByCustomer.get(String(row.customer_id)) : null);
+            const nextTask = nextTaskByDeal.get(String(row.deal_id))
+                || (row.customer_id ? nextTaskByCustomer.get(String(row.customer_id)) : null);
+
+            const slaDeadline = row.sla_deadline_at ? new Date(row.sla_deadline_at) : null;
+            const nextFollowupAt = nextTask?.due_date || row.sla_deadline_at || null;
+            const isOverdue = isActive && slaDeadline ? slaDeadline < now : false;
+
+            return {
+                deal_id: row.deal_id,
+                deal_title: row.deal_title,
+                value: Number(row.value || 0),
+                pipeline_stage: stageRaw,
+                deal_status: dealStatus,
+                is_active: isActive,
+                is_unit_reservation: isUnitReservation,
+                customer_id: row.customer_id,
+                customer_name: row.customer_name || 'عميل غير محدد',
+                customer_phone: row.customer_phone || null,
+                customer_email: row.customer_email || null,
+                assigned_to: row.assigned_to || null,
+                sales_rep_name: row.sales_rep_name || 'غير معيّن',
+                sales_rep_role: row.sales_rep_role || null,
+                source: sourceChannel,
+                pf_lead_id: row.pf_lead_id || cf.pf_lead_id || null,
+                pf_channel: row.pf_channel || cf.pf_channel || null,
+                last_followup_at: dealAct?.at || row.updated_at || row.created_at,
+                last_followup_summary: dealAct?.summary || null,
+                last_followup_type: dealAct?.type || null,
+                next_followup_at: nextFollowupAt,
+                next_task_title: nextTask?.title || null,
+                sla_deadline_at: row.sla_deadline_at || null,
+                is_overdue: isOverdue,
+                created_at: row.created_at,
+                updated_at: row.updated_at
+            };
+        });
+
+        // 4. Compute the 4 Distinct KPIs strictly from RBAC-scoped deals
+        const distinctCustomerIds = new Set(
+            scopedDeals.map(d => d.customer_id ? String(d.customer_id) : null).filter(Boolean)
+        );
+        const distinctSalesRepIds = new Set(
+            scopedDeals.map(d => d.assigned_to ? String(d.assigned_to) : null).filter(Boolean)
+        );
+        const totalDealsCount = scopedDeals.length;
+        const activeDealsCount = scopedDeals.filter(d => d.is_active).length;
+
+        const kpis = {
+            distinct_customers_count: distinctCustomerIds.size,
+            total_deals_count: totalDealsCount,
+            active_deals_count: activeDealsCount,
+            distinct_sales_reps_count: distinctSalesRepIds.size
+        };
+
+        // 5. Build filter options from scopedDeals
+        const stagesOption = [...new Set(scopedDeals.map(d => d.pipeline_stage).filter(Boolean))];
+        const repsMap = new Map();
+        for (const d of scopedDeals) {
+            if (d.assigned_to) {
+                repsMap.set(String(d.assigned_to), { id: String(d.assigned_to), name: d.sales_rep_name });
+            }
+        }
+        const sourcesOption = [...new Set(scopedDeals.map(d => d.source).filter(Boolean))];
+
+        // 6. Apply optional query filters to the returned rows
+        let filteredDeals = scopedDeals;
+        if (stage && String(stage).trim() !== '' && String(stage).toLowerCase() !== 'all') {
+            const targetStage = String(stage).trim().toLowerCase();
+            filteredDeals = filteredDeals.filter(d => String(d.pipeline_stage || '').trim().toLowerCase() === targetStage);
+        }
+        if (assigned_to && String(assigned_to).trim() !== '' && String(assigned_to).toLowerCase() !== 'all') {
+            const targetRep = String(assigned_to).trim();
+            filteredDeals = filteredDeals.filter(d => String(d.assigned_to || '') === targetRep);
+        }
+        if (source && String(source).trim() !== '' && String(source).toLowerCase() !== 'all') {
+            const targetSource = String(source).trim().toLowerCase();
+            filteredDeals = filteredDeals.filter(d => String(d.source || '').toLowerCase().includes(targetSource));
+        }
+        if (status && String(status).trim() !== '' && String(status).toLowerCase() !== 'all') {
+            const targetStatus = String(status).trim().toLowerCase();
+            if (targetStatus === 'active') {
+                filteredDeals = filteredDeals.filter(d => d.is_active);
+            } else if (targetStatus === 'closed') {
+                filteredDeals = filteredDeals.filter(d => !d.is_active);
+            } else {
+                filteredDeals = filteredDeals.filter(d => d.deal_status === targetStatus);
+            }
+        }
+        if (search && String(search).trim() !== '') {
+            const q = String(search).trim().toLowerCase();
+            filteredDeals = filteredDeals.filter(d =>
+                String(d.customer_name || '').toLowerCase().includes(q) ||
+                String(d.customer_phone || '').toLowerCase().includes(q) ||
+                String(d.deal_title || '').toLowerCase().includes(q) ||
+                String(d.sales_rep_name || '').toLowerCase().includes(q) ||
+                String(d.pf_lead_id || '').toLowerCase().includes(q)
+            );
+        }
+
+        const activeReservationDeal = scopedDeals.find(d => d.is_active && d.is_unit_reservation) || null;
+
+        res.json({
+            status: 'success',
+            data: {
+                unit: {
+                    id: unit.id,
+                    unit_number: unit.unit_number,
+                    name: unit.name,
+                    project_id: unit.project_id,
+                    project_name: unit.project_name,
+                    developer_id: unit.developer_id,
+                    developer_name: unit.developer_name,
+                    phase_id: unit.phase_id,
+                    phase_name: unit.phase_name,
+                    building_id: unit.building_id,
+                    building_name: unit.building_name,
+                    type: unit.type,
+                    floor: unit.floor,
+                    rooms: unit.rooms,
+                    area_sqm: unit.area_sqm,
+                    price: unit.price,
+                    location: unit.location,
+                    transaction_type: unit.transaction_type,
+                    status: unit.status,
+                    reservation_expires_at: unit.reservation_expires_at,
+                    reservation_extension_count: unit.reservation_extension_count || 0,
+                    assigned_to: unit.assigned_to,
+                    assigned_to_name: unit.assigned_to_name,
+                    responsible_person_id: unit.responsible_person_id,
+                    responsible_person_name: unit.responsible_person_name,
+                    vendor_id: unit.vendor_id,
+                    vendor_name: unit.vendor_name,
+                    pf_external_listing_id: unit.pf_external_listing_id || null,
+                    pf_reference_code: unit.pf_reference_code || null,
+                    pf_publication_status: unit.pf_publication_status || null,
+                    pf_portal_url: unit.pf_portal_url || null
+                },
+                kpis,
+                active_reservation_deal: activeReservationDeal,
+                filter_options: {
+                    stages: stagesOption,
+                    sales_reps: Array.from(repsMap.values()),
+                    sources: sourcesOption
+                },
+                deals: filteredDeals,
+                total_scoped_deals: scopedDeals.length,
+                filtered_deals_count: filteredDeals.length
+            }
+        });
+    } catch (err) {
+        console.error('[Unit Overview Error]:', err.message, err.stack);
+        res.status(500).json({ status: 'error', message: 'Failed to load unit overview' });
+    }
+};
+
 
 // @desc    Delete unit (only if Available)
 // @route   DELETE /api/re-units/:id
