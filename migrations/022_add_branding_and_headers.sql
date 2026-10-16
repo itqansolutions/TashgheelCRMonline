@@ -47,7 +47,22 @@ ALTER TABLE attachments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME 
 
 -- Relax any foreign key / not-null constraints on legacy attachments columns if needed
 ALTER TABLE attachments ALTER COLUMN linked_id TYPE VARCHAR(255);
-ALTER TABLE attachments ALTER COLUMN tenant_id TYPE VARCHAR(255);
+DO $$
+BEGIN
+    -- If attachments.tenant_id is already UUID (with foreign key to tenants), preserve it intact.
+    -- Only alter to VARCHAR(255) if it is not UUID.
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'attachments' AND column_name = 'tenant_id' AND data_type = 'uuid'
+    ) THEN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'attachments' AND column_name = 'tenant_id'
+        ) THEN
+            ALTER TABLE attachments ALTER COLUMN tenant_id TYPE VARCHAR(255);
+        END IF;
+    END IF;
+END $$;
 ALTER TABLE attachments ALTER COLUMN branch_id TYPE VARCHAR(255);
 ALTER TABLE attachments ALTER COLUMN uploaded_by DROP NOT NULL;
 ALTER TABLE attachments ALTER COLUMN tenant_id DROP NOT NULL;

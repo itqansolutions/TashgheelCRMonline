@@ -243,27 +243,30 @@ function createInMemoryCrmDb() {
     }
 
     // Deals & Backfill
-    if (norm.startsWith('UPDATE deals SET unit_id = $1, updated_at = CURRENT_TIMESTAMP WHERE tenant_id')) {
+    if (norm.startsWith('UPDATE deals SET unit_id = $1') && norm.includes('WHERE tenant_id')) {
       if (s.failNextDealBackfill) {
         s.failNextDealBackfill = false;
         throw new Error('simulated transient DB failure during deal unit backfill');
       }
-      const [unitId, tenantId, extLeadId] = p;
+      const [unitId, tenantId, extLeadId, unitPrice] = p;
       let count = 0;
       for (const d of s.deals) {
         if (d.tenant_id === tenantId && d.source_type === 'property_finder' && d.source_id === String(extLeadId) && d.unit_id === null) {
           d.unit_id = unitId;
+          if ((d.value === null || d.value === 0 || d.value === undefined) && unitPrice != null) {
+            d.value = unitPrice;
+          }
           count++;
         }
       }
       return { rows: [], rowCount: count };
     }
-    if (norm.startsWith('UPDATE deals d SET unit_id = $1, updated_at = CURRENT_TIMESTAMP WHERE d.tenant_id')) {
+    if (norm.startsWith('UPDATE deals d SET unit_id = $1') && norm.includes('WHERE d.tenant_id')) {
       if (s.failNextDealBackfill) {
         s.failNextDealBackfill = false;
         throw new Error('simulated transient DB failure during deal unit backfill');
       }
-      const [unitId, tenantId, extId, canMatchByRef, verifiedExtRef] = p;
+      const [unitId, tenantId, extId, canMatchByRef, verifiedExtRef, unitPrice] = p;
       const updated = [];
       for (const d of s.deals) {
         if (d.tenant_id !== tenantId || d.source_type !== 'property_finder' || d.unit_id !== null) continue;
@@ -280,6 +283,9 @@ function createInMemoryCrmDb() {
         );
         if (matchById || matchByRef || matchByLeadMap) {
           d.unit_id = unitId;
+          if ((d.value === null || d.value === 0 || d.value === undefined) && unitPrice != null) {
+            d.value = unitPrice;
+          }
           updated.push({ id: d.id });
         }
       }

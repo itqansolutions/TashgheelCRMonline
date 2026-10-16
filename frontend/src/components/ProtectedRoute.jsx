@@ -82,14 +82,19 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   };
 
   const canonicalPath = ROUTE_ALIASES[checkPath] || checkPath;
+  const basePath = '/' + checkPath.split('/').filter(Boolean)[0];
 
   // If user has explicit screen permission in allowedPages, allow access immediately
-  if (allowed.length > 0 && (allowed.includes(checkPath) || allowed.includes(canonicalPath))) {
+  if (allowed.length > 0 && (
+    allowed.includes(checkPath) || 
+    allowed.includes(canonicalPath) || 
+    allowed.includes(basePath)
+  )) {
     return children;
   }
 
   // If user has allowedPages configured and current path is not included, redirect to safe fallback
-  if (allowed.length > 0 && !allowed.includes(checkPath)) {
+  if (allowed.length > 0 && !allowed.includes(checkPath) && !allowed.includes(basePath)) {
     if (checkPath !== safeFallback) {
       return <Navigate to={safeFallback} replace />;
     }

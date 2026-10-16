@@ -319,10 +319,16 @@ exports.getDealById = async (req, res) => {
     const result = await db.query(`
       SELECT 
         d.*, 
+        c.name as client_name,
+        c.phone as client_phone,
+        c.company_name as client_company,
+        u.name as assigned_to_name,
+        u.email as assigned_to_email,
         p.name as product_name,
         ru.project_name as unit_project,
         ru.unit_number as unit_number,
         ru.name as unit_name,
+        ru.price as unit_price,
         ru.status as unit_status,
         ru.reservation_expires_at as unit_reservation_expires_at,
         ru.reservation_extended_at as unit_reservation_extended_at,
@@ -332,6 +338,8 @@ exports.getDealById = async (req, res) => {
         COALESCE(fv.actual_paid, rp.paid_amount, 0) as paid_amount,
         rp.total_amount as payment_total
       FROM deals d 
+      LEFT JOIN customers c ON d.client_id::text = c.id::text AND d.tenant_id::text = c.tenant_id::text
+      LEFT JOIN users u ON d.assigned_to::text = u.id::text AND d.tenant_id::text = u.tenant_id::text
       LEFT JOIN products p ON d.product_id::text = p.id::text AND d.tenant_id::text = p.tenant_id::text 
       LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND d.tenant_id::text = ru.tenant_id::text
       LEFT JOIN re_payments_mvp rp ON d.id::text = rp.deal_id::text AND d.tenant_id::text = rp.tenant_id::text

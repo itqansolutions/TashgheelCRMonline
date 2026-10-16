@@ -13,7 +13,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS sales_teams (
     id SERIAL PRIMARY KEY,
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    branch_id VARCHAR(255) NULL REFERENCES branches(id) ON DELETE SET NULL,
+    branch_id UUID NULL REFERENCES branches(id) ON DELETE SET NULL,
     department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,

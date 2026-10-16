@@ -165,6 +165,7 @@ function App() {
                   <Route path="contacts/employees" element={<ContactsEmployees />} />
                   <Route path="products" element={<Products />} />
                   <Route path="deals" element={<Deals />} />
+                  <Route path="deals/:id" element={<Deals />} />
                   <Route path="tasks" element={<Tasks />} />
                   <Route path="activities" element={<Tasks />} />
                   <Route path="units-registry" element={<UnitsRegistry />} />

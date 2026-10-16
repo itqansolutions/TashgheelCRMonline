@@ -1022,27 +1022,57 @@ const reconcileDatabase = async () => {
         `);
 
         // Reconcile warehouse_id data type to INTEGER (corrects legacy UUID definition)
-        // Strict Data Preservation Policy: Fails explicitly if non-NULL UUID records exist to prevent silent data loss.
+        // Strict Data Preservation Policy:
+        // 1. If already INTEGER (or smallint/bigint), skip immediately.
+        // 2. Strictly prohibit destructive null casting.
+        // 3. Inspect existing data before any cast, and stop if non-convertible data exists.
         await db.query(`
             DO $$
             DECLARE
+                wh_col_type TEXT;
                 non_null_wh_count INTEGER;
+                non_numeric_count INTEGER;
             BEGIN
-                IF EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'delivery_notes'
-                      AND column_name = 'warehouse_id'
-                      AND data_type = 'uuid'
-                ) THEN
+                SELECT data_type INTO wh_col_type
+                FROM information_schema.columns
+                WHERE table_name = 'delivery_notes'
+                  AND column_name = 'warehouse_id';
+
+                -- 1. If column does not exist or is already integer, skip entirely
+                IF wh_col_type IS NULL OR wh_col_type IN ('integer', 'smallint', 'bigint') THEN
+                    RETURN;
+                END IF;
+
+                -- 2. If column exists and is UUID:
+                IF wh_col_type = 'uuid' THEN
                     SELECT COUNT(*) INTO non_null_wh_count
                     FROM delivery_notes
                     WHERE warehouse_id IS NOT NULL;
 
+                    -- Strict Data Preservation: Stop if non-convertible data exists
                     IF non_null_wh_count > 0 THEN
                         RAISE EXCEPTION 'Cannot alter delivery_notes.warehouse_id from UUID to INTEGER: % existing records have non-NULL warehouse_id that requires manual mapping.', non_null_wh_count;
                     ELSE
-                        ALTER TABLE delivery_notes ALTER COLUMN warehouse_id TYPE INTEGER;
+                        -- All values are NULL (zero data loss): safe cast via expression
+                        ALTER TABLE delivery_notes ALTER COLUMN warehouse_id TYPE INTEGER USING warehouse_id::text::integer;
                     END IF;
+
+                -- 3. If column is VARCHAR/TEXT:
+                ELSIF wh_col_type IN ('character varying', 'varchar', 'text') THEN
+                    -- Check if any non-null values cannot be cast to integer (contain non-digits)
+                    SELECT COUNT(*) INTO non_numeric_count
+                    FROM delivery_notes
+                    WHERE warehouse_id IS NOT NULL AND warehouse_id !~ '^-?[0-9]+$';
+
+                    IF non_numeric_count > 0 THEN
+                        RAISE EXCEPTION 'Cannot alter delivery_notes.warehouse_id from % to INTEGER: % records contain non-numeric data.', wh_col_type, non_numeric_count;
+                    ELSE
+                        -- Preserve all numeric values:
+                        ALTER TABLE delivery_notes ALTER COLUMN warehouse_id TYPE INTEGER USING warehouse_id::integer;
+                    END IF;
+
+                ELSE
+                    RAISE EXCEPTION 'Cannot automatically alter delivery_notes.warehouse_id of unexpected type % to INTEGER.', wh_col_type;
                 END IF;
             END $$;
         `);

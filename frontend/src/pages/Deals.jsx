@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -18,6 +18,7 @@ const Deals = () => {
   const isRealEstate = user?.template_name === 'real_estate';
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const routeParams = useParams();
 
   const getStageLabel = (stage) => {
     const raw = (stage || '').toLowerCase().replace(/[\s-]/g, '_');
@@ -410,7 +411,9 @@ const Deals = () => {
     setReassignTargetId('');
     setReassignReason('');
     openedByQueryParamRef.current = null;
-    if (searchParams.get('deal_id')) {
+    if (routeParams?.id) {
+      navigate('/deals', { replace: true });
+    } else if (searchParams.get('deal_id')) {
       setSearchParams(prev => {
         const next = new URLSearchParams(prev);
         next.delete('deal_id');
@@ -419,9 +422,9 @@ const Deals = () => {
     }
   };
 
-  // Handle direct navigation or deep-link to deal (?deal_id=X)
+  // Handle direct navigation or deep-link to deal (?deal_id=X or /deals/:id)
   useEffect(() => {
-    const dealIdParam = searchParams.get('deal_id');
+    const dealIdParam = searchParams.get('deal_id') || routeParams?.id;
 
     // If deal_id was cleared/not present in URL (e.g. browser Back button pressed)
     if (!dealIdParam) {
@@ -466,17 +469,21 @@ const Deals = () => {
         if (isCancelled) return;
         console.warn('[Deals URL Navigation Notice] Requested deal is inaccessible or unauthorized');
         toast.error(t('deals.dealNotFoundOrUnauthorized', 'Deal not found or you do not have permission to view it.'));
-        setSearchParams(prev => {
-          const next = new URLSearchParams(prev);
-          next.delete('deal_id');
-          return next;
-        }, { replace: true });
+        if (routeParams?.id) {
+          navigate('/deals', { replace: true });
+        } else {
+          setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            next.delete('deal_id');
+            return next;
+          }, { replace: true });
+        }
       });
 
     return () => {
       isCancelled = true;
     };
-  }, [searchParams, deals, loading, isModalOpen, editingDeal]);
+  }, [searchParams, routeParams?.id, deals, loading, isModalOpen, editingDeal]);
 
   const handleCustomFieldChange = (key, value) => {
     setFormData({
@@ -502,8 +509,8 @@ const Deals = () => {
       setFormData({
           ...formData,
           unit_id: unitId,
-          value: (!editingDeal || !Number(formData.value)) && unit ? unit.price : formData.value,
-          title: (!editingDeal || !formData.title) && unit ? `${unit.project_name} - Unit ${unit.unit_number}` : formData.title
+          value: (!editingDeal && (!formData.value || Number(formData.value) === 0) && unit) ? unit.price : formData.value,
+          title: (!editingDeal || !formData.title) && unit ? `${unit.project_name || ''} - Unit ${unit.unit_number || ''}`.trim() : formData.title
       });
   };
 
@@ -1156,7 +1163,7 @@ const Deals = () => {
               type="number" 
               value={formData.value}
               onChange={(e) => setFormData({...formData, value: e.target.value})}
-              disabled={!!formData.unit_id || isDetailsDisabled}
+              disabled={isDetailsDisabled}
             />
           </div>
           <div className="form-group">

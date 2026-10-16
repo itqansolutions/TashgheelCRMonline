@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, Users, Handshake, Activity, Filter, Calendar, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink } from 'lucide-react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -1257,13 +1257,13 @@ const UnitsRegistry = () => {
                                                 {activeResDeal && (
                                                     <div style={{ fontSize: '12px', color: '#92400e', background: 'rgba(255,255,255,0.7)', padding: '8px 12px', borderRadius: '8px', marginBottom: '10px', border: '1px solid #fde68a' }}>
                                                         <strong>{isRTL ? 'الصفقة الحاجزة:' : 'Reserving Deal:'}</strong>{' '}
-                                                        <a href={`/deals?deal_id=${activeResDeal.deal_id}`} style={{ color: '#b45309', fontWeight: 800, textDecoration: 'underline' }}>
+                                                        <Link to={`/deals?deal_id=${activeResDeal.deal_id}`} style={{ color: '#b45309', fontWeight: 800, textDecoration: 'underline' }}>
                                                             {activeResDeal.deal_title}
-                                                        </a>{' '}
+                                                        </Link>{' '}
                                                         • <strong>{isRTL ? 'العميل:' : 'Customer:'}</strong>{' '}
-                                                        <a href={`/customers?customer360=${activeResDeal.customer_id}`} style={{ color: '#b45309', fontWeight: 800, textDecoration: 'underline' }}>
+                                                        <Link to={`/customers?customer360=${activeResDeal.customer_id}`} style={{ color: '#b45309', fontWeight: 800, textDecoration: 'underline' }}>
                                                             {activeResDeal.customer_name}
-                                                        </a>{' '}
+                                                        </Link>{' '}
                                                         • <strong>{isRTL ? 'المسؤول:' : 'Owner:'}</strong> {activeResDeal.sales_rep_name}
                                                     </div>
                                                 )}
@@ -1306,12 +1306,12 @@ const UnitsRegistry = () => {
                                                         {filteredOverviewDeals.length}
                                                     </span>
                                                 </div>
-                                                <a 
-                                                    href={`/deals?new=1&unit_id=${selectedUnit.id}`}
+                                                <Link 
+                                                    to={`/deals?new=1&unit_id=${selectedUnit.id}`}
                                                     style={{ fontSize: '12px', fontWeight: 800, color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(99, 102, 241, 0.08)', padding: '6px 12px', borderRadius: '8px' }}
                                                 >
                                                     <Plus size={13} strokeWidth={3} /> {isRTL ? 'إنشاء صفقة على هذه الوحدة' : 'Create Deal on this Unit'}
-                                                </a>
+                                                </Link>
                                             </div>
 
                                             {/* Filters Bar */}
@@ -1393,13 +1393,13 @@ const UnitsRegistry = () => {
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
                                                                     <div>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                                                            <a 
-                                                                                href={`/deals?deal_id=${d.deal_id}`} 
+                                                                            <Link 
+                                                                                to={`/deals?deal_id=${d.deal_id}`} 
                                                                                 style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)', textDecoration: 'none' }}
                                                                                 title={isRTL ? 'فتح تفاصيل الصفقة' : 'Open Deal'}
                                                                             >
                                                                                 {d.deal_title}
-                                                                            </a>
+                                                                            </Link>
                                                                             <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--primary)', background: '#eff6ff', padding: '2px 8px', borderRadius: '6px' }}>
                                                                                 <span className="num-en">{Number(d.value || 0).toLocaleString('en-US')}</span> {t('realEstate.common.currencySuffix')}
                                                                             </span>
@@ -1424,13 +1424,13 @@ const UnitsRegistry = () => {
                                                                             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                                                 <User size={13} />
                                                                                 <strong>{isRTL ? 'العميل:' : 'Customer:'}</strong>{' '}
-                                                                                <a 
-                                                                                    href={`/customers?customer360=${d.customer_id}`} 
+                                                                                <Link 
+                                                                                    to={`/customers?customer360=${d.customer_id}`} 
                                                                                     style={{ color: '#0284c7', fontWeight: 700, textDecoration: 'none' }}
                                                                                     title={isRTL ? 'فتح Customer 360' : 'Open Customer 360'}
                                                                                 >
                                                                                     {d.customer_name}
-                                                                                </a>
+                                                                                </Link>
                                                                                 {d.customer_phone && <span className="num-en" style={{ color: '#64748b' }}>({d.customer_phone})</span>}
                                                                             </span>
                                                                             <span>•</span>
@@ -1445,18 +1445,18 @@ const UnitsRegistry = () => {
                                                                     </div>
 
                                                                     <div style={{ display: 'flex', gap: '6px' }}>
-                                                                        <a
-                                                                            href={`/customers?customer360=${d.customer_id}`}
+                                                                        <Link
+                                                                            to={`/customers?customer360=${d.customer_id}`}
                                                                             style={{ padding: '5px 10px', background: '#f0f9ff', color: '#0284c7', borderRadius: '6px', fontSize: '11px', fontWeight: 800, textDecoration: 'none', border: '1px solid #bae6fd' }}
                                                                         >
                                                                             360°
-                                                                        </a>
-                                                                        <a
-                                                                            href={`/deals?deal_id=${d.deal_id}`}
+                                                                        </Link>
+                                                                        <Link
+                                                                            to={`/deals?deal_id=${d.deal_id}`}
                                                                             style={{ padding: '5px 10px', background: '#f8fafc', color: 'var(--text-main)', borderRadius: '6px', fontSize: '11px', fontWeight: 800, textDecoration: 'none', border: '1px solid #cbd5e1' }}
                                                                         >
                                                                             Deal
-                                                                        </a>
+                                                                        </Link>
                                                                     </div>
                                                                 </div>
 
@@ -1705,13 +1705,13 @@ const UnitsRegistry = () => {
                                                     </div>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <a 
-                                                        href={`/deals?new=1&client_id=${customer.id}&unit_id=${matchedBuyersUnit.id}`}
+                                                    <Link 
+                                                        to={`/deals?new=1&client_id=${customer.id}&unit_id=${matchedBuyersUnit.id}`}
                                                         onClick={(e) => e.stopPropagation()}
                                                         style={{ padding: '7px 14px', borderRadius: '8px', background: 'var(--primary)', color: 'white', textDecoration: 'none', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
                                                     >
                                                         {t('realEstate.unitsRegistry.btnCreateDeal')} <ArrowRight size={13} />
-                                                    </a>
+                                                    </Link>
                                                     {isExpanded ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
                                                 </div>
                                             </div>

@@ -205,6 +205,7 @@ async function backfillUnlinkedLeadsForListing(tenantId, externalListingId, { qu
       if (!txClient.isExternalQueryFn) await q('COMMIT');
       return { repairedMappings: 0, repairedDeals: 0, unitId: null };
     }
+    const verifiedUnitPrice = unitRes.rows[0]?.price != null ? Number(unitRes.rows[0].price) : 0;
 
     // 3. Check if external_reference is also uniquely mapped to this same unit in this tenant (for reference-only leads)
     let canMatchByRef = false;
@@ -240,9 +241,11 @@ async function backfillUnlinkedLeadsForListing(tenantId, externalListingId, { qu
 
     // 5. Backfill deals where unit_id IS NULL (only for 'listing' leads, preserving stage/owner/SLA/value/title).
     //    Also recovers deals where property_finder_lead_mappings.unit_id was already set in a prior partial state.
+    //    Preserves existing non-zero commercial value, and fills from unit_price if value is 0 or null.
     const updatedDeals = await q(
       `UPDATE deals d
        SET unit_id = $1,
+           value = CASE WHEN (d.value IS NULL OR d.value = 0) THEN COALESCE($6::numeric, 0) ELSE d.value END,
            updated_at = CURRENT_TIMESTAMP
        WHERE d.tenant_id::text = $2::text
          AND d.source_type = 'property_finder'
@@ -260,7 +263,7 @@ async function backfillUnlinkedLeadsForListing(tenantId, externalListingId, { qu
            )
          )
        RETURNING d.id`,
-      [String(verifiedUnitId), tenantId, extId, canMatchByRef, verifiedExtRef]
+      [String(verifiedUnitId), tenantId, extId, canMatchByRef, verifiedExtRef, verifiedUnitPrice]
     );
     const repairedDeals = updatedDeals?.rowCount ?? (updatedDeals?.rows?.length || 0);
 
@@ -1119,15 +1122,17 @@ async function ingestLead(tenantId, rawLead) {
             [prevMap.unit_id, tenantId]
           );
           if (uCheck.rows && uCheck.rows.length === 1) {
+            const unitPrice = Number(uCheck.rows[0].price) || 0;
             await q(
               `UPDATE deals
                SET unit_id = $1,
+                   value = CASE WHEN (value IS NULL OR value = 0) THEN COALESCE($4::numeric, 0) ELSE value END,
                    updated_at = CURRENT_TIMESTAMP
                WHERE tenant_id::text = $2::text
                  AND source_type = 'property_finder'
                  AND source_id = $3
                  AND unit_id IS NULL`,
-              [String(prevMap.unit_id), tenantId, extLeadId]
+              [String(prevMap.unit_id), tenantId, extLeadId, unitPrice]
             );
             repairedUnitId = prevMap.unit_id;
           }
@@ -1170,6 +1175,7 @@ async function ingestLead(tenantId, rawLead) {
             [repairedUnitId, tenantId]
           );
           if (uCheck.rows && uCheck.rows.length === 1) {
+            const unitPrice = Number(uCheck.rows[0].price) || 0;
             await q(
               `UPDATE property_finder_lead_mappings
                SET unit_id = $1::uuid,
@@ -1180,12 +1186,13 @@ async function ingestLead(tenantId, rawLead) {
             await q(
               `UPDATE deals
                SET unit_id = $1,
+                   value = CASE WHEN (value IS NULL OR value = 0) THEN COALESCE($4::numeric, 0) ELSE value END,
                    updated_at = CURRENT_TIMESTAMP
                WHERE tenant_id::text = $2::text
                  AND source_type = 'property_finder'
                  AND source_id = $3
                  AND unit_id IS NULL`,
-              [String(repairedUnitId), tenantId, extLeadId]
+              [String(repairedUnitId), tenantId, extLeadId, unitPrice]
             );
           } else {
             repairedUnitId = null;
