@@ -42,10 +42,29 @@ export const LanguageProvider = ({ children }) => {
 
   /**
    * Helper function to translate keys with dot notation (e.g., 'common.save', 'sidebar.dashboard')
-   * Supports fallback to English and variable interpolation: t('key', { name: 'John' })
+   * Supports:
+   * 1. t('key')
+   * 2. t('key', 'Default text')
+   * 3. t('key', { name: 'John' })
+   * 4. t('key', 'Default text with {name}', { name: 'John' })
    */
-  const t = useCallback((keyPath, params = {}) => {
+  const t = useCallback((keyPath, fallbackOrParams = {}, maybeParams = {}) => {
     if (!keyPath || typeof keyPath !== 'string') return '';
+
+    let fallback = null;
+    let params = {};
+
+    if (typeof fallbackOrParams === 'string') {
+      fallback = fallbackOrParams;
+      if (maybeParams && typeof maybeParams === 'object') {
+        params = maybeParams;
+      }
+    } else if (fallbackOrParams && typeof fallbackOrParams === 'object') {
+      params = fallbackOrParams;
+      if (typeof maybeParams === 'string') {
+        fallback = maybeParams;
+      }
+    }
 
     const keys = keyPath.split('.');
     
@@ -64,8 +83,7 @@ export const LanguageProvider = ({ children }) => {
 
     // 4. If still not found, return fallback string if provided, else the last segment of keyPath or keyPath itself
     if (result === null || typeof result !== 'string') {
-      if (typeof params === 'string') return params;
-      return keys[keys.length - 1] || keyPath;
+      result = fallback !== null ? fallback : (keys[keys.length - 1] || keyPath);
     }
 
     // 5. Interpolate params: {{count}}, {count} or :count
@@ -74,8 +92,8 @@ export const LanguageProvider = ({ children }) => {
         const rawVal = params[paramKey];
         const val = rawVal !== undefined && rawVal !== null ? rawVal : '';
         result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), val);
-        result = result.replace(new RegExp(`{${paramKey}}`, 'g'), val);
-        result = result.replace(new RegExp(`:${paramKey}`, 'g'), val);
+        result = result.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), val);
+        result = result.replace(new RegExp(`:${paramKey}\\b`, 'g'), val);
       });
     }
 
