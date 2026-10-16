@@ -150,9 +150,12 @@ exports.generateSchedule = async (req, res) => {
     try {
         await client.query('BEGIN');
 
+        // Advisory transaction lock to serialize schedule operations on this contract
+        await client.query(`SELECT pg_advisory_xact_lock(hashtext('re_schedule:' || $1::text))`, [String(contract_id)]);
+
         // 1. Fetch contract with FOR UPDATE
         const contractRes = await client.query(`
-            SELECT rc.id, rc.deal_id, rc.branch_id, rc.contract_value, rc.status, d.branch_id as deal_branch_id
+            SELECT rc.id, rc.deal_id, rc.branch_id, rc.contract_value, rc.down_payment, rc.status, d.branch_id as deal_branch_id
             FROM re_contracts rc
             LEFT JOIN deals d ON rc.deal_id = d.id
             WHERE rc.id::text = $1::text AND rc.tenant_id::text = $2::text
@@ -170,6 +173,38 @@ exports.generateSchedule = async (req, res) => {
             await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Contract not found or unauthorized.' });
         }
+
+        // Governance: Check contract lifecycle status
+        const contractStatus = contract.status || 'Draft';
+        if (['Completed', 'Cancelled'].includes(contractStatus)) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+                status: 'error',
+                message: `Cannot generate or reschedule installments for a contract in '${contractStatus}' status.`
+            });
+        }
+
+        // Governance: Approved contracts (Signed / Active) require admin role to reschedule
+        const isApprovedContract = ['Signed', 'Active'].includes(contractStatus);
+        if (isApprovedContract) {
+            if (req.user?.role !== 'admin') {
+                await client.query('ROLLBACK');
+                return res.status(403).json({
+                    status: 'error',
+                    message: `Cannot reschedule installments for an approved contract (${contractStatus}). Rescheduling requires admin authorization.`
+                });
+            }
+            // For approved contracts, down payment is legally frozen and cannot be changed arbitrarily
+            const approvedDp = parseFloat(contract.down_payment || 0);
+            if (req.body.down_payment !== undefined && Math.abs(parseFloat(down_payment || 0) - approvedDp) > 0.01) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({
+                    status: 'error',
+                    message: `Down payment cannot change once the contract is ${contractStatus}. Approved down payment is ${approvedDp}.`
+                });
+            }
+        }
+
         const effectiveBranchId = branch_id || contractBranch || null;
         const contractValue = parseFloat(contract.contract_value) || 0;
         const dpAmount = Math.max(0, parseFloat(down_payment) || 0);
@@ -191,6 +226,35 @@ exports.generateSchedule = async (req, res) => {
                 status: 'error',
                 message: 'Cannot regenerate schedule: one or more installments have already been partially or fully paid.'
             });
+        }
+
+        // Check for official financial receipt vouchers
+        try {
+            const voucherCheck = await client.query(`
+                SELECT COUNT(*) FROM finance_vouchers
+                WHERE tenant_id::text = $1::text
+                  AND voucher_type = 'receipt'
+                  AND (COALESCE(status, 'active') != 'cancelled')
+                  AND (
+                      contract_id::text = $2::text
+                      OR installment_id IN (
+                          SELECT id::text FROM re_installments
+                          WHERE contract_id::text = $2::text AND tenant_id::text = $1::text
+                      )
+                  )
+            `, [tenant_id, String(contract.id)]);
+
+            if (parseInt(voucherCheck.rows[0].count) > 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'Cannot regenerate schedule: financial receipt vouchers already exist for this contract.'
+                });
+            }
+        } catch (vErr) {
+            if (!vErr.message.includes('column') && !vErr.message.includes('does not exist')) {
+                throw vErr;
+            }
         }
 
         // 3. Clear existing unpaid installments for this contract
@@ -503,7 +567,9 @@ exports.deleteInstallment = async (req, res) => {
 
     try {
         const checkRes = await db.query(`
-            SELECT ri.id, ri.paid_amount, ri.branch_id, d.branch_id as deal_branch_id, rc.branch_id as contract_branch_id
+            SELECT ri.id, ri.paid_amount, ri.branch_id, ri.contract_id,
+                   d.branch_id as deal_branch_id, rc.branch_id as contract_branch_id,
+                   rc.status as contract_status
             FROM re_installments ri
             LEFT JOIN deals d ON ri.deal_id = d.id
             LEFT JOIN re_contracts rc ON ri.contract_id = rc.id
@@ -520,8 +586,45 @@ exports.deleteInstallment = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Installment not found or unauthorized.' });
         }
 
+        const contractStatus = row.contract_status || 'Draft';
+        if (['Completed', 'Cancelled'].includes(contractStatus)) {
+            return res.status(400).json({
+                status: 'error',
+                message: `Cannot delete an installment from a '${contractStatus}' contract.`
+            });
+        }
+
+        if (['Signed', 'Active'].includes(contractStatus) && req.user?.role !== 'admin') {
+            return res.status(403).json({
+                status: 'error',
+                message: `Cannot delete an installment from an approved contract (${contractStatus}). Requires admin authorization.`
+            });
+        }
+
         if (parseFloat(row.paid_amount) > 0) {
             return res.status(400).json({ status: 'error', message: 'Cannot delete an installment that has payments recorded.' });
+        }
+
+        // Check for official financial receipt vouchers
+        try {
+            const voucherCheck = await db.query(`
+                SELECT id FROM finance_vouchers
+                WHERE installment_id::text = $1::text
+                  AND tenant_id::text = $2::text
+                  AND voucher_type = 'receipt'
+                  AND (COALESCE(status, 'active') != 'cancelled')
+                LIMIT 1
+            `, [id, tenant_id]);
+            if (voucherCheck.rows.length > 0) {
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'Cannot delete an installment that has associated receipt vouchers.'
+                });
+            }
+        } catch (vErr) {
+            if (!vErr.message.includes('column') && !vErr.message.includes('does not exist')) {
+                throw vErr;
+            }
         }
 
         await db.query(`DELETE FROM re_installments WHERE id::text = $1::text AND tenant_id::text = $2::text`, [id, tenant_id]);
