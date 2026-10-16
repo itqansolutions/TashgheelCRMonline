@@ -184,6 +184,20 @@ const PERMISSION_GROUPS = [
     ]
   },
   {
+    key: 'deal_permissions',
+    title: 'Deal Permissions & Operations',
+    pages: [
+      { id: 'deal.view', label: 'View Deals (List & Detail)' },
+      { id: 'deal.update_stage', label: 'Update Stage (Move / Drag Stage)' },
+      { id: 'deal.log_activity', label: 'Log Deal Activities & Calls' },
+      { id: 'deal.edit_details', label: 'Edit Deal Details (Title, Value, Client)' },
+      { id: 'deal.delete', label: 'Delete Deals & Cancel Deals' },
+      { id: 'deal.reassign', label: 'Reassign Deals (Change Owner)' },
+      { id: 'deal.extend_sla', label: 'Extend SLA & Reservations' },
+      { id: 'deal.view_overdue', label: 'View Stalled / Overdue Deals' },
+    ]
+  },
+  {
     key: 'finance',
     title: 'Finance & Accounting',
     pages: [
@@ -279,13 +293,22 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
       setLoadingPerms(true);
       api.get(`/users/${emp.id}/permissions`)
         .then(res => {
-          const perms = Array.isArray(res.data.data) ? res.data.data.map(p => p.page_path) : [];
+          let perms = Array.isArray(res.data.data) ? res.data.data.map(p => p.page_path) : [];
+          // If no deal.* permissions configured for this user, seed with baseline defaults
+          const hasDealConfig = perms.some(p => p.startsWith('deal.'));
+          if (!hasDealConfig) {
+            if (emp.role === 'admin') {
+              perms = [...perms, 'deal.view', 'deal.update_stage', 'deal.log_activity', 'deal.edit_details', 'deal.delete', 'deal.reassign', 'deal.extend_sla', 'deal.view_overdue'];
+            } else {
+              perms = [...perms, 'deal.view', 'deal.update_stage', 'deal.log_activity'];
+            }
+          }
           setAllowedPages(perms);
         })
         .catch(() => toast.error(t('hr.contactsEmployees.toastLoadPermsError')))
         .finally(() => setLoadingPerms(false));
     }
-  }, [emp?.id, t]);
+  }, [emp?.id, emp?.role, t]);
 
   const handleTogglePermission = (path) => {
     setAllowedPages(prev =>
@@ -518,11 +541,13 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
               <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '14px', flexWrap: 'wrap' }}>
                 {[
                   { key: 'ALL', label: t('hr.contactsEmployees.catAll') },
+                  { key: 'deal_permissions', label: isRTL ? 'صلاحيات الصفقات' : 'Deal Operations' },
+                  { key: 'sales', label: t('hr.contactsEmployees.catSales') },
+                  { key: 'crm', label: t('hr.contactsEmployees.catCrm') },
+                  { key: 'real_estate', label: isRTL ? 'العقارات' : 'Real Estate' },
                   { key: 'hr', label: t('hr.contactsEmployees.catHr') },
                   { key: 'warehouse', label: t('hr.contactsEmployees.catWarehouse') },
-                  { key: 'sales', label: t('hr.contactsEmployees.catSales') },
                   { key: 'finance', label: t('hr.contactsEmployees.catFinance') },
-                  { key: 'crm', label: t('hr.contactsEmployees.catCrm') },
                   { key: 'marketing', label: t('hr.contactsEmployees.catMarketing') },
                   { key: 'admin', label: t('hr.contactsEmployees.catAdmin') },
                 ].map(cat => {

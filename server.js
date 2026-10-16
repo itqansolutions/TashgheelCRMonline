@@ -188,6 +188,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/lead-statuses', require('./routes/leadStatusRoutes'));
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
+app.use('/api/sales-teams', require('./routes/salesTeamRoutes'));
 
 // Real Estate Module Routes (Protected by templateGuard)
 app.use('/api/re-units',         templateGuard('real_estate'), reUnitRoutes);
@@ -701,6 +702,7 @@ app.listen(PORT, '0.0.0.0', async () => {
 
     startReservationScanner(10);
     require('./services/contractExpiryService').startContractExpiryScanner(60);
+    require('./services/dealSlaService').startSlaScanner(15);
     await promoteOnStartup();
     await seedDemoAccount();
   } catch (bootErr) {

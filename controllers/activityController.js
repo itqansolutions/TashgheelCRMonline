@@ -99,9 +99,24 @@ const formatters = {
         const note = changes?.note?.to;
         return note ? `📝 Note — "${note}"` : '📝 Added a note';
     },
-    // Generic manual log fallback for deal entity
-    'deal.called': (changes) => { const n = changes?.note?.to; return n ? `📞 Called — "${n}"` : '📞 Called'; },
-    'deal.note':   (changes) => { const n = changes?.note?.to; return n ? `📝 Note — "${n}"` : '📝 Note'; },
+    // ── Deal Action Formatters ──────────────────────────────────────────
+    'deal.called':     (changes) => { const n = changes?.note?.to; return n ? `📞 Called — "${n}"` : '📞 Called'; },
+    'deal.whatsapp':   (changes) => { const n = changes?.note?.to; return n ? `💬 WhatsApp — "${n}"` : '💬 Sent WhatsApp message'; },
+    'deal.meeting':    (changes) => { const n = changes?.note?.to; return n ? `🤝 Meeting — "${n}"` : '🤝 Held a meeting'; },
+    'deal.email_sent': (changes) => { const n = changes?.note?.to; return n ? `📧 Email Sent — "${n}"` : '📧 Sent email'; },
+    'deal.follow_up':  (changes) => { const n = changes?.note?.to; return n ? `🔔 Follow-Up — "${n}"` : '🔔 Followed up on deal'; },
+    'deal.visited':    (changes) => { const n = changes?.note?.to; return n ? `🏠 Site Visit — "${n}"` : '🏠 Site visit for deal'; },
+    'deal.note':       (changes) => { const n = changes?.note?.to; return n ? `📝 Note — "${n}"` : '📝 Added a note'; },
+    'deal.task':       (changes) => { const n = changes?.note?.to; return n ? `📋 Task — "${n}"` : '📋 Logged task'; },
+    'deal.sla_extended': (changes) => {
+        const until = changes?.sla_extended_until?.to;
+        const count = changes?.extension_number?.to;
+        return until ? `⏱️ SLA Extended (+48h #${count || 1}) until ${new Date(until).toLocaleString('en-GB')}` : '⏱️ SLA Extended (+48h)';
+    },
+    'deal.reassigned': (changes) => {
+        const to = changes?.assignee_name?.to || changes?.assigned_to?.to || 'new rep';
+        return `🔄 Reassigned to ${to} (fresh 48h SLA started)`;
+    },
 };
 
 const formatActivity = (entity_type, action, meta) => {
@@ -120,6 +135,39 @@ exports.getActivities = async (req, res) => {
     await ensureActivitiesTable();
     const { entity_type, entity_id } = req.params;
     const tenant_id = req.user.tenant_id;
+    const cleanEntityType = (entity_type || '').toLowerCase();
+
+    // Deal permission and row-level scope authorization check
+    if (cleanEntityType === 'deal') {
+        const { checkDealPermission } = require('../middleware/dealPermission');
+        const canView = await checkDealPermission(req.user.id, tenant_id, 'deal.view', req.user.role);
+        if (!canView) {
+            return res.status(403).json({
+                status: 'error',
+                code: 'PERMISSION_DENIED',
+                message: 'Permission denied: "deal.view" is required to view deal activities.',
+                required_permission: 'deal.view'
+            });
+        }
+
+        const accessScopeService = require('../services/accessScopeService');
+        const scope = await accessScopeService.buildScopePredicate({
+            user: req.user,
+            tableAlias: 'deals',
+            assigneeCol: 'assigned_to',
+            paramIndex: 3
+        });
+        let dealWhere = 'id::text = $1::text AND tenant_id::text = $2::text';
+        const dealParams = [entity_id, tenant_id];
+        if (scope.sql && scope.sql !== '1=1') {
+            dealWhere += ` AND ${scope.sql}`;
+            dealParams.push(...scope.params);
+        }
+        const dealChk = await db.query(`SELECT id FROM deals WHERE ${dealWhere}`, dealParams);
+        if (dealChk.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized.' });
+        }
+    }
 
     // Pagination
     const limit  = parseInt(req.query.limit)  || 30;
@@ -175,7 +223,7 @@ exports.createActivity = async (req, res) => {
     const tenant_id = req.user.tenant_id;
 
     // Validate action type
-    const ALLOWED_MANUAL_ACTIONS = ['called', 'whatsapp', 'meeting', 'email_sent', 'follow_up', 'visited', 'note'];
+    const ALLOWED_MANUAL_ACTIONS = ['called', 'whatsapp', 'meeting', 'email_sent', 'follow_up', 'visited', 'note', 'task'];
     if (!action || !ALLOWED_MANUAL_ACTIONS.includes(action)) {
         return res.status(400).json({
             status: 'error',
@@ -204,6 +252,38 @@ exports.createActivity = async (req, res) => {
         };
 
         const cleanEntityType = (entity_type || 'customer').toLowerCase();
+
+        // Deal permission and row-level scope check
+        if (cleanEntityType === 'deal') {
+            const { checkDealPermission } = require('../middleware/dealPermission');
+            const allowed = await checkDealPermission(req.user.id, tenant_id, 'deal.log_activity', req.user.role);
+            if (!allowed) {
+                return res.status(403).json({
+                    status: 'error',
+                    code: 'PERMISSION_DENIED',
+                    message: 'Permission denied: "deal.log_activity" is required to log activities on deals.',
+                    required_permission: 'deal.log_activity'
+                });
+            }
+
+            const accessScopeService = require('../services/accessScopeService');
+            const scope = await accessScopeService.buildScopePredicate({
+                user: req.user,
+                tableAlias: 'deals',
+                assigneeCol: 'assigned_to',
+                paramIndex: 3
+            });
+            let dealWhere = 'id::text = $1::text AND tenant_id::text = $2::text';
+            const dealParams = [entity_id, tenant_id];
+            if (scope.sql && scope.sql !== '1=1') {
+                dealWhere += ` AND ${scope.sql}`;
+                dealParams.push(...scope.params);
+            }
+            const dealChk = await db.query(`SELECT id FROM deals WHERE ${dealWhere}`, dealParams);
+            if (dealChk.rows.length === 0) {
+                return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized.' });
+            }
+        }
 
         const result = await db.query(
             `INSERT INTO activities (tenant_id, user_id, entity_type, entity_id, action, meta)

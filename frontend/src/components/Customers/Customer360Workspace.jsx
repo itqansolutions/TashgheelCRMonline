@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import ActivityTimeline from '../Common/ActivityTimeline';
 import { 
@@ -10,6 +11,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useLanguage } from '../../context/LanguageContext';
 
 const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
+  const navigate = useNavigate();
   const { t, isRTL } = useLanguage();
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
@@ -527,22 +529,86 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {deals.map(d => (
-                    <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px' }}>
-                      <div>
-                        <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '14px' }}>{d.title}</div>
-                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>
-                          {t('customers.pipelineStage', 'Pipeline Stage:')} <span style={{ fontWeight: 700, color: '#4f46e5' }}>{d.pipeline_stage}</span>
-                          {d.product_name && ` • ${t('customers.product', 'Product:')} ${d.product_name}`}
-                          {` • ${t('customers.assigned', 'Assigned:')} ${d.assigned_to_name || t('customers.unassigned', 'Unassigned')}`}
+                    <div 
+                      key={d.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        if (onClose) onClose();
+                        navigate(`/deals?deal_id=${d.id}`);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          if (onClose) onClose();
+                          navigate(`/deals?deal_id=${d.id}`);
+                        }
+                      }}
+                      style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        padding: '14px 16px', 
+                        background: '#f8fafc', 
+                        border: '1px solid #e2e8f0', 
+                        borderRadius: '10px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#f1f5f9';
+                        e.currentTarget.style.borderColor = '#cbd5e1';
+                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = '#f8fafc';
+                        e.currentTarget.style.borderColor = '#e2e8f0';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                      title={t('customers.clickToOpenDeal', 'Click to view deal details')}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          background: 'rgba(79, 70, 229, 0.08)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#4f46e5',
+                          fontWeight: 800,
+                          fontSize: '11px',
+                          flexShrink: 0
+                        }}>
+                          <span className="num-en">#{d.id}</span>
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '14px' }}>{d.title}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>
+                            {t('customers.pipelineStage', 'Pipeline Stage:')} <span style={{ fontWeight: 700, color: '#4f46e5' }}>{d.pipeline_stage}</span>
+                            {d.unit_number && (
+                              <span> • {t('customers.unit', 'Unit:')} <strong className="num-en" style={{ color: '#0369a1' }}>{d.unit_number}</strong>{d.unit_project_name ? ` (${d.unit_project_name})` : ''}</span>
+                            )}
+                            {d.product_name && ` • ${t('customers.product', 'Product:')} ${d.product_name}`}
+                            {` • ${t('customers.assigned', 'Assigned:')} ${d.assigned_to_name || t('customers.unassigned', 'Unassigned')}`}
+                          </div>
                         </div>
                       </div>
-                      <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
-                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
-                          <span className="num-en">{Number(d.value || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
+                          <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>
+                            <span className="num-en">{Number(d.value || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                            {t('customers.created', 'Created')} <span className="num-en">{new Date(d.created_at).toLocaleDateString('en-GB')}</span>
+                          </div>
                         </div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                          {t('customers.created', 'Created')} <span className="num-en">{new Date(d.created_at).toLocaleDateString('en-GB')}</span>
-                        </div>
+                        <ChevronRight 
+                          size={18} 
+                          color="#64748b" 
+                          style={{ transform: isRTL ? 'rotate(180deg)' : 'none', flexShrink: 0 }} 
+                        />
                       </div>
                     </div>
                   ))}

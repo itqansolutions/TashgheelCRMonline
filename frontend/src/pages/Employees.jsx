@@ -19,6 +19,15 @@ const ALL_PAGES = [
   { id: '/sales/target', label: 'Target & Goals' },
   { id: '/sales/documents', label: 'Documents Hub' },
   { id: '/sales/price-tiers', label: 'Price Tiers' },
+  // Deal Operations & Lifecycle
+  { id: 'deal.view', label: 'Deals: View (List & Detail)' },
+  { id: 'deal.update_stage', label: 'Deals: Update Stage (Move / Drag Stage)' },
+  { id: 'deal.log_activity', label: 'Deals: Log Activity & Notes' },
+  { id: 'deal.edit_details', label: 'Deals: Edit Details (Title, Value, Client)' },
+  { id: 'deal.delete', label: 'Deals: Delete & Cancel Deals' },
+  { id: 'deal.reassign', label: 'Deals: Reassign Owner' },
+  { id: 'deal.extend_sla', label: 'Deals: Extend SLA & Reservations' },
+  { id: 'deal.view_overdue', label: 'Deals: View Stalled / Overdue Deals' },
   // HR & Attendance
   { id: '/hr/my-attendance', label: 'My Attendance' },
   { id: '/hr/my-requests', label: 'My Requests' },
@@ -146,8 +155,16 @@ const Employees = () => {
     try {
       // Fetch permissions for this specific user
       const res = await api.get(`/users/${user.id}/permissions`);
-      const perms = Array.isArray(res.data.data) ? res.data.data : [];
-      setUserPermissions(perms.map(p => p.page_path));
+      const perms = Array.isArray(res.data.data) ? res.data.data.map(p => p.page_path) : [];
+      let mapped = [...perms];
+      if (!mapped.some(p => p.startsWith('deal.'))) {
+        if (user.role === 'admin') {
+          mapped = [...mapped, 'deal.view', 'deal.update_stage', 'deal.log_activity', 'deal.edit_details', 'deal.delete', 'deal.reassign', 'deal.extend_sla', 'deal.view_overdue'];
+        } else {
+          mapped = [...mapped, 'deal.view', 'deal.update_stage', 'deal.log_activity'];
+        }
+      }
+      setUserPermissions(mapped);
       setIsPermModalOpen(true);
     } catch (err) {
       toast.error('Failed to load user permissions');

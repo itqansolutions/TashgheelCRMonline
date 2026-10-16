@@ -5,6 +5,7 @@ const db = require('../config/db');
 const { logAction, logSecurity, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 const emailService = require('../services/emailService');
 const { getEffectiveFinancialPermissions } = require('../middleware/financialPermission');
+const { getEffectiveDealPermissions } = require('../middleware/dealPermission');
 
 // ── PUBLIC: Submit Registration Request ─────────────────────────
 // Creates a pending registration_requests row only.
@@ -269,8 +270,9 @@ exports.login = async (req, res) => {
     // Resolve allowed pages for PBAC
     const allowedPages = await getUserAllowedPages(user.id, user.role);
 
-    // Resolve effective financial permissions
+    // Resolve effective financial and deal permissions
     const financialPermissions = await getEffectiveFinancialPermissions(user.id, user.tenant_id, user.role);
+    const dealPermissions = await getEffectiveDealPermissions(user.id, user.tenant_id, user.role);
 
     // Generate JWT with Tenant Context
     const payload = { user: { id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id } };
@@ -291,7 +293,8 @@ exports.login = async (req, res) => {
         template_name: user.template_name,
         branch_id: primaryBranchId,
         allowedPages,
-        financialPermissions
+        financialPermissions,
+        dealPermissions
       } 
     });
   } catch (err) {
@@ -331,6 +334,7 @@ exports.demoLogin = async (req, res) => {
 
     const allowedPages = await getUserAllowedPages(user.id, user.role);
     const financialPermissions = await getEffectiveFinancialPermissions(user.id, user.tenant_id, user.role);
+    const dealPermissions = await getEffectiveDealPermissions(user.id, user.tenant_id, user.role);
 
     // Generate JWT
     const payload = { user: { id: user.id, name: user.name, role: user.role, tenant_id: user.tenant_id } };
@@ -349,7 +353,8 @@ exports.demoLogin = async (req, res) => {
         branch_id: demoBranchId,
         isDemo: true,
         allowedPages,
-        financialPermissions
+        financialPermissions,
+        dealPermissions
       } 
     });
   } catch (err) {
@@ -458,10 +463,11 @@ exports.getMe = async (req, res) => {
 
     const allowedPages = await getUserAllowedPages(user.id, user.role);
     const financialPermissions = await getEffectiveFinancialPermissions(user.id, user.tenant_id, user.role);
+    const dealPermissions = await getEffectiveDealPermissions(user.id, user.tenant_id, user.role);
     
     res.json({ 
       status: 'success', 
-      user: { ...user, branches: branchesResult.rows, allowedPages, financialPermissions } 
+      user: { ...user, branches: branchesResult.rows, allowedPages, financialPermissions, dealPermissions } 
     });
   } catch (err) {
     console.error(err.message);

@@ -83,6 +83,18 @@ exports.processCancellation = async (req, res) => {
         return res.status(400).json({ status: 'error', message: 'cancellation_reason is required.' });
     }
 
+    // Permission check: canceling a deal requires deal.delete
+    const { checkDealPermission } = require('../middleware/dealPermission');
+    const canDelete = await checkDealPermission(req.user.id, tenant_id, 'deal.delete', req.user.role);
+    if (!canDelete) {
+        return res.status(403).json({
+            status: 'error',
+            code: 'PERMISSION_DENIED',
+            message: 'Permission denied: "deal.delete" is required to cancel deals.',
+            required_permission: 'deal.delete'
+        });
+    }
+
     const client = await db.connect();
     try {
         await client.query('BEGIN');

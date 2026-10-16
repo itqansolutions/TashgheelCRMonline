@@ -31,7 +31,8 @@ export const AuthProvider = ({ children }) => {
             ...freshUserData,
             allowedPages: safeArray(freshUserData.allowedPages || prevUser?.allowedPages),
             branches: safeArray(freshUserData.branches || prevUser?.branches),
-            financialPermissions: safeArray(freshUserData.financialPermissions || prevUser?.financialPermissions)
+            financialPermissions: safeArray(freshUserData.financialPermissions || prevUser?.financialPermissions),
+            dealPermissions: safeArray(freshUserData.dealPermissions || prevUser?.dealPermissions)
           };
           return merged;
         });
@@ -86,7 +87,8 @@ export const AuthProvider = ({ children }) => {
       isDemo: userData.isDemo || false,
       allowedPages: safeArray(userData.allowedPages),
       branches: safeArray(userData.branches),
-      financialPermissions: safeArray(userData.financialPermissions)
+      financialPermissions: safeArray(userData.financialPermissions),
+      dealPermissions: safeArray(userData.dealPermissions)
     });
 
     // Fetch subscription on login sequentially with fail-closed fallback
@@ -130,8 +132,20 @@ export const AuthProvider = ({ children }) => {
     return perms.includes(perm);
   };
 
+  /**
+   * Helper to verify if current user has a specific deal permission.
+   * Admins are always allowed as superusers.
+   * Otherwise checks user.dealPermissions array.
+   */
+  const hasDealPermission = (perm) => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    const perms = safeArray(user.dealPermissions);
+    return perms.includes(perm);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, subscription, loading, login, logout, isAuthenticated: !!user, hasFinancialPermission }}>
+    <AuthContext.Provider value={{ user, subscription, loading, login, logout, isAuthenticated: !!user, hasFinancialPermission, hasDealPermission }}>
       {children}
     </AuthContext.Provider>
   );

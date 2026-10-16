@@ -71,6 +71,11 @@ function makeFakeDb() {
     }
     if (sql.includes('SELECT id FROM deals')) { return { rows: s.deals.filter(d => d.tenant === p[0] && d.source_type === 'property_finder' && d.source_id === p[1]) }; }
     if (sql.includes('SELECT template_name FROM tenants')) { return { rows: [{ template_name: s.templates[p[0]] || 'general' }] }; }
+    if (sql.includes('to_regclass')) { return { rows: [{ teams_tbl: 'sales_teams', members_tbl: 'sales_team_members' }] }; }
+    if (sql.includes('pg_advisory_xact_lock')) { return { rows: [] }; }
+    if (sql.includes('FROM sales_teams')) { return { rows: [] }; }
+    if (sql.includes('FROM sales_team_members')) { return { rows: [] }; }
+    if (sql.includes('FROM users')) { return { rows: [] }; }
     if (sql.includes('FROM re_units')) {
       const u = s.units[p[0]]; return { rows: u && u.tenant === p[1] ? [u] : [] };
     }

@@ -111,7 +111,15 @@ const KanbanBoard = ({ deals, pipelineStages, onEdit }) => {
 
             <div className="kanban-cards-wrapper kanban-scroll">
               {stageDeals.map(deal => (
-                <div key={deal.id} className="k-card" onClick={() => onEdit(deal)}>
+                <div 
+                  key={deal.id} 
+                  className="k-card" 
+                  onClick={() => onEdit(deal)}
+                  style={{
+                    borderInlineStart: (deal.is_overdue || deal.sla?.isOverdue) ? '4px solid #ef4444' : undefined,
+                    background: (deal.is_overdue || deal.sla?.isOverdue) ? '#fffbfb' : 'white'
+                  }}
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                     <div style={{ fontWeight: 800, fontSize: '14px', color: 'var(--text-main)', lineHeight: 1.3 }}>
                       {deal.title}
@@ -130,6 +138,12 @@ const KanbanBoard = ({ deals, pipelineStages, onEdit }) => {
                     <div className="k-metric-pill" style={{ background: `${getProbabilityColor(deal.probability || 0)}15`, color: getProbabilityColor(deal.probability || 0) }}>
                       <Target size={12}/> <span className="num-en">{deal.probability || 0}%</span> {t('deals.win', 'Win')}
                     </div>
+                    {(deal.is_overdue || deal.sla?.isOverdue) && (
+                      <div className="k-metric-pill" style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontWeight: 900 }}>
+                        <AlertCircle size={12} color="#dc2626" />
+                        <span>{t('deals.sla.overdueBadge', 'OVERDUE (>48h)')}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ borderTop: '1px dashed #e2e8f0', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>

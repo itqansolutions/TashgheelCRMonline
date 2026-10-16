@@ -16,6 +16,7 @@ const ACTION_TYPES = [
     { value: 'email_sent',  label: '📧 Email Sent',    color: '#0891b2', bg: '#ecfeff' },
     { value: 'follow_up',   label: '🔔 Follow-Up',     color: '#d97706', bg: '#fffbeb' },
     { value: 'visited',     label: '🏠 Site Visit',    color: '#dc2626', bg: '#fef2f2' },
+    { value: 'task',        label: '📋 Task',          color: '#0284c7', bg: '#f0f9ff' },
     { value: 'note',        label: '📝 Note',          color: '#475569', bg: '#f8fafc' },
 ];
 
@@ -34,6 +35,7 @@ const getActionIcon = (action) => {
         case 'email_sent':  return <Mail      size={14} />;
         case 'follow_up':   return <Bell      size={14} />;
         case 'visited':     return <Home      size={14} />;
+        case 'task':        return <CheckCircle size={14} />;
         case 'note':        return <FileText  size={14} />;
         case 'created':     return <CheckCircle size={14} />;
         case 'updated':
@@ -55,7 +57,7 @@ const getBulletColors = (action) => {
 };
 
 // ── ActivityTimeline component ─────────────────────────────────────────────
-const ActivityTimeline = ({ entityType, entityId }) => {
+const ActivityTimeline = ({ entityType, entityId, canLog = true }) => {
     const { t, isRTL } = useLanguage();
     const [activities, setActivities]   = useState([]);
     const [loading, setLoading]         = useState(true);
@@ -80,6 +82,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
             case 'email_sent': return `📧 ${t('customers.actionTypes.emailSent', 'Email Sent')}`;
             case 'follow_up': return `🔔 ${t('customers.actionTypes.followUp', 'Follow-Up')}`;
             case 'visited': return `🏠 ${t('customers.actionTypes.siteVisit', 'Site Visit')}`;
+            case 'task': return `📋 ${t('deals.actionTypes.task', t('common.task', 'Task'))}`;
             case 'note': return `📝 ${t('customers.actionTypes.note', 'Note')}`;
             default: return value;
         }
@@ -148,7 +151,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
     // ── Filter ─────────────────────────────────────────────────────────────
     const filteredActivities = activities.filter(a => {
         if (filter === 'all')       return true;
-        if (filter === 'manual')    return ['called', 'whatsapp', 'meeting', 'email_sent', 'follow_up', 'visited', 'note'].includes(a.action);
+        if (filter === 'manual')    return ['called', 'whatsapp', 'meeting', 'email_sent', 'follow_up', 'visited', 'note', 'task'].includes(a.action);
         if (filter === 'system')    return ['created', 'updated', 'assigned', 'status_changed', 'stage_changed'].includes(a.action);
         return a.action === filter;
     });
@@ -175,29 +178,32 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                         <option value="called">📞 {t('customers.calls', 'Calls')}</option>
                         <option value="whatsapp">💬 {t('customers.whatsapp', 'WhatsApp')}</option>
                         <option value="meeting">🤝 {t('customers.meetings', 'Meetings')}</option>
+                        <option value="task">📋 {t('deals.tasks', t('common.tasks', 'Tasks'))}</option>
                         <option value="follow_up">🔔 {t('customers.followUps', 'Follow-Ups')}</option>
                         <option value="note">📝 {t('customers.notesFilter', 'Notes')}</option>
                     </select>
                 </div>
 
-                {/* Add Log Button */}
-                <button
-                    onClick={() => setShowForm(prev => !prev)}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '6px',
-                        padding: '7px 14px', borderRadius: '8px',
-                        background: showForm ? '#f1f5f9' : 'var(--primary, #4f46e5)',
-                        color: showForm ? '#64748b' : '#fff',
-                        border: 'none', fontWeight: '700', fontSize: '12px', cursor: 'pointer',
-                        transition: 'all 0.2s'
-                    }}
-                >
-                    {showForm ? <><X size={14} /> {t('common.cancel', 'Cancel')}</> : <><Plus size={14} /> {t('customers.logInteraction', 'Log Interaction')}</>}
-                </button>
+                {/* Add Log Button (rendered only if authorized) */}
+                {canLog && (
+                    <button
+                        onClick={() => setShowForm(prev => !prev)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            padding: '7px 14px', borderRadius: '8px',
+                            background: showForm ? '#f1f5f9' : 'var(--primary, #4f46e5)',
+                            color: showForm ? '#64748b' : '#fff',
+                            border: 'none', fontWeight: '700', fontSize: '12px', cursor: 'pointer',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        {showForm ? <><X size={14} /> {t('common.cancel', 'Cancel')}</> : <><Plus size={14} /> {t('customers.logInteraction', 'Log Interaction')}</>}
+                    </button>
+                )}
             </div>
 
             {/* ── Log Form ────────────────────────────────────────────────── */}
-            {showForm && (
+            {canLog && showForm && (
                 <form
                     onSubmit={handleSubmitLog}
                     style={{
@@ -206,7 +212,7 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                     }}
                 >
                     <div style={{ fontWeight: '800', fontSize: '13px', color: 'var(--primary, #4f46e5)', marginBottom: '12px' }}>
-                        📋 {t('customers.logCustomerInteraction', 'Log a Customer Interaction')}
+                        📋 {entityType === 'deal' ? t('deals.logDealInteraction', 'Log Deal Activity') : t('customers.logCustomerInteraction', 'Log a Customer Interaction')}
                     </div>
 
                     {/* Action type pills */}
@@ -232,7 +238,9 @@ const ActivityTimeline = ({ entityType, entityId }) => {
                     {/* Description */}
                     <textarea
                         rows={3}
-                        placeholder={t('customers.describeInteraction', 'Describe the interaction… e.g. Customer answered, interested in 3BR unit')}
+                        placeholder={entityType === 'deal'
+                            ? t('deals.describeDealInteraction', 'Describe the interaction… e.g. Phone call with client, discussed pricing and terms')
+                            : t('customers.describeInteraction', 'Describe the interaction… e.g. Customer answered, interested in 3BR unit')}
                         value={logNote}
                         onChange={e => setLogNote(e.target.value)}
                         required

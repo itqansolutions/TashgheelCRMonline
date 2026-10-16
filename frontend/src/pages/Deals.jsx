@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 
 const Deals = () => {
   const { t, isRTL } = useLanguage();
-  const { user, hasFinancialPermission } = useAuth();
+  const { user, hasFinancialPermission, hasDealPermission } = useAuth();
   const { deals, fetchDeals, customers, fetchCustomers, products, fetchProducts, users, fetchUsers, templateConfig, loading } = useData();
   const isRealEstate = user?.template_name === 'real_estate';
   const navigate = useNavigate();
@@ -63,6 +63,7 @@ const Deals = () => {
   }, [legacyTab]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState(null);
+  const openedByQueryParamRef = useRef(null);
   const [reUnits, setReUnits] = useState([]);
   const [viewMode, setViewMode] = useState(isRealEstate ? 'table' : 'kanban');
   const [dealContract, setDealContract] = useState(null);
@@ -74,9 +75,29 @@ const Deals = () => {
     deduction_amount: 0,
     unit_action: 'release'
   });
+  // Batch F: Deal SLA Management
+  const [isOverdueOnly, setIsOverdueOnly] = useState(false);
+  const [dealSla, setDealSla] = useState(null);
+  const [slaLoading, setSlaLoading] = useState(false);
+  const [extendingSla, setExtendingSla] = useState(false);
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [reassignTargetId, setReassignTargetId] = useState('');
+  const [reassignReason, setReassignReason] = useState('');
   // Deal Lock (mirrors backend): final stage (Closed/won) or a live contract freezes core commercial fields
   const isFinalDealStage = ['closed', 'won'].includes(String(editingDeal?.pipeline_stage || '').toLowerCase());
   const isDealLocked = !!editingDeal && (isFinalDealStage || (dealContract && dealContract.status !== 'Cancelled'));
+
+  // Deal Permissions checks
+  const canEditDetails = !editingDeal ? hasDealPermission('deal.edit_details') : hasDealPermission('deal.edit_details');
+  const canUpdateStage = hasDealPermission('deal.update_stage');
+  const canReassign = hasDealPermission('deal.reassign');
+  const canDeleteDeal = hasDealPermission('deal.delete');
+  const canExtendSla = hasDealPermission('deal.extend_sla');
+
+  const isDetailsDisabled = isDealLocked || (!!editingDeal && !canEditDetails);
+  const isStageDisabled = (isDealLocked && isFinalDealStage) || !canUpdateStage;
+  const isReassignDisabled = isDealLocked || !canReassign;
+  const canSaveModal = !editingDeal ? canEditDetails : (canEditDetails || canUpdateStage || canReassign);
 
   // Helper to map icon names to Lucide components (Polish Sprint)
   const getFieldIcon = (iconName) => {
@@ -270,9 +291,69 @@ const Deals = () => {
   };
 
 
+  const fetchDealSla = async (dealId) => {
+    if (!dealId) { setDealSla(null); return; }
+    setSlaLoading(true);
+    try {
+      const res = await api.get(`/deals/${dealId}/sla`);
+      setDealSla(res.data.data || null);
+    } catch (err) {
+      console.warn('Failed to fetch deal SLA:', err.message);
+      setDealSla(null);
+    } finally {
+      setSlaLoading(false);
+    }
+  };
+
+  const handleToggleOverdue = () => {
+    const nextVal = !isOverdueOnly;
+    setIsOverdueOnly(nextVal);
+    fetchDeals(true, nextVal ? { overdue: 'true' } : {});
+  };
+
+  const handleExtendSla = async (dealId) => {
+    const reason = window.prompt(t('deals.sla.extendReasonPrompt', 'Enter reason for extending the 48h SLA deadline:'));
+    if (reason === null) return;
+    const idempotencyKey = `sla_ext_${dealId}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    setExtendingSla(true);
+    try {
+      const res = await api.post(`/deals/${dealId}/extend-sla`, { reason, idempotencyKey });
+      toast.success(res.data?.message || t('deals.sla.extendSuccess', 'SLA extended by 48 hours.'));
+      setDealSla(res.data?.sla || null);
+      fetchDeals(false, isOverdueOnly ? { overdue: 'true' } : {});
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to extend SLA');
+    } finally {
+      setExtendingSla(false);
+    }
+  };
+
+  const handleReassignDeal = async (dealId) => {
+    if (!reassignTargetId) {
+      toast.error(t('deals.sla.selectRepresentative', 'Please select a sales representative'));
+      return;
+    }
+    try {
+      const res = await api.post(`/deals/${dealId}/reassign`, {
+        target_user_id: reassignTargetId,
+        reason: reassignReason
+      });
+      toast.success(res.data?.message || t('deals.sla.reassignSuccess', 'Deal reassigned successfully.'));
+      setDealSla(res.data?.sla || null);
+      setShowReassignModal(false);
+      setReassignTargetId('');
+      setReassignReason('');
+      fetchDeals(false, isOverdueOnly ? { overdue: 'true' } : {});
+      setFormData(prev => ({ ...prev, assigned_to: reassignTargetId }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reassign deal');
+    }
+  };
+
   const handleOpenModal = (deal = null) => {
     if (deal) {
       setEditingDeal(deal);
+      fetchDealSla(deal.id);
       setFormData({
         title: deal.title || '',
         value: deal.value || 0,
@@ -297,6 +378,8 @@ const Deals = () => {
       setDealContract(null);
       setCancellationRecord(null);
       setShowCancelForm(false);
+      setDealSla(null);
+      setShowReassignModal(false);
       setFormData({ 
         title: '', 
         value: 0, 
@@ -315,6 +398,85 @@ const Deals = () => {
     }
     setIsModalOpen(true);
   };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingDeal(null);
+    setDealContract(null);
+    setCancellationRecord(null);
+    setShowCancelForm(false);
+    setDealSla(null);
+    setShowReassignModal(false);
+    setReassignTargetId('');
+    setReassignReason('');
+    openedByQueryParamRef.current = null;
+    if (searchParams.get('deal_id')) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.delete('deal_id');
+        return next;
+      }, { replace: true });
+    }
+  };
+
+  // Handle direct navigation or deep-link to deal (?deal_id=X)
+  useEffect(() => {
+    const dealIdParam = searchParams.get('deal_id');
+
+    // If deal_id was cleared/not present in URL (e.g. browser Back button pressed)
+    if (!dealIdParam) {
+      if (openedByQueryParamRef.current && isModalOpen) {
+        openedByQueryParamRef.current = null;
+        setIsModalOpen(false);
+        setEditingDeal(null);
+      }
+      return;
+    }
+
+    // If this deal is already open, avoid redundant work
+    if (editingDeal && String(editingDeal.id) === String(dealIdParam) && isModalOpen) {
+      return;
+    }
+
+    // 1. Check if the deal is already present in loaded deals
+    const targetDeal = (deals || []).find(d => String(d.id) === String(dealIdParam));
+    if (targetDeal) {
+      openedByQueryParamRef.current = String(dealIdParam);
+      handleOpenModal(targetDeal);
+      return;
+    }
+
+    // 2. If DataContext is currently loading deals, wait for it to complete
+    if (loading) return;
+
+    // 3. If deals have finished loading and target wasn't found in list,
+    // verify via backend endpoint (supports single-deal access, deep links, refresh)
+    let isCancelled = false;
+    api.get(`/deals/${dealIdParam}`)
+      .then(res => {
+        if (isCancelled) return;
+        if (res.data?.status === 'success' && res.data.data) {
+          openedByQueryParamRef.current = String(dealIdParam);
+          handleOpenModal(res.data.data);
+        } else {
+          throw new Error('Deal not found');
+        }
+      })
+      .catch(err => {
+        if (isCancelled) return;
+        console.warn('[Deals URL Navigation Notice] Requested deal is inaccessible or unauthorized');
+        toast.error(t('deals.dealNotFoundOrUnauthorized', 'Deal not found or you do not have permission to view it.'));
+        setSearchParams(prev => {
+          const next = new URLSearchParams(prev);
+          next.delete('deal_id');
+          return next;
+        }, { replace: true });
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [searchParams, deals, loading, isModalOpen, editingDeal]);
 
   const handleCustomFieldChange = (key, value) => {
     setFormData({
@@ -359,7 +521,7 @@ const Deals = () => {
       }
       fetchDeals(false);
       if (isRealEstate) fetchReUnits(); // Refresh availability
-      setIsModalOpen(false);
+      handleCloseModal();
     } catch (err) {
       toast.error(err.response?.data?.message || t('deals.failedToSave', 'Failed to save deal'));
     }
@@ -556,6 +718,44 @@ const Deals = () => {
           <span>{val || t('deals.unassigned', 'Unassigned')}</span>
         </div>
       )
+    },
+    { 
+      key: 'is_overdue', 
+      label: t('deals.sla.title', 'SLA Status'),
+      render: (val, item) => {
+        const isTerminal = ['won', 'lost', 'cancelled', 'closed'].includes(String(item.pipeline_stage || '').toLowerCase());
+        if (isTerminal) {
+          return (
+            <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>
+              {t('deals.sla.terminalStatus', 'Closed')}
+            </span>
+          );
+        }
+        if (val || item.sla?.isOverdue) {
+          return (
+            <span style={{ 
+              display: 'inline-flex', alignItems: 'center', gap: '4px',
+              padding: '2px 8px', borderRadius: '6px', fontSize: '11px',
+              fontWeight: 800, background: '#fef2f2', color: '#dc2626',
+              border: '1px solid #fecaca'
+            }}>
+              <AlertCircle size={12} />
+              {t('deals.sla.overdueBadge', 'OVERDUE (>48h)')}
+            </span>
+          );
+        }
+        return (
+          <span style={{ 
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+            padding: '2px 8px', borderRadius: '6px', fontSize: '11px',
+            fontWeight: 700, background: '#f0fdf4', color: '#16a34a',
+            border: '1px solid #bbf7d0'
+          }}>
+            <Clock size={12} />
+            {t('deals.sla.onTrackStatus', 'On Track').split('—')[0].trim()}
+          </span>
+        );
+      }
     }
   ];
 
@@ -586,6 +786,28 @@ const Deals = () => {
           <p style={{ color: 'var(--text-muted)' }}>{t('deals.subtitle', 'Track your deals from first contact to closing.')}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {hasDealPermission('deal.view_overdue') && (
+              <button 
+                type="button"
+                onClick={handleToggleOverdue} 
+                style={{ 
+                  padding: '6px 14px', 
+                  borderRadius: '8px', 
+                  border: isOverdueOnly ? '1px solid #ef4444' : '1px solid #cbd5e1', 
+                  background: isOverdueOnly ? '#fef2f2' : 'white', 
+                  color: isOverdueOnly ? '#dc2626' : '#64748b', 
+                  fontWeight: 700, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  cursor: 'pointer',
+                  fontSize: '13px'
+                }}
+              >
+                <AlertCircle size={15} color={isOverdueOnly ? '#dc2626' : '#64748b'} />
+                {t('deals.sla.filterOverdue', 'Overdue Deals (>48h)')}
+              </button>
+            )}
             <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
                 <button onClick={() => setViewMode('kanban')} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', background: viewMode === 'kanban' ? 'white' : 'transparent', color: viewMode === 'kanban' ? 'var(--primary)' : '#64748b', fontWeight: 700, boxShadow: viewMode === 'kanban' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', cursor: 'pointer', transition: 'all 0.2s' }}>
                     {t('deals.kanban', 'Kanban')}
@@ -594,10 +816,12 @@ const Deals = () => {
                     {t('deals.list', 'List')}
                 </button>
             </div>
-            <button label="add deal control" className="btn-add" onClick={() => handleOpenModal()}>
-                <Plus size={20} />
-                {t('deals.createDeal', 'Create Deal')}
-            </button>
+            {canEditDetails && (
+              <button label="add deal control" className="btn-add" onClick={() => handleOpenModal()}>
+                  <Plus size={20} />
+                  {t('deals.createDeal', 'Create Deal')}
+              </button>
+            )}
         </div>
       </div>
 
@@ -608,7 +832,7 @@ const Deals = () => {
           data={deals || []}
           loading={loading}
           onEdit={handleOpenModal}
-          onDelete={handleDelete}
+          onDelete={canDeleteDeal ? handleDelete : undefined}
           actions={(row) => (
             <button 
               title={t('deals.generateInvoice', 'Generate Invoice')} 
@@ -630,12 +854,12 @@ const Deals = () => {
 
       <Modal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleCloseModal}
         title={editingDeal ? t('deals.updateDeal', 'Update Deal') : t('deals.newSalesDeal', 'New Sales Deal')}
         footer={
           <>
-            <button label="cancel addition" className="btn-cancel" onClick={() => setIsModalOpen(false)}>{t('common.cancel', 'Cancel')}</button>
-            <button label="save addition" className="btn-save" onClick={handleSubmit}>
+            <button label="cancel addition" className="btn-cancel" onClick={handleCloseModal}>{t('common.cancel', 'Cancel')}</button>
+            <button label="save addition" className="btn-save" onClick={handleSubmit} disabled={!canSaveModal} style={{ opacity: canSaveModal ? 1 : 0.5, cursor: canSaveModal ? 'pointer' : 'not-allowed' }}>
               {editingDeal ? t('deals.updateDeal', 'Update Deal') : t('deals.createDeal', 'Create Deal')}
             </button>
           </>
@@ -651,12 +875,148 @@ const Deals = () => {
               {isRealEstate && ` ${t('deals.dealLockedReversalHint', 'Use "Cancel Deal & Refund" to reverse it.')}`}
             </div>
           )}
+
+          {/* Batch F: Deal SLA Status Card */}
+          {editingDeal && dealSla && (
+            <div style={{
+              gridColumn: 'span 2',
+              background: dealSla.isOverdue ? '#fef2f2' : (dealSla.isTerminal ? '#f8fafc' : '#f0fdf4'),
+              border: `1px solid ${dealSla.isOverdue ? '#fca5a5' : (dealSla.isTerminal ? '#e2e8f0' : '#86efac')}`,
+              borderRadius: '12px',
+              padding: '14px 16px',
+              marginBottom: '8px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock size={16} color={dealSla.isOverdue ? '#dc2626' : (dealSla.isTerminal ? '#64748b' : '#16a34a')} />
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: dealSla.isOverdue ? '#991b1b' : (dealSla.isTerminal ? '#475569' : '#166534') }}>
+                    {dealSla.isTerminal
+                      ? t('deals.sla.terminalStatus', 'Deal Finalized (SLA Inactive)')
+                      : (dealSla.isOverdue
+                          ? t('deals.sla.overdueStatus', 'Overdue by {hours}h (SLA Breached)').replace('{hours}', dealSla.overdueHours)
+                          : t('deals.sla.onTrackStatus', 'SLA On Track — {hours}h remaining').replace('{hours}', dealSla.remainingHours)
+                        )}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {canExtendSla && !dealSla.isTerminal && (
+                    <button
+                      type="button"
+                      disabled={extendingSla}
+                      onClick={() => handleExtendSla(editingDeal.id)}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: '#0284c7',
+                        color: 'white',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: extendingSla ? 'wait' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Plus size={13} />
+                      {t('deals.sla.extendSlaBtn', '+48h Extend SLA')}
+                    </button>
+                  )}
+                  {canReassign && (
+                    <button
+                      type="button"
+                      onClick={() => setShowReassignModal(!showReassignModal)}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        background: 'white',
+                        color: '#334155',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <User size={13} />
+                      {t('deals.sla.reassignBtn', 'Reassign Deal')}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', fontSize: '11px', color: '#475569' }}>
+                <div>
+                  <span style={{ color: '#64748b' }}>{t('deals.sla.effectiveDeadline', 'Deadline: {date}').split(':')[0]}: </span>
+                  <strong><span className="num-en">{new Date(dealSla.effectiveDeadline).toLocaleString('en-GB')}</span></strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>{t('deals.sla.lastFollowUp', 'Last follow-up: {date}').split(':')[0]}: </span>
+                  <strong><span className="num-en">{new Date(dealSla.effectiveAnchor).toLocaleString('en-GB')}</span></strong>
+                </div>
+                <div>
+                  <span style={{ color: '#64748b' }}>{t('deals.sla.extensionsCount', 'Extensions: {count}').split(':')[0]}: </span>
+                  <strong>{dealSla.extensionCount > 0 ? t('deals.sla.extensionsCount', 'Extended {count} time(s)').replace('{count}', dealSla.extensionCount) : 0}</strong>
+                </div>
+                {dealSla.lastExtendedBy && (
+                  <div>
+                    <span style={{ color: '#64748b' }}>{t('deals.sla.lastExtendedBy', 'Last extended by: {name}').replace('{name}', dealSla.lastExtendedBy)}</span>
+                  </div>
+                )}
+              </div>
+
+              {dealSla.isOverdue && (
+                <div style={{ marginTop: '8px', fontSize: '11px', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertCircle size={13} />
+                  {t('deals.sla.overdueNotice', 'No impactful client interaction (call, meeting, completed task) recorded in the last 48 hours.')}
+                </div>
+              )}
+
+              {/* Reassign Sub-Panel */}
+              {showReassignModal && (
+                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e293b' }}>
+                    {t('deals.sla.reassignModalTitle', 'Reassign Deal to Representative')}
+                  </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '8px', alignItems: 'center' }}>
+                    <select 
+                      value={reassignTargetId} 
+                      onChange={(e) => setReassignTargetId(e.target.value)}
+                      style={{ padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    >
+                      <option value="">{t('deals.sla.selectRepresentative', '-- Select Representative --')}</option>
+                      {(users || []).filter(u => String(u.id) !== String(editingDeal.assigned_to)).map(u => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      placeholder={t('deals.sla.reassignReasonPlaceholder', 'Reason for reassignment...')}
+                      value={reassignReason}
+                      onChange={(e) => setReassignReason(e.target.value)}
+                      style={{ padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleReassignDeal(editingDeal.id)}
+                      style={{ padding: '6px 14px', background: '#4f46e5', color: 'white', borderRadius: '6px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {t('common.confirm', 'Confirm')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <div className="form-group full">
             <label>{t('deals.dealTitle', 'Deal Title')}</label>
             <input 
               type="text" 
               placeholder={t('deals.dealTitlePlaceholder', 'e.g. Website Overhaul Project')}
               value={formData.title}
+              disabled={isDetailsDisabled}
               onChange={(e) => setFormData({...formData, title: e.target.value})}
               required
             />
@@ -672,7 +1032,7 @@ const Deals = () => {
                     className="ap-input" 
                     style={{ border: '1px solid #0ea5e9' }}
                     value={formData.unit_id} 
-                    disabled={!!editingDeal}
+                    disabled={!!editingDeal || isDetailsDisabled}
                     onChange={(e) => handleUnitChange(e.target.value)}
                 >
                     <option value="">{t('deals.selectAvailableUnit', '-- Select Available Unit --')}</option>
@@ -697,7 +1057,7 @@ const Deals = () => {
                 type={field.type || 'text'}
                 placeholder={`Enter ${field.label || field.key.replace('_', ' ')}`}
                 value={formData.custom_fields?.[field.key] || ''}
-                disabled={isDealLocked}
+                disabled={isDetailsDisabled}
                 onChange={(e) => handleCustomFieldChange(field.key, e.target.value)}
               />
             </div>
@@ -708,7 +1068,7 @@ const Deals = () => {
                 <label>{t('deals.selectProductOptional', 'Select Product (Optional)')}</label>
                 <select 
                 value={formData.product_id}
-                disabled={isDealLocked}
+                disabled={isDetailsDisabled}
                 onChange={(e) => handleProductChange(e.target.value)}
                 >
                 <option value="">{t('deals.noSpecificProduct', '-- No Specific Product --')}</option>
@@ -723,7 +1083,7 @@ const Deals = () => {
             <label>{t('deals.linkToCustomer', 'Link to Customer')}</label>
             <select 
               value={formData.client_id}
-              disabled={isDealLocked}
+              disabled={isDetailsDisabled}
               onChange={(e) => setFormData({...formData, client_id: e.target.value})}
               required
             >
@@ -739,14 +1099,14 @@ const Deals = () => {
               type="number" 
               value={formData.value}
               onChange={(e) => setFormData({...formData, value: e.target.value})}
-              disabled={!!formData.unit_id || isDealLocked}
+              disabled={!!formData.unit_id || isDetailsDisabled}
             />
           </div>
           <div className="form-group">
             <label>{t('deals.pipelineStage', 'Pipeline Stage')}</label>
             <select 
               value={formData.pipeline_stage}
-              disabled={isDealLocked && isFinalDealStage}
+              disabled={isStageDisabled}
               onChange={(e) => setFormData({...formData, pipeline_stage: e.target.value})}
             >
               {(templateConfig?.pipeline || []).map(stage => (
@@ -765,15 +1125,15 @@ const Deals = () => {
             <>
                 <div className="form-group">
                     <label>{t('deals.winProbability', 'Win Probability (%)')}</label>
-                    <input type="number" min="0" max="100" value={formData.probability} onChange={(e) => setFormData({...formData, probability: parseInt(e.target.value) || 0})} />
+                    <input type="number" min="0" max="100" value={formData.probability} disabled={isDetailsDisabled} onChange={(e) => setFormData({...formData, probability: parseInt(e.target.value) || 0})} />
                 </div>
                 <div className="form-group">
                     <label>{t('deals.expectedCloseDate', 'Expected Close Date')}</label>
-                    <input type="date" value={formData.expected_close_date} onChange={(e) => setFormData({...formData, expected_close_date: e.target.value})} />
+                    <input type="date" value={formData.expected_close_date} disabled={isDetailsDisabled} onChange={(e) => setFormData({...formData, expected_close_date: e.target.value})} />
                 </div>
                 <div className="form-group full">
                     <label>{t('deals.nextActionRequired', 'Next Action Required')}</label>
-                    <input type="text" placeholder={t('deals.nextActionPlaceholder', 'e.g. Call client to discuss proposal')} value={formData.next_action} onChange={(e) => setFormData({...formData, next_action: e.target.value})} />
+                    <input type="text" placeholder={t('deals.nextActionPlaceholder', 'e.g. Call client to discuss proposal')} value={formData.next_action} disabled={isDetailsDisabled} onChange={(e) => setFormData({...formData, next_action: e.target.value})} />
                 </div>
             </>
           )}
@@ -782,7 +1142,7 @@ const Deals = () => {
             <label>{t('deals.dealOwner', 'Deal Owner')}</label>
             <select 
               value={formData.assigned_to}
-              disabled={isDealLocked}
+              disabled={isReassignDisabled}
               onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
             >
               <option value="">{t('deals.meDefault', 'Me (Default)')}</option>
@@ -866,22 +1226,24 @@ const Deals = () => {
                     ? t('deals.extendedTimes', 'Extended {count} time(s)').replace('{count}', editingDeal.unit_reservation_extension_count) 
                     : t('deals.activeReservation', 'Active Reservation')}
                 </span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => handleExtendReservation(editingDeal.id, 24)}
-                    style={{ padding: '6px 14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {t('deals.extend24h', 'Extend +24h')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleExtendReservation(editingDeal.id, 48)}
-                    style={{ padding: '6px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {t('deals.extend48h', 'Extend +48h')}
-                  </button>
-                </div>
+                {canExtendSla && (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleExtendReservation(editingDeal.id, 24)}
+                      style={{ padding: '6px 14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {t('deals.extend24h', 'Extend +24h')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExtendReservation(editingDeal.id, 48)}
+                      style={{ padding: '6px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {t('deals.extend48h', 'Extend +48h')}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -930,7 +1292,7 @@ const Deals = () => {
                     key={link.path}
                     type="button"
                     disabled={!link.enabled}
-                    onClick={() => { setIsModalOpen(false); navigate(`${link.path}?deal_id=${editingDeal.id}`); }}
+                    onClick={() => { handleCloseModal(); navigate(`${link.path}?deal_id=${editingDeal.id}`); }}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', background: link.enabled ? 'white' : '#f1f5f9', color: link.enabled ? '#0f172a' : '#94a3b8', fontSize: '12px', fontWeight: 700, cursor: link.enabled ? 'pointer' : 'not-allowed' }}
                   >
                     {link.icon} {link.label} <ArrowRight size={12} style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }} />
@@ -960,7 +1322,7 @@ const Deals = () => {
                   }}>
                     {t('deals.refundStatusLabel', 'Refund: {status}').replace('{status}', getRefundStatusLabel(cancellationRecord.refund_status))}
                   </span>
-                ) : editingDeal?.pipeline_stage?.toLowerCase() !== 'lost' && (
+                ) : canDeleteDeal && editingDeal?.pipeline_stage?.toLowerCase() !== 'lost' && (
                   <button
                     type="button"
                     onClick={() => setShowCancelForm(!showCancelForm)}
@@ -1054,7 +1416,7 @@ const Deals = () => {
         {editingDeal && (
           <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
             <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', marginBottom: '16px' }}>{t('deals.dealActivityTimeline', 'Deal Activity Timeline')}</h3>
-            <ActivityTimeline entityType="deal" entityId={editingDeal.id} />
+            <ActivityTimeline entityType="deal" entityId={editingDeal.id} canLog={hasDealPermission('deal.log_activity')} />
           </div>
         )}
       </Modal>

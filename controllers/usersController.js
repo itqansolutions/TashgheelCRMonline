@@ -151,10 +151,20 @@ exports.getUsersByDepartment = async (req, res) => {
 // @route   GET /api/users/:id/permissions
 // @access  Private (Admin)
 exports.getUserPermissions = async (req, res) => {
+  const userId = req.params.id;
   try {
+    // Multi-tenant check: ensure target user belongs to caller's tenant
+    const userCheck = await db.query(
+      'SELECT id FROM users WHERE id = $1 AND tenant_id::text = $2::text',
+      [userId, req.user.tenant_id]
+    );
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
     const result = await db.query(
       'SELECT page_path FROM user_access WHERE user_id = $1 AND can_access = true',
-      [req.params.id]
+      [userId]
     );
     res.json({ status: 'success', data: result.rows });
   } catch (err) {
@@ -171,13 +181,27 @@ exports.updateUserPermissions = async (req, res) => {
   const userId = req.params.id;
 
   try {
-    // 1. Reset
+    // Multi-tenant check: ensure target user belongs to caller's tenant
+    const userCheck = await db.query(
+      'SELECT id FROM users WHERE id = $1 AND tenant_id::text = $2::text',
+      [userId, req.user.tenant_id]
+    );
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
+    // 1. Reset existing permissions for user
     await db.query('DELETE FROM user_access WHERE user_id = $1', [userId]);
 
-    // 2. Insert
-    if (allowedPages && allowedPages.length > 0) {
-      const values = allowedPages.map(path => `(${userId}, '${path}', true)`).join(',');
-      await db.query(`INSERT INTO user_access (user_id, page_path, can_access) VALUES ${values}`);
+    // 2. Insert safely using parameterized query
+    if (Array.isArray(allowedPages) && allowedPages.length > 0) {
+      const validPages = [...new Set(allowedPages.filter(p => typeof p === 'string' && p.trim()).map(p => p.trim()))];
+      for (const page of validPages) {
+        await db.query(
+          'INSERT INTO user_access (user_id, page_path, can_access) VALUES ($1, $2, true) ON CONFLICT (user_id, page_path) DO UPDATE SET can_access = true',
+          [userId, page]
+        );
+      }
     }
 
     // 3. Log the change

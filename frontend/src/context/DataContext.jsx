@@ -76,10 +76,10 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  const fetchDeals = async (showLoading = true) => {
+  const fetchDeals = async (showLoading = true, params = {}) => {
     if (showLoading) setLoading(true);
     try {
-      const res = await api.get('/deals');
+      const res = await api.get('/deals', { params });
       setDeals(safeArray(res.data.data));
       if (res.data.template_config) {
         setTemplateConfig(res.data.template_config);

@@ -11,9 +11,10 @@ class NotificationService {
      */
     async notify({ type, title, message, tenant_id, branch_id, user_id, link, metadata }) {
         try {
-            await db.query(`
+            const res = await db.query(`
                 INSERT INTO system_notifications (tenant_id, branch_id, user_id, type, title, message, link, metadata)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING id
             `, [
                 tenant_id, 
                 branch_id || null, // Optional for global tenant-wide notifications
@@ -24,9 +25,11 @@ class NotificationService {
                 link || null, 
                 metadata ? JSON.stringify(metadata) : null
             ]);
+            return (res && res.rows && res.rows[0]) ? res.rows[0] : true;
         } catch (err) {
             console.error('NotificationService (notify) Failed:', err.message);
             // Non-blocking fail-safe: Suppress error so it does not crash the calling parent operations.
+            return null;
         }
     }
 
@@ -38,13 +41,17 @@ class NotificationService {
             // Find all users in the branch with that role
             const usersRes = await db.query(`SELECT id FROM users WHERE role = $1 AND tenant_id = $2`, [role, tenant_id]);
             
+            let allSuccess = usersRes.rows.length > 0;
             for (let u of usersRes.rows) {
-                await this.notify({
+                const s = await this.notify({
                     type, title, message, tenant_id, branch_id, user_id: u.id, link, metadata
                 });
+                if (!s) allSuccess = false;
             }
+            return allSuccess;
         } catch (err) {
             console.error('NotificationService (notifyRole) Failed:', err.message);
+            return false;
         }
     }
     /**

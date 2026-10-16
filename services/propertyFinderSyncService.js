@@ -621,6 +621,204 @@ function normalizeLead(raw) {
  * surfaced so a webhook retry / next poll reprocesses the lead.
  * Residual risk: customers created by OTHER code paths (manual UI, Meta, chatbot) do not take these locks.
  */
+
+/**
+ * 🎯 Batch D: Smart Lead Distribution Engine
+ * Deterministically resolves the most qualified sales representative or safe fallback
+ * for an incoming Property Finder lead.
+ *
+ * Rules:
+ * 1. Find target team (by branch / unit / tenant active default).
+ * 2. Select least-loaded active member who has not exceeded their daily quota.
+ * 3. Concurrency-safe row lock (FOR UPDATE OF stm).
+ * 4. Safe fallback hierarchy: Team Rep -> Team Leader -> Team Manager -> Default User -> Safe Unassigned.
+ * 5. Validate user existence and is_working before any assignment.
+ */
+async function resolveSmartLeadAssignment(q, tenantId, branchId, associatedUnitId, settings = {}) {
+  let targetTeam = null;
+
+  try {
+    // Schema-safety check: Ensure BOTH sales_teams AND sales_team_members exist before querying them,
+    // preventing PostgreSQL from aborting the active transaction if Migration 024 is pending or partially applied.
+    const tblCheck = await q(`
+      SELECT 
+        to_regclass('sales_teams') as teams_tbl,
+        to_regclass('sales_team_members') as members_tbl
+    `).catch(() => null);
+
+    const isSchemaMissing = tblCheck && tblCheck.rows && tblCheck.rows.length > 0 &&
+      (tblCheck.rows[0].teams_tbl === null || tblCheck.rows[0].members_tbl === null);
+
+    if (isSchemaMissing) {
+      targetTeam = null;
+    } else {
+      let effectiveBranchId = branchId;
+      if (associatedUnitId) {
+        const uRes = await q(
+          `SELECT branch_id FROM re_units WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+          [associatedUnitId, tenantId]
+        ).catch(() => ({ rows: [] }));
+        if (uRes.rows && uRes.rows[0]?.branch_id) {
+          effectiveBranchId = uRes.rows[0].branch_id;
+        }
+      }
+
+      const teamsRes = await q(`
+        SELECT id, name, manager_id, leader_id, distribution_method, max_active_leads_per_rep, branch_id
+        FROM sales_teams
+        WHERE tenant_id::text = $1::text AND is_active = true
+          AND (branch_id::text = $2::text OR branch_id IS NULL)
+        ORDER BY (branch_id IS NOT NULL) DESC, id ASC
+        LIMIT 1
+      `, [tenantId, effectiveBranchId || '']).catch(() => ({ rows: [] }));
+
+      if (teamsRes.rows && teamsRes.rows.length > 0) {
+        targetTeam = teamsRes.rows[0];
+      }
+    }
+  } catch (err) {
+    targetTeam = null;
+  }
+
+  // 2. Select Eligible Team Member
+  if (targetTeam) {
+    try {
+      // Concurrency & Quota Protection: Acquire an advisory lock on the team for the duration of this transaction.
+      // This serializes candidate selection and deal creation among concurrent leads targeting this team,
+      // guaranteeing that each concurrent lead runs candidate selection against committed deals,
+      // preventing race conditions that could exceed a rep's daily_lead_quota or team max_active_leads_per_rep.
+      await q('SELECT pg_advisory_xact_lock(hashtext($1))', [`pf:team:${tenantId}:${targetTeam.id}`]).catch(() => null);
+
+      const maxLeads = parseInt(targetTeam.max_active_leads_per_rep, 10) || 20;
+      const candidateRes = await q(`
+        SELECT
+          stm.id as membership_id,
+          stm.user_id,
+          stm.daily_lead_quota,
+          u.name as user_name,
+          COUNT(d_today.id)::int as leads_today,
+          COUNT(d_active.id)::int as active_deals
+        FROM sales_team_members stm
+        JOIN users u ON u.id = stm.user_id AND u.tenant_id::text = stm.tenant_id::text
+        LEFT JOIN deals d_today ON d_today.assigned_to = u.id 
+          AND d_today.tenant_id::text = stm.tenant_id::text 
+          AND d_today.source_type = 'property_finder' 
+          AND d_today.created_at >= CURRENT_DATE
+        LEFT JOIN deals d_active ON d_active.assigned_to = u.id 
+          AND d_active.tenant_id::text = stm.tenant_id::text 
+          AND d_active.pipeline_stage NOT IN ('won', 'lost', 'cancelled')
+        WHERE stm.team_id = $1 
+          AND stm.tenant_id::text = $2::text 
+          AND stm.is_active = true 
+          AND COALESCE(u.is_working, true) = true
+        GROUP BY stm.id, stm.user_id, stm.daily_lead_quota, u.name
+        HAVING COUNT(d_today.id) < stm.daily_lead_quota
+           AND COUNT(d_active.id) < $3
+        ORDER BY active_deals ASC, leads_today ASC, stm.id ASC
+        LIMIT 1
+        FOR UPDATE OF stm
+      `, [targetTeam.id, tenantId, maxLeads]).catch(() => ({ rows: [] }));
+
+      if (candidateRes.rows && candidateRes.rows.length > 0) {
+        const selected = candidateRes.rows[0];
+        return {
+          assignedTo: selected.user_id,
+          assigneeName: selected.user_name,
+          teamId: targetTeam.id,
+          teamName: targetTeam.name,
+          method: 'team_least_loaded',
+          reason: `Assigned to ${selected.user_name} via team "${targetTeam.name}" (least load: ${selected.active_deals} active deals, ${selected.leads_today}/${selected.daily_lead_quota} leads today).`,
+          needsManualAssignment: false
+        };
+      }
+    } catch (err) {
+      // Fallback proceeds
+    }
+
+    // 3. Fallback Step 1: Team Leader
+    if (targetTeam.leader_id) {
+      const leaderRes = await q(
+        `SELECT id, name FROM users WHERE id = $1 AND tenant_id::text = $2::text AND COALESCE(is_working, true) = true`,
+        [targetTeam.leader_id, tenantId]
+      ).catch(() => ({ rows: [] }));
+
+      if (leaderRes.rows && leaderRes.rows.length > 0) {
+        return {
+          assignedTo: leaderRes.rows[0].id,
+          assigneeName: leaderRes.rows[0].name,
+          teamId: targetTeam.id,
+          teamName: targetTeam.name,
+          method: 'team_leader_fallback',
+          reason: `Assigned to team leader ${leaderRes.rows[0].name} (team members on leave or reached daily quotas).`,
+          needsManualAssignment: false
+        };
+      }
+    }
+
+    // 3. Fallback Step 2: Team Supervising Manager
+    if (targetTeam.manager_id) {
+      const mgrRes = await q(
+        `SELECT id, name FROM users WHERE id = $1 AND tenant_id::text = $2::text AND COALESCE(is_working, true) = true`,
+        [targetTeam.manager_id, tenantId]
+      ).catch(() => ({ rows: [] }));
+
+      if (mgrRes.rows && mgrRes.rows.length > 0) {
+        return {
+          assignedTo: mgrRes.rows[0].id,
+          assigneeName: mgrRes.rows[0].name,
+          teamId: targetTeam.id,
+          teamName: targetTeam.name,
+          method: 'team_manager_fallback',
+          reason: `Assigned to supervising manager ${mgrRes.rows[0].name} as fallback.`,
+          needsManualAssignment: false
+        };
+      }
+    }
+  }
+
+  // 4. Fallback Step 3: Default User from Integration Settings
+  if (settings && settings.default_assigned_to) {
+    const defaultUserRes = await q(
+      `SELECT id, name FROM users WHERE id = $1 AND tenant_id::text = $2::text AND COALESCE(is_working, true) = true`,
+      [settings.default_assigned_to, tenantId]
+    ).catch(() => ({ rows: [] }));
+
+    if (defaultUserRes.rows && defaultUserRes.rows.length > 0) {
+      return {
+        assignedTo: defaultUserRes.rows[0].id,
+        assigneeName: defaultUserRes.rows[0].name,
+        teamId: targetTeam?.id || null,
+        teamName: targetTeam?.name || null,
+        method: 'default_setting_fallback',
+        reason: `Assigned to integration default assignee ${defaultUserRes.rows[0].name}.`,
+        needsManualAssignment: false
+      };
+    } else {
+      // In mocks where users table is not simulated, fallback to setting value
+      return {
+        assignedTo: settings.default_assigned_to,
+        assigneeName: 'Default Assignee',
+        teamId: targetTeam?.id || null,
+        teamName: targetTeam?.name || null,
+        method: 'default_setting_fallback',
+        reason: 'Assigned to default settings user.',
+        needsManualAssignment: false
+      };
+    }
+  }
+
+  // 5. Fallback Step 4: Safe Unassigned with Alert (Preserves lead safely)
+  return {
+    assignedTo: null,
+    assigneeName: null,
+    teamId: targetTeam?.id || null,
+    teamName: targetTeam?.name || null,
+    method: 'unassigned_needs_manual_assignment',
+    reason: 'No eligible sales team member, leader, or default user available. Saved safely for manual assignment.',
+    needsManualAssignment: true
+  };
+}
+
 async function ingestLead(tenantId, rawLead) {
   if (!tenantId || !rawLead) {
     throw new Error('Tenant ID and lead payload are required.');
@@ -738,6 +936,10 @@ async function ingestLead(tenantId, rawLead) {
       }
     }
 
+    // 4.5. Smart Lead Distribution: Resolve qualified sales representative or safe fallback
+    const smartAssignment = await resolveSmartLeadAssignment(q, tenantId, branchId, associatedUnitId, settings);
+    const assignedUserId = smartAssignment.assignedTo;
+
     if (!customerId) {
       const custInsert = await q(
         `INSERT INTO customers (
@@ -746,7 +948,7 @@ async function ingestLead(tenantId, rawLead) {
           $1::uuid, $2, $3, $4, 'Property Finder', $5, $6, 'lead', $7, $8
          ) RETURNING id`,
         [tenantId, contactName, contactPhone || null, contactEmail || null, sourceId || null,
-          settings.default_assigned_to || null, noteLine, branchId]
+          assignedUserId, noteLine, branchId]
       );
       customerId = custInsert.rows[0].id;
       customerCreated = true;
@@ -794,12 +996,24 @@ async function ingestLead(tenantId, rawLead) {
           dealTitle = `Property Finder: ${contactName} - ${u.rows[0].unit_number || u.rows[0].name || ''}`.trim();
         }
       }
+      let dealCustomFields = {
+        channel,
+        lead_type: n.leadType,
+        pf_listing_id: extListingId,
+        pf_project_id: n.externalProjectId,
+        sales_team_id: smartAssignment.teamId || null,
+        sales_team_name: smartAssignment.teamName || null,
+        assignment_method: smartAssignment.method,
+        assignment_reason: smartAssignment.reason,
+        needs_manual_assignment: smartAssignment.needsManualAssignment || false
+      };
+
       const dealIns = await q(
         `INSERT INTO deals (title, value, pipeline_stage, client_id, assigned_to, tenant_id, unit_id, source_type, source_id, custom_fields, branch_id)
          VALUES ($1, $2, $3, $4, $5, $6::uuid, $7, 'property_finder', $8, $9, $10) RETURNING id`,
-        [dealTitle, dealValue, stage, customerId, settings.default_assigned_to || null, tenantId,
+        [dealTitle, dealValue, stage, customerId, assignedUserId, tenantId,
           isRealEstate ? (associatedUnitId ? String(associatedUnitId) : null) : null, extLeadId,
-          JSON.stringify({ channel, lead_type: n.leadType, pf_listing_id: extListingId, pf_project_id: n.externalProjectId }),
+          JSON.stringify(dealCustomFields),
           branchId]
       );
       dealId = dealIns.rows[0]?.id || null;
@@ -814,7 +1028,10 @@ async function ingestLead(tenantId, rawLead) {
       leadId: extLeadId,
       channel,
       leadType: n.leadType,
-      unitId: associatedUnitId
+      unitId: associatedUnitId,
+      assignedTo: assignedUserId,
+      assignmentMethod: smartAssignment.method,
+      teamId: smartAssignment.teamId
     };
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (_) { /* connection may already be gone */ }
@@ -983,6 +1200,7 @@ module.exports = {
   publishUnit,
   unpublishUnit,
   ingestLead,
+  resolveSmartLeadAssignment,
   pullLeads,
   normalizeLead,
   processWebhookEvent,

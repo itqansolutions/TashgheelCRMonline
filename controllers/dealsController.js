@@ -5,6 +5,8 @@ const { logAction, logCreate, logUpdate, logDelete, ACTIONS, LOG_LEVELS } = requ
 const { logActivity } = require('../utils/activityLogger');
 const { getTenantTemplate } = require('../services/templateService');
 const templateAutomationService = require('../services/templateAutomationService');
+const { checkDealPermission } = require('../middleware/dealPermission');
+const dealSlaService = require('../services/dealSlaService');
 // Ensure deal columns exist to prevent missing-column 500 crashes
 let dealColumnsEnsured = false;
 async function ensureDealColumns() {
@@ -82,6 +84,19 @@ exports.getDeals = async (req, res) => {
   try {
     await ensureDealColumns();
 
+    // Check deal.view_overdue if overdue or stalled filter requested
+    if (req.query.overdue === 'true' || req.query.stalled === 'true') {
+      const canViewOverdue = await checkDealPermission(req.user.id, tenant_id, 'deal.view_overdue', req.user.role);
+      if (!canViewOverdue) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'PERMISSION_DENIED',
+          message: 'Permission denied: "deal.view_overdue" is required to view overdue or stalled deals.',
+          required_permission: 'deal.view_overdue'
+        });
+      }
+    }
+
     const scope = await accessScopeService.buildScopePredicate({
       user: req.user,
       tableAlias: 'd',
@@ -95,6 +110,34 @@ exports.getDeals = async (req, res) => {
     if (scope.sql && scope.sql !== '1=1') {
       whereClause += ` AND ${scope.sql}`;
       params.push(...scope.params);
+    }
+
+    if (req.query.overdue === 'true') {
+      whereClause += ` AND d.pipeline_stage NOT IN ('won', 'lost', 'cancelled', 'closed')
+        AND (
+          CURRENT_TIMESTAMP > COALESCE(
+            NULLIF(d.custom_fields->>'sla_extended_until', '')::timestamptz,
+            GREATEST(
+              d.created_at,
+              COALESCE(NULLIF(d.custom_fields->>'reassigned_at', '')::timestamptz, d.created_at),
+              COALESCE((
+                SELECT MAX(a.created_at) FROM activities a 
+                WHERE a.tenant_id::text = d.tenant_id::text 
+                  AND LOWER(a.entity_type) = 'deal' 
+                  AND a.entity_id::text = d.id::text 
+                  AND a.action IN ('called', 'whatsapp', 'meeting', 'email_sent', 'visited', 'follow_up')
+              ), d.created_at),
+              COALESCE((
+                SELECT MAX(COALESCE(t.updated_at, t.created_at)) FROM tasks t
+                LEFT JOIN task_statuses ts ON t.status_id = ts.id
+                WHERE t.tenant_id::text = d.tenant_id::text
+                  AND t.parent_type = 'deal'
+                  AND t.parent_id::text = d.id::text
+                  AND (ts.is_final = true OR t.status = 'completed' OR ts.name ILIKE '%complete%' OR ts.name ILIKE '%done%')
+              ), d.created_at)
+            ) + INTERVAL '48 hours'
+          )
+        )`;
     }
 
     const result = await db.query(`
@@ -113,7 +156,31 @@ exports.getDeals = async (req, res) => {
         rp.next_payment_date,
         rp.status as payment_status,
         COALESCE(fv.actual_paid, rp.paid_amount, 0) as paid_amount,
-        rp.total_amount as payment_total
+        rp.total_amount as payment_total,
+        (d.pipeline_stage NOT IN ('won', 'lost', 'cancelled', 'closed')
+         AND CURRENT_TIMESTAMP > COALESCE(
+            NULLIF(d.custom_fields->>'sla_extended_until', '')::timestamptz,
+            GREATEST(
+              d.created_at,
+              COALESCE(NULLIF(d.custom_fields->>'reassigned_at', '')::timestamptz, d.created_at),
+              COALESCE((
+                SELECT MAX(a.created_at) FROM activities a 
+                WHERE a.tenant_id::text = d.tenant_id::text 
+                  AND LOWER(a.entity_type) = 'deal' 
+                  AND a.entity_id::text = d.id::text 
+                  AND a.action IN ('called', 'whatsapp', 'meeting', 'email_sent', 'visited', 'follow_up')
+              ), d.created_at),
+              COALESCE((
+                SELECT MAX(COALESCE(t.updated_at, t.created_at)) FROM tasks t
+                LEFT JOIN task_statuses ts ON t.status_id = ts.id
+                WHERE t.tenant_id::text = d.tenant_id::text
+                  AND t.parent_type = 'deal'
+                  AND t.parent_id::text = d.id::text
+                  AND (ts.is_final = true OR t.status = 'completed' OR ts.name ILIKE '%complete%' OR ts.name ILIKE '%done%')
+              ), d.created_at)
+            ) + INTERVAL '48 hours'
+          )
+        ) as is_overdue
       FROM deals d
       LEFT JOIN customers c ON d.client_id::text = c.id::text AND d.tenant_id::text = c.tenant_id::text
       LEFT JOIN products p ON d.product_id::text = p.id::text AND d.tenant_id::text = p.tenant_id::text
@@ -156,6 +223,22 @@ exports.getDealById = async (req, res) => {
   try {
     await ensureDealColumns();
 
+    // Enforce row-level scope for single deal view
+    const scope = await accessScopeService.buildScopePredicate({
+      user: req.user,
+      tableAlias: 'd',
+      assigneeCol: 'assigned_to',
+      paramIndex: 4
+    });
+
+    let whereClause = `d.id = $1 AND d.tenant_id::text = $2::text AND ($3::text IS NULL OR d.branch_id::text = $3::text OR d.branch_id IS NULL)`;
+    const params = [req.params.id, tenant_id, branch_id];
+
+    if (scope.sql && scope.sql !== '1=1') {
+      whereClause += ` AND ${scope.sql}`;
+      params.push(...scope.params);
+    }
+
     const result = await db.query(`
       SELECT 
         d.*, 
@@ -183,13 +266,15 @@ exports.getDealById = async (req, res) => {
         AND deal_id IS NOT NULL
         GROUP BY deal_id
       ) fv ON d.id::text = fv.deal_id::text
-      WHERE d.id = $1 AND d.tenant_id::text = $2::text AND ($3::text IS NULL OR d.branch_id::text = $3::text OR d.branch_id IS NULL)
-    `, [req.params.id, tenant_id, branch_id]);
+      WHERE ${whereClause}
+    `, params);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
-    res.json({ status: 'success', data: result.rows[0] });
+    const deal = result.rows[0];
+    const sla = await dealSlaService.getDealSlaStatus(deal.id, tenant_id).catch(() => null);
+    res.json({ status: 'success', data: { ...deal, sla } });
   } catch (err) {
     console.error('[Deal Detail Error]', err.message);
     res.status(500).json({ status: 'error', message: err.message || 'Server error' });
@@ -233,6 +318,19 @@ exports.createDeal = async (req, res) => {
     const cleanSourceType = (source_type && source_type !== '') ? source_type : null;
     const cleanSourceId = (source_id && source_id !== '') ? String(source_id) : null;
     const cleanCustomFields = (custom_fields && typeof custom_fields === 'object') ? custom_fields : {};
+
+    // If assigning to a different user, require deal.reassign
+    if (assigned_to && cleanAssignedTo && String(cleanAssignedTo) !== String(req.user.id)) {
+      const canReassign = await checkDealPermission(req.user.id, tenant_id, 'deal.reassign', req.user.role);
+      if (!canReassign) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'PERMISSION_DENIED',
+          message: 'Permission denied: "deal.reassign" is required to assign deals to other users.',
+          required_permission: 'deal.reassign'
+        });
+      }
+    }
 
     // Phase 8: Task to Deal Conversion Validation & Auto-Transition
     if (cleanSourceType === 'task' && cleanSourceId) {
@@ -428,10 +526,23 @@ exports.updateDeal = async (req, res) => {
   try {
     await ensureDealColumns();
 
-    // 1. Get old version for logging & security check (Triple Isolation)
+    // 1. Get old version for logging & security check (Row-level Scope + Triple Isolation)
+    const scope = await accessScopeService.buildScopePredicate({
+      user: req.user,
+      tableAlias: 'deals',
+      assigneeCol: 'assigned_to',
+      paramIndex: 4
+    });
+    let oldWhere = 'id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)';
+    const oldParams = [req.params.id, tenant_id, branch_id];
+    if (scope.sql && scope.sql !== '1=1') {
+      oldWhere += ` AND ${scope.sql}`;
+      oldParams.push(...scope.params);
+    }
+
     const oldResult = await db.query(
-      'SELECT * FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)', 
-      [req.params.id, tenant_id, branch_id]
+      `SELECT * FROM deals WHERE ${oldWhere}`, 
+      oldParams
     );
     if (oldResult.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
@@ -459,6 +570,67 @@ exports.updateDeal = async (req, res) => {
     const cleanSourceType = (source_type !== undefined) ? (source_type || null) : oldData.source_type;
     const cleanSourceId = (source_id !== undefined) ? (source_id ? String(source_id) : null) : oldData.source_id;
     const cleanCustomFields = (custom_fields && typeof custom_fields === 'object') ? custom_fields : (oldData.custom_fields || {});
+
+    // ── Granular Deal Permissions check against modified fields ──
+    const isChangingField = (bodyVal, oldVal) => {
+      if (bodyVal === undefined) return false;
+      return normScalar(bodyVal) !== normScalar(oldVal);
+    };
+    const isChangingJson = (bodyVal, oldVal) => {
+      if (bodyVal === undefined) return false;
+      return stableJson(bodyVal) !== stableJson(oldVal);
+    };
+
+    const changesDetails =
+      isChangingField(title, oldData.title) ||
+      (value !== undefined && Number(value || 0) !== Number(oldData.value || 0)) ||
+      isChangingField(client_id, oldData.client_id) ||
+      isChangingField(product_id, oldData.product_id) ||
+      isChangingField(project_id, oldData.project_id) ||
+      (probability !== undefined && Number(probability || 0) !== Number(oldData.probability || 0)) ||
+      isChangingField(next_action, oldData.next_action) ||
+      isChangingField(source_type, oldData.source_type) ||
+      isChangingField(source_id, oldData.source_id) ||
+      (expected_close_date !== undefined && normScalar(cleanExpectedDate) !== normScalar(oldData.expected_close_date ? String(oldData.expected_close_date).split('T')[0] : null)) ||
+      isChangingJson(custom_fields, oldData.custom_fields);
+
+    if (changesDetails) {
+      const canEdit = await checkDealPermission(req.user.id, tenant_id, 'deal.edit_details', req.user.role);
+      if (!canEdit) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'PERMISSION_DENIED',
+          message: 'Permission denied: "deal.edit_details" is required to modify deal details.',
+          required_permission: 'deal.edit_details'
+        });
+      }
+    }
+
+    const changesAssignee = (assigned_to !== undefined && normScalar(cleanAssignedTo) !== normScalar(oldData.assigned_to));
+    if (changesAssignee) {
+      const canReassign = await checkDealPermission(req.user.id, tenant_id, 'deal.reassign', req.user.role);
+      if (!canReassign) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'PERMISSION_DENIED',
+          message: 'Permission denied: "deal.reassign" is required to reassign deals.',
+          required_permission: 'deal.reassign'
+        });
+      }
+    }
+
+    const changesStage = (pipeline_stage !== undefined && normScalar(pipeline_stage).toLowerCase() !== normScalar(oldData.pipeline_stage).toLowerCase());
+    if (changesStage) {
+      const canUpdateStage = await checkDealPermission(req.user.id, tenant_id, 'deal.update_stage', req.user.role);
+      if (!canUpdateStage) {
+        return res.status(403).json({
+          status: 'error',
+          code: 'PERMISSION_DENIED',
+          message: 'Permission denied: "deal.update_stage" is required to change deal stage.',
+          required_permission: 'deal.update_stage'
+        });
+      }
+    }
 
     // ── Deal Lock enforcement ──
     const lock = await getDealLockState(db, oldData, tenant_id);
@@ -566,10 +738,23 @@ exports.updateDealStatus = async (req, res) => {
     await ensureDealColumns();
     await client.query('BEGIN');
 
-    // 1. Get old status & security check FOR UPDATE
+    // 1. Get old status & security check FOR UPDATE (Row-level Scope + Branch Isolation)
+    const scope = await accessScopeService.buildScopePredicate({
+      user: req.user,
+      tableAlias: 'deals',
+      assigneeCol: 'assigned_to',
+      paramIndex: 4
+    });
+    let lockWhere = 'id::text = $1::text AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)';
+    const lockParams = [req.params.id, tenant_id, branch_id];
+    if (scope.sql && scope.sql !== '1=1') {
+      lockWhere += ` AND ${scope.sql}`;
+      lockParams.push(...scope.params);
+    }
+
     const oldResult = await client.query(
-      'SELECT title, pipeline_stage, assigned_to FROM deals WHERE id::text = $1::text AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) FOR UPDATE', 
-      [req.params.id, tenant_id, branch_id]
+      `SELECT title, pipeline_stage, assigned_to FROM deals WHERE ${lockWhere} FOR UPDATE`, 
+      lockParams
     );
     if (oldResult.rows.length === 0) {
       await client.query('ROLLBACK');
@@ -724,10 +909,24 @@ exports.deleteDeal = async (req, res) => {
   try {
     await ensureDealColumns();
 
+    // Enforce row-level scope check
+    const scope = await accessScopeService.buildScopePredicate({
+      user: req.user,
+      tableAlias: 'deals',
+      assigneeCol: 'assigned_to',
+      paramIndex: 4
+    });
+    let delWhere = 'id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)';
+    const delParams = [req.params.id, tenant_id, branch_id];
+    if (scope.sql && scope.sql !== '1=1') {
+      delWhere += ` AND ${scope.sql}`;
+      delParams.push(...scope.params);
+    }
+
     // Deal Lock: closed or contracted deals cannot be deleted (re_contracts cascades on delete)
     const existing = await db.query(
-      'SELECT id, pipeline_stage FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)',
-      [req.params.id, tenant_id, branch_id]
+      `SELECT id, pipeline_stage FROM deals WHERE ${delWhere}`,
+      delParams
     );
     if (existing.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
@@ -742,8 +941,8 @@ exports.deleteDeal = async (req, res) => {
     }
 
     const result = await db.query(
-      'DELETE FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) RETURNING *', 
-      [req.params.id, tenant_id, branch_id]
+      `DELETE FROM deals WHERE ${delWhere} RETURNING *`, 
+      delParams
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
@@ -786,6 +985,24 @@ exports.extendDealReservation = async (req, res) => {
   const branch_id = req.branchId || req.user?.branch_id || null;
 
   try {
+    // Check row-level access scope
+    const scope = await accessScopeService.buildScopePredicate({
+      user: req.user,
+      tableAlias: 'deals',
+      assigneeCol: 'assigned_to',
+      paramIndex: 4
+    });
+    let chkWhere = 'id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)';
+    const chkParams = [req.params.id, tenant_id, branch_id];
+    if (scope.sql && scope.sql !== '1=1') {
+      chkWhere += ` AND ${scope.sql}`;
+      chkParams.push(...scope.params);
+    }
+    const chkDeal = await db.query(`SELECT id FROM deals WHERE ${chkWhere}`, chkParams);
+    if (chkDeal.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
+    }
+
     const { extendReservation } = require('../services/reservationService');
     const result = await extendReservation({
       dealId: req.params.id,
@@ -799,5 +1016,75 @@ exports.extendDealReservation = async (req, res) => {
   } catch (err) {
     console.error('[Extend Deal Reservation Error]:', err.message);
     res.status(err.statusCode || 400).json({ status: 'error', message: err.message });
+  }
+};
+
+// @desc    Get deal SLA status
+// @route   GET /api/deals/:id/sla
+// @access  Private (deal.view)
+exports.getDealSla = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  try {
+    const sla = await dealSlaService.getDealSlaStatus(req.params.id, tenant_id);
+    if (!sla) {
+      return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized.' });
+    }
+    res.json({ status: 'success', data: sla });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// @desc    Extend deal SLA by +48h (unlimited extensions permitted, idempotent via key)
+// @route   POST /api/deals/:id/extend-sla
+// @access  Private (deal.extend_sla)
+exports.extendDealSla = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  const { reason, idempotency_key, idempotencyKey } = req.body;
+  const key = idempotency_key || idempotencyKey || null;
+
+  try {
+    const result = await dealSlaService.extendDealSla({
+      dealId: req.params.id,
+      tenantId: tenant_id,
+      user: req.user,
+      reason,
+      idempotencyKey: key
+    });
+    res.json({ status: 'success', ...result });
+  } catch (err) {
+    console.error('[Extend Deal SLA Error]:', err.message);
+    res.status(400).json({ status: 'error', message: err.message });
+  }
+};
+
+// @desc    Reassign deal to an eligible representative and start fresh 48h SLA
+// @route   POST /api/deals/:id/reassign
+// @access  Private (deal.reassign)
+exports.reassignDeal = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  const { target_user_id, targetUserId, reason } = req.body;
+  const newAssigneeId = target_user_id || targetUserId;
+
+  if (!newAssigneeId) {
+    return res.status(400).json({ status: 'error', message: 'Target sales representative is required.' });
+  }
+
+  try {
+    const result = await dealSlaService.reassignDeal({
+      dealId: req.params.id,
+      tenantId: tenant_id,
+      user: req.user,
+      targetUserId: newAssigneeId,
+      reason
+    });
+    res.json({ status: 'success', ...result });
+  } catch (err) {
+    console.error('[Reassign Deal Error]:', err.message);
+    res.status(err.statusCode || 400).json({ 
+      status: 'error', 
+      code: err.code || 'BAD_REQUEST',
+      message: err.message 
+    });
   }
 };

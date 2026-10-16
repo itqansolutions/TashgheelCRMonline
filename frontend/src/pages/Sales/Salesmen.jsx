@@ -5,9 +5,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import SalesSubNav from '../../components/Sales/SalesSubNav';
 import {
-  Users, Plus, Edit2, Trash2, Award, Phone, Mail, MapPin, DollarSign,
+  Users, Plus, Edit2, Award, Phone, Mail, MapPin, DollarSign,
   X, Eye, Calendar, Building2, TrendingUp, CheckCircle2, AlertTriangle,
-  Clock, FileText, Home, ArrowRight, ShieldCheck, ChevronRight
+  Clock, FileText, Home, ArrowRight, ShieldCheck, ChevronRight, UserPlus,
+  Sliders, UserCheck, UserX, Briefcase, Shuffle, RefreshCw, Layers
 } from 'lucide-react';
 
 const PERIOD_VALUES = [
@@ -20,24 +21,47 @@ const Salesmen = () => {
   const { t, isRTL, language } = useLanguage();
   const isRealEstate = user?.template_name === 'real_estate';
   const currency = t('common.currency') || 'ج.م';
+  const canManageTeams = ['admin', 'manager', 'supervisor'].includes(user?.role);
 
+  // Main View Switcher ('teams' | 'salesmen')
+  const [activeMainTab, setActiveMainTab] = useState('teams');
+
+  // Salesmen State
   const [salesmen, setSalesmen] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('2026-10');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('ALL');
 
-  // Modal State (Add / Edit User)
-  const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
+  // Sales Teams State
+  const [teams, setTeams] = useState([]);
+  const [teamsLoading, setTeamsLoading] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [eligibleEmployees, setEligibleEmployees] = useState([]);
+
+  // Team Modal (Create / Edit Team)
+  const [showTeamModal, setShowTeamModal] = useState(false);
+  const [editingTeamId, setEditingTeamId] = useState(null);
+  const [savingTeam, setSavingTeam] = useState(false);
+  const [teamForm, setTeamForm] = useState({
     name: '',
-    phone: '',
-    email: '',
-    role: 'sales',
-    password: ''
+    description: '',
+    department_id: '',
+    branch_id: '',
+    manager_id: '',
+    leader_id: '',
+    distribution_method: 'least_loaded',
+    max_active_leads_per_rep: 20
   });
+
+  // Team Members Drawer State
+  const [showMembersDrawer, setShowMembersDrawer] = useState(false);
+  const [activeTeam, setActiveTeam] = useState(null);
+  const [teamMembersLoading, setTeamMembersLoading] = useState(false);
+  const [newMemberUserId, setNewMemberUserId] = useState('');
+  const [newMemberQuota, setNewMemberQuota] = useState(5);
+  const [addingMember, setAddingMember] = useState(false);
 
   // 360° Drawer State
   const [showDrawer, setShowDrawer] = useState(false);
@@ -68,7 +92,7 @@ const Salesmen = () => {
     }
   };
 
-  // Fetch Salesmen List from the appropriate vertical engine
+  // Fetch Salesmen List
   const fetchSalesmen = async () => {
     setLoading(true);
     try {
@@ -78,15 +102,199 @@ const Salesmen = () => {
       setSalesmen(list);
     } catch (err) {
       console.error('[Salesmen] Error loading salesmen:', err);
-      toast.error(t('sales.salesmen.toasts.loadError'));
+      toast.error(t('sales.salesmen.toasts.loadError') || 'Failed to load salesmen');
     } finally {
       setLoading(false);
     }
   };
 
+  // Fetch Sales Teams List
+  const fetchTeams = async () => {
+    setTeamsLoading(true);
+    try {
+      const res = await api.get('/sales-teams');
+      setTeams(res.data?.data || []);
+    } catch (err) {
+      console.error('[Salesmen] Error loading sales teams:', err);
+    } finally {
+      setTeamsLoading(false);
+    }
+  };
+
+  // Fetch Departments, Branches & Eligible Employees for Team Assignment
+  const fetchAuxiliaryData = async () => {
+    try {
+      const [deptRes, branchRes, empRes] = await Promise.all([
+        api.get('/departments').catch(() => ({ data: { data: [] } })),
+        api.get('/branches').catch(() => ({ data: { data: [] } })),
+        api.get('/sales-teams/eligible-employees').catch(() => ({ data: { data: [] } }))
+      ]);
+      setDepartments(deptRes.data?.data || []);
+      setBranches(branchRes.data?.data || []);
+      setEligibleEmployees(empRes.data?.data || []);
+    } catch (err) {
+      console.error('[Salesmen] Error loading auxiliary data:', err);
+    }
+  };
+
   useEffect(() => {
     fetchSalesmen();
+    fetchTeams();
+    if (canManageTeams) {
+      fetchAuxiliaryData();
+    }
   }, [isRealEstate]);
+
+  // Open Team Modal (Create or Edit)
+  const handleOpenTeamModal = (team = null) => {
+    if (team) {
+      setEditingTeamId(team.id);
+      setTeamForm({
+        name: team.name || '',
+        description: team.description || '',
+        department_id: team.department_id || '',
+        branch_id: team.branch_id || '',
+        manager_id: team.manager_id || '',
+        leader_id: team.leader_id || '',
+        distribution_method: team.distribution_method || 'least_loaded',
+        max_active_leads_per_rep: team.max_active_leads_per_rep || 20
+      });
+    } else {
+      setEditingTeamId(null);
+      setTeamForm({
+        name: '',
+        description: '',
+        department_id: departments[0]?.id || '',
+        branch_id: '',
+        manager_id: '',
+        leader_id: '',
+        distribution_method: 'least_loaded',
+        max_active_leads_per_rep: 20
+      });
+    }
+    setShowTeamModal(true);
+  };
+
+  // Submit Team Form
+  const handleTeamSubmit = async (e) => {
+    e.preventDefault();
+    if (!teamForm.name.trim()) {
+      return toast.error(isRTL ? 'اسم الفريق مطلوب' : 'Team name is required');
+    }
+    if (!teamForm.department_id) {
+      return toast.error(isRTL ? 'القسم الإداري مطلوب' : 'Department is required');
+    }
+
+    setSavingTeam(true);
+    try {
+      if (editingTeamId) {
+        await api.put(`/sales-teams/${editingTeamId}`, teamForm);
+        toast.success(isRTL ? 'تم تحديث فريق المبيعات بنجاح' : 'Sales team updated successfully');
+      } else {
+        await api.post('/sales-teams', teamForm);
+        toast.success(isRTL ? 'تم إنشاء فريق المبيعات بنجاح' : 'Sales team created successfully');
+      }
+      setShowTeamModal(false);
+      fetchTeams();
+    } catch (err) {
+      const msg = err.response?.data?.message || (isRTL ? 'حدث خطأ أثناء حفظ الفريق' : 'Failed to save sales team');
+      toast.error(msg);
+    } finally {
+      setSavingTeam(false);
+    }
+  };
+
+  // Archive / Deactivate Team Safely
+  const handleArchiveTeam = async (team) => {
+    const confirmMsg = t('sales.teams.archiveTeamConfirm') || 'Archive this sales team? Team will be deactivated without affecting existing deals.';
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await api.delete(`/sales-teams/${team.id}`);
+      toast.success(isRTL ? 'تم أرشفة وتعطيل الفريق بنجاح' : 'Sales team archived successfully');
+      fetchTeams();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to archive team');
+    }
+  };
+
+  // Open Manage Members Drawer
+  const handleOpenMembersDrawer = async (team) => {
+    setActiveTeam(team);
+    setShowMembersDrawer(true);
+    setTeamMembersLoading(true);
+    setNewMemberUserId('');
+    setNewMemberQuota(5);
+
+    try {
+      const res = await api.get(`/sales-teams/${team.id}`);
+      setActiveTeam(res.data?.data || team);
+    } catch (err) {
+      console.error('[Salesmen] Error loading team details:', err);
+      toast.error(isRTL ? 'فشل تحميل أعضاء الفريق' : 'Failed to load team members');
+    } finally {
+      setTeamMembersLoading(false);
+    }
+  };
+
+  // Add Existing Employee to Team
+  const handleAddMember = async (e) => {
+    e.preventDefault();
+    if (!newMemberUserId) {
+      return toast.error(t('sales.teams.selectEmployee') || 'Please select an existing employee');
+    }
+
+    setAddingMember(true);
+    try {
+      await api.post(`/sales-teams/${activeTeam.id}/members`, {
+        user_id: newMemberUserId,
+        daily_lead_quota: newMemberQuota,
+        is_active: true
+      });
+      toast.success(isRTL ? 'تمت إضافة الموظف للفريق بنجاح' : 'Employee added to team successfully');
+      setNewMemberUserId('');
+      // Refresh team details
+      const res = await api.get(`/sales-teams/${activeTeam.id}`);
+      setActiveTeam(res.data?.data || activeTeam);
+      fetchTeams();
+    } catch (err) {
+      const msg = err.response?.data?.message || (isRTL ? 'فشل إضافة الموظف للفريق' : 'Failed to add member to team');
+      toast.error(msg);
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  // Toggle Member Receiving Leads Status
+  const handleToggleMemberStatus = async (member) => {
+    try {
+      await api.patch(`/sales-teams/${activeTeam.id}/members/${member.user_id}`, {
+        is_active: !member.receiving_leads
+      });
+      toast.success(isRTL ? 'تم تحديث حالة استلام الليدات للعضو' : 'Member lead status updated');
+      const res = await api.get(`/sales-teams/${activeTeam.id}`);
+      setActiveTeam(res.data?.data || activeTeam);
+      fetchTeams();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update member status');
+    }
+  };
+
+  // Remove Member from Team (Non-destructive)
+  const handleRemoveMember = async (member) => {
+    const confirmMsg = t('sales.teams.removeMemberConfirm') || 'Remove this employee from the team? (User account and deals will NOT be deleted)';
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await api.delete(`/sales-teams/${activeTeam.id}/members/${member.user_id}`);
+      toast.success(isRTL ? 'تمت إزالة الموظف من الفريق دون المساس بحسابه أو صفقاته' : 'Member removed from team. Account & deals preserved.');
+      const res = await api.get(`/sales-teams/${activeTeam.id}`);
+      setActiveTeam(res.data?.data || activeTeam);
+      fetchTeams();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to remove member');
+    }
+  };
 
   // Open 360° Drawer and fetch detailed performance & commissions
   const handleOpen360Drawer = async (rep) => {
@@ -96,7 +304,6 @@ const Salesmen = () => {
     setDrawerError(null);
     setActiveTab('overview');
 
-    // Reset previous drawer datasets to prevent showing stale numbers
     setRePerformance(null);
     setReCommissions([]);
     setGenTarget(null);
@@ -105,7 +312,6 @@ const Salesmen = () => {
 
     try {
       if (isRealEstate) {
-        // Fetch Real Estate 3D Performance Detail & Commissions
         const [perfRes, commRes] = await Promise.all([
           api.get(`/re-targets/salesmen/${rep.id}/performance?period=${encodeURIComponent(selectedPeriod)}`)
             .catch(err => {
@@ -121,31 +327,30 @@ const Salesmen = () => {
         setRePerformance(perfRes.data?.data || null);
         setReCommissions(commRes.data?.data || []);
       } else {
-        // Fetch General Sales Targets, Commissions & Settlements
-        const [targetRes, commRes, settRes] = await Promise.all([
+        const [targetRes, commRes, settleRes] = await Promise.all([
           api.get(`/sales/targets?user_id=${rep.id}&period=${encodeURIComponent(selectedPeriod)}`)
             .catch(err => {
               if (err.response?.status === 403) throw new Error('FORBIDDEN');
               return { data: { data: [] } };
             }),
-          api.get(`/sales/commissions?user_id=${rep.id}&period=${encodeURIComponent(selectedPeriod)}`)
+          api.get(`/sales/commissions?user_id=${rep.id}`)
             .catch(err => {
               if (err.response?.status === 403) throw new Error('FORBIDDEN');
               return { data: { data: [] } };
             }),
-          api.get(`/sales/commissions/settlements?user_id=${rep.id}&period=${encodeURIComponent(selectedPeriod)}`)
+          api.get(`/sales/commissions/settlements?user_id=${rep.id}`)
             .catch(err => {
               if (err.response?.status === 403) throw new Error('FORBIDDEN');
               return { data: { data: [] } };
             })
         ]);
-
-        const targetsList = targetRes.data?.data || [];
-        setGenTarget(targetsList.length > 0 ? targetsList[0] : null);
+        const targetList = targetRes.data?.data || [];
+        setGenTarget(targetList.length > 0 ? targetList[0] : null);
         setGenCommissions(commRes.data?.data || []);
-        setGenSettlements(settRes.data?.data || []);
+        setGenSettlements(settleRes.data?.data || []);
       }
     } catch (err) {
+      console.error('[Salesmen] Error loading drawer details:', err);
       if (err.message === 'FORBIDDEN') {
         setDrawerError(t('sales.salesmen.toasts.forbiddenError'));
       } else {
@@ -156,82 +361,7 @@ const Salesmen = () => {
     }
   };
 
-  // Re-fetch drawer metrics when selectedPeriod changes while drawer is open
-  useEffect(() => {
-    if (showDrawer && activeSalesman) {
-      handleOpen360Drawer(activeSalesman);
-    }
-  }, [selectedPeriod]);
-
-  // Modal Handlers
-  const handleOpenModal = (s = null) => {
-    if (s) {
-      setEditingId(s.id);
-      setForm({
-        name: s.name,
-        phone: s.phone === 'N/A' ? '' : s.phone || '',
-        email: s.email || '',
-        role: s.role || 'sales',
-        password: ''
-      });
-    } else {
-      setEditingId(null);
-      setForm({
-        name: '',
-        phone: '',
-        email: '',
-        role: 'sales',
-        password: ''
-      });
-    }
-    setShowModal(true);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.name.trim()) return toast.error(t('sales.salesmen.toasts.nameRequired'));
-
-    setSaving(true);
-    try {
-      if (editingId) {
-        await api.put(`/users/${editingId}`, {
-          name: form.name,
-          phone: form.phone,
-          email: form.email,
-          role: form.role
-        }).catch(() => null);
-        toast.success(t('sales.salesmen.toasts.updateSuccess'));
-      } else {
-        await api.post('/users', {
-          name: form.name,
-          email: form.email || `rep.${Date.now()}@crm.local`,
-          phone: form.phone,
-          role: form.role,
-          password: form.password || 'Password@123'
-        });
-        toast.success(t('sales.salesmen.toasts.createSuccess'));
-      }
-      setShowModal(false);
-      fetchSalesmen();
-    } catch (err) {
-      toast.error(t('sales.salesmen.toasts.saveError'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm(t('sales.salesmen.toasts.confirmDelete'))) return;
-    try {
-      await api.delete(`/users/${id}`);
-      setSalesmen(salesmen.filter(s => s.id !== id));
-      toast.success(t('sales.salesmen.toasts.deleteSuccess'));
-    } catch (err) {
-      toast.error(t('sales.salesmen.toasts.deleteError'));
-    }
-  };
-
-  // Unique branches for branch filter
+  // Branch filter options
   const branchOptions = Array.from(new Set(salesmen.map(s => s.branch_name).filter(Boolean)));
 
   // Filtered salesmen based on search and branch
@@ -246,13 +376,30 @@ const Salesmen = () => {
     return matchesSearch && matchesBranch;
   });
 
+  // Filtered teams based on search
+  const filteredTeams = teams.filter(tm => {
+    const matchesSearch =
+      (tm.name && tm.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (tm.department_name && tm.department_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (tm.manager_name && tm.manager_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (tm.leader_name && tm.leader_name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesBranch = selectedBranch === 'ALL' || tm.branch_name === selectedBranch;
+    return matchesSearch && matchesBranch;
+  });
+
+  // Eligible employees not yet in active team
+  const availableEmployeesToAdd = eligibleEmployees.filter(emp => {
+    if (!activeTeam?.members) return true;
+    return !activeTeam.members.some(m => m.user_id === emp.id);
+  });
+
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '24px', maxWidth: '1350px', margin: '0 auto', fontFamily: 'inherit' }}>
       {/* Sales Navigation */}
       <SalesSubNav />
 
       {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{
@@ -264,7 +411,7 @@ const Salesmen = () => {
             </div>
             <div>
               <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b' }}>
-                {isRealEstate ? t('sales.salesmen.titleRealEstate') : t('sales.salesmen.titleCommercial')}
+                {t('sales.teams.title') || 'Sales Teams & Organization'}
               </h2>
               <span style={{
                 display: 'inline-block', marginTop: '4px', padding: '2px 8px', borderRadius: '6px',
@@ -280,29 +427,31 @@ const Salesmen = () => {
 
         {/* Action Controls & Period Selector */}
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Calendar size={16} style={{ color: '#64748b' }} />
-            <select
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              style={{
-                padding: '9px 14px', borderRadius: '10px',
-                border: `1.5px solid ${isRealEstate ? '#0284c7' : '#10b981'}`,
-                fontWeight: 700, outline: 'none',
-                background: isRealEstate ? '#f0f9ff' : '#ecfdf5',
-                color: isRealEstate ? '#0369a1' : '#047857',
-                fontSize: '13px'
-              }}
-            >
-              {PERIOD_VALUES.map((val) => (
-                <option key={val} value={val}>{getPeriodLabel(val)}</option>
-              ))}
-            </select>
-          </div>
+          {activeMainTab === 'salesmen' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Calendar size={16} style={{ color: '#64748b' }} />
+              <select
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                style={{
+                  padding: '9px 14px', borderRadius: '10px',
+                  border: `1.5px solid ${isRealEstate ? '#0284c7' : '#10b981'}`,
+                  fontWeight: 700, outline: 'none',
+                  background: isRealEstate ? '#f0f9ff' : '#ecfdf5',
+                  color: isRealEstate ? '#0369a1' : '#047857',
+                  fontSize: '13px'
+                }}
+              >
+                {PERIOD_VALUES.map((val) => (
+                  <option key={val} value={val}>{getPeriodLabel(val)}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          {['admin', 'manager', 'supervisor'].includes(user?.role) && (
+          {canManageTeams && (
             <button
-              onClick={() => handleOpenModal()}
+              onClick={() => handleOpenTeamModal()}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px',
                 background: isRealEstate
@@ -312,10 +461,40 @@ const Salesmen = () => {
                 cursor: 'pointer', boxShadow: '0 4px 12px rgba(2,132,199,0.25)', fontSize: '13px'
               }}
             >
-              <Plus size={16} /> {t('sales.salesmen.addSalesman')}
+              <Plus size={16} /> {t('sales.teams.createTeam') || 'Create Sales Team'}
             </button>
           )}
         </div>
+      </div>
+
+      {/* Main Tabs Switcher: Teams vs Representatives */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
+        <button
+          onClick={() => setActiveMainTab('teams')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
+            borderRadius: '10px', fontWeight: 800, fontSize: '14px', cursor: 'pointer', border: 'none',
+            background: activeMainTab === 'teams' ? (isRealEstate ? '#0284c7' : '#10b981') : '#f1f5f9',
+            color: activeMainTab === 'teams' ? 'white' : '#475569',
+            boxShadow: activeMainTab === 'teams' ? '0 4px 12px rgba(2,132,199,0.25)' : 'none',
+            transition: 'all 0.2s'
+          }}
+        >
+          <ShieldCheck size={18} /> {t('sales.teams.tabTeams') || 'Sales Teams'} ({teams.length})
+        </button>
+        <button
+          onClick={() => setActiveMainTab('salesmen')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
+            borderRadius: '10px', fontWeight: 800, fontSize: '14px', cursor: 'pointer', border: 'none',
+            background: activeMainTab === 'salesmen' ? (isRealEstate ? '#0284c7' : '#10b981') : '#f1f5f9',
+            color: activeMainTab === 'salesmen' ? 'white' : '#475569',
+            boxShadow: activeMainTab === 'salesmen' ? '0 4px 12px rgba(16,185,129,0.25)' : 'none',
+            transition: 'all 0.2s'
+          }}
+        >
+          <Users size={18} /> {t('sales.teams.tabReps') || 'Sales Representatives'} ({salesmen.length})
+        </button>
       </div>
 
       {/* Filter & Search Bar */}
@@ -327,7 +506,7 @@ const Salesmen = () => {
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1, minWidth: '280px' }}>
           <input
             type="text"
-            placeholder={t('sales.salesmen.searchPlaceholder')}
+            placeholder={activeMainTab === 'teams' ? (isRTL ? 'بحث باسم الفريق، القسم، أو القائد...' : 'Search by team name, department, or leader...') : t('sales.salesmen.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
@@ -358,164 +537,300 @@ const Salesmen = () => {
         )}
       </div>
 
-      {/* Salesmen Grid */}
-      {loading ? (
-        <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8', background: 'white', borderRadius: '16px' }}>
-          {t('sales.salesmen.loading')}
-        </div>
-      ) : filteredSalesmen.length === 0 ? (
-        <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '60px', textAlign: 'center' }}>
-          <Users size={48} style={{ color: '#cbd5e1', marginBottom: '16px' }} />
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>
-            {t('sales.salesmen.noSalesmenTitle')}
-          </h3>
-          <p style={{ margin: '0 0 20px 0', color: '#64748b', fontSize: '14px' }}>
-            {t('sales.salesmen.noSalesmenDesc')}
-          </p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
-          {filteredSalesmen.map((s) => (
-            <div
-              key={s.id}
-              style={{
-                background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0',
-                padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
-                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                transition: 'transform 0.15s ease, box-shadow 0.15s ease'
-              }}
-            >
-              <div>
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <div style={{
-                      width: '46px', height: '46px', borderRadius: '12px',
-                      background: isRealEstate ? '#e0f2fe' : '#dcfce7',
-                      color: isRealEstate ? '#0369a1' : '#15803d',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '18px', fontWeight: 800
-                    }}>
-                      {s.name?.charAt(0) || 'U'}
-                    </div>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#1e293b' }}>{s.name}</h3>
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
-                        <span style={{
-                          fontSize: '11px', padding: '2px 8px', borderRadius: '6px',
-                          background: '#f1f5f9', color: '#475569', fontWeight: 700
-                        }}>
-                          {t(`sales.salesmen.roles.${s.role}`) || s.role}
-                        </span>
-                        {s.branch_name && (
-                          <span style={{
-                            fontSize: '11px', padding: '2px 8px', borderRadius: '6px',
-                            background: '#eff6ff', color: '#1d4ed8', fontWeight: 700
-                          }}>
-                            {s.branch_name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <span style={{
-                    padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800,
-                    background: s.is_active !== false ? '#dcfce7' : '#fee2e2',
-                    color: s.is_active !== false ? '#15803d' : '#b91c1c'
-                  }}>
-                    {s.is_active !== false ? t('sales.salesmen.active') : t('sales.salesmen.disabled')}
-                  </span>
-                </div>
-
-                {/* Performance & Department Card */}
-                <div style={{
-                  background: '#f8fafc', padding: '14px', borderRadius: '12px',
-                  marginBottom: '14px', border: '1px solid #f1f5f9',
-                  display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px'
-                }}>
-                  {s.department_name && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.salesmen.department')}</span>
-                      <span style={{ fontWeight: 700, color: '#334155' }}>{s.department_name}</span>
-                    </div>
-                  )}
-
-                  {!isRealEstate && (
-                    <>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.salesmen.totalClosedSales')}</span>
-                        <span style={{ fontWeight: 800, color: '#0ea5e9' }}>
-                          <span className="num-en">{(s.total_sales || 0).toLocaleString()}</span> {currency}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.salesmen.activeDealsCount')}</span>
-                        <span style={{ fontWeight: 800, color: '#f59e0b' }}>
-                          <span className="num-en">{s.active_deals || 0}</span> {t('sales.salesmen.dealsCountSuffix')}
-                        </span>
-                      </div>
-                    </>
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '6px', marginTop: '2px' }}>
-                    <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.salesmen.phone')}</span>
-                    <span style={{ fontWeight: 700, color: '#334155' }} className="num-en">
-                      {s.phone || t('sales.salesmen.notRegistered')}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.salesmen.email')}</span>
-                    <span style={{ fontWeight: 700, color: '#334155', fontSize: '12px' }} className="num-en">
-                      {s.email}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Actions */}
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
+      {/* ── TAB 1: SALES TEAMS VIEW ── */}
+      {activeMainTab === 'teams' && (
+        <>
+          {teamsLoading ? (
+            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8', background: 'white', borderRadius: '16px' }}>
+              {t('sales.salesmen.loading') || 'Loading teams...'}
+            </div>
+          ) : filteredTeams.length === 0 ? (
+            <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '60px', textAlign: 'center' }}>
+              <ShieldCheck size={48} style={{ color: '#cbd5e1', marginBottom: '16px' }} />
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>
+                {t('sales.teams.noTeamsTitle') || 'No Sales Teams Found'}
+              </h3>
+              <p style={{ margin: '0 0 20px 0', color: '#64748b', fontSize: '14px' }}>
+                {t('sales.teams.noTeamsDesc') || 'Create sales teams and organize existing employees into specialized selling groups.'}
+              </p>
+              {canManageTeams && (
                 <button
-                  onClick={() => handleOpen360Drawer(s)}
+                  onClick={() => handleOpenTeamModal()}
                   style={{
-                    flex: 1, padding: '8px 14px',
-                    background: isRealEstate ? '#f0f9ff' : '#ecfdf5',
-                    color: isRealEstate ? '#0284c7' : '#059669',
-                    border: `1px solid ${isRealEstate ? '#bae6fd' : '#a7f3d0'}`,
-                    borderRadius: '8px', fontWeight: 800, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px'
+                    padding: '10px 20px', borderRadius: '10px', background: '#0284c7',
+                    color: 'white', border: 'none', fontWeight: 800, cursor: 'pointer'
                   }}
                 >
-                  <Eye size={15} /> {t('sales.salesmen.view360')}
+                  <Plus size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px' }} />
+                  {t('sales.teams.createTeam')}
                 </button>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '20px' }}>
+              {filteredTeams.map((tm) => (
+                <div
+                  key={tm.id}
+                  style={{
+                    background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0',
+                    padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                    opacity: tm.is_active ? 1 : 0.65
+                  }}
+                >
+                  <div>
+                    {/* Team Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>{tm.name}</h3>
+                          <span style={{
+                            padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800,
+                            background: tm.is_active ? '#dcfce7' : '#fee2e2',
+                            color: tm.is_active ? '#15803d' : '#b91c1c'
+                          }}>
+                            {tm.is_active ? (isRTL ? 'نشط' : 'Active') : (isRTL ? 'مؤرشف' : 'Archived')}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                          {tm.department_name && (
+                            <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', fontWeight: 700 }}>
+                              {tm.department_name}
+                            </span>
+                          )}
+                          {tm.branch_name && (
+                            <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '6px', background: '#eff6ff', color: '#1d4ed8', fontWeight: 700 }}>
+                              {tm.branch_name}
+                            </span>
+                          )}
+                          <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '6px', background: '#fef3c7', color: '#b45309', fontWeight: 700 }}>
+                            {tm.distribution_method === 'least_loaded' ? (isRTL ? 'أقل عبئاً' : 'Least Loaded') :
+                             tm.distribution_method === 'round_robin' ? (isRTL ? 'دوري' : 'Round Robin') : (isRTL ? 'يدوي' : 'Manual')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-                {['admin', 'manager'].includes(user?.role) && (
-                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {tm.description && (
+                      <p style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#64748b', lineHeight: '1.4' }}>
+                        {tm.description}
+                      </p>
+                    )}
+
+                    {/* Leaders & Members Info Card */}
+                    <div style={{
+                      background: '#f8fafc', padding: '14px', borderRadius: '12px',
+                      marginBottom: '14px', border: '1px solid #f1f5f9',
+                      display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.teams.supervisingManager')}</span>
+                        <span style={{ fontWeight: 700, color: '#334155' }}>
+                          {tm.manager_name || (isRTL ? 'غير محدد' : 'Unassigned')}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.teams.teamLeader')}</span>
+                        <span style={{ fontWeight: 700, color: '#0284c7' }}>
+                          {tm.leader_name || (isRTL ? 'غير محدد' : 'Unassigned')}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '8px', marginTop: '4px' }}>
+                        <span style={{ color: '#64748b', fontWeight: 600 }}>{isRTL ? 'أعضاء الفريق' : 'Team Members'}</span>
+                        <span style={{ fontWeight: 800, color: '#15803d' }}>
+                          {tm.total_members || 0} {isRTL ? 'أعضاء' : 'members'} ({tm.active_members || 0} {isRTL ? 'يستقبلون ليدات' : 'receiving'})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Actions */}
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
                     <button
-                      onClick={() => handleOpenModal(s)}
-                      style={{ padding: '8px 10px', background: '#f1f5f9', border: 'none', borderRadius: '8px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                      title={t('common.edit') || 'Edit'}
+                      onClick={() => handleOpenMembersDrawer(tm)}
+                      style={{
+                        flex: 1, padding: '9px 14px',
+                        background: isRealEstate ? '#f0f9ff' : '#ecfdf5',
+                        color: isRealEstate ? '#0284c7' : '#059669',
+                        border: `1px solid ${isRealEstate ? '#bae6fd' : '#a7f3d0'}`,
+                        borderRadius: '8px', fontWeight: 800, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '13px'
+                      }}
                     >
-                      <Edit2 size={14} />
+                      <Users size={15} /> {t('sales.teams.manageMembers')}
                     </button>
-                    {user?.role === 'admin' && (
-                      <button
-                        onClick={() => handleDelete(s.id)}
-                        style={{ padding: '8px 10px', background: '#fef2f2', border: 'none', borderRadius: '8px', color: '#dc2626', fontWeight: 700, cursor: 'pointer' }}
-                        title={t('common.delete') || 'Delete'}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+
+                    {canManageTeams && (
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          onClick={() => handleOpenTeamModal(tm)}
+                          style={{ padding: '8px 10px', background: '#f1f5f9', border: 'none', borderRadius: '8px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
+                          title={t('common.edit') || 'Edit'}
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        {tm.is_active && (
+                          <button
+                            onClick={() => handleArchiveTeam(tm)}
+                            style={{ padding: '8px 10px', background: '#fef2f2', border: 'none', borderRadius: '8px', color: '#dc2626', fontWeight: 700, cursor: 'pointer' }}
+                            title={t('sales.teams.archiveTeam') || 'Archive'}
+                          >
+                            <UserX size={14} />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
-      {/* ───────────────────────────────────────────────────────────── */}
+      {/* ── TAB 2: SALES REPRESENTATIVES VIEW ── */}
+      {activeMainTab === 'salesmen' && (
+        <>
+          {loading ? (
+            <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8', background: 'white', borderRadius: '16px' }}>
+              {t('sales.salesmen.loading')}
+            </div>
+          ) : filteredSalesmen.length === 0 ? (
+            <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '60px', textAlign: 'center' }}>
+              <Users size={48} style={{ color: '#cbd5e1', marginBottom: '16px' }} />
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>
+                {t('sales.salesmen.noSalesmenTitle')}
+              </h3>
+              <p style={{ margin: '0 0 20px 0', color: '#64748b', fontSize: '14px' }}>
+                {t('sales.salesmen.noSalesmenDesc')}
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
+              {filteredSalesmen.map((s) => (
+                <div
+                  key={s.id}
+                  style={{
+                    background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0',
+                    padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
+                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                    transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                  }}
+                >
+                  <div>
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                        <div style={{
+                          width: '46px', height: '46px', borderRadius: '12px',
+                          background: isRealEstate ? '#e0f2fe' : '#dcfce7',
+                          color: isRealEstate ? '#0369a1' : '#15803d',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '18px', fontWeight: 800
+                        }}>
+                          {s.name?.charAt(0) || 'U'}
+                        </div>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#1e293b' }}>{s.name}</h3>
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '11px', padding: '2px 8px', borderRadius: '6px',
+                              background: '#f1f5f9', color: '#475569', fontWeight: 700
+                            }}>
+                              {t(`sales.salesmen.roles.${s.role}`) || s.role}
+                            </span>
+                            {s.branch_name && (
+                              <span style={{
+                                fontSize: '11px', padding: '2px 8px', borderRadius: '6px',
+                                background: '#eff6ff', color: '#1d4ed8', fontWeight: 700
+                              }}>
+                                {s.branch_name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span style={{
+                        padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800,
+                        background: s.is_active !== false ? '#dcfce7' : '#fee2e2',
+                        color: s.is_active !== false ? '#15803d' : '#b91c1c'
+                      }}>
+                        {s.is_active !== false ? t('sales.salesmen.active') : t('sales.salesmen.disabled')}
+                      </span>
+                    </div>
+
+                    {/* Performance & Department Card */}
+                    <div style={{
+                      background: '#f8fafc', padding: '14px', borderRadius: '12px',
+                      marginBottom: '14px', border: '1px solid #f1f5f9',
+                      display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px'
+                    }}>
+                      {s.department_name && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.salesmen.department')}</span>
+                          <span style={{ fontWeight: 700, color: '#334155' }}>{s.department_name}</span>
+                        </div>
+                      )}
+
+                      {!isRealEstate && (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.salesmen.totalClosedSales')}</span>
+                            <span style={{ fontWeight: 800, color: '#0ea5e9' }}>
+                              <span className="num-en">{(s.total_sales || 0).toLocaleString()}</span> {currency}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.salesmen.activeDealsCount')}</span>
+                            <span style={{ fontWeight: 800, color: '#f59e0b' }}>
+                              <span className="num-en">{s.active_deals || 0}</span> {t('sales.salesmen.dealsCountSuffix')}
+                            </span>
+                          </div>
+                        </>
+                      )}
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: '6px', marginTop: '2px' }}>
+                        <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.salesmen.phone')}</span>
+                        <span style={{ fontWeight: 700, color: '#334155' }} className="num-en">
+                          {s.phone || t('sales.salesmen.notRegistered')}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#64748b', fontWeight: 600 }}>{t('sales.salesmen.email')}</span>
+                        <span style={{ fontWeight: 700, color: '#334155', fontSize: '12px' }} className="num-en">
+                          {s.email}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Actions */}
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
+                    <button
+                      onClick={() => handleOpen360Drawer(s)}
+                      style={{
+                        flex: 1, padding: '8px 14px',
+                        background: isRealEstate ? '#f0f9ff' : '#ecfdf5',
+                        color: isRealEstate ? '#0284c7' : '#059669',
+                        border: `1px solid ${isRealEstate ? '#bae6fd' : '#a7f3d0'}`,
+                        borderRadius: '8px', fontWeight: 800, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px'
+                      }}
+                    >
+                      <Eye size={15} /> {t('sales.salesmen.view360')}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── 360° DRAWER (SLIDE-IN PERFORMANCE & COMMISSIONS HUB) ── */}
       {/* SALESMEN 360° DRAWER (SLIDE-IN PERFORMANCE & COMMISSIONS HUB) */}
       {/* ───────────────────────────────────────────────────────────── */}
       {showDrawer && activeSalesman && (
@@ -1051,16 +1366,181 @@ const Salesmen = () => {
       )}
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* MODAL: ADD / EDIT SALES REPRESENTATIVE                        */}
-      {/* ───────────────────────────────────────────────────────────── */}
-      {showModal && (
+
+      {/* ── DRAWER: MANAGE TEAM MEMBERS ── */}
+      {showMembersDrawer && activeTeam && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(6px)',
+          zIndex: 1200, display: 'flex', justifyContent: isRTL ? 'flex-start' : 'flex-end'
+        }}>
+          <div style={{
+            width: '100%', maxWidth: '640px', height: '100%', background: 'white',
+            boxShadow: isRTL ? '8px 0 30px rgba(0,0,0,0.15)' : '-8px 0 30px rgba(0,0,0,0.15)',
+            display: 'flex', flexDirection: 'column', overflowY: 'auto'
+          }}>
+            {/* Header */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>
+                  {activeTeam.name} — {t('sales.teams.manageMembers')}
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                  {activeTeam.department_name} {activeTeam.branch_name ? `• ${activeTeam.branch_name}` : ''}
+                </p>
+              </div>
+              <button onClick={() => setShowMembersDrawer(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ padding: '24px' }}>
+              {/* Add Existing Employee Section */}
+              {canManageTeams && (
+                <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 800, color: '#0369a1', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <UserPlus size={16} /> {t('sales.teams.addMember')}
+                  </h4>
+                  <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#0c4a6e' }}>
+                    {t('sales.teams.existingEmployeeOnly') || 'Only existing company employees can be added to teams.'}
+                  </p>
+                  <form onSubmit={handleAddMember} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div>
+                      <select
+                        value={newMemberUserId}
+                        onChange={(e) => setNewMemberUserId(e.target.value)}
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontWeight: 600, background: 'white' }}
+                        required
+                      >
+                        <option value="">{t('sales.teams.selectEmployee')}</option>
+                        {availableEmployeesToAdd.map(emp => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.name} ({emp.role} {emp.department_name ? `— ${emp.department_name}` : ''})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                          {t('sales.teams.dailyQuota')}
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={newMemberQuota}
+                          onChange={(e) => setNewMemberQuota(e.target.value)}
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div style={{ paddingTop: '16px' }}>
+                        <button
+                          type="submit"
+                          disabled={addingMember}
+                          style={{
+                            padding: '9px 18px', background: '#0284c7', color: 'white',
+                            border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer'
+                          }}
+                        >
+                          {addingMember ? '...' : (isRTL ? 'إضافة للفريق' : 'Add to Team')}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* Members List */}
+              <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>
+                {isRTL ? 'أعضاء الفريق الحاليين' : 'Current Team Members'} ({activeTeam.members?.length || 0})
+              </h4>
+
+              {teamMembersLoading ? (
+                <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>{t('sales.salesmen.loading')}</div>
+              ) : (!activeTeam.members || activeTeam.members.length === 0) ? (
+                <div style={{ padding: '30px', textAlign: 'center', color: '#64748b', background: '#f8fafc', borderRadius: '12px' }}>
+                  {isRTL ? 'لا يوجد أعضاء في هذا الفريق بعد.' : 'No members assigned to this team yet.'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {activeTeam.members.map((m) => (
+                    <div
+                      key={m.user_id}
+                      style={{
+                        padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        background: m.receiving_leads ? 'white' : '#f8fafc'
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 800, color: '#1e293b', fontSize: '14px' }}>{m.name}</span>
+                          <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '4px', background: '#f1f5f9', color: '#475569' }}>
+                            {m.job_title_name || m.role}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>
+                          {m.email} {m.phone ? `• ${m.phone}` : ''}
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '6px', fontSize: '12px' }}>
+                          <span style={{ color: '#0284c7', fontWeight: 700 }}>
+                            {m.active_deals_count || 0} {isRTL ? 'صفقات نشطة' : 'active deals'}
+                          </span>
+                          <span style={{ color: '#64748b' }}>
+                            {isRTL ? `حصة: ${m.daily_lead_quota} ليد/يوم` : `Quota: ${m.daily_lead_quota}/day`}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                          onClick={() => handleToggleMemberStatus(m)}
+                          style={{
+                            padding: '6px 10px', borderRadius: '8px', border: 'none',
+                            fontSize: '11px', fontWeight: 800, cursor: 'pointer',
+                            background: m.receiving_leads ? '#dcfce7' : '#f1f5f9',
+                            color: m.receiving_leads ? '#15803d' : '#64748b'
+                          }}
+                          title={m.receiving_leads ? t('sales.teams.receivingLeads') : t('sales.teams.onLeave')}
+                        >
+                          {m.receiving_leads ? <UserCheck size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> : <UserX size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />}
+                          {m.receiving_leads ? (isRTL ? 'نشط' : 'Active') : (isRTL ? 'إجازة' : 'Paused')}
+                        </button>
+
+                        {canManageTeams && (
+                          <button
+                            onClick={() => handleRemoveMember(m)}
+                            style={{
+                              padding: '6px 10px', borderRadius: '8px', border: 'none',
+                              fontSize: '11px', fontWeight: 800, cursor: 'pointer',
+                              background: '#fee2e2', color: '#dc2626'
+                            }}
+                            title={t('sales.teams.removeMember')}
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: CREATE / EDIT SALES TEAM ── */}
+      {showTeamModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: '16px'
         }}>
           <div style={{
-            background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px',
+            background: 'white', borderRadius: '16px', width: '100%', maxWidth: '520px',
             overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
           }}>
             <div style={{
@@ -1068,107 +1548,162 @@ const Salesmen = () => {
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc'
             }}>
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                {editingId ? t('sales.salesmen.editSalesman') : t('sales.salesmen.newSalesman')}
+                {editingTeamId ? t('sales.teams.editTeam') : t('sales.teams.createTeam')}
               </h3>
-              <button onClick={() => setShowModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}>
+              <button onClick={() => setShowTeamModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}>
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={handleTeamSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                  {t('sales.salesmen.form.name')}
+                  {isRTL ? 'اسم الفريق *' : 'Team Name *'}
                 </label>
                 <input
                   type="text"
-                  placeholder={t('sales.salesmen.form.namePlaceholder')}
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
+                  placeholder={isRTL ? 'مثال: فريق مبيعات التجمع والقاهرة الجديدة' : 'e.g. Luxury Sales Team'}
+                  value={teamForm.name}
+                  onChange={(e) => setTeamForm({ ...teamForm, name: e.target.value })}
+                  style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
                   required
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                  {isRTL ? 'وصف الفريق' : 'Description'}
+                </label>
+                <textarea
+                  rows="2"
+                  placeholder={isRTL ? 'تخصص الفريق أو نطاق عمله...' : 'Team focus or scope...'}
+                  value={teamForm.description}
+                  onChange={(e) => setTeamForm({ ...teamForm, description: e.target.value })}
+                  style={{ width: '100%', padding: '8px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
                 />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                    {t('sales.salesmen.form.phone')}
-                  </label>
-                  <input
-                    type="text"
-                    placeholder={t('sales.salesmen.form.phonePlaceholder')}
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                    {t('sales.salesmen.form.role')}
+                    {isRTL ? 'القسم الإداري *' : 'Department *'}
                   </label>
                   <select
-                    value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value })}
-                    style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
+                    value={teamForm.department_id}
+                    onChange={(e) => setTeamForm({ ...teamForm, department_id: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
+                    required
                   >
-                    <option value="sales">{t('sales.salesmen.roles.sales')}</option>
-                    <option value="agent">{t('sales.salesmen.roles.agent')}</option>
-                    <option value="manager">{t('sales.salesmen.roles.manager')}</option>
-                    <option value="supervisor">{t('sales.salesmen.roles.supervisor')}</option>
+                    <option value="">{isRTL ? '-- اختر القسم --' : '-- Select Department --'}</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                    {isRTL ? 'الفرع' : 'Branch'}
+                  </label>
+                  <select
+                    value={teamForm.branch_id}
+                    onChange={(e) => setTeamForm({ ...teamForm, branch_id: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
+                  >
+                    <option value="">{isRTL ? '-- كافة الفروع / غير محدد --' : '-- All Branches / Unspecified --'}</option>
+                    {branches.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                  {t('sales.salesmen.form.email')}
-                </label>
-                <input
-                  type="email"
-                  placeholder={t('sales.salesmen.form.emailPlaceholder')}
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
-                />
-              </div>
-
-              {!editingId && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
-                    {t('sales.salesmen.form.password')}
+                    {t('sales.teams.supervisingManager')}
+                  </label>
+                  <select
+                    value={teamForm.manager_id}
+                    onChange={(e) => setTeamForm({ ...teamForm, manager_id: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
+                  >
+                    <option value="">{isRTL ? '-- غير محدد --' : '-- Unassigned --'}</option>
+                    {eligibleEmployees.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.name} ({emp.role})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                    {t('sales.teams.teamLeader')}
+                  </label>
+                  <select
+                    value={teamForm.leader_id}
+                    onChange={(e) => setTeamForm({ ...teamForm, leader_id: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
+                  >
+                    <option value="">{isRTL ? '-- غير محدد --' : '-- Unassigned --'}</option>
+                    {eligibleEmployees.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.name} ({emp.role})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                    {t('sales.teams.distMethod')}
+                  </label>
+                  <select
+                    value={teamForm.distribution_method}
+                    onChange={(e) => setTeamForm({ ...teamForm, distribution_method: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
+                  >
+                    <option value="least_loaded">{t('sales.teams.leastLoaded')}</option>
+                    <option value="round_robin">{t('sales.teams.roundRobin')}</option>
+                    <option value="manual">{t('sales.teams.manual')}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
+                    {t('sales.teams.maxLeadsPerRep')}
                   </label>
                   <input
-                    type="password"
-                    placeholder={t('sales.salesmen.form.passwordPlaceholder')}
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }}
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={teamForm.max_active_leads_per_rep}
+                    onChange={(e) => setTeamForm({ ...teamForm, max_active_leads_per_rep: e.target.value })}
+                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', boxSizing: 'border-box' }}
                   />
                 </div>
-              )}
+              </div>
 
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '10px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => setShowTeamModal(false)}
                   style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
                 >
-                  {t('sales.salesmen.form.cancel')}
+                  {t('sales.salesmen.form.cancel') || 'Cancel'}
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={savingTeam}
                   style={{
                     padding: '10px 22px',
                     background: isRealEstate
                       ? 'linear-gradient(135deg, #0284c7, #0369a1)'
                       : 'linear-gradient(135deg, #10b981, #059669)',
                     color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800,
-                    cursor: saving ? 'not-allowed' : 'pointer'
+                    cursor: savingTeam ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  {saving ? t('sales.salesmen.form.saving') : editingId ? t('sales.salesmen.form.update') : t('sales.salesmen.form.save')}
+                  {savingTeam ? '...' : editingTeamId ? (isRTL ? 'تحديث الفريق' : 'Update Team') : (isRTL ? 'حفظ الفريق' : 'Save Team')}
                 </button>
               </div>
             </form>
