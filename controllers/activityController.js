@@ -310,7 +310,7 @@ exports.createActivity = async (req, res) => {
                     const dRes = await db.query(
                         `SELECT id, title, pipeline_stage, custom_fields, assigned_to, branch_id
                          FROM deals
-                         WHERE customer_id::text = $1::text AND tenant_id::text = $2::text
+                         WHERE client_id::text = $1::text AND tenant_id::text = $2::text
                            AND LOWER(COALESCE(pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost')
                          ORDER BY id DESC LIMIT 1`,
                         [entity_id, tenant_id]
@@ -350,6 +350,11 @@ exports.createActivity = async (req, res) => {
                     updatedDealId = targetDeal.id;
 
                     if (newStage !== targetDeal.pipeline_stage) {
+                        const { logActivity } = require('../utils/activityLogger');
+                        await logActivity(tenant_id, req.user, 'deal', targetDeal.id, 'stage_changed', {
+                            pipeline_stage: { from: targetDeal.pipeline_stage, to: newStage }
+                        }).catch(() => {});
+
                         const templateAutomationService = require('../services/templateAutomationService');
                         templateAutomationService.runTemplateAutomation({
                             tenantId: tenant_id,

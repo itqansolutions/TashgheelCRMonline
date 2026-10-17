@@ -122,7 +122,7 @@ exports.getCustomers = async (req, res) => {
       FROM deals d
       LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND d.tenant_id::text = ru.tenant_id::text
       WHERE d.tenant_id::text = c.tenant_id::text
-        AND (d.client_id::text = c.id::text OR d.customer_id::text = c.id::text)
+        AND d.client_id::text = c.id::text
       ORDER BY d.id DESC
       LIMIT 1
     ) ld ON true

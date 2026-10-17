@@ -447,7 +447,7 @@ exports.getUnitOverview = async (req, res) => {
                 pflm.external_listing_id as pf_external_listing_id,
                 pflm.portal_url as pf_portal_url,
                 pflm.rejection_reason as pf_rejection_reason,
-                pflm.reference_code as pf_reference_code
+                pflm.external_reference as pf_reference_code
             FROM re_units ru
             LEFT JOIN customers c ON ru.vendor_id::text = c.id::text AND c.tenant_id::text = ru.tenant_id::text
             LEFT JOIN users u ON ru.responsible_person_id::text = u.id::text AND u.tenant_id::text = ru.tenant_id::text
@@ -490,8 +490,8 @@ exports.getUnitOverview = async (req, res) => {
                 d.assigned_to,
                 d.branch_id,
                 d.custom_fields,
-                d.sla_deadline_at,
-                d.sla_extended_count,
+                COALESCE(NULLIF(d.custom_fields->>'sla_extended_until', '')::timestamptz, d.created_at + INTERVAL '48 hours') as sla_deadline_at,
+                COALESCE(NULLIF(d.custom_fields->>'sla_extension_count', '')::int, 0) as sla_extended_count,
                 d.created_at,
                 d.updated_at,
                 c.name as customer_name,
@@ -510,13 +510,14 @@ exports.getUnitOverview = async (req, res) => {
             LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
             LEFT JOIN users u ON d.assigned_to::text = u.id::text AND d.tenant_id::text = u.tenant_id::text
             LEFT JOIN LATERAL (
-                SELECT pflm.pf_lead_id, pflm.channel, pflm.status as pf_mapping_status
+                SELECT pflm.external_lead_id as pf_lead_id, pflm.channel, 'mapped' as pf_mapping_status
                 FROM property_finder_lead_mappings pflm
-                WHERE pflm.deal_id = d.id AND pflm.tenant_id::text = d.tenant_id::text
-                ORDER BY pflm.updated_at DESC NULLS LAST
+                WHERE (pflm.external_lead_id = d.source_id OR (pflm.customer_id::text = d.client_id::text AND pflm.unit_id::text = d.unit_id::text))
+                  AND pflm.tenant_id::text = d.tenant_id::text
+                ORDER BY pflm.id DESC
                 LIMIT 1
             ) pf ON true
-            WHERE d.unit_id::text = $1::text
+            WHERE (d.unit_id::text = $1::text OR (d.custom_fields->>'unit_id') = $1::text)
               AND d.tenant_id::text = $2::text
               AND ($3::text IS NULL OR d.branch_id::text = $3::text OR d.branch_id IS NULL)
               AND (${scope.sql})
@@ -537,7 +538,7 @@ exports.getUnitOverview = async (req, res) => {
         if (dealIds.length > 0) {
             try {
                 const actRes = await db.query(`
-                    SELECT entity_type, entity_id::text as entity_id, action, title, details, meta, created_at
+                    SELECT entity_type, entity_id::text as entity_id, action, meta, created_at
                     FROM activities
                     WHERE tenant_id::text = $1::text
                       AND (
@@ -548,7 +549,7 @@ exports.getUnitOverview = async (req, res) => {
                 `, [tenant_id, dealIds, customerIds]);
 
                 for (const act of actRes.rows) {
-                    const summary = (act.meta?.changes?.note?.to) || act.details || act.title || act.action || 'Activity';
+                    const summary = (act.meta?.changes?.note?.to) || act.action || 'Activity';
                     const entry = {
                         at: act.created_at,
                         type: act.action || 'interaction',
@@ -572,7 +573,7 @@ exports.getUnitOverview = async (req, res) => {
                     WHERE tenant_id::text = $1::text
                       AND LOWER(COALESCE(status, 'todo')) NOT IN ('done', 'completed', 'cancelled')
                       AND (
-                          (LOWER(parent_type) = 'deal' AND parent_id::text = ANY($2::text[]))
+                          (LOWER(parent_type) IN ('deal', 'deals') AND parent_id::text = ANY($2::text[]))
                           OR (LOWER(parent_type) = 'customer' AND parent_id::text = ANY($3::text[]))
                       )
                     ORDER BY due_date ASC NULLS LAST, created_at DESC
@@ -580,7 +581,7 @@ exports.getUnitOverview = async (req, res) => {
 
                 for (const t of taskRes.rows) {
                     const pType = String(t.parent_type || '').toLowerCase();
-                    if (pType === 'deal' && !nextTaskByDeal.has(t.parent_id)) {
+                    if ((pType === 'deal' || pType === 'deals') && !nextTaskByDeal.has(t.parent_id)) {
                         nextTaskByDeal.set(t.parent_id, t);
                     } else if (pType === 'customer' && !nextTaskByCustomer.has(t.parent_id)) {
                         nextTaskByCustomer.set(t.parent_id, t);
@@ -591,7 +592,7 @@ exports.getUnitOverview = async (req, res) => {
             }
         }
 
-        const CLOSED_STAGES = new Set(['won', 'lost', 'closed', 'cancelled', 'canceled']);
+        const CLOSED_STAGES = new Set(['won', 'lost', 'closed', 'cancelled', 'canceled', 'closed won', 'closed lost']);
         const now = new Date();
 
         const scopedDeals = rawDeals.map(row => {
@@ -600,8 +601,8 @@ exports.getUnitOverview = async (req, res) => {
             const isClosed = CLOSED_STAGES.has(stageLower);
             const isActive = !isClosed;
             let dealStatus = 'active';
-            if (stageLower === 'won' || stageLower === 'closed') dealStatus = 'won';
-            else if (stageLower === 'lost' || stageLower === 'cancelled' || stageLower === 'canceled') dealStatus = 'lost';
+            if (stageLower === 'won' || stageLower === 'closed' || stageLower === 'closed won') dealStatus = 'won';
+            else if (stageLower === 'lost' || stageLower === 'cancelled' || stageLower === 'canceled' || stageLower === 'closed lost') dealStatus = 'lost';
 
             const cf = (row.custom_fields && typeof row.custom_fields === 'object') ? row.custom_fields : {};
             const isUnitReservation = (

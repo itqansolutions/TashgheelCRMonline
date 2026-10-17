@@ -144,7 +144,7 @@ async function getDealSlaStatus(dealId, tenantId, queryable = db) {
          OR ($4::text IS NOT NULL AND LOWER(entity_type) = 'customer' AND entity_id::text = $4::text)
        )
        AND action = ANY($3::text[])`,
-    [tenantId, dealId, IMPACTFUL_ACTIVITY_ACTIONS, deal.customer_id ? String(deal.customer_id) : null]
+    [tenantId, dealId, IMPACTFUL_ACTIVITY_ACTIONS, deal.client_id ? String(deal.client_id) : null]
   ).catch(() => ({ rows: [] }));
 
   // Fetch linked completed tasks
@@ -381,7 +381,7 @@ async function scanAndAlertOverdueDeals({ tenantId = null, queryable = db } = {}
              OR ($4::text IS NOT NULL AND LOWER(entity_type) = 'customer' AND entity_id::text = $4::text)
            )
            AND action = ANY($3::text[])`,
-        [dealTenantId, deal.id, IMPACTFUL_ACTIVITY_ACTIONS, deal.customer_id ? String(deal.customer_id) : null]
+        [dealTenantId, deal.id, IMPACTFUL_ACTIVITY_ACTIONS, deal.client_id ? String(deal.client_id) : null]
       ).catch(() => ({ rows: [] }));
 
       // Fetch linked tasks

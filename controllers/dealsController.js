@@ -201,7 +201,7 @@ exports.getDeals = async (req, res) => {
                 WHERE a.tenant_id::text = d.tenant_id::text 
                   AND (
                     (LOWER(a.entity_type) = 'deal' AND a.entity_id::text = d.id::text)
-                    OR (d.customer_id IS NOT NULL AND LOWER(a.entity_type) = 'customer' AND a.entity_id::text = d.customer_id::text)
+                    OR (d.client_id IS NOT NULL AND LOWER(a.entity_type) = 'customer' AND a.entity_id::text = d.client_id::text)
                   )
                   AND a.action IN ('called', 'whatsapp', 'meeting', 'email_sent', 'visited', 'follow_up')
               ), d.created_at),
@@ -253,7 +253,7 @@ exports.getDeals = async (req, res) => {
                 SELECT MAX(COALESCE(t.updated_at, t.created_at)) FROM tasks t
                 LEFT JOIN task_statuses ts ON t.status_id = ts.id
                 WHERE t.tenant_id::text = d.tenant_id::text
-                  AND t.parent_type = 'deal'
+                  AND LOWER(t.parent_type) IN ('deal', 'deals')
                   AND t.parent_id::text = d.id::text
                   AND (ts.is_final = true OR t.status = 'completed' OR ts.name ILIKE '%complete%' OR ts.name ILIKE '%done%')
               ), d.created_at)
@@ -389,9 +389,9 @@ exports.createDeal = async (req, res) => {
     const cleanProductId = (product_id && product_id !== '' && !isNaN(product_id)) ? parseInt(product_id) : null;
     const cleanProjectId = (project_id && project_id !== '' && !isNaN(project_id)) ? parseInt(project_id) : null;
     const cleanUnitId = (unit_id && unit_id !== '') ? String(unit_id) : null;
-    const cleanAssignedTo = (assigned_to && !isNaN(parseInt(assigned_to)) && /^\d+$/.test(String(assigned_to))) 
-      ? parseInt(assigned_to) 
-      : (req.user?.id && !isNaN(parseInt(req.user.id)) && /^\d+$/.test(String(req.user.id)) ? parseInt(req.user.id) : null);
+    const cleanAssignedTo = (assigned_to !== undefined && assigned_to !== null && String(assigned_to).trim() !== '') 
+      ? assigned_to 
+      : (req.user?.id || null);
     let cleanValue = (value !== undefined && value !== null && value !== '' && !isNaN(Number(value))) ? Number(value) : 0;
     const cleanProbability = (probability !== undefined && probability !== null && probability !== '' && !isNaN(probability)) ? Math.min(100, Math.max(0, parseInt(probability))) : 0;
 
