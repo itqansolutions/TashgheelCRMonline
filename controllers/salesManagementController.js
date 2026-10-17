@@ -68,10 +68,15 @@ exports.getOverview = async (req, res) => {
 
     // 4. Bottlenecks Analysis:
     // a) Deals with no activity > 48 hours (Overdue SLA)
-    const overdueDeals = await dealSlaService.getOverdueDeals(tenant_id, branch_id);
-    const scopedOverdueDeals = scopeUserIds 
-      ? overdueDeals.filter(d => scopeUserIds.includes(d.assigned_to))
-      : overdueDeals;
+    let scopedOverdueDeals = [];
+    try {
+      const overdueDeals = await dealSlaService.getOverdueDeals(tenant_id, branch_id);
+      scopedOverdueDeals = scopeUserIds 
+        ? overdueDeals.filter(d => scopeUserIds.includes(d.assigned_to))
+        : overdueDeals;
+    } catch (slaErr) {
+      console.warn('[dealSlaService.getOverdueDeals error]:', slaErr.message);
+    }
 
     // b) Missed follow-ups & overdue tasks
     let taskWhere = [
@@ -88,7 +93,7 @@ exports.getOverview = async (req, res) => {
       SELECT COUNT(*)::int as count
       FROM tasks t
       WHERE ${taskWhere.join(' AND ')}
-    `, taskParams);
+    `, taskParams).catch(() => ({ rows: [{ count: 0 }] }));
 
     // c) Stagnant deals (> 14 days without stage change)
     const stagnantDealsRes = await db.query(`
@@ -102,7 +107,7 @@ exports.getOverview = async (req, res) => {
         AND d.updated_at < NOW() - INTERVAL '14 days'
       ORDER BY d.updated_at ASC
       LIMIT 10
-    `, dealParams);
+    `, dealParams).catch(() => ({ rows: [] }));
 
     // d) Lost reasons distribution
     const lostReasonsRes = await db.query(`
@@ -115,27 +120,58 @@ exports.getOverview = async (req, res) => {
         AND d.pipeline_stage = 'lost'
       GROUP BY COALESCE(d.custom_fields->>'lost_reason', 'Unspecified')
       ORDER BY count DESC
-    `, dealParams);
+    `, dealParams).catch(() => ({ rows: [] }));
 
     // 5. Team Target & Revenue / Collection Aggregation
     let targetSummary = { target_amount: 0, achieved_amount: 0, achievement_rate: 0 };
-    if (isRealEstate) {
-      const reOverview = await reTargetService.getCompanyTargetOverview(tenant_id, period, branch_id);
-      targetSummary = {
-        target_amount: reOverview.target_amount || 0,
-        achieved_amount: reOverview.achieved_contracts_value || 0,
-        achieved_collected_amount: reOverview.achieved_collected_amount || 0,
-        target_units: reOverview.target_units || 0,
-        achieved_units_count: reOverview.achieved_units_count || 0,
-        achievement_rate: reOverview.achievement_rate || 0
-      };
-    } else {
-      const genOverview = await salesTargetService.getCompanyTargetOverview(tenant_id, period, branch_id);
-      targetSummary = {
-        target_amount: genOverview.target_amount || 0,
-        achieved_amount: genOverview.achieved_amount || 0,
-        achievement_rate: genOverview.achievement_rate || 0
-      };
+    try {
+      if (isRealEstate) {
+        const reTargetRes = await db.query(`
+          SELECT 
+            COALESCE(SUM(target_amount), 0) as target_amount,
+            COALESCE(SUM(achieved_amount), 0) as achieved_amount,
+            COALESCE(SUM(target_units), 0) as target_units,
+            COALESCE(SUM(achieved_units_count), 0) as achieved_units_count
+          FROM re_targets
+          WHERE tenant_id::text = $1::text
+            AND is_active = true AND deleted_at IS NULL
+            AND period = $2
+            AND ($3::text IS NULL OR branch_id::text = $3::text)
+        `, [tenant_id, period, branch_id && branch_id !== 'ALL' ? String(branch_id) : null]).catch(() => ({ rows: [] }));
+
+        const row = reTargetRes.rows[0] || {};
+        const targetAmount = parseFloat(row.target_amount || 0);
+        const achievedAmount = parseFloat(row.achieved_amount || 0);
+        targetSummary = {
+          target_amount: targetAmount,
+          achieved_amount: achievedAmount,
+          target_units: parseInt(row.target_units || 0, 10),
+          achieved_units_count: parseInt(row.achieved_units_count || 0, 10),
+          achievement_rate: targetAmount > 0 ? Math.round((achievedAmount / targetAmount) * 100) : 0
+        };
+      } else {
+        const genTargetRes = await db.query(`
+          SELECT 
+            COALESCE(SUM(target_amount), 0) as target_amount,
+            COALESCE(SUM(achieved_amount), 0) as achieved_amount
+          FROM sales_targets
+          WHERE tenant_id::text = $1::text
+            AND is_active = true AND deleted_at IS NULL
+            AND (period = $2 OR legacy_period = $2)
+            AND ($3::text IS NULL OR branch_id::text = $3::text)
+        `, [tenant_id, period, branch_id && branch_id !== 'ALL' ? String(branch_id) : null]).catch(() => ({ rows: [] }));
+
+        const row = genTargetRes.rows[0] || {};
+        const targetAmount = parseFloat(row.target_amount || 0);
+        const achievedAmount = parseFloat(row.achieved_amount || 0);
+        targetSummary = {
+          target_amount: targetAmount,
+          achieved_amount: achievedAmount,
+          achievement_rate: targetAmount > 0 ? Math.round((achievedAmount / targetAmount) * 100) : 0
+        };
+      }
+    } catch (targetErr) {
+      console.warn('[salesManagementController target aggregation warning]:', targetErr.message);
     }
 
     // 6. Win Rate & Average Closing Days
@@ -211,7 +247,7 @@ exports.getTeamPerformance = async (req, res) => {
     let userWhere = [
       `u.tenant_id::text = $1::text`,
       `COALESCE(u.is_working, true) = true`,
-      `u.role IN ('sales', 'agent', 'manager', 'supervisor', 'employee')`
+      `u.role IN ('sales', 'agent', 'manager', 'supervisor', 'employee', 'user', 'admin')`
     ];
     let userParams = [tenant_id];
 
@@ -248,7 +284,7 @@ exports.getTeamPerformance = async (req, res) => {
       WHERE ${userWhere.join(' AND ')}
       GROUP BY u.id, b.name, d.name
       ORDER BY total_won_value DESC, u.name ASC
-    `, userParams);
+    `, userParams).catch(() => ({ rows: [] }));
 
     // Merge Target & Commission data for each member
     const performanceList = await Promise.all(teamMembersRes.rows.map(async (rep) => {
@@ -260,27 +296,27 @@ exports.getTeamPerformance = async (req, res) => {
         const reTargetRes = await db.query(
           `SELECT target_amount, achieved_amount, achieved_units_count FROM re_targets WHERE user_id = $1 AND period = $2 AND tenant_id::text = $3::text`,
           [rep.id, period, tenant_id]
-        );
+        ).catch(() => ({ rows: [] }));
         target = parseFloat(reTargetRes.rows[0]?.target_amount || 0);
         achieved = parseFloat(reTargetRes.rows[0]?.achieved_amount || 0);
 
         const commRes = await db.query(
           `SELECT COALESCE(SUM(commission_amount), 0) as total FROM re_commissions WHERE beneficiary_user_id = $1 AND tenant_id::text = $2::text AND status = 'Approved'`,
           [rep.id, tenant_id]
-        );
+        ).catch(() => ({ rows: [] }));
         commission = parseFloat(commRes.rows[0]?.total || 0);
       } else {
         const genTargetRes = await db.query(
           `SELECT target_amount, achieved_amount FROM sales_targets WHERE user_id = $1 AND period = $2 AND tenant_id::text = $3::text`,
           [rep.id, period, tenant_id]
-        );
+        ).catch(() => ({ rows: [] }));
         target = parseFloat(genTargetRes.rows[0]?.target_amount || 0);
         achieved = parseFloat(genTargetRes.rows[0]?.achieved_amount || 0);
 
         const commRes = await db.query(
           `SELECT COALESCE(SUM(net_commission), 0) as total FROM sales_commissions WHERE user_id = $1 AND tenant_id::text = $2::text AND status = 'approved'`,
           [rep.id, tenant_id]
-        );
+        ).catch(() => ({ rows: [] }));
         commission = parseFloat(commRes.rows[0]?.total || 0);
       }
 
@@ -326,7 +362,7 @@ exports.getSalesman360 = async (req, res) => {
        LEFT JOIN branches b ON u.branch_id = b.id
        WHERE u.id = $1 AND u.tenant_id::text = $2::text`,
       [targetUserId, tenant_id]
-    );
+    ).catch(() => ({ rows: [] }));
 
     if (userRes.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Sales representative not found.' });
@@ -346,7 +382,7 @@ exports.getSalesman360 = async (req, res) => {
       LEFT JOIN customers c ON d.client_id = c.id
       WHERE d.assigned_to = $1 AND d.tenant_id::text = $2::text
       ORDER BY d.updated_at DESC
-    `, [targetUserId, tenant_id]);
+    `, [targetUserId, tenant_id]).catch(() => ({ rows: [] }));
 
     // 3. Fetch overdue and upcoming tasks
     const tasksRes = await db.query(`
@@ -354,16 +390,28 @@ exports.getSalesman360 = async (req, res) => {
       FROM tasks t
       WHERE t.assigned_to = $1 AND t.tenant_id::text = $2::text AND t.status != 'completed'
       ORDER BY t.due_date ASC
-    `, [targetUserId, tenant_id]);
+    `, [targetUserId, tenant_id]).catch(() => ({ rows: [] }));
 
-    // 4. Fetch recent activities
+    // 4. Fetch recent activities (schema-accurate using action and meta)
     const activitiesRes = await db.query(`
-      SELECT a.id, a.type, a.description, a.created_at, a.parent_type, a.parent_id
+      SELECT a.id, a.action, a.meta, a.created_at, a.entity_type, a.entity_id
       FROM activities a
       WHERE a.user_id = $1 AND a.tenant_id::text = $2::text
       ORDER BY a.created_at DESC
       LIMIT 20
-    `, [targetUserId, tenant_id]);
+    `, [targetUserId, tenant_id]).catch(() => ({ rows: [] }));
+
+    const mappedActivities = activitiesRes.rows.map(a => {
+      const meta = typeof a.meta === 'object' && a.meta !== null ? a.meta : {};
+      return {
+        id: a.id,
+        type: a.action,
+        description: meta.changes?.note?.to || meta.changes?.description || a.action,
+        created_at: a.created_at,
+        parent_type: a.entity_type,
+        parent_id: a.entity_id
+      };
+    });
 
     res.json({
       status: 'success',
@@ -371,7 +419,7 @@ exports.getSalesman360 = async (req, res) => {
         salesman,
         deals: dealsRes.rows,
         tasks: tasksRes.rows,
-        recent_activities: activitiesRes.rows
+        recent_activities: mappedActivities
       }
     });
 

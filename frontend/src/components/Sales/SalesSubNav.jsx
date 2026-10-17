@@ -1,18 +1,31 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Handshake, Users, Target as TargetIcon, ShoppingBag, FileText, Layers } from 'lucide-react';
+import { Handshake, Users, Target as TargetIcon, ShoppingBag, FileText, Layers, BarChart3 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
 
 const SalesSubNav = () => {
   const { t, isRTL } = useLanguage();
+  const { user } = useAuth();
+  const isRealEstate = user?.template_name === 'real_estate';
+  const canAccessManagement = ['admin', 'manager', 'supervisor'].includes(user?.role);
 
   const links = [
-    { path: '/deals', label: t('sales.subNav.deals'), icon: <Handshake size={16} /> },
-    { path: '/sales/orders', label: t('sales.subNav.orders'), icon: <ShoppingBag size={16} /> },
-    { path: '/sales/documents', label: t('sales.subNav.documents'), icon: <FileText size={16} /> },
-    { path: '/sales/price-tiers', label: t('sales.subNav.priceTiers'), icon: <Layers size={16} /> },
-    { path: '/sales/salesmen', label: t('sales.subNav.salesmen'), icon: <Users size={16} /> },
-    { path: '/sales/target', label: t('sales.subNav.targets'), icon: <TargetIcon size={16} /> },
+    ...(canAccessManagement ? [
+      { 
+        path: '/sales/management', 
+        label: isRealEstate ? t('sales.subNav.reManagement', 'RE Sales Management') : t('sales.subNav.management', 'Sales Management'), 
+        icon: <BarChart3 size={16} /> 
+      }
+    ] : []),
+    { path: '/deals', label: t('sales.subNav.deals', 'Deals'), icon: <Handshake size={16} /> },
+    ...(!isRealEstate ? [
+      { path: '/sales/orders', label: t('sales.subNav.orders', 'Sales Orders'), icon: <ShoppingBag size={16} /> },
+      { path: '/sales/documents', label: t('sales.subNav.documents', 'Documents Hub'), icon: <FileText size={16} /> },
+      { path: '/sales/price-tiers', label: t('sales.subNav.priceTiers', 'Price Tiers'), icon: <Layers size={16} /> },
+    ] : []),
+    { path: '/sales/salesmen', label: t('sales.subNav.salesmen', 'Salesmen'), icon: <Users size={16} /> },
+    { path: '/sales/target', label: t('sales.subNav.targets', 'Target & Goals'), icon: <TargetIcon size={16} /> },
   ];
 
   return (

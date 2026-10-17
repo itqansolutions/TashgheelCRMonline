@@ -1695,6 +1695,8 @@
   },
   "sales": {
     "subNav": {
+      "management": "Sales Management",
+      "reManagement": "RE Sales Management",
       "deals": "Deals",
       "orders": "Sales Orders",
       "documents": "Documents Hub",
@@ -3580,5 +3582,112 @@
     "btnSendReset": "Send Instructions",
     "backToLogin": "Back to login",
     "toastInvalidCredentials": "Invalid email or password"
+  },
+  "salesManagement": {
+    "titleGeneral": "Sales Management Cockpit",
+    "titleRealEstate": "Real Estate Sales Management Cockpit",
+    "subtitleGeneral": "Monitor sales rep performance, pipeline velocity, target achievement, and bottlenecks",
+    "subtitleRealEstate": "Monitor real estate agents, unit reservations, signed contracts, and collections",
+    "allBranches": "All Branches",
+    "tabs": {
+      "overview": "Overview & Pipeline Velocity",
+      "performance": "Sales Team Performance",
+      "bottlenecks": "Bottlenecks & Lost Analysis",
+      "distribution": "Bulk Lead Distribution"
+    },
+    "kpis": {
+      "targetProgress": "Target Achievement",
+      "achieved": "Achieved",
+      "target": "Target",
+      "openDealsValue": "Active Pipeline Value",
+      "activeDealsCount": "active deals",
+      "overdueSlaAlerts": "Overdue SLA (>48h)",
+      "requiresImmediateAction": "Requires manager intervention",
+      "healthy": "On Track",
+      "slaHealthy": "All deals within SLA",
+      "overdueTasks": "Overdue Follow-ups",
+      "tasksNeedAttention": "tasks pending follow-up",
+      "winRate": "Win Rate",
+      "avgClosingDays": "Avg Closing Time",
+      "days": "days"
+    },
+    "pipeline": {
+      "title": "Pipeline Velocity & Distribution by Stage",
+      "avgStageDuration": "Avg time in stage",
+      "days": "d",
+      "deals": "deals",
+      "noStages": "No deals in pipeline yet"
+    },
+    "bottlenecksSection": {
+      "title": "Loss & Cancellation Reasons Analysis",
+      "dealsCount": "deals",
+      "noLostDeals": "No lost deals recorded",
+      "unspecified": "Unspecified"
+    },
+    "team": {
+      "title": "Sales Representatives Performance Matrix",
+      "rep": "Representative / Agent",
+      "openDeals": "Open Deals",
+      "wonDeals": "Won Deals",
+      "wonValue": "Won Value",
+      "target": "Target",
+      "achievement": "Achievement",
+      "commissions": "Commissions",
+      "overdueTasks": "Overdue Follow-ups",
+      "lastActivity": "Last Activity",
+      "actions": "Actions",
+      "view360": "360° View",
+      "never": "Never",
+      "noMembers": "No active sales team members found"
+    },
+    "bottlenecksTab": {
+      "slaBreaches": "SLA Inactivity Breaches (>48h without follow-up)",
+      "stagnantDeals": "Stagnant Deals (>14 days without progress)",
+      "deal": "Deal",
+      "rep": "Representative",
+      "stage": "Stage",
+      "value": "Value",
+      "hoursOverdue": "hours overdue",
+      "stagnantDays": "days stagnant",
+      "blocker": "Blocker",
+      "noBlocker": "Not specified",
+      "noOverdueDeals": "No overdue deals currently! Great work.",
+      "noStagnantDeals": "No stagnant deals found in active stages."
+    },
+    "distributionTab": {
+      "title": "Unassigned Leads Distribution Hub",
+      "subtitle": "Distribute incoming leads evenly to sales reps or whole teams using automated load balancing",
+      "selectedCount": "Selected",
+      "leads": "leads",
+      "assignToRep": "Assign Directly to Rep",
+      "assignToTeam": "Distribute across Team (Least Loaded)",
+      "selectRep": "Select Representative...",
+      "selectTeam": "Select Sales Team...",
+      "distributeBtn": "Execute Distribution",
+      "distributing": "Distributing...",
+      "noUnassignedLeads": "All leads are currently assigned! No unassigned leads waiting.",
+      "customerName": "Customer Name",
+      "phone": "Phone",
+      "branch": "Branch",
+      "created": "Created At",
+      "unassigned": "Unassigned"
+    },
+    "drawer360": {
+      "title": "Sales Representative 360° Audit",
+      "subtitle": "Comprehensive view of assigned deals, overdue tasks, and activity logs",
+      "assignedDeals": "Assigned Deals",
+      "pendingTasks": "Pending & Overdue Tasks",
+      "recentActivities": "Recent Activities",
+      "noDeals": "No active deals assigned",
+      "noTasks": "No pending tasks",
+      "noActivities": "No recent activity records",
+      "close": "Close"
+    },
+    "alerts": {
+      "selectLeads": "Please select at least one lead to distribute",
+      "selectTarget": "Please choose a sales representative or a sales team",
+      "distributeSuccess": "Leads successfully distributed",
+      "distributeError": "Failed to distribute leads"
+    }
   }
 }

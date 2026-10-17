@@ -490,6 +490,68 @@ async function scanAndAlertOverdueDeals({ tenantId = null, queryable = db } = {}
 }
 
 /**
+ * Query active deals that have exceeded the 48h SLA window without impactful activity
+ */
+async function getOverdueDeals(tenantId, branchId = null, queryable = db) {
+  let where = [
+    `LOWER(COALESCE(d.pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost')`,
+    `d.tenant_id::text = $1::text`
+  ];
+  let params = [String(tenantId)];
+  if (branchId && branchId !== 'ALL') {
+    params.push(String(branchId));
+    where.push(`(d.branch_id::text = $${params.length}::text OR d.branch_id IS NULL)`);
+  }
+
+  const dealsRes = await queryable.query(`
+    SELECT d.id, d.title, d.value, d.pipeline_stage, d.assigned_to, d.custom_fields, d.created_at, d.updated_at,
+           u.name as salesman_name
+    FROM deals d
+    LEFT JOIN users u ON d.assigned_to = u.id
+    WHERE ${where.join(' AND ')}
+    ORDER BY d.updated_at ASC
+    LIMIT 200
+  `, params).catch(() => ({ rows: [] }));
+
+  const overdueList = [];
+  for (const deal of dealsRes.rows) {
+    const actRes = await queryable.query(
+      `SELECT action, created_at FROM activities 
+       WHERE tenant_id::text = $1::text 
+         AND (
+           (LOWER(entity_type) = 'deal' AND entity_id::text = $2::text)
+           OR ($4::text IS NOT NULL AND LOWER(entity_type) = 'customer' AND entity_id::text = $4::text)
+         )
+         AND action = ANY($3::text[])`,
+      [String(tenantId), String(deal.id), IMPACTFUL_ACTIVITY_ACTIONS, deal.client_id ? String(deal.client_id) : null]
+    ).catch(() => ({ rows: [] }));
+
+    const tasksRes = await queryable.query(
+      `SELECT t.id, t.status, t.created_at, t.updated_at, ts.is_final, ts.name as status_name
+       FROM tasks t
+       LEFT JOIN task_statuses ts ON t.status_id = ts.id
+       WHERE t.tenant_id::text = $1::text
+         AND t.parent_type IN ('deal', 'deals')
+         AND t.parent_id::text = $2::text`,
+      [String(tenantId), String(deal.id)]
+    ).catch(() => ({ rows: [] }));
+
+    const sla = calculateDealSla(deal, actRes.rows, tasksRes.rows, new Date());
+    if (sla.isOverdue) {
+      overdueList.push({
+        ...deal,
+        overdue_hours: sla.overdueHours,
+        deadline: sla.deadline,
+        hours_remaining: sla.hoursRemaining,
+        extension_count: sla.extensionCount
+      });
+    }
+  }
+
+  return overdueList;
+}
+
+/**
  * Bootstraps the SLA scanner background timer using standard interval
  */
 let slaScannerInterval = null;
@@ -506,6 +568,7 @@ module.exports = {
   getDealSlaStatus,
   extendDealSla,
   reassignDeal,
+  getOverdueDeals,
   scanAndAlertOverdueDeals,
   startSlaScanner
 };
