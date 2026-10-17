@@ -1082,1066 +1082,1133 @@ const Deals = () => {
           </>
         }
       >
-        <form className="form-grid" style={{ direction: isRTL ? 'rtl' : 'ltr' }}>
-          {isDealLocked && (
-            <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '8px', background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', fontWeight: 700 }}>
-              <AlertCircle size={16} />
-              {isFinalDealStage
-                ? t('deals.dealLockedFinalStage', 'This deal is {stage}...').replace('{stage}', getStageLabel(editingDeal?.pipeline_stage))
-                : t('deals.dealLockedContract', 'This deal has an active contract ({contractNumber})...').replace('{contractNumber}', dealContract?.contract_number)}
-              {isRealEstate && ` ${t('deals.dealLockedReversalHint', 'Use "Cancel Deal & Refund" to reverse it.')}`}
-            </div>
-          )}
-
-          {/* Batch F: Deal SLA Status Card */}
-          {editingDeal && dealSla && (
-            <div style={{
-              gridColumn: 'span 2',
-              background: dealSla.isOverdue ? '#fef2f2' : (dealSla.isTerminal ? '#f8fafc' : '#f0fdf4'),
-              border: `1px solid ${dealSla.isOverdue ? '#fca5a5' : (dealSla.isTerminal ? '#e2e8f0' : '#86efac')}`,
-              borderRadius: '12px',
-              padding: '14px 16px',
-              marginBottom: '8px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Clock size={16} color={dealSla.isOverdue ? '#dc2626' : (dealSla.isTerminal ? '#64748b' : '#16a34a')} />
-                  <span style={{ fontSize: '13px', fontWeight: 800, color: dealSla.isOverdue ? '#991b1b' : (dealSla.isTerminal ? '#475569' : '#166534') }}>
-                    {dealSla.isTerminal
-                      ? t('deals.sla.terminalStatus', 'Deal Finalized (SLA Inactive)')
-                      : (dealSla.isOverdue
-                          ? t('deals.sla.overdueStatus', 'Overdue by {hours}h (SLA Breached)').replace('{hours}', dealSla.overdueHours)
-                          : t('deals.sla.onTrackStatus', 'SLA On Track — {hours}h remaining').replace('{hours}', dealSla.remainingHours)
-                        )}
+        <div style={{ direction: isRTL ? 'rtl' : 'ltr' }}>
+          {/* 5 Simplified Deal Workspace Tabs */}
+          <div style={{
+            display: 'flex',
+            gap: '8px',
+            borderBottom: '2px solid #e2e8f0',
+            paddingBottom: '10px',
+            marginBottom: '18px',
+            overflowX: 'auto',
+            alignItems: 'center'
+          }}>
+            {dealTabs.map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveDealTab(tab.id)}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: '8px',
+                  border: activeDealTab === tab.id ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                  background: activeDealTab === tab.id ? '#0284c7' : '#f8fafc',
+                  color: activeDealTab === tab.id ? 'white' : '#475569',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span style={{
+                    padding: '1px 6px',
+                    borderRadius: '999px',
+                    fontSize: '10px',
+                    fontWeight: 800,
+                    background: activeDealTab === tab.id ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                    color: activeDealTab === tab.id ? 'white' : '#0f172a'
+                  }}>
+                    {tab.badge}
                   </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {canExtendSla && !dealSla.isTerminal && (
-                    <button
-                      type="button"
-                      disabled={extendingSla}
-                      onClick={() => handleExtendSla(editingDeal.id)}
-                      style={{
-                        padding: '5px 12px',
-                        borderRadius: '6px',
-                        border: 'none',
-                        background: '#0284c7',
-                        color: 'white',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: extendingSla ? 'wait' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                    >
-                      <Plus size={13} />
-                      {t('deals.sla.extendSlaBtn', '+48h Extend SLA')}
-                    </button>
-                  )}
-                  {canReassign && (
-                    <button
-                      type="button"
-                      onClick={() => setShowReassignModal(!showReassignModal)}
-                      style={{
-                        padding: '5px 12px',
-                        borderRadius: '6px',
-                        border: '1px solid #cbd5e1',
-                        background: 'white',
-                        color: '#334155',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                    >
-                      <User size={13} />
-                      {t('deals.sla.reassignBtn', 'Reassign Deal')}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', fontSize: '11px', color: '#475569' }}>
-                <div>
-                  <span style={{ color: '#64748b' }}>{t('deals.sla.effectiveDeadline', 'Deadline: {date}').split(':')[0]}: </span>
-                  <strong><span className="num-en">{new Date(dealSla.effectiveDeadline).toLocaleString('en-GB')}</span></strong>
-                </div>
-                <div>
-                  <span style={{ color: '#64748b' }}>{t('deals.sla.lastFollowUp', 'Last follow-up: {date}').split(':')[0]}: </span>
-                  <strong><span className="num-en">{new Date(dealSla.effectiveAnchor).toLocaleString('en-GB')}</span></strong>
-                </div>
-                <div>
-                  <span style={{ color: '#64748b' }}>{t('deals.sla.extensionsCount', 'Extensions: {count}').split(':')[0]}: </span>
-                  <strong>{dealSla.extensionCount > 0 ? t('deals.sla.extensionsCount', 'Extended {count} time(s)').replace('{count}', dealSla.extensionCount) : 0}</strong>
-                </div>
-                {dealSla.lastExtendedBy && (
-                  <div>
-                    <span style={{ color: '#64748b' }}>{t('deals.sla.lastExtendedBy', 'Last extended by: {name}').replace('{name}', dealSla.lastExtendedBy)}</span>
-                  </div>
                 )}
-              </div>
-
-              {dealSla.isOverdue && (
-                <div style={{ marginTop: '8px', fontSize: '11px', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <AlertCircle size={13} />
-                  {t('deals.sla.overdueNotice', 'No impactful client interaction (call, meeting, completed task) recorded in the last 48 hours.')}
-                </div>
-              )}
-
-              {/* Reassign Sub-Panel */}
-              {showReassignModal && (
-                <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e293b' }}>
-                    {t('deals.sla.reassignModalTitle', 'Reassign Deal to Representative')}
-                  </span>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '8px', alignItems: 'center' }}>
-                    <select 
-                      value={reassignTargetId} 
-                      onChange={(e) => setReassignTargetId(e.target.value)}
-                      style={{ padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    >
-                      <option value="">{t('deals.sla.selectRepresentative', '-- Select Representative --')}</option>
-                      {(users || []).filter(u => String(u.id) !== String(editingDeal.assigned_to)).map(u => (
-                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      placeholder={t('deals.sla.reassignReasonPlaceholder', 'Reason for reassignment...')}
-                      value={reassignReason}
-                      onChange={(e) => setReassignReason(e.target.value)}
-                      style={{ padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleReassignDeal(editingDeal.id)}
-                      style={{ padding: '6px 14px', background: '#4f46e5', color: 'white', borderRadius: '6px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      {t('common.confirm', 'Confirm')}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          <div className="form-group full">
-            <label>{t('deals.dealTitle', 'Deal Title')}</label>
-            <input 
-              type="text" 
-              placeholder={t('deals.dealTitlePlaceholder', 'e.g. Website Overhaul Project')}
-              value={formData.title}
-              disabled={isDetailsDisabled}
-              onChange={(e) => setFormData({...formData, title: e.target.value})}
-              required
-            />
+              </button>
+            ))}
           </div>
 
-          {/* REAL ESTATE UNIT SELECTOR */}
-          {isRealEstate && (
-            <div className="unit-select-card">
-                <label style={{ color: '#0369a1', fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                    <Building2 size={14} /> {t('deals.selectPropertyUnit', 'SELECT PROPERTY UNIT (REAL ESTATE)')}
-                </label>
-                {!editingDeal?.unit_id && editingDeal?.source_type === 'property_finder' && (editingDeal?.custom_fields?.pf_listing_reference || editingDeal?.custom_fields?.pf_listing_id || editingDeal?.custom_fields?.pf_project_id) && (
-                  <div style={{ fontSize: '11px', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '6px 10px', borderRadius: '6px', marginBottom: '8px', fontWeight: 700 }}>
-                    Property Finder {editingDeal.custom_fields?.lead_type === 'project' ? 'Project' : 'Listing'} ID:{' '}
-                    <span className="num-en">{editingDeal.custom_fields?.pf_listing_reference || editingDeal.custom_fields?.pf_listing_id || editingDeal.custom_fields?.pf_project_id}</span>
+          <form onSubmit={handleSubmit} className="form-grid">
+            {/* TAB 1: OVERVIEW (نظرة عامة) */}
+            {activeDealTab === 'overview' && (
+              <>
+                {isDealLocked && (
+                  <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '8px', background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', fontWeight: 700 }}>
+                    <AlertCircle size={16} />
+                    {isFinalDealStage
+                      ? t('deals.dealLockedFinalStage', 'This deal is {stage}...').replace('{stage}', getStageLabel(editingDeal?.pipeline_stage))
+                      : t('deals.dealLockedContract', 'This deal has an active contract ({contractNumber})...').replace('{contractNumber}', dealContract?.contract_number)}
+                    {isRealEstate && ` ${t('deals.dealLockedReversalHint', 'Use "Cancel Deal & Refund" to reverse it.')}`}
                   </div>
                 )}
-                {editingDeal?.unit_id && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '8px 12px', marginBottom: '8px' }}>
-                    <Building2 size={16} color="#0284c7" />
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: '13px', color: '#0369a1' }}>
-                        {editingDeal.unit_project ? `${editingDeal.unit_project} • ` : ''}{t('deals.unitProject', 'Unit')} <span className="num-en">{editingDeal.unit_number || editingDeal.unit_name || editingDeal.unit_id}</span>
+
+                {/* Deal SLA Status Card */}
+                {editingDeal && dealSla && (
+                  <div style={{
+                    gridColumn: 'span 2',
+                    background: dealSla.isOverdue ? '#fef2f2' : (dealSla.isTerminal ? '#f8fafc' : '#f0fdf4'),
+                    border: `1px solid ${dealSla.isOverdue ? '#fca5a5' : (dealSla.isTerminal ? '#e2e8f0' : '#86efac')}`,
+                    borderRadius: '12px',
+                    padding: '14px 16px',
+                    marginBottom: '8px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Clock size={16} color={dealSla.isOverdue ? '#dc2626' : (dealSla.isTerminal ? '#64748b' : '#16a34a')} />
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: dealSla.isOverdue ? '#991b1b' : (dealSla.isTerminal ? '#475569' : '#166534') }}>
+                          {dealSla.isTerminal
+                            ? t('deals.sla.terminalStatus', 'Deal Finalized (SLA Inactive)')
+                            : (dealSla.isOverdue
+                                ? t('deals.sla.overdueStatus', 'Overdue by {hours}h (SLA Breached)').replace('{hours}', dealSla.overdueHours)
+                                : t('deals.sla.onTrackStatus', 'SLA On Track — {hours}h remaining').replace('{hours}', dealSla.remainingHours)
+                              )}
+                        </span>
                       </div>
-                      {editingDeal.unit_price && (
-                        <div style={{ fontSize: '11px', color: '#64748b' }}>
-                          {t('deals.unitPriceNotice', 'Listed Price')}: <span className="num-en">{Number(editingDeal.unit_price).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {canExtendSla && !dealSla.isTerminal && (
+                          <button
+                            type="button"
+                            disabled={extendingSla}
+                            onClick={() => handleExtendSla(editingDeal.id)}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              border: 'none',
+                              background: '#0284c7',
+                              color: 'white',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: extendingSla ? 'wait' : 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <Plus size={13} />
+                            {t('deals.sla.extendSlaBtn', '+48h Extend SLA')}
+                          </button>
+                        )}
+                        {canReassign && (
+                          <button
+                            type="button"
+                            onClick={() => setShowReassignModal(!showReassignModal)}
+                            style={{
+                              padding: '5px 12px',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              background: 'white',
+                              color: '#334155',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <User size={13} />
+                            {t('deals.sla.reassignBtn', 'Reassign Deal')}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', fontSize: '11px', color: '#475569' }}>
+                      <div>
+                        <span style={{ color: '#64748b' }}>{t('deals.sla.effectiveDeadline', 'Deadline: {date}').split(':')[0]}: </span>
+                        <strong><span className="num-en">{new Date(dealSla.effectiveDeadline).toLocaleString('en-GB')}</span></strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b' }}>{t('deals.sla.lastFollowUp', 'Last follow-up: {date}').split(':')[0]}: </span>
+                        <strong><span className="num-en">{new Date(dealSla.effectiveAnchor).toLocaleString('en-GB')}</span></strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b' }}>{t('deals.sla.extensionsCount', 'Extensions: {count}').split(':')[0]}: </span>
+                        <strong>{dealSla.extensionCount > 0 ? t('deals.sla.extensionsCount', 'Extended {count} time(s)').replace('{count}', dealSla.extensionCount) : 0}</strong>
+                      </div>
+                      {dealSla.lastExtendedBy && (
+                        <div>
+                          <span style={{ color: '#64748b' }}>{t('deals.sla.lastExtendedBy', 'Last extended by: {name}').replace('{name}', dealSla.lastExtendedBy)}</span>
                         </div>
                       )}
                     </div>
-                  </div>
-                )}
-                <select 
-                    className="ap-input" 
-                    style={{ border: '1px solid #0ea5e9' }}
-                    value={formData.unit_id} 
-                    disabled={isDetailsDisabled || Boolean(editingDeal?.unit_id && (String(editingDeal?.unit_status || '').toLowerCase() === 'reserved' || editingDeal?.custom_fields?.is_unit_reservation || isDealLocked))}
-                    onChange={(e) => handleUnitChange(e.target.value)}
-                >
-                    <option value="">{t('deals.selectAvailableUnit', '-- Select Available Unit --')}</option>
-                    {formData.unit_id && !(reUnits || []).some(u => String(u.id) === String(formData.unit_id)) && (
-                        <option value={formData.unit_id}>
-                            {editingDeal?.unit_project ? `${editingDeal.unit_project} | ` : ''}Unit {editingDeal?.unit_number || formData.unit_id} ({t('deals.currentUnit', 'Current Linked Unit')})
-                        </option>
+
+                    {dealSla.isOverdue && (
+                      <div style={{ marginTop: '8px', fontSize: '11px', color: '#b91c1c', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <AlertCircle size={13} />
+                        {t('deals.sla.overdueNotice', 'No impactful client interaction (call, meeting, completed task) recorded in the last 48 hours.')}
+                      </div>
                     )}
-                    {(reUnits || []).filter(u => String(u.status || '').toLowerCase() === 'available' || String(u.id) === String(formData.unit_id)).map(u => (
-                        <option key={u.id} value={u.id}>
-                            {u.project_name} | Unit {u.unit_number}{u.name && u.name !== u.unit_number ? ` (${u.name})` : ''} ({u.area_sqm || u.area || 0}m²) - {Number(u.price).toLocaleString('en-US')} {t('common.currency', 'EGP')}
-                        </option>
-                    ))}
-                </select>
-                <p style={{ fontSize: '11px', color: '#0284c7', marginTop: '6px' }}>
-                  {isRTL 
-                    ? 'ربط الوحدة يحدد قيمة الصفقة تلقائياً ويتيح التنافس بين عدة صفقات وعملاء دون تجميدها إلا عند الحجز الصريح.'
-                    : t('deals.unitAutoValueHint', 'Selecting a unit will set the deal value. The unit remains available for other prospects until explicitly reserved.')}
-                </p>
-            </div>
-          )}
 
-          {/* DYNAMIC TEMPLATE FIELDS (Polish Sprint) */}
-          {(templateConfig?.deal_fields || []).map(field => (
-            <div key={field.key} className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {getFieldIcon(field.icon)}
-                {field.label || field.key.replace('_', ' ')}
-              </label>
-              <input 
-                type={field.type || 'text'}
-                placeholder={`Enter ${field.label || field.key.replace('_', ' ')}`}
-                value={formData.custom_fields?.[field.key] || ''}
-                disabled={isDetailsDisabled}
-                onChange={(e) => handleCustomFieldChange(field.key, e.target.value)}
-              />
-            </div>
-          ))}
-
-          {!isRealEstate && (
-            <div className="form-group">
-                <label>{t('deals.selectProductOptional', 'Select Product (Optional)')}</label>
-                <select 
-                value={formData.product_id}
-                disabled={isDetailsDisabled}
-                onChange={(e) => handleProductChange(e.target.value)}
-                >
-                <option value="">{t('deals.noSpecificProduct', '-- No Specific Product --')}</option>
-                {(products || []).map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({Number(p.selling_price || 0).toLocaleString('en-US')} {t('common.currency', 'EGP')})</option>
-                ))}
-                </select>
-            </div>
-          )}
-          
-          <div className="form-group">
-            <label>{t('deals.linkToCustomer', 'Link to Customer')}</label>
-            {editingDeal?.client_id && editingDeal?.client_name && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', fontSize: '12px', color: '#475569', marginBottom: '6px', background: '#f8fafc', padding: '6px 10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <User size={13} style={{ opacity: 0.7 }} />
-                  <span>{t('deals.linkedCustomer', 'Linked:')} <strong>{editingDeal.client_name}</strong> {editingDeal.client_company ? `(${editingDeal.client_company})` : ''} {editingDeal.client_phone ? `• ${editingDeal.client_phone}` : ''}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => window.open(`/customers?customer360=${editingDeal.client_id}`, '_blank')}
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                  title="Open Customer 360 Workspace"
-                >
-                  <ExternalLink size={11} /> {t('customers.customer360', 'Customer 360')}
-                </button>
-              </div>
-            )}
-            <select 
-              value={formData.client_id}
-              disabled={isDetailsDisabled}
-              onChange={(e) => setFormData({...formData, client_id: e.target.value})}
-              required
-            >
-              <option value="">{t('deals.selectCustomer', '-- Select Customer --')}</option>
-              {formData.client_id && !(customers || []).some(c => String(c.id) === String(formData.client_id)) && (
-                <option value={formData.client_id}>
-                  {editingDeal?.client_name || `Customer #${formData.client_id}`} ({t('deals.currentCustomer', 'Current Linked Customer')})
-                </option>
-              )}
-              {(customers || []).map(c => (
-                <option key={c.id} value={c.id}>{c.name} {c.company_name ? `(${c.company_name})` : ''}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label>{t('deals.dealValue', 'Deal Value ({currency})').replace('{currency}', t('common.currency', 'EGP'))}</label>
-            <input 
-              type="number" 
-              value={formData.value}
-              onChange={(e) => setFormData({...formData, value: e.target.value})}
-              disabled={isDetailsDisabled}
-            />
-            {editingDeal && Number(formData.value || 0) === 0 && (editingDeal.unit_price || editingDeal.unit_price === 0) && (
-              <div style={{ marginTop: '6px', fontSize: '11px', color: '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '4px 8px', borderRadius: '6px' }}>
-                <span>{t('deals.unitPriceNotice', 'Listed Unit Price')}: <strong className="num-en">{Number(editingDeal.unit_price).toLocaleString('en-US')}</strong> {t('common.currency', 'EGP')}</span>
-                {!isDetailsDisabled && (
-                  <button 
-                    type="button" 
-                    onClick={() => setFormData(prev => ({...prev, value: editingDeal.unit_price}))} 
-                    style={{ background: '#0284c7', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {t('deals.copyUnitPrice', 'Use Unit Price')}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="form-group">
-            <label>{t('deals.pipelineStage', 'Pipeline Stage')}</label>
-            <select 
-              value={formData.pipeline_stage}
-              disabled={isStageDisabled}
-              onChange={(e) => setFormData({...formData, pipeline_stage: e.target.value})}
-            >
-              {(templateConfig?.pipeline || []).map(stage => (
-                <option key={stage} value={stage}>{getStageLabel(stage)}</option>
-              )) || (
-                <>
-                  <option value="discovery">{getStageLabel('discovery')}</option>
-                  <option value="won">{getStageLabel('won')}</option>
-                </>
-              )}
-            </select>
-          </div>
-          
-          {/* Action Metrics & Follow-up */}
-          <div className="form-group">
-              <label>{t('deals.expectedCloseDate', 'Target Close / Follow-up Date')}</label>
-              <input type="date" value={formData.expected_close_date} disabled={isDetailsDisabled} onChange={(e) => setFormData({...formData, expected_close_date: e.target.value})} />
-          </div>
-          {!isRealEstate && (
-            <div className="form-group">
-                <label>{t('deals.winProbability', 'Win Probability (%)')}</label>
-                <input type="number" min="0" max="100" value={formData.probability} disabled={isDetailsDisabled} onChange={(e) => setFormData({...formData, probability: parseInt(e.target.value) || 0})} />
-            </div>
-          )}
-          <div className="form-group full" style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0369a1', fontWeight: 800, fontSize: '13px', marginBottom: '6px' }}>
-                <Clock size={15} /> {t('deals.nextActionRequired', 'Next Action Required')}
-              </label>
-              <input 
-                type="text" 
-                placeholder={t('deals.nextActionPlaceholder', 'e.g. Call client to discuss proposal, send contract draft, site visit follow-up')} 
-                value={formData.next_action} 
-                disabled={isDetailsDisabled} 
-                onChange={(e) => setFormData({...formData, next_action: e.target.value})} 
-                style={{ background: 'white' }}
-              />
-          </div>
-
-          <div className="form-group full">
-            <label>{t('deals.dealOwner', 'Deal Owner')}</label>
-            <select 
-              value={formData.assigned_to}
-              disabled={isReassignDisabled}
-              onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
-            >
-              <option value="">{t('deals.unassignedOption', '-- Unassigned --')}</option>
-              {(users || []).map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.name} {user && String(u.id) === String(user.id) ? `(${t('deals.currentUserBadge', 'Current User / Me')})` : `(${u.role})`}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Phase 3: Lightweight Site Visit Details */}
-          {formData.pipeline_stage?.toLowerCase() === 'site visit' && (
-            <div style={{ gridColumn: 'span 2', background: '#faf5ff', border: '1px solid #d8b4fe', borderRadius: '12px', padding: '16px', marginBottom: '8px' }}>
-              <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#7e22ce', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
-                <MapPin size={16} /> {t('deals.siteVisitInfo', 'Site Visit Information')}
-              </h4>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>{t('deals.visitDateTime', 'Visit Date & Time')}</label>
-                  <input 
-                    type="datetime-local" 
-                    value={formData.custom_fields?.visit_date || ''} 
-                    onChange={(e) => handleCustomFieldChange('visit_date', e.target.value)} 
-                  />
-                </div>
-                <div className="form-group">
-                  <label>{t('deals.visitStatusResult', 'Visit Status / Result')}</label>
-                  <select 
-                    value={formData.custom_fields?.visit_result || 'Scheduled'} 
-                    onChange={(e) => handleCustomFieldChange('visit_result', e.target.value)}
-                  >
-                    <option value="Scheduled">{t('deals.visitResults.scheduled', 'Scheduled')}</option>
-                    <option value="Completed - Highly Interested">{t('deals.visitResults.completedInterested', 'Completed - Highly Interested')}</option>
-                    <option value="Completed - Considering Offer">{t('deals.visitResults.completedConsidering', 'Completed - Considering Offer')}</option>
-                    <option value="Completed - Unit Unsuitable">{t('deals.visitResults.completedUnsuitable', 'Completed - Unit Unsuitable')}</option>
-                    <option value="Postponed">{t('deals.visitResults.postponed', 'Client Postponed')}</option>
-                    <option value="Cancelled">{t('deals.visitResults.cancelled', 'Cancelled')}</option>
-                    <option value="No-Show">{t('deals.visitResults.noShow', 'Client No-Show')}</option>
-                  </select>
-                </div>
-                <div className="form-group full" style={{ marginBottom: 0 }}>
-                  <label>{t('deals.visitFeedbackNotes', 'Visit Feedback & Notes')}</label>
-                  <textarea 
-                    rows="2"
-                    placeholder={t('deals.visitFeedbackPlaceholder', 'Client impressions, preferences discussed during the site visit...')} 
-                    value={formData.custom_fields?.visit_notes || ''} 
-                    onChange={(e) => handleCustomFieldChange('visit_notes', e.target.value)} 
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Phase 2: Unit Reservation & Extension Management */}
-          {isRealEstate && editingDeal?.unit_id && !['won', 'closed'].includes(editingDeal?.pipeline_stage?.toLowerCase()) && editingDeal?.pipeline_stage?.toLowerCase() !== 'lost' && (
-            <div style={{ gridColumn: 'span 2', background: '#f0fdf4', border: '2px solid #bbf7d0', borderRadius: '12px', padding: '18px', marginTop: '6px', marginBottom: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#166534' }}>
-                  <Building2 size={18} color="#16a34a"/> {t('deals.unitReservationStatus', 'Unit Reservation Status')}
-                </h4>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleCloseModal();
-                      navigate(`/units-registry?unit_id=${editingDeal.unit_id}`);
-                    }}
-                    style={{
-                      padding: '4px 10px',
-                      background: '#0284c7',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                  >
-                    <Layers size={12} /> {isRTL ? 'بطاقة الوحدة الشاملة' : 'Unit Overview Card'}
-                  </button>
-                  <div style={{ padding: '4px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '6px', fontSize: '11px', fontWeight: 800, border: '1px solid #86efac' }}>
-                    {getReservationStatusLabel(editingDeal.unit_status || 'Available')}
+                    {/* Reassign Sub-Panel */}
+                    {showReassignModal && (
+                      <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e293b' }}>
+                          {t('deals.sla.reassignModalTitle', 'Reassign Deal to Representative')}
+                        </span>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '8px', alignItems: 'center' }}>
+                          <select 
+                            value={reassignTargetId} 
+                            onChange={(e) => setReassignTargetId(e.target.value)}
+                            style={{ padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                          >
+                            <option value="">{t('deals.sla.selectRepresentative', '-- Select Representative --')}</option>
+                            {(users || []).filter(u => String(u.id) !== String(editingDeal.assigned_to)).map(u => (
+                              <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            placeholder={t('deals.sla.reassignReasonPlaceholder', 'Reason for reassignment...')}
+                            value={reassignReason}
+                            onChange={(e) => setReassignReason(e.target.value)}
+                            style={{ padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleReassignDeal(editingDeal.id)}
+                            style={{ padding: '6px 14px', background: '#4f46e5', color: 'white', borderRadius: '6px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            {t('common.confirm', 'Confirm')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px', fontSize: '12px' }}>
-                <div>
-                  <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.linkedUnit', 'Linked Unit:')}</span>
-                  <span style={{ fontWeight: 800, color: '#1e293b' }}>
-                    {editingDeal.unit_project} • {t('deals.unitProject', 'Unit')} <span className="num-en">{editingDeal.unit_number}</span>
-                  </span>
-                </div>
-                <div>
-                  <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.reservationExpires', 'Reservation Expires:')}</span>
-                  <span style={{ fontWeight: 800, color: editingDeal.unit_reservation_expires_at && new Date(editingDeal.unit_reservation_expires_at) < new Date() ? '#dc2626' : '#166534' }}>
-                    {editingDeal.unit_reservation_expires_at ? <span className="num-en">{new Date(editingDeal.unit_reservation_expires_at).toLocaleString('en-GB')}</span> : (String(editingDeal.unit_status || '').toLowerCase() === 'reserved' ? t('deals.active', 'Active') : (isRTL ? 'متاحة (غير محجوزة)' : 'Available (Not Reserved)'))}
-                  </span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #dcfce7', gap: '8px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 700 }}>
-                  {String(editingDeal.unit_status || '').toLowerCase() === 'reserved'
-                    ? (editingDeal.unit_reservation_extension_count > 0 
-                        ? t('deals.extendedTimes', 'Extended {count} time(s)').replace('{count}', editingDeal.unit_reservation_extension_count) 
-                        : t('deals.activeReservation', 'Active Reservation'))
-                    : (isRTL ? 'الوحدة متاحة لعروض متعددة — يمكنك تأكيد الحجز لمدة 48 ساعة عند الجدية' : 'Unit is available for multi-deal inquiries — reserve explicitly when buyer commits')}
-                </span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {String(editingDeal.unit_status || '').toLowerCase() !== 'reserved' && (
-                    <button
-                      type="button"
-                      onClick={() => handleReserveUnit(editingDeal.id)}
-                      style={{ padding: '6px 14px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                    >
-                      <Clock size={12} /> {isRTL ? 'حجز الوحدة (48 ساعة)' : 'Reserve Unit (48h)'}
-                    </button>
-                  )}
-                  {String(editingDeal.unit_status || '').toLowerCase() === 'reserved' && canExtendSla && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => handleExtendReservation(editingDeal.id, 24)}
-                        style={{ padding: '6px 14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        {t('deals.extend24h', 'Extend +24h')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleExtendReservation(editingDeal.id, 48)}
-                        style={{ padding: '6px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                      >
-                        {t('deals.extend48h', 'Extend +48h')}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Deal 360 In-Context Workspace: Contract, Installments, Commissions, Handover */}
-          {isRealEstate && editingDeal?.id && (
-            <div style={{ gridColumn: 'span 2', background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginTop: '6px', marginBottom: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <FileText size={18} color="#2563eb" />
-                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>
-                    {isRTL ? 'مساحة العمل المتكاملة للصفقة (Deal 360)' : 'Deal 360 Workspace'}
-                  </h4>
-                </div>
-                {contractLoading ? (
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>{t('common.loading', 'Loading...')}</span>
-                ) : dealContract ? (
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#1d4ed8' }}>
-                    <span className="num-en">{dealContract.contract_number}</span> • {getContractStatusLabel(dealContract.status)}
-                    {dealContract.expiry_state === 'expiring_soon' && ` • ${t('deals.expiresInDays', 'expires in {days}d').replace('{days}', dealContract.days_remaining)}`}
-                    {dealContract.expiry_state === 'expired' && ` • ${t('deals.expired', 'EXPIRED')}`}
-                  </span>
-                ) : (
-                  <span style={{ fontSize: '11px', color: '#64748b' }}>{t('deals.noContractYet', 'No contract yet')}</span>
                 )}
-              </div>
 
-              {/* In-Context Tabs Navigation */}
-              <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px', marginBottom: '14px', overflowX: 'auto' }}>
-                {[
-                  { id: 'summary', label: isRTL ? 'نظرة عامة' : 'Summary', icon: <Layers size={13} /> },
-                  { id: 'contract', label: t('deals.relatedLinks.contract', 'Contract'), icon: <FileText size={13} />, count: dealContract ? 1 : 0 },
-                  { id: 'installments', label: t('deals.relatedLinks.installments', 'Installments'), icon: <CreditCard size={13} />, count: (dealInstallments || []).length },
-                  { id: 'commissions', label: t('deals.relatedLinks.commissions', 'Commissions'), icon: <Award size={13} />, count: (dealCommissions?.items || []).length },
-                  { id: 'handover', label: t('deals.relatedLinks.handover', 'Handover'), icon: <Key size={13} />, count: dealHandover ? 1 : 0 },
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveRelatedTab(tab.id)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      border: activeRelatedTab === tab.id ? '1px solid #2563eb' : '1px solid #e2e8f0',
-                      background: activeRelatedTab === tab.id ? '#2563eb' : 'white',
-                      color: activeRelatedTab === tab.id ? 'white' : '#475569',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      whiteSpace: 'nowrap'
-                    }}
+                {/* Quick Summary Context Badges */}
+                <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '8px' }}>
+                  <div 
+                    onClick={() => setActiveDealTab('customer')}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', cursor: 'pointer' }}
                   >
-                    {tab.icon}
-                    <span>{tab.label}</span>
-                    {tab.count !== undefined && tab.count > 0 && (
-                      <span style={{
-                        padding: '1px 5px',
-                        borderRadius: '999px',
-                        fontSize: '10px',
-                        background: activeRelatedTab === tab.id ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
-                        color: activeRelatedTab === tab.id ? 'white' : '#1e293b'
-                      }}>
-                        {tab.count}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                      <User size={15} color="#4f46e5" />
+                      <div>
+                        <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>{t('deals.customer', 'Customer')}</span>
+                        <strong style={{ color: '#0f172a' }}>{selectedCustomer?.name || editingDeal?.client_name || (isRTL ? 'غير محدد' : 'Unassigned')}</strong>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: 700 }}>
+                      {formData.client_id ? (isRTL ? 'تعديل ←' : 'Change →') : (isRTL ? '+ تحديد' : '+ Select')}
+                    </span>
+                  </div>
+
+                  {isRealEstate ? (
+                    <div 
+                      onClick={() => setActiveDealTab('unit')}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0f9ff', padding: '10px 14px', borderRadius: '8px', border: '1px solid #bae6fd', cursor: 'pointer' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                        <Building2 size={15} color="#0284c7" />
+                        <div>
+                          <span style={{ color: '#0369a1', fontSize: '11px', display: 'block' }}>{t('deals.unit', 'Unit')}</span>
+                          <strong style={{ color: '#0369a1' }}>
+                            {selectedUnit ? `${selectedUnit.project_name || ''} Unit ${selectedUnit.unit_number}` : (editingDeal?.unit_number ? `Unit ${editingDeal.unit_number}` : (isRTL ? 'غير مربوطة' : 'None'))}
+                          </strong>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: 700 }}>
+                        {formData.unit_id ? (isRTL ? 'الحجز ←' : 'Reservation →') : (isRTL ? '+ ربط' : '+ Link')}
                       </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* TAB 1: SUMMARY / QUICK GLANCE */}
-              {activeRelatedTab === 'summary' && (
-                <div>
-                  {!dealContract && !contractLoading && editingDeal?.unit_id && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', padding: '10px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px' }}>
-                      <span style={{ fontSize: '12px', color: '#1e40af', fontWeight: 600 }}>{t('deals.canOriginateContract', 'This deal can originate a sales contract.')}</span>
-                      <button
-                        type="button"
-                        onClick={handleCreateContract}
-                        style={{ padding: '6px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
-                      >
-                        <FileText size={13} /> {t('deals.createSalesContract', 'Create Sales Contract')}
-                      </button>
-                    </div>
-                  )}
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
-                    {/* Contract Card */}
-                    <div 
-                      onClick={() => setActiveRelatedTab('contract')}
-                      style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', cursor: 'pointer', transition: 'all 0.15s ease' }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <FileText size={12} color="#2563eb" /> {t('deals.relatedLinks.contract', 'Contract')}
-                        </span>
-                        <ArrowRight size={12} color="#94a3b8" />
-                      </div>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
-                        {dealContract ? <span className="num-en">{dealContract.contract_number}</span> : <span style={{ color: '#94a3b8' }}>—</span>}
-                      </div>
-                      <div style={{ fontSize: '10px', color: dealContract?.status === 'Active' ? '#16a34a' : '#d97706', marginTop: '2px', fontWeight: 700 }}>
-                        {dealContract ? getContractStatusLabel(dealContract.status) : (isRTL ? 'غير منشأ' : 'Not Created')}
-                      </div>
-                    </div>
-
-                    {/* Installments Card */}
-                    <div 
-                      onClick={() => setActiveRelatedTab('installments')}
-                      style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', cursor: 'pointer', transition: 'all 0.15s ease' }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <CreditCard size={12} color="#0d9488" /> {t('deals.relatedLinks.installments', 'Installments')}
-                        </span>
-                        <ArrowRight size={12} color="#94a3b8" />
-                      </div>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
-                        {(dealInstallments || []).length > 0 ? (
-                          <span>{(dealInstallments || []).length} {isRTL ? 'قسط' : 'installments'}</span>
-                        ) : (
-                          <span style={{ color: '#94a3b8' }}>—</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-                        {(dealInstallments || []).filter(i => i.is_overdue).length > 0 ? (
-                          <span style={{ color: '#dc2626', fontWeight: 800 }}>
-                            {(dealInstallments || []).filter(i => i.is_overdue).length} {isRTL ? 'متأخر' : 'overdue'}
-                          </span>
-                        ) : (
-                          <span>{isRTL ? 'منتظم' : 'On track'}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Commissions Card */}
-                    <div 
-                      onClick={() => setActiveRelatedTab('commissions')}
-                      style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', cursor: 'pointer', transition: 'all 0.15s ease' }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Award size={12} color="#d97706" /> {t('deals.relatedLinks.commissions', 'Commissions')}
-                        </span>
-                        <ArrowRight size={12} color="#94a3b8" />
-                      </div>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
-                        {dealCommissions?.summary?.total_commissions !== undefined ? (
-                          <span><span className="num-en">{Number(dealCommissions.summary.total_commissions).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</span>
-                        ) : (
-                          <span style={{ color: '#94a3b8' }}>—</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-                        {dealCommissions?.summary?.total_pending > 0 ? (
-                          <span style={{ color: '#d97706', fontWeight: 700 }}>
-                            {isRTL ? 'معلق: ' : 'Pending: '}<span className="num-en">{Number(dealCommissions.summary.total_pending).toLocaleString('en-US')}</span>
-                          </span>
-                        ) : (
-                          <span>{isRTL ? 'لا توجد معلقات' : 'No pending'}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Handover Card */}
-                    <div 
-                      onClick={() => setActiveRelatedTab('handover')}
-                      style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', cursor: 'pointer', transition: 'all 0.15s ease' }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Key size={12} color="#7c3aed" /> {t('deals.relatedLinks.handover', 'Handover')}
-                        </span>
-                        <ArrowRight size={12} color="#94a3b8" />
-                      </div>
-                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
-                        {dealHandover ? (
-                          <span>{dealHandover.status}</span>
-                        ) : (
-                          <span style={{ color: '#94a3b8' }}>{isRTL ? 'غير مجدول' : 'Unscheduled'}</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-                        {dealHandover?.scheduled_date ? (
-                          <span><span className="num-en">{dealHandover.scheduled_date.split('T')[0]}</span></span>
-                        ) : (
-                          <span>{isRTL ? 'بانتظار الإتمام' : 'Pending'}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: CONTRACT IN-CONTEXT */}
-              {activeRelatedTab === 'contract' && (
-                <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
-                      {dealContract ? (
-                        <span>{t('deals.relatedLinks.contract', 'Contract')}: <span className="num-en">{dealContract.contract_number}</span></span>
-                      ) : (
-                        <span>{t('deals.noContractYet', 'No contract yet for this deal')}</span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => window.open(`/contracts?deal_id=${editingDeal.id}`, '_blank')}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      <ExternalLink size={12} /> {isRTL ? 'فتح صفحة العقود' : 'Open Contracts Page'}
-                    </button>
-                  </div>
-
-                  {dealContract ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '12px' }}>
-                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
-                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.status', 'Status')}</span>
-                        <strong style={{ color: '#0f172a' }}>{getContractStatusLabel(dealContract.status)}</strong>
-                      </div>
-                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
-                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.contractValue', 'Contract Value')}</span>
-                        <strong style={{ color: '#0f172a' }}><span className="num-en">{Number(dealContract.contract_value || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
-                      </div>
-                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
-                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.downPayment', 'Down Payment')}</span>
-                        <strong style={{ color: '#16a34a' }}><span className="num-en">{Number(dealContract.down_payment || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
-                      </div>
-                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
-                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.remainingAmount', 'Remaining')}</span>
-                        <strong style={{ color: '#dc2626' }}><span className="num-en">{Number(dealContract.remaining_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
-                      </div>
-                      {dealContract.start_date && (
-                        <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
-                          <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'تاريخ البدء' : 'Start Date'}</span>
-                          <span className="num-en">{dealContract.start_date.split('T')[0]}</span>
-                        </div>
-                      )}
-                      {dealContract.end_date && (
-                        <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
-                          <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'تاريخ الانتهاء' : 'End Date'}</span>
-                          <span className="num-en">{dealContract.end_date.split('T')[0]}</span>
-                        </div>
-                      )}
                     </div>
                   ) : (
-                    <div style={{ textAlign: 'center', padding: '16px' }}>
-                      <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '10px' }}>
-                        {isRTL ? 'لا يوجد عقد صادر لهذه الصفقة حتى الآن. يمكنك إنشاء عقد مبيعات بالبيانات المحددة.' : 'No contract has been issued for this deal yet. You can originate a sales contract using current deal details.'}
-                      </p>
-                      {editingDeal?.unit_id && (
-                        <button
-                          type="button"
-                          onClick={handleCreateContract}
-                          style={{ padding: '8px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                    <div 
+                      onClick={() => setActiveDealTab('followup')}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', cursor: 'pointer' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                        <Clock size={15} color="#16a34a" />
+                        <div>
+                          <span style={{ color: '#64748b', fontSize: '11px', display: 'block' }}>{t('deals.nextAction', 'Next Action')}</span>
+                          <strong style={{ color: '#0f172a' }}>{formData.next_action || (isRTL ? 'لا يوجد إجراء' : 'None')}</strong>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#0284c7', fontWeight: 700 }}>
+                        {isRTL ? 'المتابعة ←' : 'Follow-up →'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-group full">
+                  <label>{t('deals.dealTitle', 'Deal Title')}</label>
+                  <input 
+                    type="text" 
+                    placeholder={t('deals.dealTitlePlaceholder', 'e.g. Website Overhaul Project')}
+                    value={formData.title}
+                    disabled={isDetailsDisabled}
+                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>{t('deals.pipelineStage', 'Pipeline Stage')}</label>
+                  <select 
+                    value={formData.pipeline_stage}
+                    disabled={isStageDisabled}
+                    onChange={(e) => setFormData({...formData, pipeline_stage: e.target.value})}
+                  >
+                    {(templateConfig?.pipeline || []).map(stage => (
+                      <option key={stage} value={stage}>{getStageLabel(stage)}</option>
+                    )) || (
+                      <>
+                        <option value="discovery">{getStageLabel('discovery')}</option>
+                        <option value="won">{getStageLabel('won')}</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>{t('deals.dealValue', 'Deal Value ({currency})').replace('{currency}', t('common.currency', 'EGP'))}</label>
+                  <input 
+                    type="number" 
+                    value={formData.value}
+                    onChange={(e) => setFormData({...formData, value: e.target.value})}
+                    disabled={isDetailsDisabled}
+                  />
+                  {editingDeal && Number(formData.value || 0) === 0 && (editingDeal.unit_price || editingDeal.unit_price === 0) && (
+                    <div style={{ marginTop: '6px', fontSize: '11px', color: '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '4px 8px', borderRadius: '6px' }}>
+                      <span>{t('deals.unitPriceNotice', 'Listed Unit Price')}: <strong className="num-en">{Number(editingDeal.unit_price).toLocaleString('en-US')}</strong> {t('common.currency', 'EGP')}</span>
+                      {!isDetailsDisabled && (
+                        <button 
+                          type="button" 
+                          onClick={() => setFormData(prev => ({...prev, value: editingDeal.unit_price}))} 
+                          style={{ background: '#0284c7', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
                         >
-                          <FileText size={14} style={{ verticalAlign: 'middle', marginInlineEnd: '4px' }} /> {t('deals.createSalesContract', 'Create Sales Contract')}
+                          {t('deals.copyUnitPrice', 'Use Unit Price')}
                         </button>
                       )}
                     </div>
                   )}
                 </div>
-              )}
 
-              {/* TAB 3: INSTALLMENTS IN-CONTEXT */}
-              {activeRelatedTab === 'installments' && (
-                <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
-                      {t('deals.relatedLinks.installments', 'Installments & Payment Schedule')}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => window.open(`/installments?deal_id=${editingDeal.id}`, '_blank')}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      <ExternalLink size={12} /> {isRTL ? 'فتح صفحة الأقساط' : 'Open Installments Page'}
-                    </button>
-                  </div>
-
-                  {installmentsLoading ? (
-                    <div style={{ textAlign: 'center', padding: '14px', color: '#64748b', fontSize: '12px' }}>{t('common.loading', 'Loading installments...')}</div>
-                  ) : (dealInstallments || []).length > 0 ? (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                        <thead>
-                          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: isRTL ? 'right' : 'left' }}>
-                            <th style={{ padding: '6px 8px' }}>#</th>
-                            <th style={{ padding: '6px 8px' }}>{isRTL ? 'تاريخ الاستحقاق' : 'Due Date'}</th>
-                            <th style={{ padding: '6px 8px' }}>{isRTL ? 'القيمة' : 'Amount'}</th>
-                            <th style={{ padding: '6px 8px' }}>{isRTL ? 'المدفوع' : 'Paid'}</th>
-                            <th style={{ padding: '6px 8px' }}>{isRTL ? 'الحالة' : 'Status'}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(dealInstallments || []).slice(0, 5).map(inst => (
-                            <tr key={inst.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '6px 8px', fontWeight: 700 }}>{inst.installment_number}</td>
-                              <td style={{ padding: '6px 8px' }}><span className="num-en">{inst.due_date ? inst.due_date.split('T')[0] : '—'}</span></td>
-                              <td style={{ padding: '6px 8px', fontWeight: 700 }}><span className="num-en">{Number(inst.amount).toLocaleString('en-US')}</span></td>
-                              <td style={{ padding: '6px 8px', color: '#16a34a' }}><span className="num-en">{Number(inst.paid_amount || 0).toLocaleString('en-US')}</span></td>
-                              <td style={{ padding: '6px 8px' }}>
-                                <span style={{
-                                  padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800,
-                                  background: inst.status === 'Paid' ? '#dcfce7' : inst.is_overdue ? '#fee2e2' : '#fef3c7',
-                                  color: inst.status === 'Paid' ? '#15803d' : inst.is_overdue ? '#b91c1c' : '#b45309'
-                                }}>
-                                  {inst.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {(dealInstallments || []).length > 5 && (
-                        <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '11px', color: '#64748b' }}>
-                          {isRTL ? `عرض 5 من إجمالي ${dealInstallments.length} قسط. افتح صفحة الأقساط للمزيد.` : `Showing 5 of ${dealInstallments.length} installments. Open page for full list.`}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
-                      {isRTL ? 'لم يتم إنشاء جدول أقساط لهذه الصفقة بعد.' : 'No installments generated yet for this deal.'}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TAB 4: COMMISSIONS IN-CONTEXT */}
-              {activeRelatedTab === 'commissions' && (
-                <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
-                      {t('deals.relatedLinks.commissions', 'Broker & Agent Commissions')}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => window.open(`/commissions?deal_id=${editingDeal.id}`, '_blank')}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      <ExternalLink size={12} /> {isRTL ? 'فتح صفحة العمولات' : 'Open Commissions Page'}
-                    </button>
-                  </div>
-
-                  {commissionsLoading ? (
-                    <div style={{ textAlign: 'center', padding: '14px', color: '#64748b', fontSize: '12px' }}>{t('common.loading', 'Loading commissions...')}</div>
-                  ) : (dealCommissions?.items || []).length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {(dealCommissions.items || []).map(comm => (
-                        <div key={comm.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
-                          <div>
-                            <strong style={{ color: '#1e293b' }}>{comm.beneficiary_name}</strong>
-                            <span style={{ fontSize: '11px', color: '#64748b', marginInlineStart: '6px' }}>({comm.beneficiary_type})</span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontWeight: 800, color: '#0f172a' }}>
-                              <span className="num-en">{Number(comm.calculated_amount).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}
-                            </span>
-                            <span style={{
-                              padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800,
-                              background: comm.status === 'Paid' ? '#dcfce7' : comm.status === 'Approved' ? '#dbeafe' : '#fef3c7',
-                              color: comm.status === 'Paid' ? '#15803d' : comm.status === 'Approved' ? '#1d4ed8' : '#b45309'
-                            }}>
-                              {comm.status}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
-                      {isRTL ? 'لا توجد عمولات مسجلة لهذه الصفقة بعد.' : 'No commissions recorded for this deal yet.'}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TAB 5: HANDOVER IN-CONTEXT */}
-              {activeRelatedTab === 'handover' && (
-                <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
-                      {t('deals.relatedLinks.handover', 'Unit Handover & Inspection Milestone')}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => window.open(`/handover?deal_id=${editingDeal.id}`, '_blank')}
-                      style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      <ExternalLink size={12} /> {isRTL ? 'فتح صفحة التسليم' : 'Open Handover Page'}
-                    </button>
-                  </div>
-
-                  {handoverLoading ? (
-                    <div style={{ textAlign: 'center', padding: '14px', color: '#64748b', fontSize: '12px' }}>{t('common.loading', 'Loading handover details...')}</div>
-                  ) : dealHandover ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '12px' }}>
-                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
-                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'حالة التسليم' : 'Status'}</span>
-                        <strong style={{ color: dealHandover.status === 'Handed Over' ? '#16a34a' : '#7c3aed' }}>{dealHandover.status}</strong>
-                      </div>
-                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
-                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'الموعد المحدد' : 'Scheduled Date'}</span>
-                        <strong className="num-en">{dealHandover.scheduled_date ? dealHandover.scheduled_date.split('T')[0] : '—'}</strong>
-                      </div>
-                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
-                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'تسليم المفاتيح' : 'Keys Delivered'}</span>
-                        <span style={{ color: dealHandover.keys_handed_over ? '#16a34a' : '#64748b', fontWeight: 700 }}>
-                          {dealHandover.keys_handed_over ? (isRTL ? 'تم التسليم ✓' : 'Yes ✓') : (isRTL ? 'معلق' : 'No')}
-                        </span>
-                      </div>
-                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
-                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'شهادة المخالصة' : 'Clearance Certificate'}</span>
-                        <span style={{ color: dealHandover.clearance_certificate ? '#16a34a' : '#64748b', fontWeight: 700 }}>
-                          {dealHandover.clearance_certificate ? (isRTL ? 'معتمدة ✓' : 'Certified ✓') : (isRTL ? 'معلق' : 'No')}
-                        </span>
-                      </div>
-                      {dealHandover.snagging_notes && (
-                        <div style={{ gridColumn: '1 / -1', background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
-                          <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'ملاحظات المعاينة الفنية' : 'Snagging Notes'}</span>
-                          <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#1e293b' }}>{dealHandover.snagging_notes}</p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
-                      {isRTL ? 'لم يتم جدولة محضر تسليم لهذه الصفقة بعد.' : 'No handover milestone scheduled yet for this deal.'}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Phase 2.5: Deal Cancellation & Refund Management */}
-          {isRealEstate && editingDeal?.id && (
-            <div style={{ gridColumn: 'span 2', background: cancellationRecord ? '#fff1f2' : '#f8fafc', border: `2px solid ${cancellationRecord ? '#fca5a5' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px', marginTop: '6px', marginBottom: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: cancellationRecord || showCancelForm ? '12px' : 0 }}>
-                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: cancellationRecord ? '#9f1239' : '#475569' }}>
-                  <AlertCircle size={16} color={cancellationRecord ? '#e11d48' : '#64748b'} />
-                  {cancellationRecord ? t('deals.cancellationRefundAudit', 'Deal Cancellation & Refund Audit') : t('deals.cancellationUnitRelease', 'Cancellation & Unit Release')}
-                </h4>
-                {cancellationRecord ? (
-                  <span style={{
-                    padding: '3px 8px',
-                    borderRadius: '6px',
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    background: cancellationRecord.refund_status === 'Processed' ? '#dcfce7' : cancellationRecord.refund_status === 'Pending' ? '#fef3c7' : '#f1f5f9',
-                    color: cancellationRecord.refund_status === 'Processed' ? '#15803d' : cancellationRecord.refund_status === 'Pending' ? '#b45309' : '#475569'
-                  }}>
-                    {t('deals.refundStatusLabel', 'Refund: {status}').replace('{status}', getRefundStatusLabel(cancellationRecord.refund_status))}
-                  </span>
-                ) : canDeleteDeal && editingDeal?.pipeline_stage?.toLowerCase() !== 'lost' && (
-                  <button
-                    type="button"
-                    onClick={() => setShowCancelForm(!showCancelForm)}
-                    style={{ padding: '4px 10px', background: showCancelForm ? '#f1f5f9' : '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                <div className="form-group">
+                  <label>{t('deals.dealOwner', 'Deal Owner')}</label>
+                  <select 
+                    value={formData.assigned_to}
+                    disabled={isReassignDisabled}
+                    onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
                   >
-                    {showCancelForm ? t('common.close', 'Close') : t('deals.cancelDealAndRefund', 'Cancel Deal & Refund')}
-                  </button>
-                )}
-              </div>
-
-              {/* Cancellation Details if already cancelled */}
-              {cancellationRecord && (
-                <div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '11px', marginBottom: '10px' }}>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.totalCollected', 'Total Collected:')}</span>
-                      <strong style={{ color: '#1e293b' }}><span className="num-en">{Number(cancellationRecord.total_paid_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.penaltyDeduction', 'Penalty Deduction:')}</span>
-                      <strong style={{ color: '#b91c1c' }}>-<span className="num-en">{Number(cancellationRecord.deduction_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.refundableBalance', 'Refundable Balance:')}</span>
-                      <strong style={{ color: '#047857' }}><span className="num-en">{Number(cancellationRecord.refundable_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#475569', marginBottom: '10px', background: '#fff', padding: '8px', borderRadius: '6px', border: '1px solid #fecdd3' }}>
-                    <strong>{t('deals.cancellationReasonLabel', 'Reason:')}</strong> {cancellationRecord.cancellation_reason}
-                  </div>
-                  {cancellationRecord.refund_status === 'Pending' && (
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateRefund(cancellationRecord.id, 'Processed')}
-                      style={{ padding: '6px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      {t('deals.markRefundProcessed', 'Mark Refund as Processed')}
-                    </button>
-                  )}
+                    <option value="">{t('deals.unassignedOption', '-- Unassigned --')}</option>
+                    {(users || []).map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} {user && String(u.id) === String(user.id) ? `(${t('deals.currentUserBadge', 'Current User / Me')})` : `(${u.role})`}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              )}
 
-              {/* Cancellation Form */}
-              {!cancellationRecord && showCancelForm && (
-                <div style={{ background: '#fff', border: '1px dashed #f87171', borderRadius: '8px', padding: '12px' }}>
-                  <div className="form-group" style={{ marginBottom: '8px' }}>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#991b1b' }}>{t('deals.cancellationReasonReq', 'Cancellation Reason (Required)')}</label>
-                    <textarea
-                      rows="2"
-                      placeholder={t('deals.cancellationReasonPlaceholder', 'Specify buyer withdrawal reason, financial default, or agreement...')}
-                      value={cancelFormData.reason}
-                      onChange={(e) => setCancelFormData({ ...cancelFormData, reason: e.target.value })}
-                      style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                {!isRealEstate && (
+                  <div className="form-group">
+                    <label>{t('deals.winProbability', 'Win Probability (%)')}</label>
+                    <input type="number" min="0" max="100" value={formData.probability} disabled={isDetailsDisabled} onChange={(e) => setFormData({...formData, probability: parseInt(e.target.value) || 0})} />
+                  </div>
+                )}
+
+                {/* Dynamic Template Fields */}
+                {(templateConfig?.deal_fields || []).map(field => (
+                  <div key={field.key} className="form-group">
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {getFieldIcon(field.icon)}
+                      {field.label || field.key.replace('_', ' ')}
+                    </label>
+                    <input 
+                      type={field.type || 'text'}
+                      placeholder={`Enter ${field.label || field.key.replace('_', ' ')}`}
+                      value={formData.custom_fields?.[field.key] || ''}
+                      disabled={isDetailsDisabled}
+                      onChange={(e) => handleCustomFieldChange(field.key, e.target.value)}
                     />
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                ))}
+
+                {/* Deal Cancellation & Refund Management */}
+                {isRealEstate && editingDeal?.id && (
+                  <div style={{ gridColumn: 'span 2', background: cancellationRecord ? '#fff1f2' : '#f8fafc', border: `2px solid ${cancellationRecord ? '#fca5a5' : '#e2e8f0'}`, borderRadius: '12px', padding: '16px', marginTop: '6px', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: cancellationRecord || showCancelForm ? '12px' : 0 }}>
+                      <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: cancellationRecord ? '#9f1239' : '#475569' }}>
+                        <AlertCircle size={16} color={cancellationRecord ? '#e11d48' : '#64748b'} />
+                        {cancellationRecord ? t('deals.cancellationRefundAudit', 'Deal Cancellation & Refund Audit') : t('deals.cancellationUnitRelease', 'Cancellation & Unit Release')}
+                      </h4>
+                      {cancellationRecord ? (
+                        <span style={{
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          textTransform: 'uppercase',
+                          background: cancellationRecord.refund_status === 'Processed' ? '#dcfce7' : cancellationRecord.refund_status === 'Pending' ? '#fef3c7' : '#f1f5f9',
+                          color: cancellationRecord.refund_status === 'Processed' ? '#15803d' : cancellationRecord.refund_status === 'Pending' ? '#b45309' : '#475569'
+                        }}>
+                          {t('deals.refundStatusLabel', 'Refund: {status}').replace('{status}', getRefundStatusLabel(cancellationRecord.refund_status))}
+                        </span>
+                      ) : canDeleteDeal && editingDeal?.pipeline_stage?.toLowerCase() !== 'lost' && (
+                        <button
+                          type="button"
+                          onClick={() => setShowCancelForm(!showCancelForm)}
+                          style={{ padding: '4px 10px', background: showCancelForm ? '#f1f5f9' : '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          {showCancelForm ? t('common.close', 'Close') : t('deals.cancelDealAndRefund', 'Cancel Deal & Refund')}
+                        </button>
+                      )}
+                    </div>
+
+                    {cancellationRecord && (
+                      <div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '11px', marginBottom: '10px' }}>
+                          <div>
+                            <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.totalCollected', 'Total Collected:')}</span>
+                            <strong style={{ color: '#1e293b' }}><span className="num-en">{Number(cancellationRecord.total_paid_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.penaltyDeduction', 'Penalty Deduction:')}</span>
+                            <strong style={{ color: '#b91c1c' }}>-<span className="num-en">{Number(cancellationRecord.deduction_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.refundableBalance', 'Refundable Balance:')}</span>
+                            <strong style={{ color: '#047857' }}><span className="num-en">{Number(cancellationRecord.refundable_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#475569', marginBottom: '10px', background: '#fff', padding: '8px', borderRadius: '6px', border: '1px solid #fecdd3' }}>
+                          <strong>{t('deals.cancellationReasonLabel', 'Reason:')}</strong> {cancellationRecord.cancellation_reason}
+                        </div>
+                        {cancellationRecord.refund_status === 'Pending' && (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateRefund(cancellationRecord.id, 'Processed')}
+                            style={{ padding: '6px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            {t('deals.markRefundProcessed', 'Mark Refund as Processed')}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {!cancellationRecord && showCancelForm && (
+                      <div style={{ background: '#fff', border: '1px dashed #f87171', borderRadius: '8px', padding: '12px' }}>
+                        <div className="form-group" style={{ marginBottom: '8px' }}>
+                          <label style={{ fontSize: '11px', fontWeight: 700, color: '#991b1b' }}>{t('deals.cancellationReasonReq', 'Cancellation Reason (Required)')}</label>
+                          <textarea
+                            rows="2"
+                            placeholder={t('deals.cancellationReasonPlaceholder', 'Specify buyer withdrawal reason, financial default, or agreement...')}
+                            value={cancelFormData.reason}
+                            onChange={(e) => setCancelFormData({ ...cancelFormData, reason: e.target.value })}
+                            style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                          />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                          <div>
+                            <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>{t('deals.deductionPenalty', 'Deduction / Penalty ({currency})').replace('{currency}', t('common.currency', 'EGP'))}</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={cancelFormData.deduction_amount}
+                              onChange={(e) => setCancelFormData({ ...cancelFormData, deduction_amount: e.target.value })}
+                              style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>{t('deals.unitAction', 'Unit Action')}</label>
+                            <select
+                              value={cancelFormData.unit_action}
+                              onChange={(e) => setCancelFormData({ ...cancelFormData, unit_action: e.target.value })}
+                              style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                            >
+                              <option value="release">{t('deals.releaseUnitAvailable', 'Release Unit to Available')}</option>
+                              <option value="keep_reserved">{t('deals.keepUnitUnchanged', 'Keep Unit Status Unchanged')}</option>
+                            </select>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleProcessCancellation}
+                          style={{ padding: '6px 14px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          {t('deals.confirmCancellationProcess', 'Confirm Cancellation & Process')}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* TAB 2: CUSTOMER (العميل) */}
+            {activeDealTab === 'customer' && (
+              <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <User size={18} color="#4f46e5" />
+                      <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>
+                        {t('deals.linkToCustomer', 'Link to Customer')}
+                      </h4>
+                    </div>
+                    {formData.client_id && (
+                      <button
+                        type="button"
+                        onClick={() => window.open(`/customers?customer360=${formData.client_id}`, '_blank')}
+                        style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        <ExternalLink size={12} /> {t('customers.customer360', 'Customer 360')}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: 700, fontSize: '13px' }}>
+                      {t('deals.selectCustomer', 'Select Customer')}
+                    </label>
+                    <select 
+                      value={formData.client_id}
+                      disabled={isDetailsDisabled}
+                      onChange={(e) => setFormData({...formData, client_id: e.target.value})}
+                      required
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                    >
+                      <option value="">{t('deals.selectCustomer', '-- Select Customer --')}</option>
+                      {formData.client_id && !(customers || []).some(c => String(c.id) === String(formData.client_id)) && (
+                        <option value={formData.client_id}>
+                          {editingDeal?.client_name || `Customer #${formData.client_id}`} ({t('deals.currentCustomer', 'Current Linked Customer')})
+                        </option>
+                      )}
+                      {(customers || []).map(c => (
+                        <option key={c.id} value={c.id}>{c.name} {c.company_name ? `(${c.company_name})` : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {formData.client_id ? (
+                    <div style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', fontSize: '12px' }}>
+                        <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
+                          <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'اسم العميل' : 'Customer Name'}</span>
+                          <strong style={{ fontSize: '14px', color: '#0f172a' }}>{editingDeal?.client_name || selectedCustomer?.name}</strong>
+                        </div>
+                        {(editingDeal?.client_company || selectedCustomer?.company_name) && (
+                          <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'الشركة / المؤسسة' : 'Company'}</span>
+                            <strong style={{ color: '#0f172a' }}>{editingDeal?.client_company || selectedCustomer?.company_name}</strong>
+                          </div>
+                        )}
+                        {(editingDeal?.client_phone || selectedCustomer?.phone) && (
+                          <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'رقم الهاتف' : 'Phone'}</span>
+                            <strong className="num-en" style={{ color: '#0f172a' }}>{editingDeal?.client_phone || selectedCustomer?.phone}</strong>
+                          </div>
+                        )}
+                        {selectedCustomer?.email && (
+                          <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'البريد الإلكتروني' : 'Email'}</span>
+                            <strong style={{ color: '#0f172a' }}>{selectedCustomer.email}</strong>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ marginTop: '12px', padding: '8px 12px', background: '#eff6ff', borderRadius: '6px', fontSize: '11px', color: '#1e40af' }}>
+                        {isRTL
+                          ? 'يمكنك الانتقال إلى Customer 360 للاطلاع على الملف الكامل والصفقات الأخرى والمستندات المسجلة.'
+                          : 'Open Customer 360 to view complete customer profile, other deals, and registered documents.'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '12px', background: 'white', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                      {isRTL ? 'يرجى اختيار عميل من القائمة أعلاه لحفظ الصفقة بنجاح.' : 'Please select a customer from the dropdown above to save the deal.'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: UNIT & RESERVATION (الوحدة والحجز) */}
+            {activeDealTab === 'unit' && (
+              <div style={{ gridColumn: 'span 2' }}>
+                {isRealEstate ? (
+                  <div>
+                    <div className="unit-select-card" style={{ marginBottom: '14px' }}>
+                      <label style={{ color: '#0369a1', fontWeight: 800, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                        <Building2 size={16} /> {t('deals.selectPropertyUnit', 'SELECT PROPERTY UNIT (REAL ESTATE)')}
+                      </label>
+                      {!editingDeal?.unit_id && editingDeal?.source_type === 'property_finder' && (editingDeal?.custom_fields?.pf_listing_reference || editingDeal?.custom_fields?.pf_listing_id || editingDeal?.custom_fields?.pf_project_id) && (
+                        <div style={{ fontSize: '11px', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '6px 10px', borderRadius: '6px', marginBottom: '8px', fontWeight: 700 }}>
+                          Property Finder {editingDeal.custom_fields?.lead_type === 'project' ? 'Project' : 'Listing'} ID:{' '}
+                          <span className="num-en">{editingDeal.custom_fields?.pf_listing_reference || editingDeal.custom_fields?.pf_listing_id || editingDeal.custom_fields?.pf_project_id}</span>
+                        </div>
+                      )}
+                      {editingDeal?.unit_id && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '8px 12px', marginBottom: '8px' }}>
+                          <Building2 size={16} color="#0284c7" />
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: '13px', color: '#0369a1' }}>
+                              {editingDeal.unit_project ? `${editingDeal.unit_project} • ` : ''}{t('deals.unitProject', 'Unit')} <span className="num-en">{editingDeal.unit_number || editingDeal.unit_name || editingDeal.unit_id}</span>
+                            </div>
+                            {editingDeal.unit_price && (
+                              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                                {t('deals.unitPriceNotice', 'Listed Price')}: <span className="num-en">{Number(editingDeal.unit_price).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      <select 
+                        className="ap-input" 
+                        style={{ border: '1px solid #0ea5e9', width: '100%', padding: '10px', borderRadius: '8px', fontSize: '13px', background: 'white' }}
+                        value={formData.unit_id} 
+                        disabled={isDetailsDisabled || Boolean(editingDeal?.unit_id && (String(editingDeal?.unit_status || '').toLowerCase() === 'reserved' || editingDeal?.custom_fields?.is_unit_reservation || isDealLocked))}
+                        onChange={(e) => handleUnitChange(e.target.value)}
+                      >
+                        <option value="">{t('deals.selectAvailableUnit', '-- Select Available Unit --')}</option>
+                        {formData.unit_id && !(reUnits || []).some(u => String(u.id) === String(formData.unit_id)) && (
+                          <option value={formData.unit_id}>
+                            {editingDeal?.unit_project ? `${editingDeal.unit_project} | ` : ''}Unit {editingDeal?.unit_number || formData.unit_id} ({t('deals.currentUnit', 'Current Linked Unit')})
+                          </option>
+                        )}
+                        {(reUnits || []).filter(u => String(u.status || '').toLowerCase() === 'available' || String(u.id) === String(formData.unit_id)).map(u => (
+                          <option key={u.id} value={u.id}>
+                            {u.project_name} | Unit {u.unit_number}{u.name && u.name !== u.unit_number ? ` (${u.name})` : ''} ({u.area_sqm || u.area || 0}m²) - {Number(u.price).toLocaleString('en-US')} {t('common.currency', 'EGP')}
+                          </option>
+                        ))}
+                      </select>
+                      <p style={{ fontSize: '11px', color: '#0284c7', marginTop: '6px' }}>
+                        {isRTL 
+                          ? 'ربط الوحدة يحدد قيمة الصفقة تلقائياً ويتيح التنافس بين عدة صفقات وعملاء دون تجميدها إلا عند الحجز الصريح.'
+                          : t('deals.unitAutoValueHint', 'Selecting a unit will set the deal value. The unit remains available for other prospects until explicitly reserved.')}
+                      </p>
+                    </div>
+
+                    {/* Unit Reservation & Extension Management Card */}
+                    {editingDeal?.unit_id && !['won', 'closed'].includes(editingDeal?.pipeline_stage?.toLowerCase()) && editingDeal?.pipeline_stage?.toLowerCase() !== 'lost' && (
+                      <div style={{ background: '#f0fdf4', border: '2px solid #bbf7d0', borderRadius: '12px', padding: '18px', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                          <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#166534' }}>
+                            <Building2 size={18} color="#16a34a"/> {t('deals.unitReservationStatus', 'Unit Reservation Status')}
+                          </h4>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleCloseModal();
+                                navigate(`/units-registry?unit_id=${editingDeal.unit_id}`);
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                background: '#0284c7',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <Layers size={12} /> {isRTL ? 'بطاقة الوحدة الشاملة' : 'Unit Overview Card'}
+                            </button>
+                            <div style={{ padding: '4px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '6px', fontSize: '11px', fontWeight: 800, border: '1px solid #86efac' }}>
+                              {getReservationStatusLabel(editingDeal.unit_status || 'Available')}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px', fontSize: '12px' }}>
+                          <div>
+                            <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.linkedUnit', 'Linked Unit:')}</span>
+                            <span style={{ fontWeight: 800, color: '#1e293b' }}>
+                              {editingDeal.unit_project} • {t('deals.unitProject', 'Unit')} <span className="num-en">{editingDeal.unit_number}</span>
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.reservationExpires', 'Reservation Expires:')}</span>
+                            <span style={{ fontWeight: 800, color: editingDeal.unit_reservation_expires_at && new Date(editingDeal.unit_reservation_expires_at) < new Date() ? '#dc2626' : '#166534' }}>
+                              {editingDeal.unit_reservation_expires_at ? <span className="num-en">{new Date(editingDeal.unit_reservation_expires_at).toLocaleString('en-GB')}</span> : (String(editingDeal.unit_status || '').toLowerCase() === 'reserved' ? t('deals.active', 'Active') : (isRTL ? 'متاحة (غير محجوزة)' : 'Available (Not Reserved)'))}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #dcfce7', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 700 }}>
+                            {String(editingDeal.unit_status || '').toLowerCase() === 'reserved'
+                              ? (editingDeal.unit_reservation_extension_count > 0 
+                                  ? t('deals.extendedTimes', 'Extended {count} time(s)').replace('{count}', editingDeal.unit_reservation_extension_count) 
+                                  : t('deals.activeReservation', 'Active Reservation'))
+                              : (isRTL ? 'الوحدة متاحة لعروض متعددة — يمكنك تأكيد الحجز لمدة 48 ساعة عند الجدية' : 'Unit is available for multi-deal inquiries — reserve explicitly when buyer commits')}
+                          </span>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {String(editingDeal.unit_status || '').toLowerCase() !== 'reserved' && (
+                              <button
+                                type="button"
+                                onClick={() => handleReserveUnit(editingDeal.id)}
+                                style={{ padding: '6px 14px', background: '#0284c7', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <Clock size={12} /> {isRTL ? 'حجز الوحدة (48 ساعة)' : 'Reserve Unit (48h)'}
+                              </button>
+                            )}
+                            {String(editingDeal.unit_status || '').toLowerCase() === 'reserved' && canExtendSla && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleExtendReservation(editingDeal.id, 24)}
+                                  style={{ padding: '6px 14px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                  {t('deals.extend24h', 'Extend +24h')}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleExtendReservation(editingDeal.id, 48)}
+                                  style={{ padding: '6px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                  {t('deals.extend48h', 'Extend +48h')}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="form-group" style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <label style={{ fontWeight: 700, fontSize: '13px', display: 'block', marginBottom: '8px' }}>{t('deals.selectProductOptional', 'Select Product (Optional)')}</label>
+                    <select 
+                      value={formData.product_id}
+                      disabled={isDetailsDisabled}
+                      onChange={(e) => handleProductChange(e.target.value)}
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                    >
+                      <option value="">{t('deals.noSpecificProduct', '-- No Specific Product --')}</option>
+                      {(products || []).map(p => (
+                        <option key={p.id} value={p.id}>{p.name} ({Number(p.selling_price || 0).toLocaleString('en-US')} {t('common.currency', 'EGP')})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 4: CONTRACT & COLLECTIONS (العقد والتحصيلات) */}
+            {activeDealTab === 'contract' && isRealEstate && editingDeal?.id && (
+              <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '12px', padding: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FileText size={18} color="#2563eb" />
+                      <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>
+                        {isRTL ? 'العقد والتحصيلات والعمولات' : 'Contract, Collections & Commissions'}
+                      </h4>
+                    </div>
+                    {contractLoading ? (
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>{t('common.loading', 'Loading...')}</span>
+                    ) : dealContract ? (
+                      <span style={{ fontSize: '11px', fontWeight: 800, color: '#1d4ed8' }}>
+                        <span className="num-en">{dealContract.contract_number}</span> • {getContractStatusLabel(dealContract.status)}
+                        {dealContract.expiry_state === 'expiring_soon' && ` • ${t('deals.expiresInDays', 'expires in {days}d').replace('{days}', dealContract.days_remaining)}`}
+                        {dealContract.expiry_state === 'expired' && ` • ${t('deals.expired', 'EXPIRED')}`}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>{t('deals.noContractYet', 'No contract yet')}</span>
+                    )}
+                  </div>
+
+                  {/* Sub-Tabs: Contract, Installments, Commissions, Handover */}
+                  <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px', marginBottom: '14px', overflowX: 'auto' }}>
+                    {[
+                      { id: 'contract', label: t('deals.relatedLinks.contract', 'Contract'), icon: <FileText size={13} />, count: dealContract ? 1 : 0 },
+                      { id: 'installments', label: t('deals.relatedLinks.installments', 'Installments'), icon: <CreditCard size={13} />, count: (dealInstallments || []).length },
+                      { id: 'commissions', label: t('deals.relatedLinks.commissions', 'Commissions'), icon: <Award size={13} />, count: (dealCommissions?.items || []).length },
+                      { id: 'handover', label: t('deals.relatedLinks.handover', 'Handover'), icon: <Key size={13} />, count: dealHandover ? 1 : 0 },
+                    ].map(tab => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveRelatedTab(tab.id)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          border: activeRelatedTab === tab.id ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                          background: activeRelatedTab === tab.id ? '#2563eb' : 'white',
+                          color: activeRelatedTab === tab.id ? 'white' : '#475569',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {tab.icon}
+                        <span>{tab.label}</span>
+                        {tab.count !== undefined && tab.count > 0 && (
+                          <span style={{
+                            padding: '1px 5px',
+                            borderRadius: '999px',
+                            fontSize: '10px',
+                            background: activeRelatedTab === tab.id ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                            color: activeRelatedTab === tab.id ? 'white' : '#1e293b'
+                          }}>
+                            {tab.count}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* SUB-TAB 1: CONTRACT */}
+                  {activeRelatedTab === 'contract' && (
+                    <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
+                          {dealContract ? (
+                            <span>{t('deals.relatedLinks.contract', 'Contract')}: <span className="num-en">{dealContract.contract_number}</span></span>
+                          ) : (
+                            <span>{t('deals.noContractYet', 'No contract yet for this deal')}</span>
+                          )}
+                        </div>
+                        {dealContract && (
+                          <button
+                            type="button"
+                            onClick={() => window.open(`/contracts?deal_id=${editingDeal.id}`, '_blank')}
+                            style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            <ExternalLink size={12} /> {isRTL ? 'فتح صفحة العقود' : 'Open Contracts Page'}
+                          </button>
+                        )}
+                      </div>
+
+                      {dealContract ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '12px' }}>
+                          <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.status', 'Status')}</span>
+                            <strong style={{ color: '#0f172a' }}>{getContractStatusLabel(dealContract.status)}</strong>
+                          </div>
+                          <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.contractValue', 'Contract Value')}</span>
+                            <strong style={{ color: '#0f172a' }}><span className="num-en">{Number(dealContract.contract_value || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
+                          </div>
+                          <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.downPayment', 'Down Payment')}</span>
+                            <strong style={{ color: '#16a34a' }}><span className="num-en">{Number(dealContract.down_payment || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
+                          </div>
+                          <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.remainingAmount', 'Remaining')}</span>
+                            <strong style={{ color: '#dc2626' }}><span className="num-en">{Number(dealContract.remaining_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
+                          </div>
+                          {dealContract.start_date && (
+                            <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                              <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'تاريخ البدء' : 'Start Date'}</span>
+                              <span className="num-en">{dealContract.start_date.split('T')[0]}</span>
+                            </div>
+                          )}
+                          {dealContract.end_date && (
+                            <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                              <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'تاريخ الانتهاء' : 'End Date'}</span>
+                              <span className="num-en">{dealContract.end_date.split('T')[0]}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '16px' }}>
+                          <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '10px' }}>
+                            {isRTL ? 'لا يوجد عقد صادر لهذه الصفقة حتى الآن. يمكنك إنشاء عقد مبيعات بالبيانات المحددة.' : 'No contract has been issued for this deal yet. You can originate a sales contract using current deal details.'}
+                          </p>
+                          {editingDeal?.unit_id && (
+                            <button
+                              type="button"
+                              onClick={handleCreateContract}
+                              style={{ padding: '8px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              <FileText size={14} style={{ verticalAlign: 'middle', marginInlineEnd: '4px' }} /> {t('deals.createSalesContract', 'Create Sales Contract')}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SUB-TAB 2: INSTALLMENTS */}
+                  {activeRelatedTab === 'installments' && (
+                    <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
+                          {t('deals.relatedLinks.installments', 'Installments & Payment Schedule')}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => window.open(`/installments?deal_id=${editingDeal.id}`, '_blank')}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          <ExternalLink size={12} /> {isRTL ? 'فتح صفحة الأقساط' : 'Open Installments Page'}
+                        </button>
+                      </div>
+
+                      {installmentsLoading ? (
+                        <div style={{ textAlign: 'center', padding: '14px', color: '#64748b', fontSize: '12px' }}>{t('common.loading', 'Loading installments...')}</div>
+                      ) : (dealInstallments || []).length > 0 ? (
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                            <thead>
+                              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: isRTL ? 'right' : 'left' }}>
+                                <th style={{ padding: '6px 8px' }}>#</th>
+                                <th style={{ padding: '6px 8px' }}>{isRTL ? 'تاريخ الاستحقاق' : 'Due Date'}</th>
+                                <th style={{ padding: '6px 8px' }}>{isRTL ? 'القيمة' : 'Amount'}</th>
+                                <th style={{ padding: '6px 8px' }}>{isRTL ? 'المدفوع' : 'Paid'}</th>
+                                <th style={{ padding: '6px 8px' }}>{isRTL ? 'الحالة' : 'Status'}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(dealInstallments || []).slice(0, 5).map(inst => (
+                                <tr key={inst.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '6px 8px', fontWeight: 700 }}>{inst.installment_number}</td>
+                                  <td style={{ padding: '6px 8px' }}><span className="num-en">{inst.due_date ? inst.due_date.split('T')[0] : '—'}</span></td>
+                                  <td style={{ padding: '6px 8px', fontWeight: 700 }}><span className="num-en">{Number(inst.amount).toLocaleString('en-US')}</span></td>
+                                  <td style={{ padding: '6px 8px', color: '#16a34a' }}><span className="num-en">{Number(inst.paid_amount || 0).toLocaleString('en-US')}</span></td>
+                                  <td style={{ padding: '6px 8px' }}>
+                                    <span style={{
+                                      padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800,
+                                      background: inst.status === 'Paid' ? '#dcfce7' : inst.is_overdue ? '#fee2e2' : '#fef3c7',
+                                      color: inst.status === 'Paid' ? '#15803d' : inst.is_overdue ? '#b91c1c' : '#b45309'
+                                    }}>
+                                      {inst.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {(dealInstallments || []).length > 5 && (
+                            <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '11px', color: '#64748b' }}>
+                              {isRTL ? `عرض 5 من إجمالي ${dealInstallments.length} قسط. افتح صفحة الأقساط للمزيد.` : `Showing 5 of ${dealInstallments.length} installments. Open page for full list.`}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                          {isRTL ? 'لم يتم إنشاء جدول أقساط لهذه الصفقة بعد.' : 'No installments generated yet for this deal.'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SUB-TAB 3: COMMISSIONS */}
+                  {activeRelatedTab === 'commissions' && (
+                    <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
+                          {t('deals.relatedLinks.commissions', 'Broker & Agent Commissions')}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => window.open(`/commissions?deal_id=${editingDeal.id}`, '_blank')}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          <ExternalLink size={12} /> {isRTL ? 'فتح صفحة العمولات' : 'Open Commissions Page'}
+                        </button>
+                      </div>
+
+                      {commissionsLoading ? (
+                        <div style={{ textAlign: 'center', padding: '14px', color: '#64748b', fontSize: '12px' }}>{t('common.loading', 'Loading commissions...')}</div>
+                      ) : (dealCommissions?.items || []).length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {(dealCommissions.items || []).map(comm => (
+                            <div key={comm.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
+                              <div>
+                                <strong style={{ color: '#1e293b' }}>{comm.beneficiary_name}</strong>
+                                <span style={{ fontSize: '11px', color: '#64748b', marginInlineStart: '6px' }}>({comm.beneficiary_type})</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span style={{ fontWeight: 800, color: '#0f172a' }}>
+                                  <span className="num-en">{Number(comm.calculated_amount).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}
+                                </span>
+                                <span style={{
+                                  padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800,
+                                  background: comm.status === 'Paid' ? '#dcfce7' : comm.status === 'Approved' ? '#dbeafe' : '#fef3c7',
+                                  color: comm.status === 'Paid' ? '#15803d' : comm.status === 'Approved' ? '#1d4ed8' : '#b45309'
+                                }}>
+                                  {comm.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                          {isRTL ? 'لا توجد عمولات مسجلة لهذه الصفقة بعد.' : 'No commissions recorded for this deal yet.'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SUB-TAB 4: HANDOVER */}
+                  {activeRelatedTab === 'handover' && (
+                    <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
+                          {t('deals.relatedLinks.handover', 'Unit Handover & Inspection Milestone')}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => window.open(`/handover?deal_id=${editingDeal.id}`, '_blank')}
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          <ExternalLink size={12} /> {isRTL ? 'فتح صفحة التسليم' : 'Open Handover Page'}
+                        </button>
+                      </div>
+
+                      {handoverLoading ? (
+                        <div style={{ textAlign: 'center', padding: '14px', color: '#64748b', fontSize: '12px' }}>{t('common.loading', 'Loading handover details...')}</div>
+                      ) : dealHandover ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '12px' }}>
+                          <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'حالة التسليم' : 'Status'}</span>
+                            <strong style={{ color: dealHandover.status === 'Handed Over' ? '#16a34a' : '#7c3aed' }}>{dealHandover.status}</strong>
+                          </div>
+                          <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'الموعد المحدد' : 'Scheduled Date'}</span>
+                            <strong className="num-en">{dealHandover.scheduled_date ? dealHandover.scheduled_date.split('T')[0] : '—'}</strong>
+                          </div>
+                          <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'تسليم المفاتيح' : 'Keys Delivered'}</span>
+                            <span style={{ color: dealHandover.keys_handed_over ? '#16a34a' : '#64748b', fontWeight: 700 }}>
+                              {dealHandover.keys_handed_over ? (isRTL ? 'تم التسليم ✓' : 'Yes ✓') : (isRTL ? 'معلق' : 'No')}
+                            </span>
+                          </div>
+                          <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                            <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'شهادة المخالصة' : 'Clearance Certificate'}</span>
+                            <span style={{ color: dealHandover.clearance_certificate ? '#16a34a' : '#64748b', fontWeight: 700 }}>
+                              {dealHandover.clearance_certificate ? (isRTL ? 'معتمدة ✓' : 'Certified ✓') : (isRTL ? 'معلق' : 'No')}
+                            </span>
+                          </div>
+                          {dealHandover.snagging_notes && (
+                            <div style={{ gridColumn: '1 / -1', background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                              <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'ملاحظات المعاينة الفنية' : 'Snagging Notes'}</span>
+                              <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#1e293b' }}>{dealHandover.snagging_notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                          {isRTL ? 'لم يتم جدولة محضر تسليم لهذه الصفقة بعد.' : 'No handover milestone scheduled yet for this deal.'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: FOLLOW-UP (المتابعة) */}
+            {activeDealTab === 'followup' && (
+              <div style={{ gridColumn: 'span 2' }}>
+                <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', alignItems: 'flex-start' }}>
                     <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>{t('deals.deductionPenalty', 'Deduction / Penalty ({currency})').replace('{currency}', t('common.currency', 'EGP'))}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={cancelFormData.deduction_amount}
-                        onChange={(e) => setCancelFormData({ ...cancelFormData, deduction_amount: e.target.value })}
-                        style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0369a1', fontWeight: 800, fontSize: '13px', marginBottom: '6px' }}>
+                        <Clock size={15} /> {t('deals.nextActionRequired', 'Next Action Required')}
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder={t('deals.nextActionPlaceholder', 'e.g. Call client to discuss proposal, send contract draft, site visit follow-up')} 
+                        value={formData.next_action} 
+                        disabled={isDetailsDisabled} 
+                        onChange={(e) => setFormData({...formData, next_action: e.target.value})} 
+                        style={{ background: 'white', width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
                       />
                     </div>
                     <div>
-                      <label style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>{t('deals.unitAction', 'Unit Action')}</label>
-                      <select
-                        value={cancelFormData.unit_action}
-                        onChange={(e) => setCancelFormData({ ...cancelFormData, unit_action: e.target.value })}
-                        style={{ width: '100%', padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                      >
-                        <option value="release">{t('deals.releaseUnitAvailable', 'Release Unit to Available')}</option>
-                        <option value="keep_reserved">{t('deals.keepUnitUnchanged', 'Keep Unit Status Unchanged')}</option>
-                      </select>
+                      <label style={{ fontWeight: 700, fontSize: '13px', color: '#334155', display: 'block', marginBottom: '6px' }}>
+                        {t('deals.expectedCloseDate', 'Target Close / Follow-up Date')}
+                      </label>
+                      <input 
+                        type="date" 
+                        value={formData.expected_close_date} 
+                        disabled={isDetailsDisabled} 
+                        onChange={(e) => setFormData({...formData, expected_close_date: e.target.value})} 
+                        style={{ background: 'white', width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                      />
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleProcessCancellation}
-                    style={{ padding: '6px 14px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {t('deals.confirmCancellationProcess', 'Confirm Cancellation & Process')}
-                  </button>
                 </div>
-              )}
-            </div>
-          )}
-        </form>
-        {editingDeal && (
-          <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', marginBottom: '16px' }}>{t('deals.dealActivityTimeline', 'Deal Activity Timeline')}</h3>
-            <ActivityTimeline
-              entityType="deal"
-              entityId={editingDeal.id}
-              canLog={hasDealPermission('deal.log_activity')}
-              onActivityCreated={(act) => {
-                fetchDeals(false);
-                fetchDealSla(editingDeal.id);
-                if (act?.updated_deal_stage) {
-                  setFormData(prev => ({ ...prev, pipeline_stage: act.updated_deal_stage }));
-                  setEditingDeal(prev => prev ? ({ ...prev, pipeline_stage: act.updated_deal_stage }) : prev);
-                  toast.success(
-                    isRTL
-                      ? `تم نقل الصفقة تلقائياً إلى مرحلة "${getStageLabel(act.updated_deal_stage)}"`
-                      : `Deal automatically moved to "${getStageLabel(act.updated_deal_stage)}"`
-                  );
-                }
-              }}
-            />
-          </div>
-        )}
+
+                {/* Site Visit Details */}
+                {(formData.pipeline_stage?.toLowerCase() === 'site visit' || formData.custom_fields?.visit_date) && (
+                  <div style={{ background: '#faf5ff', border: '1px solid #d8b4fe', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
+                    <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#7e22ce', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
+                      <MapPin size={16} /> {t('deals.siteVisitInfo', 'Site Visit Information')}
+                    </h4>
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label>{t('deals.visitDateTime', 'Visit Date & Time')}</label>
+                        <input 
+                          type="datetime-local" 
+                          value={formData.custom_fields?.visit_date || ''} 
+                          onChange={(e) => handleCustomFieldChange('visit_date', e.target.value)} 
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>{t('deals.visitStatusResult', 'Visit Status / Result')}</label>
+                        <select 
+                          value={formData.custom_fields?.visit_result || 'Scheduled'} 
+                          onChange={(e) => handleCustomFieldChange('visit_result', e.target.value)}
+                        >
+                          <option value="Scheduled">{t('deals.visitResults.scheduled', 'Scheduled')}</option>
+                          <option value="Completed - Highly Interested">{t('deals.visitResults.completedInterested', 'Completed - Highly Interested')}</option>
+                          <option value="Completed - Considering Offer">{t('deals.visitResults.completedConsidering', 'Completed - Considering Offer')}</option>
+                          <option value="Completed - Unit Unsuitable">{t('deals.visitResults.completedUnsuitable', 'Completed - Unit Unsuitable')}</option>
+                          <option value="Postponed">{t('deals.visitResults.postponed', 'Client Postponed')}</option>
+                          <option value="Cancelled">{t('deals.visitResults.cancelled', 'Cancelled')}</option>
+                          <option value="No-Show">{t('deals.visitResults.noShow', 'Client No-Show')}</option>
+                        </select>
+                      </div>
+                      <div className="form-group full" style={{ marginBottom: 0 }}>
+                        <label>{t('deals.visitFeedbackNotes', 'Visit Feedback & Notes')}</label>
+                        <textarea 
+                          rows="2"
+                          placeholder={t('deals.visitFeedbackPlaceholder', 'Client impressions, preferences discussed during the site visit...')} 
+                          value={formData.custom_fields?.visit_notes || ''} 
+                          onChange={(e) => handleCustomFieldChange('visit_notes', e.target.value)} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Activity Timeline */}
+                {editingDeal && (
+                  <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '16px' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', marginBottom: '16px' }}>
+                      {t('deals.dealActivityTimeline', 'Deal Activity Timeline')}
+                    </h3>
+                    <ActivityTimeline
+                      entityType="deal"
+                      entityId={editingDeal.id}
+                      canLog={hasDealPermission('deal.log_activity')}
+                      onActivityCreated={(act) => {
+                        fetchDeals(false);
+                        fetchDealSla(editingDeal.id);
+                        if (act?.updated_deal_stage) {
+                          setFormData(prev => ({ ...prev, pipeline_stage: act.updated_deal_stage }));
+                          setEditingDeal(prev => prev ? ({ ...prev, pipeline_stage: act.updated_deal_stage }) : prev);
+                          toast.success(
+                            isRTL
+                              ? `تم نقل الصفقة تلقائياً إلى مرحلة "${getStageLabel(act.updated_deal_stage)}"`
+                              : `Deal automatically moved to "${getStageLabel(act.updated_deal_stage)}"`
+                          );
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </form>
+        </div>
       </Modal>
       </div>
     </div>
