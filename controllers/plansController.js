@@ -32,9 +32,11 @@ exports.getMySubscription = async (req, res) => {
                     THEN GREATEST(0, EXTRACT(DAY FROM (s.trial_ends_at - NOW())))
                     ELSE NULL 
                 END as trial_days_left,
-                -- Check if trial expired
+                -- Check if trial or active subscription expired
                 CASE
-                    WHEN s.status = 'trial' AND s.trial_ends_at < NOW() THEN TRUE
+                    WHEN (s.status = 'trial' AND s.trial_ends_at IS NOT NULL AND s.trial_ends_at < NOW())
+                      OR (s.expires_at IS NOT NULL AND s.expires_at < NOW())
+                    THEN TRUE
                     ELSE FALSE
                 END as is_expired
             FROM subscriptions s
@@ -56,7 +58,7 @@ exports.getMySubscription = async (req, res) => {
 
         if (result.rows.length === 0) {
             // Fallback for tenants without subscription (legacy)
-            const defaultModules = { crm: true, finance: true, hr: false, inventory: false, automation: false };
+            const defaultModules = { crm: true, finance: true, hr: false, inventory: false, automation: false, reports: true };
             const effectiveModules = { ...defaultModules, ...overrideModules };
 
             return res.json({
@@ -76,20 +78,21 @@ exports.getMySubscription = async (req, res) => {
 
         const sub = result.rows[0];
 
-        // Auto-expire trial if time has passed
-        if (sub.is_expired && sub.status === 'trial') {
-            await db.query(`UPDATE subscriptions SET status = 'expired' WHERE tenant_id::text = $1::text`, [tenant_id]);
+        // Auto-expire subscription if time has passed
+        if (sub.is_expired && sub.status !== 'expired' && sub.status !== 'cancelled') {
+            await db.query(`UPDATE subscriptions SET status = 'expired', updated_at = NOW() WHERE tenant_id::text = $1::text`, [tenant_id]);
             sub.status = 'expired';
         }
 
         // Merge plan modules with tenant overrides (overrides take precedence)
-        const planModules = typeof sub.modules === 'string'
+        const rawPlanModules = typeof sub.modules === 'string'
             ? JSON.parse(sub.modules)
             : (sub.modules || {});
+        const planModules = { reports: true, ...rawPlanModules };
 
         sub.modules = { ...planModules, ...overrideModules };
-        if (overrideLimits.max_users !== undefined) sub.max_users = overrideLimits.max_users;
-        if (overrideLimits.max_branches !== undefined) sub.max_branches = overrideLimits.max_branches;
+        if (overrideLimits.max_users !== undefined && overrideLimits.max_users !== null) sub.max_users = overrideLimits.max_users;
+        if (overrideLimits.max_branches !== undefined && overrideLimits.max_branches !== null) sub.max_branches = overrideLimits.max_branches;
 
         res.json({ status: 'success', data: sub });
     } catch (err) {

@@ -1026,11 +1026,24 @@ exports.updateDealStatus = async (req, res) => {
       }
     }
 
-    // 2. Update status (and auto-assign if deal was unassigned)
+    // 2. Update status (and auto-assign if deal was unassigned), plus capture lost_reason / blocker_reason
     const effectiveAssignee = assigned_to || req.user.id;
+    const { lost_reason, blocker_reason } = req.body || {};
+
+    let extraCfUpdate = '';
+    const updateParams = [cleanStage, req.params.id, tenant_id, branch_id, effectiveAssignee];
+
+    if (lost_reason || blocker_reason) {
+      updateParams.push(JSON.stringify({
+        ...(lost_reason ? { lost_reason } : {}),
+        ...(blocker_reason ? { blocker_reason } : {})
+      }));
+      extraCfUpdate = `, custom_fields = COALESCE(custom_fields, '{}'::jsonb) || $${updateParams.length}::jsonb`;
+    }
+
     const result = await client.query(
-      'UPDATE deals SET pipeline_stage = $1, assigned_to = COALESCE(assigned_to, $5), updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) RETURNING *',
-      [cleanStage, req.params.id, tenant_id, branch_id, effectiveAssignee]
+      `UPDATE deals SET pipeline_stage = $1, assigned_to = COALESCE(assigned_to, $5), updated_at = CURRENT_TIMESTAMP ${extraCfUpdate} WHERE id = $2 AND tenant_id::text = $3::text AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) RETURNING *`,
+      updateParams
     );
 
     // Audit Logging & Automations

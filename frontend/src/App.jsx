@@ -84,6 +84,7 @@ import StockBalances from './pages/Inventory/StockBalances';
 import ItemCard from './pages/Inventory/ItemCard';
 
 // Sales Suite Pages
+import SalesManagement from './pages/Sales/SalesManagement';
 import Salesmen from './pages/Sales/Salesmen';
 import Target from './pages/Sales/Target';
 import SalesOrder from './pages/Sales/SalesOrder';
@@ -206,6 +207,14 @@ function App() {
 
                   {/* Sales Suite Sub-Routes */}
                   <Route path="sales" element={<Navigate to="/sales/orders" replace />} />
+                  <Route
+                    path="sales/management"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin', 'manager', 'supervisor']}>
+                        <SalesManagement />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route path="sales/salesmen" element={<Salesmen />} />
                   <Route path="sales/target" element={<Target />} />
                   <Route path="sales/orders" element={<SalesOrder />} />

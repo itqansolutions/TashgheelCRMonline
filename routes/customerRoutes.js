@@ -18,6 +18,13 @@ router.get('/:id', customersController.getCustomerById);
 router.get('/:id/360', customersController.getCustomer360);
 router.get('/:id/statement', customersController.getCustomerStatement);
 
+const { authorize } = require('../middleware/roleMiddleware');
+
+// @route   POST api/customers/bulk-assign
+// @desc    Bulk assign leads/customers
+// @access  Private (Admin, Manager, Supervisor)
+router.post('/bulk-assign', authorize(['admin', 'manager', 'supervisor']), customersController.bulkAssignLeads);
+
 // @route   POST api/customers
 // @desc    Create customer
 // @access  Private

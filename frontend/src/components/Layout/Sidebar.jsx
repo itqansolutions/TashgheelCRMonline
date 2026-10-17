@@ -120,15 +120,25 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // -------------------------------------------------------------
   // 1. MY PROFILE ITEMS (All direct siblings)
   // -------------------------------------------------------------
+  const hasPurchasing = can('purchasing') || can('inventory');
+  const hasHr = can('hr');
+  const hasFinance = can('finance');
+  const hasReports = can('reports');
+  const hasCrm = can('crm');
+
   const rawProfileItems = [
-    { name: 'My Attendance',    labelKey: 'sidebar.myAttendance',    icon: <Clock size={16} />,        path: '/my-attendance' },
-    { name: 'My Requests',      labelKey: 'sidebar.myRequests',      icon: <FileText size={16} />,     path: '/my-requests' },
-    { name: 'Approvals',        labelKey: 'sidebar.approvals',       icon: <ShieldCheck size={16} />,  path: '/approvals', roleGuard: ['admin', 'manager'] },
-    { name: 'My Payroll',       labelKey: 'sidebar.myPayroll',       icon: <DollarSign size={16} />,   path: '/my-payroll' },
-    { name: 'Activity Balance', labelKey: 'sidebar.activityBalance', icon: <Wallet size={16} />,       path: '/activity-balance' },
-    { name: 'Deals',            labelKey: 'sidebar.deals',            icon: <Handshake size={16} />,    path: '/deals' },
-    { name: 'Tasks',            labelKey: 'sidebar.tasks',            icon: <CheckSquare size={16} />,  path: '/tasks' },
-    { name: 'Customers',        labelKey: 'sidebar.customers',        icon: <Users size={16} />,        path: '/customers' },
+    ...(hasHr ? [
+      { name: 'My Attendance',    labelKey: 'sidebar.myAttendance',    icon: <Clock size={16} />,        path: '/my-attendance' },
+      { name: 'My Requests',      labelKey: 'sidebar.myRequests',      icon: <FileText size={16} />,     path: '/my-requests' },
+      { name: 'Approvals',        labelKey: 'sidebar.approvals',       icon: <ShieldCheck size={16} />,  path: '/approvals', roleGuard: ['admin', 'manager'] },
+      { name: 'My Payroll',       labelKey: 'sidebar.myPayroll',       icon: <DollarSign size={16} />,   path: '/my-payroll' },
+      { name: 'Activity Balance', labelKey: 'sidebar.activityBalance', icon: <Wallet size={16} />,       path: '/activity-balance' },
+    ] : []),
+    ...(hasCrm ? [
+      { name: 'Deals',            labelKey: 'sidebar.deals',            icon: <Handshake size={16} />,    path: '/deals' },
+      { name: 'Tasks',            labelKey: 'sidebar.tasks',            icon: <CheckSquare size={16} />,  path: '/tasks' },
+      { name: 'Customers',        labelKey: 'sidebar.customers',        icon: <Users size={16} />,        path: '/customers' },
+    ] : []),
     ...(isRealEstate ? [{ name: 'Units', labelKey: 'sidebar.units', icon: <Key size={16} />, path: '/units-registry' }] : [])
   ];
 
@@ -141,7 +151,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // 2. CONTACTS ITEMS
   // -------------------------------------------------------------
   const contactsDirectItems = [
-    { name: 'Customers / Tenants', labelKey: 'sidebar.customersTenants', icon: <Users size={18} />, path: '/customers' },
+    ...(hasCrm ? [{ name: 'Customers / Tenants', labelKey: 'sidebar.customersTenants', icon: <Users size={18} />, path: '/customers' }] : []),
     { name: 'Vendors',             labelKey: 'sidebar.vendors',          icon: <Truck size={18} />, path: '/contacts/vendors' }
   ];
 
@@ -150,15 +160,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Job Titles',  labelKey: 'sidebar.jobTitles',   icon: <Briefcase size={16} />, path: '/contacts/employees?tab=jobtitles' }
   ];
 
-  const hasPurchasing = can('purchasing') || can('inventory');
-  const hasHr = can('hr');
-
-  // Filter contacts by permissions
+  // Filter contacts by module entitlements & permissions
   const visibleContactsDirect = contactsDirectItems.filter(item => {
-    if (item.name === 'Vendors' && !hasPurchasing && user?.role !== 'admin') return false;
+    if (item.name === 'Vendors' && !hasPurchasing) return false;
     return isPathAllowed(item.path);
   });
 
+  // Employees & User management is always available to tenant Admin to manage seats, or when HR module is enabled
   const canAccessEmployees = (hasHr || user?.role === 'admin') && isPathAllowed('/contacts/employees');
 
   // -------------------------------------------------------------
@@ -182,10 +190,19 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // 4. SALES ITEMS (BOTH TEMPLATES; Commissions & Handover are Real Estate workspaces)
   // -------------------------------------------------------------
   const rawSalesItems = [
+    {
+      name: isRealEstate ? 'RE Sales Management' : 'Sales Management',
+      labelKey: isRealEstate ? 'sidebar.reSalesManagement' : 'sidebar.salesManagement',
+      icon: <BarChart3 size={18} />,
+      path: '/sales/management',
+      roleGuard: ['admin', 'manager', 'supervisor']
+    },
     { name: 'Quotations',     labelKey: 'sidebar.quotations',    icon: <FileText size={18} />,     path: '/finance?tab=Quotations' },
-    { name: 'Sales Orders',   labelKey: 'sidebar.salesOrders',   icon: <ShoppingCart size={18} />, path: '/sales/orders' },
-    { name: 'Documents Hub',  labelKey: 'sidebar.documentsHub',  icon: <FileCheck size={18} />,    path: '/sales/documents' },
-    { name: 'Price Tiers',    labelKey: 'sidebar.priceTiers',    icon: <DollarSign size={18} />,   path: '/sales/price-tiers' },
+    ...(!isRealEstate ? [
+      { name: 'Sales Orders',   labelKey: 'sidebar.salesOrders',   icon: <ShoppingCart size={18} />, path: '/sales/orders' },
+      { name: 'Documents Hub',  labelKey: 'sidebar.documentsHub',  icon: <FileCheck size={18} />,    path: '/sales/documents' },
+      { name: 'Price Tiers',    labelKey: 'sidebar.priceTiers',    icon: <DollarSign size={18} />,   path: '/sales/price-tiers' },
+    ] : []),
     { name: 'Salesmen',       labelKey: 'sidebar.salesmen',      icon: <Users size={18} />,        path: '/sales/salesmen' },
     { name: 'Targets',        labelKey: 'sidebar.targets',       icon: <Award size={18} />,        path: '/sales/target' },
     ...(isRealEstate ? [
@@ -193,7 +210,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Handover',     labelKey: 'sidebar.handover',      icon: <Key size={18} />,          path: '/handover' }
     ] : [])
   ];
-  const salesItems = filterByAllowed(rawSalesItems);
+  const salesItems = hasCrm ? filterByAllowed(rawSalesItems) : [];
 
   // -------------------------------------------------------------
   // -------------------------------------------------------------
@@ -208,7 +225,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Transaction Impact', labelKey: 'sidebar.transactionImpact', icon: <Activity size={18} />,       path: '/inventory/transaction-impact' },
     { name: 'Item Card',          labelKey: 'sidebar.itemCard',          icon: <CreditCard size={18} />,     path: '/inventory/item-card' }
   ];
-  const hasInventory = can('inventory') || can('purchasing') || user?.role === 'admin';
+  const hasInventory = can('inventory') || can('purchasing');
   const inventoryItems = hasInventory ? filterByAllowed(rawWarehouseItems) : [];
   const warehouseItems = inventoryItems;
 
@@ -226,7 +243,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Treasury',          labelKey: 'sidebar.treasury',         icon: <Wallet size={18} />,          path: '/finance?tab=Treasury' },
     { name: 'Reports',           labelKey: 'sidebar.reports',          icon: <BarChart3 size={18} />,       path: '/finance?tab=Reports' }
   ];
-  const financeItems = filterByAllowed(rawFinanceItems);
+  const financeItems = hasFinance ? filterByAllowed(rawFinanceItems) : [];
 
   // -------------------------------------------------------------
   // 7. MARKETING ITEMS
@@ -238,12 +255,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'WhatsApp Settings',  labelKey: 'sidebar.whatsappSettings',  icon: <AdminSettingsIcon size={16} />, path: '/integrations/whatsapp', roleGuard: ['admin'] }
   ];
 
-  const whatsappSubItems = rawWhatsappSubItems.filter(item => {
+  const whatsappSubItems = hasCrm ? rawWhatsappSubItems.filter(item => {
     if (item.roleGuard && !item.roleGuard.includes(user?.role)) return false;
     return isPathAllowed(item.path);
-  });
+  }) : [];
 
-  const canAccessMetaForms = isPathAllowed('/integrations/meta-forms');
+  const canAccessMetaForms = hasCrm && isPathAllowed('/integrations/meta-forms');
 
   // -------------------------------------------------------------
   // 8. HR ITEMS (ADMINISTRATION & SYSTEM HR)
@@ -257,7 +274,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Attendance Device',   labelKey: 'sidebar.devices',            icon: <Clock size={18} />,      path: '/hr/devices', roleGuard: ['admin', 'manager'] }
   ];
 
-  const hrItems = (hasHr || user?.role === 'admin')
+  const hrItems = hasHr
     ? rawHrItems.filter(item => {
         if (item.roleGuard && !item.roleGuard.includes(user?.role)) return false;
         return isPathAllowed(item.path);
@@ -273,7 +290,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Purchase Invoice', labelKey: 'sidebar.purchaseInvoice', icon: <ShoppingCart size={18} />, path: '/purchases' }
   ];
 
-  const purchasesItems = (hasPurchasing || user?.role === 'admin')
+  const purchasesItems = hasPurchasing
     ? filterByAllowed(rawPurchasesItems)
     : [];
 
@@ -281,8 +298,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // 10. REPORTS ITEMS (ERP REPORTS DORMANT/HIDDEN)
   // -------------------------------------------------------------
   const rawReportsItems = [
-    { name: 'General Reports', labelKey: 'sidebar.generalReports', icon: <BarChart3 size={18} />, path: '/reports' },
-    { name: 'Finance Reports', labelKey: 'sidebar.financeReports', icon: <Wallet size={18} />,    path: '/finance?tab=Reports' }
+    ...(hasReports ? [{ name: 'General Reports', labelKey: 'sidebar.generalReports', icon: <BarChart3 size={18} />, path: '/reports' }] : []),
+    ...(hasFinance ? [{ name: 'Finance Reports', labelKey: 'sidebar.financeReports', icon: <Wallet size={18} />,    path: '/finance?tab=Reports' }] : [])
     // NOTE: ERP Reports is intentionally hidden for now until explicit ERP navigation activation
   ];
   const reportsItems = filterByAllowed(rawReportsItems);

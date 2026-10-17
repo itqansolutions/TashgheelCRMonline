@@ -39,8 +39,9 @@ exports.getSettings = async (req, res) => {
 exports.updateSettings = async (req, res) => {
   const settings = req.body; // Expects { key1: value1, key2: value2 }
   
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ status: 'error', message: 'Not authorized' });
+  const SYSTEM_DEFAULT_TENANT = '00000000-0000-0000-0000-000000000000';
+  if (req.user.role !== 'admin' || req.user.tenant_id !== SYSTEM_DEFAULT_TENANT) {
+    return res.status(403).json({ status: 'error', message: 'Not authorized: only platform owner can modify global platform settings' });
   }
 
   if (Object.keys(settings).some((key) => LEGACY_META_CREDENTIAL_KEYS.includes(key))) {

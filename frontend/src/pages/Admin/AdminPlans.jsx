@@ -60,6 +60,8 @@ const AdminPlans = () => {
     const [assignExpiresAt, setAssignExpiresAt] = useState('');
     const [assignStatus, setAssignStatus]     = useState('active');
     const [overrideModules, setOverrideModules] = useState({});
+    const [overrideMaxUsers, setOverrideMaxUsers] = useState('');
+    const [overrideMaxBranches, setOverrideMaxBranches] = useState('');
 
     const fetchAll = async () => {
         setLoading(true);
@@ -155,11 +157,16 @@ const AdminPlans = () => {
             const ov = res.data.data;
             const currentPlan = plans.find(p => p.id === tenant.plan_id);
             const planMods = currentPlan ? (typeof currentPlan.modules === 'string' ? JSON.parse(currentPlan.modules) : currentPlan.modules) : {};
+            const ovLimits = ov?.limits ? (typeof ov.limits === 'string' ? JSON.parse(ov.limits) : ov.limits) : {};
             
-            const merged = { ...planMods, ...(ov?.modules || {}) };
+            const merged = { reports: true, ...planMods, ...(ov?.modules || {}) };
             setOverrideModules(merged);
+            setOverrideMaxUsers(ovLimits.max_users !== undefined && ovLimits.max_users !== null ? String(ovLimits.max_users) : '');
+            setOverrideMaxBranches(ovLimits.max_branches !== undefined && ovLimits.max_branches !== null ? String(ovLimits.max_branches) : '');
         } catch {
             setOverrideModules({});
+            setOverrideMaxUsers('');
+            setOverrideMaxBranches('');
         }
     };
 
@@ -181,15 +188,23 @@ const AdminPlans = () => {
 
     const handleSaveOverride = async () => {
         try {
+            const customLimits = {};
+            if (String(overrideMaxUsers).trim() !== '') {
+                customLimits.max_users = parseInt(overrideMaxUsers, 10);
+            }
+            if (String(overrideMaxBranches).trim() !== '') {
+                customLimits.max_branches = parseInt(overrideMaxBranches, 10);
+            }
             await api.put(`/admin/tenants/${selectedTenant.id}/override`, { 
-                modules: overrideModules, 
-                notes: 'Manual custom modules update' 
+                modules: overrideModules,
+                limits: Object.keys(customLimits).length > 0 ? customLimits : null,
+                notes: 'Manual custom modules & limits update' 
             });
-            toast.success('Custom module access saved');
+            toast.success('Custom module & limit overrides saved');
             fetchAll();
             setSelectedTenant(null);
         } catch {
-            toast.error('Failed to save module overrides');
+            toast.error('Failed to save overrides');
         }
     };
 
@@ -680,11 +695,34 @@ const AdminPlans = () => {
                                 ))}
                             </div>
 
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Custom Max Users Override</label>
+                                    <input
+                                        type="number"
+                                        placeholder="Leave blank for plan default (-1 = unlimited)"
+                                        className="w-full p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-violet-400"
+                                        value={overrideMaxUsers}
+                                        onChange={e => setOverrideMaxUsers(e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Custom Max Branches Override</label>
+                                    <input
+                                        type="number"
+                                        placeholder="Leave blank for plan default (-1 = unlimited)"
+                                        className="w-full p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-violet-400"
+                                        value={overrideMaxBranches}
+                                        onChange={e => setOverrideMaxBranches(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
                             <button 
                                 onClick={handleSaveOverride}
                                 className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm"
                             >
-                                Save Custom Module Access
+                                Save Custom Module & Limit Overrides
                             </button>
                         </div>
                     </div>

@@ -1,8 +1,9 @@
 const db = require('../config/db');
+const accessScopeService = require('../services/accessScopeService');
 
 // @desc    Get all system logs with advanced filters
 // @route   GET /api/logs
-// @access  Private (Admin)
+// @access  Private (Admin, Manager, Supervisor)
 exports.getLogs = async (req, res) => {
   const { 
     user_id, 
@@ -16,6 +17,7 @@ exports.getLogs = async (req, res) => {
   } = req.query;
   
   const tenant_id = req.user.tenant_id;
+  const userRole = req.user.role;
 
   try {
     let query = `
@@ -25,6 +27,19 @@ exports.getLogs = async (req, res) => {
       WHERE l.tenant_id::text = $1::text
     `;
     const params = [tenant_id];
+
+    // Role-based scoping for managers and supervisors
+    if (userRole === 'manager' || userRole === 'supervisor') {
+      const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+      if (accessibleDeptIds && accessibleDeptIds.length > 0) {
+        params.push(accessibleDeptIds);
+        params.push(req.user.id);
+        query += ` AND (u.department_id = ANY($${params.length - 1}::int[]) OR l.user_id = $${params.length})`;
+      } else {
+        params.push(req.user.id);
+        query += ` AND l.user_id = $${params.length}`;
+      }
+    }
 
     if (user_id) {
       params.push(user_id);

@@ -768,14 +768,16 @@ const SecretPortalHUD = () => {
                                                     <div className="space-y-1 w-28">
                                                         <div className="flex items-center justify-between text-[11px]">
                                                             <span className="text-slate-600 font-semibold flex items-center gap-1">
-                                                                <Users size={11} /> {t.user_count || 1}
+                                                                <Users size={11} /> {t.user_count ?? 1}
                                                             </span>
-                                                            <span className="text-slate-400 text-[10px]">max {t.max_users || 10}</span>
+                                                            <span className="text-slate-400 text-[10px]">
+                                                                {Number(t.max_users) === -1 ? 'Unlimited' : `max ${t.max_users || 10}`}
+                                                            </span>
                                                         </div>
                                                         <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                                             <div 
                                                                 className="h-full bg-indigo-600 rounded-full"
-                                                                style={{ width: `${Math.min(100, ((t.user_count || 1) / (t.max_users || 10)) * 100)}%` }}
+                                                                style={{ width: `${Number(t.max_users) === -1 ? 25 : Math.min(100, ((t.user_count ?? 1) / (t.max_users || 10)) * 100)}%` }}
                                                             />
                                                         </div>
                                                     </div>
@@ -1100,7 +1102,9 @@ const SecretPortalHUD = () => {
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span className="text-slate-400 text-[11px]">User Capacity:</span>
-                                        <span className="text-slate-800">{selectedTenantDossier.user_count || 1} / {selectedTenantDossier.max_users || 10} Users</span>
+                                        <span className="text-slate-800">
+                                            {selectedTenantDossier.user_count ?? 1} / {Number(selectedTenantDossier.max_users) === -1 ? 'Unlimited' : `${selectedTenantDossier.max_users || 10} Users`}
+                                        </span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span className="text-slate-400 text-[11px]">Subscription End:</span>

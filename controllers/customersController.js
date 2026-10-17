@@ -1045,9 +1045,112 @@ exports.getCustomer360 = async (req, res) => {
         timeline: timelineItems
       }
     });
-
   } catch (err) {
-    console.error('[Customer 360 Error]', err);
-    res.status(500).json({ status: 'error', message: `Customer 360 resolution failed: ${err.message}` });
+    console.error('Error fetching customer 360:', err);
+    res.status(500).json({ status: 'error', message: 'Failed to fetch customer 360 data' });
   }
 };
+
+// @desc    Bulk assign leads/customers to sales representative or sales team
+// @route   POST /api/customers/bulk-assign
+// @access  Private (Admin, Manager, Supervisor)
+exports.bulkAssignLeads = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  const { customer_ids, target_user_id, team_id, distribution_method = 'least_loaded' } = req.body;
+
+  if (!Array.isArray(customer_ids) || customer_ids.length === 0) {
+    return res.status(400).json({ status: 'error', message: 'customer_ids array is required and must not be empty.' });
+  }
+
+  try {
+    let assignedCount = 0;
+
+    // Mode A: Direct assignment to specific user
+    if (target_user_id) {
+      const targetUserRes = await db.query(
+        `SELECT id, name FROM users WHERE id = $1 AND tenant_id::text = $2::text`,
+        [target_user_id, tenant_id]
+      );
+      if (targetUserRes.rows.length === 0) {
+        return res.status(404).json({ status: 'error', message: 'Target sales representative not found.' });
+      }
+
+      const updateRes = await db.query(
+        `UPDATE customers
+         SET assigned_to = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ANY($2::int[]) AND tenant_id::text = $3::text
+         RETURNING id`,
+        [target_user_id, customer_ids, tenant_id]
+      );
+      assignedCount = updateRes.rows.length;
+
+      // Log activity for each customer
+      for (const cid of customer_ids) {
+        await logActivity(req, {
+          parent_type: 'customer',
+          parent_id: cid,
+          type: 'reassigned',
+          description: `Assigned to ${targetUserRes.rows[0].name}`
+        });
+      }
+
+      return res.json({
+        status: 'success',
+        message: `Successfully assigned ${assignedCount} leads to ${targetUserRes.rows[0].name}.`,
+        assigned_count: assignedCount
+      });
+    }
+
+    // Mode B: Team distribution (round-robin or least_loaded)
+    if (team_id) {
+      const membersRes = await db.query(`
+        SELECT stm.user_id, u.name,
+          (SELECT COUNT(*)::int FROM customers c WHERE c.assigned_to = stm.user_id AND c.tenant_id::text = $1::text) as current_load
+        FROM sales_team_members stm
+        JOIN users u ON stm.user_id = u.id
+        WHERE stm.team_id = $2 AND stm.tenant_id::text = $1::text AND stm.is_active = true
+        ORDER BY current_load ASC
+      `, [tenant_id, team_id]);
+
+      if (membersRes.rows.length === 0) {
+        return res.status(400).json({ status: 'error', message: 'Selected sales team has no active members.' });
+      }
+
+      const members = membersRes.rows;
+      let memberIdx = 0;
+
+      for (const cid of customer_ids) {
+        const selectedMember = distribution_method === 'least_loaded'
+          ? members.sort((a, b) => a.current_load - b.current_load)[0]
+          : members[memberIdx % members.length];
+
+        await db.query(
+          `UPDATE customers SET assigned_to = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text`,
+          [selectedMember.user_id, cid, tenant_id]
+        );
+        selectedMember.current_load++;
+        memberIdx++;
+        assignedCount++;
+
+        await logActivity(req, {
+          parent_type: 'customer',
+          parent_id: cid,
+          type: 'reassigned',
+          description: `Assigned via team distribution to ${selectedMember.name}`
+        });
+      }
+
+      return res.json({
+        status: 'success',
+        message: `Successfully distributed ${assignedCount} leads across ${members.length} team members.`,
+        assigned_count: assignedCount
+      });
+    }
+
+    return res.status(400).json({ status: 'error', message: 'Either target_user_id or team_id must be provided.' });
+  } catch (err) {
+    console.error('[bulkAssignLeads error]:', err.message);
+    res.status(500).json({ status: 'error', message: 'Failed to assign leads.' });
+  }
+};
+

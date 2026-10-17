@@ -1559,15 +1559,27 @@ const reconcileDatabase = async () => {
         `);
 
         await db.query(`
+            CREATE TABLE IF NOT EXISTS tenant_overrides (
+                id SERIAL PRIMARY KEY,
+                tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE UNIQUE,
+                modules JSONB DEFAULT NULL,
+                limits JSONB DEFAULT NULL,
+                notes TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await db.query(`
             INSERT INTO plans (name, display_name, price_monthly, max_users, max_branches, modules, sort_order)
             VALUES
-            ('basic', 'Basic', 29.00, 10, 1, '{"crm": true, "finance": true, "hr": false, "inventory": false, "automation": false}', 1),
-            ('pro', 'Pro', 79.00, 50, 5, '{"crm": true, "finance": true, "hr": true, "inventory": true, "automation": false}', 2),
-            ('enterprise', 'Enterprise', 199.00, -1, -1, '{"crm": true, "finance": true, "hr": true, "inventory": true, "automation": true}', 3)
+            ('basic', 'Basic', 29.00, 10, 1, '{"crm": true, "finance": true, "hr": false, "inventory": false, "automation": false, "reports": true}', 1),
+            ('pro', 'Pro', 79.00, 50, 5, '{"crm": true, "finance": true, "hr": true, "inventory": true, "automation": false, "reports": true}', 2),
+            ('enterprise', 'Enterprise', 199.00, -1, -1, '{"crm": true, "finance": true, "hr": true, "inventory": true, "automation": true, "reports": true}', 3)
             ON CONFLICT (name) DO NOTHING
         `);
 
-        console.log('✅ [DB-RECON] SaaS Plans and Subscriptions tables verified.');
+        console.log('✅ [DB-RECON] SaaS Plans, Subscriptions, and Tenant Overrides tables verified.');
 
         // ── SAAS MULTI-BRANCH LAYER ──
         await db.query(`

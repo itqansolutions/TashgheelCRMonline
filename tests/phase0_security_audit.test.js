@@ -21,6 +21,12 @@ function createMockDb(queryHandler) {
 // -----------------------------------------------------------------------------
 test('Role Middleware: authorize enforces strict role matching and eliminates user_access bypass', async (t) => {
   const roleMiddleware = require('../middleware/roleMiddleware');
+  const db = require('../config/db');
+
+  const originalQuery = db.query;
+  t.afterEach(() => {
+    db.query = originalQuery;
+  });
 
   await t.test('allows admin unconditionally', async () => {
     let nextCalled = false;
@@ -48,12 +54,22 @@ test('Role Middleware: authorize enforces strict role matching and eliminates us
     assert.equal(nextCalled, true, 'Manager should match authorized roles');
   });
 
-  await t.test('rejects non-matching role even if user has rows in user_access', async () => {
+  await t.test('rejects non-matching role even if user has rows in user_access for other pages', async () => {
+    db.query = async (sql, params) => {
+      // User only has /dashboard permission, not /settings or /contacts/employees
+      return { rows: [] };
+    };
+
     let responseStatus = null;
     let responseJson = null;
     let nextCalled = false;
 
-    const req = { user: { id: 'u3', role: 'employee', tenant_id: 't1' } };
+    const req = {
+      baseUrl: '/api/users',
+      path: '/',
+      method: 'POST',
+      user: { id: 'u3', role: 'employee', tenant_id: 't1' }
+    };
     const res = {
       status: (code) => {
         responseStatus = code;
@@ -72,6 +88,29 @@ test('Role Middleware: authorize enforces strict role matching and eliminates us
     assert.equal(nextCalled, false, 'Next must NOT be called for unauthorized role');
     assert.equal(responseStatus, 403, 'Must return 403 Forbidden');
     assert.match(responseJson.message, /not authorized/, 'Must return unauthorized message');
+  });
+
+  await t.test('allows employee when user has explicit screen permission in user_access', async () => {
+    db.query = async (sql, params) => {
+      if (sql.includes('FROM user_access')) {
+        return { rows: [{ 1: 1 }] };
+      }
+      return { rows: [] };
+    };
+
+    let nextCalled = false;
+    const req = {
+      baseUrl: '/api/reports',
+      path: '/top-products',
+      method: 'GET',
+      user: { id: 'u4', role: 'employee', tenant_id: 't1' }
+    };
+    const res = {};
+    const next = () => { nextCalled = true; };
+
+    const middleware = roleMiddleware.authorize(['admin', 'manager']);
+    await middleware(req, res, next);
+    assert.equal(nextCalled, true, 'Next must be called when user_access grants permission');
   });
 
   await t.test('returns 401 when req.user is missing', async () => {

@@ -26,8 +26,9 @@ moduleRegistry.registerModule({
         console.log('🏢 [RealEstateDomain] Module events registered on EventBus.');
     },
     registerRoutes(app) {
+        const templateGuard = require('../../../middleware/templateGuard');
         // Express router hook for Real Estate Domain
-        app.post('/api/v2/real-estate/reserve', async (req, res) => {
+        app.post('/api/v2/real-estate/reserve', templateGuard('real_estate'), async (req, res) => {
             try {
                 const command = new ReserveUnitCommand({
                     tenantId: req.user.tenant_id,

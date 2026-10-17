@@ -38,7 +38,7 @@ exports.createPlan = async (req, res) => {
             price_monthly || 0,
             max_users || 10,
             max_branches || 1,
-            JSON.stringify(modules || { crm: true, finance: true, hr: false, inventory: false, automation: false }),
+            JSON.stringify(modules || { crm: true, finance: true, hr: false, inventory: false, automation: false, reports: true }),
             sort_order || 99
         ]);
         res.status(201).json({ status: 'success', data: result.rows[0] });
@@ -119,21 +119,42 @@ exports.getAdminTenants = async (req, res) => {
     try {
         const result = await db.query(`
             SELECT 
-                t.id, t.name, t.slug, t.status, t.created_at,
+                t.id, t.name, t.slug, t.status, t.created_at, t.template_name,
                 t.admin_name, t.admin_email, t.admin_phone,
                 s.status as sub_status, s.trial_ends_at, s.expires_at,
                 p.id as plan_id, p.name as plan_name, p.display_name,
                 p.price_monthly,
-                (SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id) as user_count,
+                COALESCE((o.limits->>'max_users')::int, p.max_users, 10) as max_users,
+                COALESCE((o.limits->>'max_branches')::int, p.max_branches, 1) as max_branches,
+                p.modules as plan_modules,
+                o.modules as override_modules,
+                o.limits as override_limits,
+                (SELECT COUNT(*)::int FROM users u WHERE u.tenant_id::text = t.id::text AND COALESCE(u.is_working, true) = true) as user_count,
+                (SELECT COUNT(*)::int FROM users u WHERE u.tenant_id::text = t.id::text) as total_user_count,
                 -- Check for override
                 CASE WHEN o.id IS NOT NULL THEN TRUE ELSE FALSE END as has_override
             FROM tenants t
-            LEFT JOIN subscriptions s ON s.tenant_id = t.id
+            LEFT JOIN subscriptions s ON s.tenant_id::text = t.id::text
             LEFT JOIN plans p ON s.plan_id = p.id
-            LEFT JOIN tenant_overrides o ON o.tenant_id = t.id
+            LEFT JOIN tenant_overrides o ON o.tenant_id::text = t.id::text
             ORDER BY t.created_at DESC
         `);
-        res.json({ status: 'success', data: result.rows });
+
+        const rows = result.rows.map(row => {
+            const rawPlanMods = typeof row.plan_modules === 'string'
+                ? JSON.parse(row.plan_modules)
+                : (row.plan_modules || { crm: true, finance: true, hr: false, inventory: false, automation: false, reports: true });
+            const planMods = { reports: true, ...rawPlanMods };
+            const ovMods = row.override_modules
+                ? (typeof row.override_modules === 'string' ? JSON.parse(row.override_modules) : row.override_modules)
+                : {};
+            return {
+                ...row,
+                modules: { ...planMods, ...ovMods }
+            };
+        });
+
+        res.json({ status: 'success', data: rows });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });
     }
@@ -144,13 +165,24 @@ exports.assignPlanToTenant = async (req, res) => {
     const { tenant_id } = req.params;
     const { plan_id, status, expires_at } = req.body;
     try {
+        const effectiveStatus = status || 'active';
         const result = await db.query(`
             INSERT INTO subscriptions (tenant_id, plan_id, status, expires_at, trial_ends_at)
-            VALUES ($1, $2, $3, $4, $4)
+            VALUES ($1, $2, $3, $4, CASE WHEN $3 = 'trial' THEN COALESCE($4, NOW() + INTERVAL '14 days') ELSE NULL END)
             ON CONFLICT (tenant_id)
             DO UPDATE SET plan_id = $2, status = $3, expires_at = $4, updated_at = NOW()
             RETURNING *
-        `, [tenant_id, plan_id, status || 'active', expires_at || null]);
+        `, [tenant_id, plan_id, effectiveStatus, expires_at || null]);
+
+        // Keep tenants table synchronized with subscription status & plan name
+        const planRes = await db.query(`SELECT name FROM plans WHERE id = $1`, [plan_id]);
+        const planName = planRes.rows[0]?.name || 'basic';
+        const mappedTenantStatus = effectiveStatus === 'suspended' ? 'suspended' : 'active';
+        await db.query(
+            `UPDATE tenants SET plan = $1, status = $2, subscription_end = $3 WHERE id::text = $4::text`,
+            [planName, mappedTenantStatus, expires_at || null, tenant_id]
+        );
+
         res.json({ status: 'success', data: result.rows[0], message: 'Plan assigned successfully.' });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });
@@ -177,13 +209,17 @@ exports.setTenantOverride = async (req, res) => {
             INSERT INTO tenant_overrides (tenant_id, modules, limits, notes)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (tenant_id)
-            DO UPDATE SET modules = $2, limits = $3, notes = $4, updated_at = NOW()
+            DO UPDATE SET
+                modules = COALESCE($2, tenant_overrides.modules),
+                limits = COALESCE($3, tenant_overrides.limits),
+                notes = COALESCE($4, tenant_overrides.notes),
+                updated_at = NOW()
             RETURNING *
         `, [
             tenant_id,
-            modules ? JSON.stringify(modules) : null,
-            limits ? JSON.stringify(limits) : null,
-            notes || null
+            modules !== undefined ? (modules ? JSON.stringify(modules) : null) : null,
+            limits !== undefined ? (limits ? JSON.stringify(limits) : null) : null,
+            notes !== undefined ? notes : null
         ]);
         res.json({ status: 'success', data: result.rows[0], message: 'Tenant override saved.' });
     } catch (err) {

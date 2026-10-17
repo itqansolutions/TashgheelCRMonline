@@ -181,19 +181,38 @@ exports.assignUserShift = async (req, res) => {
   const { user_id, shift_id, effective_from, effective_to } = req.body;
   if (!user_id || !shift_id) return res.status(400).json({ status: 'error', message: 'Employee and shift are required' });
   try {
+    // Verify employee belongs to caller's tenant
+    const userCheck = await db.query(
+      `SELECT id FROM users WHERE id = $1 AND tenant_id::text = $2::text`,
+      [parseInt(user_id, 10), tenant_id]
+    );
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Employee not found in your organization' });
+    }
+
+    // Verify shift belongs to caller's tenant
+    const shiftCheck = await db.query(
+      `SELECT id FROM hr_shifts WHERE id = $1 AND tenant_id::text = $2::text`,
+      [parseInt(shift_id, 10), tenant_id]
+    );
+    if (shiftCheck.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Shift not found in your organization' });
+    }
+
     // Close any existing open assignment for this employee
     await db.query(
       `UPDATE hr_user_shifts SET effective_to = $1
-       WHERE user_id = $2 AND effective_to IS NULL AND tenant_id = $3`,
-      [effective_from || new Date().toISOString().split('T')[0], parseInt(user_id), tenant_id]
+       WHERE user_id = $2 AND effective_to IS NULL AND tenant_id::text = $3::text`,
+      [effective_from || new Date().toISOString().split('T')[0], parseInt(user_id, 10), tenant_id]
     );
     const result = await db.query(`
       INSERT INTO hr_user_shifts (user_id, shift_id, effective_from, effective_to, tenant_id)
       VALUES ($1,$2,$3,$4,$5)
       ON CONFLICT (user_id, effective_from) DO UPDATE SET shift_id = EXCLUDED.shift_id
+      WHERE hr_user_shifts.tenant_id::text = EXCLUDED.tenant_id::text
       RETURNING *
     `, [
-      parseInt(user_id), parseInt(shift_id),
+      parseInt(user_id, 10), parseInt(shift_id, 10),
       effective_from || new Date().toISOString().split('T')[0],
       effective_to || null,
       tenant_id

@@ -54,6 +54,64 @@ exports.updateUserRole = async (req, res) => {
   const cleanPassword = (password && String(password).trim() !== '') ? String(password).trim() : null;
 
   try {
+    // Fetch current user state to verify tenant ownership and check if reactivating an inactive user
+    const existingUserRes = await db.query(
+      'SELECT id, is_working FROM users WHERE id = $1 AND tenant_id::text = $2::text',
+      [userId, req.user.tenant_id]
+    );
+    if (existingUserRes.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+    const existingUser = existingUserRes.rows[0];
+    const nextIsWorking = is_working !== false;
+
+    // If reactivating an inactive user (false -> true), enforce tenant user limit
+    if (existingUser.is_working === false && nextIsWorking === true) {
+      const subRes = await db.query(`
+        SELECT p.max_users, p.name as plan_name, o.limits as override_limits
+        FROM subscriptions s
+        JOIN plans p ON s.plan_id = p.id
+        LEFT JOIN tenant_overrides o ON o.tenant_id::text = s.tenant_id::text
+        WHERE s.tenant_id::text = $1::text
+      `, [req.user.tenant_id]);
+
+      let maxUsers = -1;
+      let planName = 'basic';
+      if (subRes.rows.length > 0) {
+        const row = subRes.rows[0];
+        const ovLimits = row.override_limits
+          ? (typeof row.override_limits === 'string' ? JSON.parse(row.override_limits) : row.override_limits)
+          : {};
+        maxUsers = ovLimits.max_users !== undefined && ovLimits.max_users !== null ? Number(ovLimits.max_users) : row.max_users;
+        planName = row.plan_name;
+      } else {
+        const ovRes = await db.query(`SELECT limits FROM tenant_overrides WHERE tenant_id::text = $1::text`, [req.user.tenant_id]);
+        if (ovRes.rows.length > 0) {
+          const ovLimits = typeof ovRes.rows[0].limits === 'string' ? JSON.parse(ovRes.rows[0].limits) : (ovRes.rows[0].limits || {});
+          if (ovLimits.max_users !== undefined && ovLimits.max_users !== null) maxUsers = Number(ovLimits.max_users);
+        }
+      }
+
+      if (maxUsers !== -1) {
+        const countRes = await db.query(
+          `SELECT COUNT(*) FROM users WHERE tenant_id::text = $1::text AND COALESCE(is_working, true) = true`,
+          [req.user.tenant_id]
+        );
+        const currentCount = parseInt(countRes.rows[0].count, 10);
+        if (currentCount >= maxUsers) {
+          return res.status(403).json({
+            status: 'usage_limit',
+            limit_type: 'users',
+            current: currentCount,
+            max: maxUsers,
+            plan: planName,
+            message: `Cannot reactivate user: active user limit reached (${currentCount}/${maxUsers}). Upgrade your plan or deactivate another user first.`,
+            upgrade_url: '/pricing'
+          });
+        }
+      }
+    }
+
     // If email provided, verify it is not already used by ANOTHER user
     if (cleanEmail) {
       const emailCheck = await db.query(

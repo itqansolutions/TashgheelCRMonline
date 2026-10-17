@@ -26,14 +26,39 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   const allowed = safeArray(user?.allowedPages);
   const safeFallback = (allowed.includes('/dashboard')) ? '/dashboard' : '/my-profile';
 
-  // Optional Module Entitlement Enforcement
+  // Module Entitlement Enforcement (applies to ALL roles including tenant admin)
   if (checkPath.startsWith('/inventory') || checkPath.startsWith('/products')) {
-    if (!can('inventory')) {
+    if (!can('inventory') && !can('purchasing')) {
       return <Navigate to={safeFallback} replace />;
     }
   }
-  if (checkPath.startsWith('/purchases')) {
+  if (checkPath.startsWith('/purchases') || checkPath.startsWith('/contacts/vendors')) {
     if (!can('purchasing') && !can('inventory')) {
+      return <Navigate to={safeFallback} replace />;
+    }
+  }
+  if (
+    checkPath.startsWith('/hr') ||
+    ['/my-attendance', '/my-requests', '/approvals', '/my-payroll', '/activity-balance'].includes(checkPath)
+  ) {
+    if (!can('hr')) {
+      return <Navigate to={safeFallback} replace />;
+    }
+  }
+  if (checkPath.startsWith('/finance')) {
+    const tabParam = new URLSearchParams(location.search).get('tab');
+    const isQuotationTab = tabParam && tabParam.toLowerCase() === 'quotations';
+    if (!isQuotationTab && !can('finance')) {
+      return <Navigate to={safeFallback} replace />;
+    }
+  }
+  if (checkPath.startsWith('/automation')) {
+    if (!can('automation')) {
+      return <Navigate to={safeFallback} replace />;
+    }
+  }
+  if (checkPath.startsWith('/reports')) {
+    if (!can('reports')) {
       return <Navigate to={safeFallback} replace />;
     }
   }

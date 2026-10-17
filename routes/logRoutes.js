@@ -4,9 +4,9 @@ const logsController = require('../controllers/logsController');
 const authMiddleware = require('../middleware/auth');
 const { authorize } = require('../middleware/roleMiddleware');
 
-// PROTECTED: Only Admins can view system logs
+// PROTECTED: Admins and Managers/Supervisors (scoped) can view system logs
 router.use(authMiddleware);
-router.use(authorize(['admin']));
+router.use(authorize(['admin', 'manager', 'supervisor']));
 
 // @route   GET api/logs
 // @desc    Get all system logs

@@ -264,9 +264,9 @@ exports.login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Get user with tenant template
+    // Get user with tenant template and status
     const userResult = await db.query(`
-      SELECT u.*, t.template_name 
+      SELECT u.*, t.template_name, t.status as tenant_status 
       FROM users u 
       JOIN tenants t ON u.tenant_id::text = t.id::text 
       WHERE u.email = $1
@@ -284,6 +284,30 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       logSecurity(req, ACTIONS.LOGIN_FAIL, { email }, LOG_LEVELS.CRITICAL, user.id);
       return res.status(400).json({ status: 'error', message: 'Invalid Credentials' });
+    }
+
+    // Block deactivated employees
+    if (user.is_working === false) {
+      logSecurity(req, ACTIONS.LOGIN_FAIL, { email, reason: 'user_deactivated' }, LOG_LEVELS.WARNING, user.id);
+      return res.status(403).json({
+        status: 'error',
+        code: 'USER_DEACTIVATED',
+        message: 'Your employee account has been deactivated. Please contact your administrator.'
+      });
+    }
+
+    // Block suspended/inactive tenants (except platform super admin)
+    if (
+      user.tenant_id !== '00000000-0000-0000-0000-000000000000' &&
+      user.tenant_status &&
+      ['suspended', 'inactive', 'disabled'].includes(String(user.tenant_status).toLowerCase())
+    ) {
+      logSecurity(req, ACTIONS.LOGIN_FAIL, { email, reason: 'tenant_suspended' }, LOG_LEVELS.WARNING, user.id);
+      return res.status(403).json({
+        status: 'tenant_suspended',
+        code: 'TENANT_SUSPENDED',
+        message: 'Your organization account is currently suspended. Please contact platform support.'
+      });
     }
 
     // Resolve accessible branches & primary branch_id (linked in user_branches or users.branch_id within tenant)

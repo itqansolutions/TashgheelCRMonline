@@ -190,6 +190,27 @@ exports.updateTenant = async (req, res) => {
 
     const result = await db.query(query, params);
 
+    // Sync subscriptions status/expires_at when Super Admin updates tenant status or subscription_end
+    if (tenant_id === SYSTEM_DEFAULT_TENANT && (status !== undefined || subscription_end !== undefined)) {
+      const nextTenantStatus = (status || oldData.status || 'active').toLowerCase();
+      const nextSubStatus = ['suspended', 'inactive', 'disabled'].includes(nextTenantStatus) ? 'suspended' : 'active';
+      const nextSubEnd = subscription_end !== undefined
+        ? ((subscription_end && subscription_end.trim() !== '') ? subscription_end : null)
+        : undefined;
+
+      if (nextSubEnd !== undefined) {
+        await db.query(
+          `UPDATE subscriptions SET status = $1, expires_at = $2, updated_at = NOW() WHERE tenant_id::text = $3::text`,
+          [nextSubStatus, nextSubEnd, id]
+        );
+      } else if (status !== undefined) {
+        await db.query(
+          `UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE tenant_id::text = $2::text`,
+          [nextSubStatus, id]
+        );
+      }
+    }
+
     // Audit Logging
     logUpdate(req, 'Tenant', id, oldData, result.rows[0]);
 

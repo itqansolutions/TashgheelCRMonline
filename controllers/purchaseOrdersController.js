@@ -789,8 +789,8 @@ exports.createPurchaseOrder = async (req, res) => {
       await client.query(
         `UPDATE purchase_requests
          SET status = 'converted_to_po', updated_at = CURRENT_TIMESTAMP
-         WHERE id = $1`,
-        [purchase_request_id]
+         WHERE id = $1 AND tenant_id::text = $2::text`,
+        [purchase_request_id, tenantId]
       );
     }
 

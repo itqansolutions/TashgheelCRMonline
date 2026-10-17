@@ -5,9 +5,17 @@ const authMiddleware = require('../middleware/auth');
 const { loginRateLimiter } = require('../middleware/rateLimit');
 
 // @route   POST api/auth/register
-// @desc    Register a new user & Create Tenant (demo/internal — kept for compatibility)
-// @access  Public
-router.post('/register', authController.register);
+// @desc    Register a new user & Create Tenant (internal/platform owner only — public signups must use /register-request)
+// @access  Private (Platform Super Admin)
+router.post('/register', authMiddleware, (req, res, next) => {
+  if (req.user?.tenant_id !== '00000000-0000-0000-0000-000000000000' || req.user?.role !== 'admin') {
+    return res.status(403).json({
+      status: 'error',
+      message: 'Direct tenant provisioning is restricted to the platform administrator. Please submit a registration request.'
+    });
+  }
+  next();
+}, authController.register);
 
 // @route   POST api/auth/register-request
 // @desc    Submit a registration request (no tenant/user created — pending Super Admin review)

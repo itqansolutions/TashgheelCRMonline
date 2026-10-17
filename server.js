@@ -171,8 +171,8 @@ app.use('/api/workflows', moduleGuard('automation'), workflowRoutes);
 app.use('/api/rules',     moduleGuard('automation'), rulesRoutes);
 
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/invoices', invoiceRoutes);
-app.use('/api/expenses', expenseRoutes);
+app.use('/api/invoices', moduleGuard('finance'), invoiceRoutes);
+app.use('/api/expenses', moduleGuard('finance'), expenseRoutes);
 
 app.use('/api/users', userRoutes);
 app.use('/api/departments', departmentRoutes);
@@ -189,6 +189,7 @@ app.use('/api/lead-statuses', require('./routes/leadStatusRoutes'));
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/sales-teams', require('./routes/salesTeamRoutes'));
+app.use('/api/sales-management', moduleGuard('crm'), require('./routes/salesManagementRoutes'));
 
 // Real Estate Module Routes (Protected by templateGuard)
 app.use('/api/re-units',         templateGuard('real_estate'), reUnitRoutes);
@@ -200,11 +201,11 @@ app.use('/api/re-commissions',   templateGuard('real_estate'), require('./routes
 app.use('/api/re-cancellations', templateGuard('real_estate'), require('./routes/reCancellationRoutes'));
 app.use('/api/re-handovers',     templateGuard('real_estate'), require('./routes/reHandoverRoutes'));
 app.use('/api/re-targets',       templateGuard('real_estate'), require('./routes/reTargetRoutes'));
-app.use('/api/propertyfinder',   require('./routes/propertyFinderRoutes'));
+app.use('/api/propertyfinder',   templateGuard('real_estate'), require('./routes/propertyFinderRoutes'));
 
 app.use('/api/super-admin', superAdminRoutes);
 app.use('/api/activities', activityRoutes);
-app.use('/api/vendors', vendorRoutes);
+app.use('/api/vendors', moduleGuard('purchasing', 'inventory'), vendorRoutes);
 
 // Purchasing & Procurement Routes
 // Purchasing currently falls back to inventory for backward compatibility with existing plans.
@@ -222,11 +223,11 @@ app.use('/api/erp/sales',         templateGuard('general'), require('./routes/sa
 app.use('/api/job-titles', jobTitleRoutes);
 
 // HR Extension Modules
-app.use('/api/hr/activity-types', hrActivityRoutes);
-app.use('/api/hr/activity-balances', hrActivityBalanceRoutes);
-app.use('/api/hr/activity-balance', hrActivityBalanceRoutes);
-app.use('/api/hr/shifts', hrShiftsRoutes);
-app.use('/api/hr/devices', hrDevicesRoutes);
+app.use('/api/hr/activity-types', moduleGuard('hr'), hrActivityRoutes);
+app.use('/api/hr/activity-balances', moduleGuard('hr'), hrActivityBalanceRoutes);
+app.use('/api/hr/activity-balance', moduleGuard('hr'), hrActivityBalanceRoutes);
+app.use('/api/hr/shifts', moduleGuard('hr'), hrShiftsRoutes);
+app.use('/api/hr/devices', moduleGuard('hr'), hrDevicesRoutes);
 
 // ── ISOLATED ERP ACCOUNTING MODULE ──────────────────────────────
 // Parked — isolated from Tashgheel CRM UX and API surface.
