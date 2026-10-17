@@ -292,19 +292,100 @@ exports.createActivity = async (req, res) => {
         );
 
         const activity = result.rows[0];
+        let updatedDealStage = null;
+        let updatedDealId = null;
+
+        // Auto-transition deal to 'Site Visit' when logging a 'visited' (🏠 Site Visit) action
+        if (action === 'visited') {
+            try {
+                let targetDeal = null;
+                if (cleanEntityType === 'deal') {
+                    const dRes = await db.query(
+                        `SELECT id, title, pipeline_stage, custom_fields, assigned_to, branch_id
+                         FROM deals WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+                        [entity_id, tenant_id]
+                    );
+                    targetDeal = dRes.rows[0] || null;
+                } else if (cleanEntityType === 'customer') {
+                    const dRes = await db.query(
+                        `SELECT id, title, pipeline_stage, custom_fields, assigned_to, branch_id
+                         FROM deals
+                         WHERE customer_id::text = $1::text AND tenant_id::text = $2::text
+                           AND LOWER(COALESCE(pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost')
+                         ORDER BY id DESC LIMIT 1`,
+                        [entity_id, tenant_id]
+                    );
+                    targetDeal = dRes.rows[0] || null;
+                }
+
+                if (targetDeal) {
+                    const currentStageLower = String(targetDeal.pipeline_stage || '').toLowerCase().trim();
+                    const preVisitStages = ['lead', 'qualified', 'new', 'contacted', 'inquiry', ''];
+                    const customFields = (targetDeal.custom_fields && typeof targetDeal.custom_fields === 'object')
+                        ? { ...targetDeal.custom_fields }
+                        : {};
+
+                    if (!customFields.visit_date) {
+                        customFields.visit_date = new Date().toISOString().slice(0, 16);
+                    }
+                    customFields.visit_notes = note.trim();
+                    if (!customFields.visit_result) {
+                        customFields.visit_result = 'Completed';
+                    }
+
+                    const newStage = preVisitStages.includes(currentStageLower) ? 'Site Visit' : targetDeal.pipeline_stage;
+                    const newAssignee = targetDeal.assigned_to || req.user.id;
+
+                    await db.query(
+                        `UPDATE deals
+                         SET pipeline_stage = $1,
+                             custom_fields = $2::jsonb,
+                             assigned_to = $3,
+                             updated_at = CURRENT_TIMESTAMP
+                         WHERE id = $4 AND tenant_id::text = $5::text`,
+                        [newStage, JSON.stringify(customFields), newAssignee, targetDeal.id, tenant_id]
+                    );
+
+                    updatedDealStage = newStage;
+                    updatedDealId = targetDeal.id;
+
+                    if (newStage !== targetDeal.pipeline_stage) {
+                        const templateAutomationService = require('../services/templateAutomationService');
+                        templateAutomationService.runTemplateAutomation({
+                            tenantId: tenant_id,
+                            event: 'stage_change',
+                            payload: {
+                                stage: newStage,
+                                deal_id: targetDeal.id,
+                                title: targetDeal.title,
+                                assigned_to: newAssignee,
+                                user_id: req.user.id,
+                                branch_id: targetDeal.branch_id,
+                                custom_fields: customFields
+                            }
+                        }).catch(err => console.error('[SiteVisit Activity Automation Error]', err.message));
+                    }
+                }
+            } catch (stageErr) {
+                console.warn('[Activity -> Site Visit Stage Sync Warning]:', stageErr.message);
+            }
+        }
+
         const formattedMessage = formatActivity(cleanEntityType, action, meta);
 
         res.status(201).json({
             status: 'success',
             data: {
-                id:                activity.id,
-                action:            activity.action,
-                entity_type:       activity.entity_type,
-                entity_id:         activity.entity_id,
-                created_at:        activity.created_at,
-                user_name:         req.user.name || 'Unknown',
-                formatted_message: formattedMessage,
-                meta
+                id:                 activity.id,
+                action:             activity.action,
+                entity_type:        activity.entity_type,
+                entity_id:          activity.entity_id,
+                created_at:         activity.created_at,
+                user_name:          req.user.name || 'Unknown',
+                formatted_message:  formattedMessage,
+                meta,
+                updated_deal_id:    updatedDealId,
+                updated_deal_stage: updatedDealStage
             }
         });
     } catch (err) {

@@ -249,10 +249,14 @@ async function backfillUnlinkedLeadsForListing(tenantId, externalListingId, { qu
            updated_at = CURRENT_TIMESTAMP
        WHERE d.tenant_id::text = $2::text
          AND d.source_type = 'property_finder'
-         AND d.unit_id IS NULL
+         AND (
+           d.unit_id IS NULL
+           OR (d.unit_id::text = $1::text AND (d.value IS NULL OR d.value = 0) AND COALESCE($6::numeric, 0) > 0)
+         )
          AND COALESCE(d.custom_fields->>'lead_type', 'listing') = 'listing'
          AND (
-           d.custom_fields->>'pf_listing_id' = $3
+           d.unit_id::text = $1::text
+           OR d.custom_fields->>'pf_listing_id' = $3
            OR ($4::boolean = true AND COALESCE(d.custom_fields->>'pf_listing_id', '') = '' AND LOWER(TRIM(COALESCE(d.custom_fields->>'pf_listing_reference', ''))) = LOWER(TRIM(COALESCE($5, ''))))
            OR EXISTS (
              SELECT 1 FROM property_finder_lead_mappings pflm
@@ -349,6 +353,15 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
           const externalReference = extRef || rawUnitNumber || unitCode;
           const unitName = listingTitle || `PF Unit ${unitCode}`;
           const locationText = [listing.location?.sub_community, listing.location?.community, listing.location?.city].filter(Boolean).join(', ') || 'Egypt';
+          const rawOfferType = String(
+            listing.offering_type || listing.offeringType || listing.category || listing.price?.type || ''
+          ).toLowerCase();
+          const isRentListing =
+            rawOfferType.includes('rent') ||
+            rawOfferType === 'yearly' ||
+            rawOfferType === 'monthly' ||
+            /(للايجار|للإيجار|إيجار|ايجار|\bfor rent\b|\brent\b)/i.test(unitName);
+          const transactionType = isRentListing ? 'rent' : 'sale';
 
           // 1. Check if mapping already exists for this tenant & external listing ID
           const mapCheck = await db.query(
@@ -375,9 +388,10 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
                     await db.query(
                       `UPDATE re_units 
                        SET price = $1,
-                           name = COALESCE(NULLIF(name, ''), $2)
+                           name = COALESCE(NULLIF(name, ''), $2),
+                           transaction_type = COALESCE(NULLIF(transaction_type, ''), $5)
                        WHERE id::text = $3::text AND tenant_id::text = $4::text`,
-                      [price, unitName, existingMapping.unit_id, tenantId]
+                      [price, unitName, existingMapping.unit_id, tenantId, transactionType]
                     );
                   } else if (localPrice !== price && price > 0) {
                     await logIntegrationEvent(
@@ -489,9 +503,10 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
             if (price > 0) {
               await db.query(
                 `UPDATE re_units SET price = CASE WHEN price = 0 OR price IS NULL THEN $1 ELSE price END,
-                                    name = COALESCE(NULLIF(name, ''), $2)
+                                    name = COALESCE(NULLIF(name, ''), $2),
+                                    transaction_type = COALESCE(NULLIF(transaction_type, ''), $5)
                  WHERE id = $3::uuid AND tenant_id::text = $4::text`,
-                [price, unitName, targetUnitId, tenantId]
+                [price, unitName, targetUnitId, tenantId, transactionType]
               ).catch(() => {});
             }
             stats.linkedExisting++;
@@ -499,9 +514,9 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
             // 0 matches -> create a dedicated unit record for this listing
             const unitInsert = await db.query(
               `INSERT INTO re_units (
-                tenant_id, name, project_name, unit_number, type, area_sqm, price, rooms, location, status
+                tenant_id, name, project_name, unit_number, type, area_sqm, price, rooms, location, status, transaction_type
                ) VALUES (
-                $1::text, $2, $3, $4, $5, $6, $7, $8, $9, 'Available'
+                $1::text, $2, $3, $4, $5, $6, $7, $8, $9, 'Available', $10
                ) RETURNING id`,
               [
                 tenantId,
@@ -512,7 +527,8 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
                 areaSqm ? String(areaSqm) : null,
                 price,
                 rooms,
-                locationText
+                locationText,
+                transactionType
               ]
             );
             targetUnitId = unitInsert.rows[0].id;

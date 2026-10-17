@@ -506,12 +506,47 @@ const Deals = () => {
 
   const handleUnitChange = (unitId) => {
       const unit = (reUnits || []).find(u => String(u.id) === String(unitId));
+      const prevUnit = (reUnits || []).find(u => String(u.id) === String(formData.unit_id));
+      const shouldUpdatePrice = unit && Number(unit.price || 0) > 0 && (
+          !formData.value ||
+          Number(formData.value) === 0 ||
+          (prevUnit && Number(formData.value) === Number(prevUnit.price))
+      );
+      let nextTitle = formData.title;
+      if ((!editingDeal || !formData.title) && unit) {
+          nextTitle = `${unit.project_name || ''} - Unit ${unit.unit_number || ''}`.trim();
+      } else if (unit && nextTitle && nextTitle.startsWith('Property Finder:') && !nextTitle.includes(' - ')) {
+          nextTitle = `${nextTitle} - ${unit.unit_number || unit.name}`;
+      }
       setFormData({
           ...formData,
           unit_id: unitId,
-          value: (!editingDeal && (!formData.value || Number(formData.value) === 0) && unit) ? unit.price : formData.value,
-          title: (!editingDeal || !formData.title) && unit ? `${unit.project_name || ''} - Unit ${unit.unit_number || ''}`.trim() : formData.title
+          value: shouldUpdatePrice ? unit.price : formData.value,
+          title: nextTitle,
+          custom_fields: {
+              ...formData.custom_fields,
+              project: unit?.project_name || formData.custom_fields?.project || ''
+          }
       });
+  };
+
+  const handleStageChange = async (deal, nextStage) => {
+    if (!deal || !nextStage) return;
+    if (!hasDealPermission('deal.update_stage')) {
+      return toast.error(t('deals.noPermissionStage', 'You do not have permission to change deal stages.'));
+    }
+    try {
+      await api.patch(`/deals/${deal.id}/status`, { pipeline_stage: nextStage });
+      toast.success(
+        isRTL
+          ? `تم نقل الصفقة إلى "${getStageLabel(nextStage)}"`
+          : `Moved deal to ${getStageLabel(nextStage)}`
+      );
+      fetchDeals(false);
+      if (isRealEstate) fetchReUnits();
+    } catch (err) {
+      toast.error(err.response?.data?.message || t('deals.failedToSave', 'Failed to update deal stage'));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -604,11 +639,15 @@ const Deals = () => {
       label: t('deals.dealTitle', 'Deal Title'),
       render: (val, item) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div 
+            onClick={() => handleOpenModal(item)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+            title={isRTL ? 'اضغط لفتح كارت تفاصيل الصفقة' : 'Click to open deal details card'}
+          >
             <div style={{ padding: '6px', borderRadius: '6px', background: '#fff7ed', color: '#f59e0b' }}>
               <Handshake size={14} />
             </div>
-            <span style={{ fontWeight: '600' }}>{val}</span>
+            <span style={{ fontWeight: '700', color: 'var(--primary)' }}>{val}</span>
           </div>
 
           {/* REAL ESTATE UNIT BADGE */}
@@ -617,7 +656,7 @@ const Deals = () => {
                    <div
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/re-units?unit_id=${item.unit_id}`);
+                          navigate(`/units-registry?unit_id=${item.unit_id}`);
                         }}
                         title={isRTL ? 'اضغط لعرض بطاقة الوحدة الشاملة وجميع العملاء والصفقات المرتبطة' : 'Click to open Unit Overview Card'}
                         style={{ 
@@ -632,7 +671,7 @@ const Deals = () => {
                    </div>
                    
                    {/* RESERVATION STATUS / EXPIRATION BADGE */}
-                   {item.unit_status === 'Reserved' && item.unit_reservation_expires_at && (
+                   {String(item.unit_status || '').toLowerCase() === 'reserved' && item.unit_reservation_expires_at && (
                        <div style={{ 
                             display: 'flex', alignItems: 'center', gap: '4px', 
                             fontSize: '11px', 
@@ -736,7 +775,18 @@ const Deals = () => {
     { 
       key: 'value', 
       label: t('deals.value', 'Value'),
-      render: (val) => <span style={{ fontWeight: '700', color: 'var(--primary)' }}><span className="num-en">{Number(val || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</span>
+      render: (val, item) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span style={{ fontWeight: '700', color: 'var(--primary)' }}>
+            <span className="num-en">{Number(val || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}
+          </span>
+          {Number(val || 0) === 0 && item.unit_price && (
+            <span style={{ fontSize: '11px', color: '#64748b' }}>
+              {t('deals.unitListPrice', 'Unit Price')}: <span className="num-en">{Number(item.unit_price).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}
+            </span>
+          )}
+        </div>
+      )
     },
     { 
       key: 'pipeline_stage', 
@@ -885,6 +935,7 @@ const Deals = () => {
           columns={columns.filter(Boolean)}
           data={deals || []}
           loading={loading}
+          onRowClick={handleOpenModal}
           onEdit={handleOpenModal}
           onDelete={canDeleteDeal ? handleDelete : undefined}
           actions={(row) => (
@@ -903,6 +954,7 @@ const Deals = () => {
           deals={deals || []}
           pipelineStages={templateConfig?.pipeline || ['discovery', 'proposal', 'negotiation', 'won', 'lost']}
           onEdit={handleOpenModal}
+          onStageChange={handleStageChange}
         />
       )}
 
@@ -1088,17 +1140,37 @@ const Deals = () => {
                     <span className="num-en">{editingDeal.custom_fields?.pf_listing_reference || editingDeal.custom_fields?.pf_listing_id || editingDeal.custom_fields?.pf_project_id}</span>
                   </div>
                 )}
+                {editingDeal?.unit_id && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '8px 12px', marginBottom: '8px' }}>
+                    <Building2 size={16} color="#0284c7" />
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: '13px', color: '#0369a1' }}>
+                        {editingDeal.unit_project ? `${editingDeal.unit_project} • ` : ''}{t('deals.unitProject', 'Unit')} <span className="num-en">{editingDeal.unit_number || editingDeal.unit_name || editingDeal.unit_id}</span>
+                      </div>
+                      {editingDeal.unit_price && (
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>
+                          {t('deals.unitPriceNotice', 'Listed Price')}: <span className="num-en">{Number(editingDeal.unit_price).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <select 
                     className="ap-input" 
                     style={{ border: '1px solid #0ea5e9' }}
                     value={formData.unit_id} 
-                    disabled={Boolean(editingDeal?.unit_id) || isDetailsDisabled}
+                    disabled={isDetailsDisabled || Boolean(editingDeal?.unit_id && (String(editingDeal?.unit_status || '').toLowerCase() === 'reserved' || editingDeal?.custom_fields?.is_unit_reservation || isDealLocked))}
                     onChange={(e) => handleUnitChange(e.target.value)}
                 >
                     <option value="">{t('deals.selectAvailableUnit', '-- Select Available Unit --')}</option>
-                    {(reUnits || []).filter(u => u.status === 'Available' || String(u.id) === String(formData.unit_id)).map(u => (
+                    {formData.unit_id && !(reUnits || []).some(u => String(u.id) === String(formData.unit_id)) && (
+                        <option value={formData.unit_id}>
+                            {editingDeal?.unit_project ? `${editingDeal.unit_project} | ` : ''}Unit {editingDeal?.unit_number || formData.unit_id} ({t('deals.currentUnit', 'Current Linked Unit')})
+                        </option>
+                    )}
+                    {(reUnits || []).filter(u => String(u.status || '').toLowerCase() === 'available' || String(u.id) === String(formData.unit_id)).map(u => (
                         <option key={u.id} value={u.id}>
-                            {u.project_name} | Unit {u.unit_number}{u.name && u.name !== u.unit_number ? ` (${u.name})` : ''} ({u.area}m²) - {Number(u.price).toLocaleString('en-US')} {t('common.currency', 'EGP')}
+                            {u.project_name} | Unit {u.unit_number}{u.name && u.name !== u.unit_number ? ` (${u.name})` : ''} ({u.area_sqm || u.area || 0}m²) - {Number(u.price).toLocaleString('en-US')} {t('common.currency', 'EGP')}
                         </option>
                     ))}
                 </select>
@@ -1165,6 +1237,20 @@ const Deals = () => {
               onChange={(e) => setFormData({...formData, value: e.target.value})}
               disabled={isDetailsDisabled}
             />
+            {editingDeal && Number(formData.value || 0) === 0 && (editingDeal.unit_price || editingDeal.unit_price === 0) && (
+              <div style={{ marginTop: '6px', fontSize: '11px', color: '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '4px 8px', borderRadius: '6px' }}>
+                <span>{t('deals.unitPriceNotice', 'Listed Unit Price')}: <strong className="num-en">{Number(editingDeal.unit_price).toLocaleString('en-US')}</strong> {t('common.currency', 'EGP')}</span>
+                {!isDetailsDisabled && (
+                  <button 
+                    type="button" 
+                    onClick={() => setFormData(prev => ({...prev, value: editingDeal.unit_price}))} 
+                    style={{ background: '#0284c7', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 8px', fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    {t('deals.copyUnitPrice', 'Use Unit Price')}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <div className="form-group">
             <label>{t('deals.pipelineStage', 'Pipeline Stage')}</label>
@@ -1271,7 +1357,7 @@ const Deals = () => {
                     type="button"
                     onClick={() => {
                       handleCloseModal();
-                      navigate(`/re-units?unit_id=${editingDeal.unit_id}`);
+                      navigate(`/units-registry?unit_id=${editingDeal.unit_id}`);
                     }}
                     style={{
                       padding: '4px 10px',
@@ -1517,7 +1603,24 @@ const Deals = () => {
         {editingDeal && (
           <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid #e2e8f0' }}>
             <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', marginBottom: '16px' }}>{t('deals.dealActivityTimeline', 'Deal Activity Timeline')}</h3>
-            <ActivityTimeline entityType="deal" entityId={editingDeal.id} canLog={hasDealPermission('deal.log_activity')} />
+            <ActivityTimeline
+              entityType="deal"
+              entityId={editingDeal.id}
+              canLog={hasDealPermission('deal.log_activity')}
+              onActivityCreated={(act) => {
+                fetchDeals(false);
+                fetchDealSla(editingDeal.id);
+                if (act?.updated_deal_stage) {
+                  setFormData(prev => ({ ...prev, pipeline_stage: act.updated_deal_stage }));
+                  setEditingDeal(prev => prev ? ({ ...prev, pipeline_stage: act.updated_deal_stage }) : prev);
+                  toast.success(
+                    isRTL
+                      ? `تم نقل الصفقة تلقائياً إلى مرحلة "${getStageLabel(act.updated_deal_stage)}"`
+                      : `Deal automatically moved to "${getStageLabel(act.updated_deal_stage)}"`
+                  );
+                }
+              }}
+            />
           </div>
         )}
       </Modal>

@@ -33,7 +33,7 @@ function calculateDealSla(deal, activities = [], tasks = [], now = new Date()) {
     ? deal.custom_fields 
     : {};
 
-  const isTerminal = ['won', 'lost', 'cancelled', 'closed'].includes(
+  const isTerminal = ['won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost'].includes(
     String(deal?.pipeline_stage || '').toLowerCase().trim()
   );
 
@@ -135,14 +135,16 @@ async function getDealSlaStatus(dealId, tenantId, queryable = db) {
   if (dealRes.rows.length === 0) return null;
   const deal = dealRes.rows[0];
 
-  // Fetch impactful activities
+  // Fetch impactful activities (logged on either the deal or its linked customer)
   const actRes = await queryable.query(
     `SELECT action, created_at FROM activities 
      WHERE tenant_id::text = $1::text 
-       AND LOWER(entity_type) = 'deal' 
-       AND entity_id::text = $2::text
+       AND (
+         (LOWER(entity_type) = 'deal' AND entity_id::text = $2::text)
+         OR ($4::text IS NOT NULL AND LOWER(entity_type) = 'customer' AND entity_id::text = $4::text)
+       )
        AND action = ANY($3::text[])`,
-    [tenantId, dealId, IMPACTFUL_ACTIVITY_ACTIONS]
+    [tenantId, dealId, IMPACTFUL_ACTIVITY_ACTIONS, deal.customer_id ? String(deal.customer_id) : null]
   ).catch(() => ({ rows: [] }));
 
   // Fetch linked completed tasks
@@ -151,7 +153,7 @@ async function getDealSlaStatus(dealId, tenantId, queryable = db) {
      FROM tasks t
      LEFT JOIN task_statuses ts ON t.status_id = ts.id
      WHERE t.tenant_id::text = $1::text
-       AND t.parent_type = 'deal'
+       AND t.parent_type IN ('deal', 'deals')
        AND t.parent_id::text = $2::text`,
     [tenantId, dealId]
   ).catch(() => ({ rows: [] }));
@@ -358,7 +360,7 @@ async function scanAndAlertOverdueDeals({ tenantId = null, queryable = db } = {}
     const dealsRes = await runner.query(`
       SELECT d.* 
       FROM deals d
-      WHERE d.pipeline_stage NOT IN ('won', 'lost', 'cancelled', 'closed')
+      WHERE LOWER(COALESCE(d.pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost')
         AND ($1::text IS NULL OR d.tenant_id::text = $1::text)
       ORDER BY d.created_at ASC
       LIMIT 100
@@ -370,14 +372,16 @@ async function scanAndAlertOverdueDeals({ tenantId = null, queryable = db } = {}
     for (const deal of dealsRes.rows) {
       const dealTenantId = String(deal.tenant_id);
 
-      // Fetch impactful activities
+      // Fetch impactful activities (logged on either the deal or its linked customer)
       const actRes = await runner.query(
         `SELECT action, created_at FROM activities 
          WHERE tenant_id::text = $1::text 
-           AND LOWER(entity_type) = 'deal' 
-           AND entity_id::text = $2::text
+           AND (
+             (LOWER(entity_type) = 'deal' AND entity_id::text = $2::text)
+             OR ($4::text IS NOT NULL AND LOWER(entity_type) = 'customer' AND entity_id::text = $4::text)
+           )
            AND action = ANY($3::text[])`,
-        [dealTenantId, deal.id, IMPACTFUL_ACTIVITY_ACTIONS]
+        [dealTenantId, deal.id, IMPACTFUL_ACTIVITY_ACTIONS, deal.customer_id ? String(deal.customer_id) : null]
       ).catch(() => ({ rows: [] }));
 
       // Fetch linked tasks
@@ -386,7 +390,7 @@ async function scanAndAlertOverdueDeals({ tenantId = null, queryable = db } = {}
          FROM tasks t
          LEFT JOIN task_statuses ts ON t.status_id = ts.id
          WHERE t.tenant_id::text = $1::text
-           AND t.parent_type = 'deal'
+           AND t.parent_type IN ('deal', 'deals')
            AND t.parent_id::text = $2::text`,
         [dealTenantId, deal.id]
       ).catch(() => ({ rows: [] }));

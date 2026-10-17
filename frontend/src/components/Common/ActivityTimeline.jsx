@@ -57,7 +57,7 @@ const getBulletColors = (action) => {
 };
 
 // ── ActivityTimeline component ─────────────────────────────────────────────
-const ActivityTimeline = ({ entityType, entityId, canLog = true }) => {
+const ActivityTimeline = ({ entityType, entityId, canLog = true, onActivityCreated }) => {
     const { t, isRTL } = useLanguage();
     const [activities, setActivities]   = useState([]);
     const [loading, setLoading]         = useState(true);
@@ -140,6 +140,9 @@ const ActivityTimeline = ({ entityType, entityId, canLog = true }) => {
                 setActivities(prev => [res.data.data, ...prev]);
                 setLogNote('');
                 setShowForm(false);
+                if (typeof onActivityCreated === 'function') {
+                    onActivityCreated(res.data.data);
+                }
             }
         } catch (err) {
             setSubmitError(err.response?.data?.message || t('customers.failedToSaveLog', 'Failed to save log. Please try again.'));

@@ -189,7 +189,7 @@ exports.getDeals = async (req, res) => {
     }
 
     if (req.query.overdue === 'true') {
-      whereClause += ` AND d.pipeline_stage NOT IN ('won', 'lost', 'cancelled', 'closed')
+      whereClause += ` AND LOWER(COALESCE(d.pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost')
         AND (
           CURRENT_TIMESTAMP > COALESCE(
             NULLIF(d.custom_fields->>'sla_extended_until', '')::timestamptz,
@@ -199,15 +199,17 @@ exports.getDeals = async (req, res) => {
               COALESCE((
                 SELECT MAX(a.created_at) FROM activities a 
                 WHERE a.tenant_id::text = d.tenant_id::text 
-                  AND LOWER(a.entity_type) = 'deal' 
-                  AND a.entity_id::text = d.id::text 
+                  AND (
+                    (LOWER(a.entity_type) = 'deal' AND a.entity_id::text = d.id::text)
+                    OR (d.customer_id IS NOT NULL AND LOWER(a.entity_type) = 'customer' AND a.entity_id::text = d.customer_id::text)
+                  )
                   AND a.action IN ('called', 'whatsapp', 'meeting', 'email_sent', 'visited', 'follow_up')
               ), d.created_at),
               COALESCE((
                 SELECT MAX(COALESCE(t.updated_at, t.created_at)) FROM tasks t
                 LEFT JOIN task_statuses ts ON t.status_id = ts.id
                 WHERE t.tenant_id::text = d.tenant_id::text
-                  AND t.parent_type = 'deal'
+                  AND t.parent_type IN ('deal', 'deals')
                   AND t.parent_id::text = d.id::text
                   AND (ts.is_final = true OR t.status = 'completed' OR ts.name ILIKE '%complete%' OR ts.name ILIKE '%done%')
               ), d.created_at)
@@ -647,21 +649,24 @@ exports.updateDeal = async (req, res) => {
     const oldData = oldResult.rows[0];
 
     const requestedUnitId = (unit_id !== undefined && unit_id !== null && String(unit_id).trim() !== '') ? String(unit_id).trim() : null;
-    if (oldData.unit_id && requestedUnitId && String(oldData.unit_id) !== String(requestedUnitId)) {
+    const isChangingUnit = Boolean(oldData.unit_id && requestedUnitId && String(oldData.unit_id) !== String(requestedUnitId));
+    if (isChangingUnit && (isExplicitlyReservingDeal(oldData) || isFinalStage(oldData.pipeline_stage))) {
       return res.status(400).json({
         status: 'error',
         code: 'UNIT_ALREADY_LINKED',
-        message: 'Cannot overwrite an already linked property unit on an existing deal.'
+        message: 'Cannot change a linked property unit after the deal has been reserved or closed.'
       });
     }
-    const isLinkingUnit = !oldData.unit_id && Boolean(requestedUnitId);
+    const isLinkingUnit = (!oldData.unit_id && Boolean(requestedUnitId)) || isChangingUnit;
 
     // DEFINITIVE SANITIZATION
     const cleanClientId = (client_id !== undefined && client_id !== null && client_id !== '') ? (!isNaN(client_id) ? parseInt(client_id) : client_id) : oldData.client_id;
     const cleanProductId = (product_id !== undefined && product_id !== null && product_id !== '' && !isNaN(product_id)) ? parseInt(product_id) : (product_id === '' || product_id === null ? null : oldData.product_id);
     const cleanProjectId = (project_id !== undefined && project_id !== null && project_id !== '' && !isNaN(project_id)) ? parseInt(project_id) : (project_id === '' || project_id === null ? null : oldData.project_id);
-    const cleanAssignedTo = (assigned_to && assigned_to !== '') ? (!isNaN(assigned_to) ? parseInt(assigned_to) : assigned_to) : oldData.assigned_to;
-    const cleanValue = (value !== undefined && value !== null && value !== '' && !isNaN(Number(value))) ? Number(value) : oldData.value;
+    const cleanAssignedTo = (assigned_to && assigned_to !== '')
+      ? (!isNaN(assigned_to) ? parseInt(assigned_to) : assigned_to)
+      : (oldData.assigned_to || (assigned_to === '' ? req.user.id : null));
+    let cleanValue = (value !== undefined && value !== null && value !== '' && !isNaN(Number(value))) ? Number(value) : oldData.value;
     const cleanProbability = (probability !== undefined && probability !== null && probability !== '' && !isNaN(probability)) ? Math.min(100, Math.max(0, parseInt(probability))) : (oldData.probability || 0);
 
     let cleanExpectedDate = oldData.expected_close_date;
@@ -676,7 +681,7 @@ exports.updateDeal = async (req, res) => {
 
     const cleanSourceType = (source_type !== undefined) ? (source_type || null) : oldData.source_type;
     const cleanSourceId = (source_id !== undefined) ? (source_id ? String(source_id) : null) : oldData.source_id;
-    const cleanCustomFields = (custom_fields && typeof custom_fields === 'object') ? custom_fields : (oldData.custom_fields || {});
+    const cleanCustomFields = (custom_fields && typeof custom_fields === 'object') ? { ...oldData.custom_fields, ...custom_fields } : (oldData.custom_fields || {});
 
     // ── Granular Deal Permissions check against modified fields ──
     const isChangingField = (bodyVal, oldVal) => {
@@ -714,7 +719,7 @@ exports.updateDeal = async (req, res) => {
       }
     }
 
-    const changesAssignee = (assigned_to !== undefined && normScalar(cleanAssignedTo) !== normScalar(oldData.assigned_to));
+    const changesAssignee = (assigned_to !== undefined && oldData.assigned_to && normScalar(cleanAssignedTo) !== normScalar(oldData.assigned_to));
     if (changesAssignee) {
       const canReassign = await checkDealPermission(req.user.id, tenant_id, 'deal.reassign', req.user.role);
       if (!canReassign) {
@@ -764,6 +769,7 @@ exports.updateDeal = async (req, res) => {
     }
 
     let cleanUnitId = oldData.unit_id || null;
+    let cleanTitle = title || oldData.title;
     if (isLinkingUnit) {
       const unitCheck = await db.query(
         `SELECT id, status, project_name, unit_number, name, price, branch_id
@@ -786,15 +792,31 @@ exports.updateDeal = async (req, res) => {
         });
       }
       cleanUnitId = String(targetUnit.id);
+      const unitPrice = Number(targetUnit.price || 0);
+      if (unitPrice > 0 && (Number(cleanValue || 0) === 0 || isChangingUnit)) {
+        cleanValue = unitPrice;
+      }
+      if (targetUnit.project_name && !cleanCustomFields.project) {
+        cleanCustomFields.project = targetUnit.project_name;
+      }
+      const unitRefLabel = targetUnit.unit_number || targetUnit.name;
+      if (unitRefLabel && cleanTitle && cleanTitle.startsWith('Property Finder:') && !cleanTitle.includes(' - ')) {
+        cleanTitle = `${cleanTitle} - ${unitRefLabel}`;
+      }
     }
 
     const effectiveNextStage = pipeline_stage || oldData.pipeline_stage;
-    const isMovingToLost = changesStage && String(effectiveNextStage || '').trim().toLowerCase() === 'lost';
+    const isMovingToLost = changesStage && ['lost', 'closed lost'].includes(String(effectiveNextStage || '').trim().toLowerCase());
+    const isMovingToSiteVisit = changesStage && String(effectiveNextStage || '').trim().toLowerCase() === 'site visit';
     const isRequestingReserve = Boolean(
       req.body.reserve_unit === true ||
       req.body.reserve_unit === 'true' ||
       (changesStage && isReservationStage(effectiveNextStage))
     );
+
+    if (isMovingToSiteVisit && !cleanCustomFields.visit_date) {
+      cleanCustomFields.visit_date = new Date().toISOString().slice(0, 16);
+    }
 
     if (cleanUnitId && isRequestingReserve) {
       const uRes = await db.query(
@@ -836,9 +858,9 @@ exports.updateDeal = async (req, res) => {
     // 2. Perform Update (With phase 2 metrics)
     const result = await db.query(
       `UPDATE deals 
-       SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, probability = $9, expected_close_date = $10, next_action = $11, source_type = $12, source_id = $13, unit_id = COALESCE(unit_id, $17), updated_at = CURRENT_TIMESTAMP 
+       SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, probability = $9, expected_close_date = $10, next_action = $11, source_type = $12, source_id = $13, unit_id = COALESCE($17, unit_id), updated_at = CURRENT_TIMESTAMP 
        WHERE id = $14 AND tenant_id::text = $15::text AND ($16::text IS NULL OR branch_id::text = $16::text OR branch_id IS NULL) RETURNING *`,
-      [title || oldData.title, cleanValue, pipeline_stage || oldData.pipeline_stage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, cleanCustomFields, cleanProbability, cleanExpectedDate, next_action !== undefined ? next_action : (oldData.next_action || ''), cleanSourceType, cleanSourceId, req.params.id, tenant_id, branch_id, cleanUnitId]
+      [cleanTitle, cleanValue, effectiveNextStage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, cleanCustomFields, cleanProbability, cleanExpectedDate, next_action !== undefined ? next_action : (oldData.next_action || ''), cleanSourceType, cleanSourceId, req.params.id, tenant_id, branch_id, cleanUnitId]
     );
 
     if (isMovingToLost && cleanUnitId) {
@@ -852,8 +874,8 @@ exports.updateDeal = async (req, res) => {
     if (isLinkingUnit && oldData.source_type === 'property_finder' && oldData.source_id) {
       await db.query(
         `UPDATE property_finder_lead_mappings
-         SET unit_id = COALESCE(unit_id, $1::uuid)
-         WHERE tenant_id::text = $2::text AND external_lead_id = $3 AND unit_id IS NULL`,
+         SET unit_id = $1::uuid
+         WHERE tenant_id::text = $2::text AND external_lead_id = $3`,
         [cleanUnitId, tenant_id, String(oldData.source_id)]
       ).catch(() => {});
     }
@@ -861,30 +883,33 @@ exports.updateDeal = async (req, res) => {
     // Audit Logging
     logUpdate(req, 'Deal', req.params.id, oldData, result.rows[0]);
 
-    // Real Estate: entering the canonical final stage does NOT change unit to 'Sold'.
-    // The binding contractual status is governed by contract signing (Contracted) and handover (Handed Over).
-
-
     // Trigger Template Automation if stage changed
-    if (oldData.pipeline_stage !== pipeline_stage) {
+    if (oldData.pipeline_stage !== effectiveNextStage) {
       await templateAutomationService.runTemplateAutomation({
           tenantId: tenant_id,
           event: 'stage_change',
           payload: {
-              stage: pipeline_stage,
+              stage: effectiveNextStage,
               deal_id: req.params.id,
-              title: title,
-              assigned_to: assigned_to,
-              branch_id: branch_id
+              title: cleanTitle,
+              assigned_to: cleanAssignedTo || req.user.id,
+              user_id: req.user.id,
+              branch_id: branch_id,
+              custom_fields: cleanCustomFields
           }
       });
     }
 
     // Activity Timeline Logging
-    if (oldData.pipeline_stage !== pipeline_stage) {
+    if (oldData.pipeline_stage !== effectiveNextStage) {
         await logActivity(tenant_id, req.user, 'deal', req.params.id, 'stage_changed', { 
-            pipeline_stage: { from: oldData.pipeline_stage, to: pipeline_stage }
+            pipeline_stage: { from: oldData.pipeline_stage, to: effectiveNextStage }
         });
+        if (isMovingToSiteVisit) {
+            await logActivity(tenant_id, req.user, 'deal', req.params.id, 'visited', {
+                note: { to: cleanCustomFields.visit_notes || `Site Visit scheduled/logged (${cleanCustomFields.visit_result || 'Pending'})` }
+            });
+        }
     } else {
         await logActivity(tenant_id, req.user, 'deal', req.params.id, 'updated', { 
             fields_updated: { to: Object.keys(req.body) } 
@@ -892,11 +917,11 @@ exports.updateDeal = async (req, res) => {
     }
 
     // Assignment notification on reassignment
-    if (assigned_to && assigned_to !== oldData.assigned_to && String(assigned_to) !== String(req.user.id)) {
+    if (cleanAssignedTo && String(cleanAssignedTo) !== String(oldData.assigned_to || '') && String(cleanAssignedTo) !== String(req.user.id)) {
       notificationService.notifyAssignment({
         tenantId: tenant_id,
         branchId: branch_id,
-        recipientUserId: assigned_to,
+        recipientUserId: cleanAssignedTo,
         assignedByUserId: req.user.id,
         assignedByName: req.user.name,
         entityType: 'Deal',
@@ -971,10 +996,11 @@ exports.updateDealStatus = async (req, res) => {
       }
     }
 
-    // 2. Update status
+    // 2. Update status (and auto-assign if deal was unassigned)
+    const effectiveAssignee = assigned_to || req.user.id;
     const result = await client.query(
-      'UPDATE deals SET pipeline_stage = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) RETURNING *',
-      [cleanStage, req.params.id, tenant_id, branch_id]
+      'UPDATE deals SET pipeline_stage = $1, assigned_to = COALESCE(assigned_to, $5), updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) RETURNING *',
+      [cleanStage, req.params.id, tenant_id, branch_id, effectiveAssignee]
     );
 
     // Audit Logging & Automations
@@ -987,6 +1013,15 @@ exports.updateDealStatus = async (req, res) => {
       );
       const unit_id = unitIdRes.rows[0]?.unit_id || result.rows[0]?.unit_id;
       const dealCustomFields = unitIdRes.rows[0]?.custom_fields || result.rows[0]?.custom_fields || {};
+
+      if (lowerStage === 'site visit' && !dealCustomFields.visit_date) {
+        const nextVisitCf = { ...(typeof dealCustomFields === 'object' ? dealCustomFields : {}), visit_date: new Date().toISOString().slice(0, 16) };
+        await client.query(
+          `UPDATE deals SET custom_fields = $1 WHERE id = $2 AND tenant_id::text = $3::text`,
+          [nextVisitCf, req.params.id, tenant_id]
+        );
+        if (result.rows[0]) result.rows[0].custom_fields = nextVisitCf;
+      }
 
       if (unit_id) {
           if (isReservationStage(cleanStage)) {
@@ -1025,12 +1060,7 @@ exports.updateDealStatus = async (req, res) => {
                 );
                 if (result.rows[0]) result.rows[0].custom_fields = nextCf;
               }
-          } else if (lowerStage === 'closed' || lowerStage === 'won') {
-              // Real Estate: Deal winning or closure does not mark the unit 'Sold'.
-              // The unit remains 'Reserved' until contract is Signed (which transitions it to 'Contracted').
-              // If a signed contract already exists, the unit is already 'Contracted'.
-              // No direct status = 'Sold' writes allowed.
-
+          } else if (lowerStage === 'closed' || lowerStage === 'won' || lowerStage === 'closed won') {
               // Create Payment Registry
               const dealRes = await client.query(
                 'SELECT value, tenant_id, branch_id FROM deals WHERE id = $1 AND tenant_id::text = $2::text',
@@ -1050,7 +1080,7 @@ exports.updateDealStatus = async (req, res) => {
                     `, [tenant_id, deal.branch_id || branch_id, req.params.id, deal.value]);
                 }
               }
-          } else if (lowerStage === 'lost') {
+          } else if (lowerStage === 'lost' || lowerStage === 'closed lost') {
               await releaseUnitIfReservedByDeal(client, {
                 unitId: unit_id,
                 dealRow: {
@@ -1074,7 +1104,7 @@ exports.updateDealStatus = async (req, res) => {
 
       await client.query('COMMIT');
 
-      // Post-commit side effects: isolated so any logging/automation failure does not fail the HTTP response or try to rollback an already committed transaction
+      // Post-commit side effects
       try {
         logAction({ 
           req, 
@@ -1085,7 +1115,7 @@ exports.updateDealStatus = async (req, res) => {
           level: LOG_LEVELS.INFO
         });
 
-        if (unit_id && lowerStage === 'won') {
+        if (unit_id && (lowerStage === 'won' || lowerStage === 'closed won')) {
           logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: req.params.id, status_change: 'Sold (Deal Won)' } });
         }
 
@@ -1097,8 +1127,10 @@ exports.updateDealStatus = async (req, res) => {
                 stage: cleanStage,
                 deal_id: req.params.id,
                 title: title,
-                assigned_to: assigned_to,
-                branch_id: branch_id
+                assigned_to: effectiveAssignee,
+                user_id: req.user.id,
+                branch_id: branch_id,
+                custom_fields: result.rows[0]?.custom_fields || dealCustomFields
             }
         });
         
@@ -1106,6 +1138,11 @@ exports.updateDealStatus = async (req, res) => {
         await logActivity(tenant_id, req.user, 'deal', req.params.id, 'stage_changed', { 
             pipeline_stage: { from: oldStage, to: cleanStage }
         });
+        if (lowerStage === 'site visit') {
+            await logActivity(tenant_id, req.user, 'deal', req.params.id, 'visited', {
+                note: { to: `Moved deal to Site Visit stage` }
+            });
+        }
       } catch (postCommitErr) {
         console.warn('[Deal Status Update] Post-commit hook notice (non-fatal):', postCommitErr.message);
       }

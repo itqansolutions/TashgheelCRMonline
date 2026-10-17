@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { Plus, Users, Phone, MapPin, Hash, FileText, Search, CheckCircle, XCircle, AlertTriangle, Printer, X, ChevronDown, Eye, Download } from 'lucide-react';
+import { Plus, Users, Phone, MapPin, Hash, FileText, Search, CheckCircle, XCircle, AlertTriangle, Printer, X, ChevronDown, Eye, Download, Building2 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { exportCustomersToExcel } from '../../utils/excelExport';
@@ -179,6 +180,7 @@ const StatementModal = ({ customer, onClose }) => {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 const ContactsCustomers = () => {
   const { t, isRTL } = useLanguage();
+  const navigate = useNavigate();
   const { 
     customers, fetchCustomers, 
     leadSources, fetchLeadSources, 
@@ -233,7 +235,10 @@ const ContactsCustomers = () => {
       c.meta_form_name?.toLowerCase().includes(q) ||
       c.company_name?.toLowerCase().includes(q) ||
       c.notes?.toLowerCase().includes(q) ||
-      c.address?.toLowerCase().includes(q);
+      c.address?.toLowerCase().includes(q) ||
+      c.linked_unit_number?.toLowerCase().includes(q) ||
+      c.linked_unit_name?.toLowerCase().includes(q) ||
+      c.pf_listing_reference?.toLowerCase().includes(q);
 
     const matchStatus = filterStatus === 'all' || 
       (filterStatus === 'active' && c.is_active && !c.is_blacklisted) || 
@@ -504,6 +509,26 @@ const ContactsCustomers = () => {
                         📋 {c.meta_form_name}
                       </div>
                     )}
+                    {c.linked_unit_id && (c.linked_unit_number || c.linked_unit_name) && (
+                      <div
+                        onClick={() => c.linked_deal_id && navigate(`/deals?deal_id=${c.linked_deal_id}`)}
+                        style={{ fontSize: '11px', color: '#0369a1', fontWeight: 800, marginTop: '4px', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '2px 6px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: c.linked_deal_id ? 'pointer' : 'default' }}
+                        title={c.linked_unit_name || c.linked_unit_number}
+                      >
+                        <Building2 size={11} />
+                        <span className="num-en">{c.linked_unit_number || c.linked_unit_name}</span>
+                        {c.linked_deal_stage && <span style={{ color: '#4f46e5' }}>({c.linked_deal_stage})</span>}
+                      </div>
+                    )}
+                    {!c.linked_unit_id && c.pf_listing_reference && (
+                      <div
+                        onClick={() => c.linked_deal_id && navigate(`/deals?deal_id=${c.linked_deal_id}`)}
+                        style={{ fontSize: '11px', color: '#b45309', fontWeight: 700, marginTop: '4px', background: '#fffbeb', border: '1px solid #fde68a', padding: '2px 6px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: c.linked_deal_id ? 'pointer' : 'default' }}
+                      >
+                        <Building2 size={11} />
+                        <span>PF: <span className="num-en">{c.pf_listing_reference}</span></span>
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -518,6 +543,15 @@ const ContactsCustomers = () => {
                   </td>
                   <td style={{ padding: '14px 16px' }}>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      {c.linked_deal_id && (
+                        <button
+                          onClick={() => navigate(`/deals?deal_id=${c.linked_deal_id}`)}
+                          title={isRTL ? 'فتح الصفقة / ربط الوحدة' : 'Open Deal / Link Unit'}
+                          style={{ background: '#f0f9ff', color: '#0284c7', border: '1px solid #bae6fd', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <Building2 size={14} /> {isRTL ? 'الصفقة / الوحدة' : 'Deal'}
+                        </button>
+                      )}
                       <button onClick={() => setViewingCustomer(c)} title={t('customers.viewDetails', 'View Details')} style={{ background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', border: 'none', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Eye size={14} /> {t('customers.view', 'View')}
                       </button>
@@ -785,6 +819,40 @@ const ContactsCustomers = () => {
                 </div>
               </div>
 
+              {/* Linked Deal & Property Unit Card */}
+              {viewingCustomer.linked_deal_id && (
+                <div style={{ marginBottom: '20px', background: '#f0f9ff', border: '1.5px solid #bae6fd', borderRadius: '12px', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#0369a1', fontWeight: 800, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Building2 size={14} /> {isRTL ? 'الصفقة والوحدة العقارية المرتبطة' : 'Linked Deal & Property Unit'}
+                    </div>
+                    <div style={{ fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+                      {viewingCustomer.linked_unit_id
+                        ? `${viewingCustomer.linked_unit_project ? `${viewingCustomer.linked_unit_project} • ` : ''}${viewingCustomer.linked_unit_number || viewingCustomer.linked_unit_name}`
+                        : (viewingCustomer.pf_listing_reference
+                            ? `Property Finder Ref: ${viewingCustomer.pf_listing_reference} (${isRTL ? 'غير مربوطة بوحدة بعد' : 'Not linked to unit yet'})`
+                            : viewingCustomer.linked_deal_title)}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px', fontWeight: 700 }}>
+                      {isRTL ? 'المرحلة:' : 'Stage:'} <span style={{ color: '#4f46e5' }}>{viewingCustomer.linked_deal_stage || 'Lead'}</span>
+                      {' • '}
+                      {isRTL ? 'القيمة:' : 'Value:'} <span className="num-en">{Number(viewingCustomer.linked_deal_value || 0).toLocaleString('en-US')}</span> EGP
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const dId = viewingCustomer.linked_deal_id;
+                      setViewingCustomer(null);
+                      navigate(`/deals?deal_id=${dId}`);
+                    }}
+                    style={{ background: '#0284c7', color: 'white', border: 'none', borderRadius: '10px', padding: '8px 14px', fontSize: '12px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Building2 size={14} /> {isRTL ? 'فتح الصفقة / ربط أو تغيير الوحدة' : 'Open Deal / Link Unit'}
+                  </button>
+                </div>
+              )}
+
               {/* Form Responses / Notes Section */}
               {viewingCustomer.notes && (
                 <div style={{ marginBottom: '20px' }}>
@@ -814,7 +882,21 @@ const ContactsCustomers = () => {
                     </span>
                   </div>
                 </div>
-                <ActivityTimeline entityType="customer" entityId={viewingCustomer.id} />
+                <ActivityTimeline
+                  entityType="customer"
+                  entityId={viewingCustomer.id}
+                  onActivityCreated={(act) => {
+                    fetchCustomers(false);
+                    if (act?.updated_deal_stage) {
+                      setViewingCustomer(prev => prev ? ({ ...prev, linked_deal_stage: act.updated_deal_stage }) : prev);
+                      toast.success(
+                        isRTL
+                          ? `تم نقل صفقة العميل تلقائياً إلى مرحلة "${act.updated_deal_stage}"`
+                          : `Customer's deal moved to "${act.updated_deal_stage}"`
+                      );
+                    }
+                  }}
+                />
               </div>
             </div>
 

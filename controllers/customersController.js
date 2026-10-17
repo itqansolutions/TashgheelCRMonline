@@ -53,12 +53,29 @@ async function ensureCustomerColumns() {
 // @access  Private
 exports.getCustomers = async (req, res) => {
   const tenant_id = req.user.tenant_id;
-  // CTO Fallback Logic: Resolve branchId from header or user profile to prevent DB crashes
-  const branch_id = req.branchId || req.user?.branch_id;
+  // Resolve branch context from request, user profile, or user assigned branches
+  let branch_id = req.branchId || req.user?.branch_id || null;
 
-  if (!branch_id) {
-    console.warn('[Customers API] Warning: Branch context missing, returning empty set.', { tenant_id });
-    return res.json({ status: 'success', data: [] });
+  if (!branch_id && req.user?.role !== 'admin') {
+    try {
+      const ubRes = await db.query(
+        'SELECT branch_id FROM user_branches WHERE user_id::text = $1::text LIMIT 1',
+        [req.user.id]
+      );
+      if (ubRes.rows.length > 0) {
+        branch_id = ubRes.rows[0].branch_id;
+      } else {
+        const mbRes = await db.query(
+          'SELECT id FROM branches WHERE tenant_id::text = $1::text AND is_main = true LIMIT 1',
+          [tenant_id]
+        );
+        if (mbRes.rows.length > 0) {
+          branch_id = mbRes.rows[0].id;
+        }
+      }
+    } catch (e) {
+      console.warn('[Customers API] Non-critical branch lookup error:', e.message);
+    }
   }
 
   // Run column guard (best-effort – errors are swallowed inside run())
@@ -73,14 +90,44 @@ exports.getCustomers = async (req, res) => {
       cc.name as classification_name,
       cc.color as classification_color,
       ca.name as area_name,
-      ca.color as area_color
+      ca.color as area_color,
+      ld.id as linked_deal_id,
+      ld.title as linked_deal_title,
+      ld.pipeline_stage as linked_deal_stage,
+      ld.value as linked_deal_value,
+      ld.unit_id as linked_unit_id,
+      ld.unit_number as linked_unit_number,
+      ld.unit_name as linked_unit_name,
+      ld.unit_project as linked_unit_project,
+      ld.pf_listing_reference as pf_listing_reference
     FROM customers c
     LEFT JOIN users u ON c.assigned_to::text = u.id::text AND c.tenant_id::text = u.tenant_id::text
     LEFT JOIN lead_sources ls ON c.source_id::text = ls.id::text
     LEFT JOIN customer_classifications cc ON c.classification_id = cc.id
     LEFT JOIN customer_areas ca ON c.area_id = ca.id
+    LEFT JOIN LATERAL (
+      SELECT
+        d.id,
+        d.title,
+        d.pipeline_stage,
+        d.value,
+        d.unit_id,
+        ru.unit_number,
+        ru.name as unit_name,
+        ru.project_name as unit_project,
+        COALESCE(
+          NULLIF(d.custom_fields->>'pf_listing_reference', ''),
+          NULLIF(d.custom_fields->>'pf_listing_id', '')
+        ) as pf_listing_reference
+      FROM deals d
+      LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND d.tenant_id::text = ru.tenant_id::text
+      WHERE d.tenant_id::text = c.tenant_id::text
+        AND (d.client_id::text = c.id::text OR d.customer_id::text = c.id::text)
+      ORDER BY d.id DESC
+      LIMIT 1
+    ) ld ON true
     WHERE c.tenant_id::text = $1::text
-      AND (c.branch_id::text = $2::text OR c.branch_id IS NULL OR c.branch_id::text = 'default-branch')
+      AND ($2::text IS NULL OR c.branch_id::text = $2::text OR c.branch_id IS NULL OR c.branch_id::text = 'default-branch')
   `;
   const params = [tenant_id, branch_id];
   let paramIdx = 3;

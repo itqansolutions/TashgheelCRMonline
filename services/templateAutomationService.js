@@ -25,7 +25,9 @@ class TemplateAutomationService {
 
                 // 2. Simple Condition Check (e.g., stage matches)
                 if (rule.condition && rule.condition.stage) {
-                    if (rule.condition.stage !== payload.stage) continue;
+                    const ruleStage = String(rule.condition.stage || '').trim().toLowerCase();
+                    const targetStage = String(payload.stage || payload.new_stage || '').trim().toLowerCase();
+                    if (ruleStage !== targetStage) continue;
                 }
 
                 console.log(`[TemplateAutomation] Triggering rule for event: ${event} on tenant: ${tenantId}`);
@@ -61,7 +63,8 @@ class TemplateAutomationService {
      * Assigned always to the Deal Owner (payload.assigned_to)
      */
     async createAutomatedTask(action, payload, tenantId) {
-        if (!payload.assigned_to) return;
+        const assigneeId = payload.assigned_to || payload.user_id;
+        if (!assigneeId) return;
 
         try {
             const custom = payload.custom_fields || {};
@@ -78,10 +81,10 @@ class TemplateAutomationService {
                 description,
                 'high',
                 'todo',
-                payload.assigned_to,
+                assigneeId,
                 tenantId,
                 payload.branch_id || null,
-                'deals',
+                'deal',
                 payload.deal_id
             ]);
             console.log(`[TemplateAutomation] Task created with context: ${title}`);
@@ -94,7 +97,8 @@ class TemplateAutomationService {
      * Action: NOTIFY
      */
     async sendAutomatedNotification(action, payload, tenantId) {
-        if (!payload.assigned_to) return;
+        const assigneeId = payload.assigned_to || payload.user_id;
+        if (!assigneeId) return;
 
         try {
             const custom = payload.custom_fields || {};
@@ -102,7 +106,7 @@ class TemplateAutomationService {
             const message = `📍 ${action.message || 'New follow-up needed'}${contextStr ? ` for ${contextStr}` : ''}`;
 
             await notificationService.notify({
-                userId: payload.assigned_to,
+                userId: assigneeId,
                 tenantId,
                 type: 'info',
                 title: 'Business Automation',
