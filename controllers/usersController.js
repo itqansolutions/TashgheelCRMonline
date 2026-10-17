@@ -72,6 +72,8 @@ exports.updateUserRole = async (req, res) => {
       passwordHash = await bcrypt.hash(cleanPassword, salt);
     }
 
+    const fallbackBranchId = req.branchId || req.user?.branch_id || null;
+
     const result = await db.query(
       `UPDATE users SET
         name = COALESCE($1, name),
@@ -88,9 +90,10 @@ exports.updateUserRole = async (req, res) => {
         hire_date = $12,
         is_working = $13,
         phone = $14,
+        branch_id = COALESCE(branch_id, $17),
         updated_at = CURRENT_TIMESTAMP 
        WHERE id = $15 AND tenant_id::text = $16::text
-       RETURNING id, name, email, phone, role, department_id, job_title_id, national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working`,
+       RETURNING id, name, email, phone, role, department_id, job_title_id, national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working, branch_id`,
       [
         name?.trim() || null,
         cleanEmail,          // null → COALESCE keeps existing email
@@ -107,12 +110,21 @@ exports.updateUserRole = async (req, res) => {
         is_working !== false,
         phone?.trim() || null,
         userId,
-        req.user.tenant_id
+        req.user.tenant_id,
+        fallbackBranchId
       ]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'User not found' });
+    }
+
+    const updatedUser = result.rows[0];
+    if (updatedUser.branch_id) {
+      await db.query(
+        'INSERT INTO user_branches (user_id, branch_id) VALUES ($1, $2) ON CONFLICT (user_id, branch_id) DO NOTHING',
+        [updatedUser.id, updatedUser.branch_id]
+      );
     }
 
     // Log the change
@@ -124,7 +136,7 @@ exports.updateUserRole = async (req, res) => {
       password_updated: !!passwordHash
     });
 
-    res.json({ status: 'success', data: result.rows[0] });
+    res.json({ status: 'success', data: updatedUser });
   } catch (err) {
     console.error('[updateUserRole]', err.message);
     res.status(500).json({ status: 'error', message: err.message || 'Server error' });
@@ -252,11 +264,22 @@ exports.createUser = async (req, res) => {
 
     // Auto-Inject Context
     const tenant_id = req.user.tenant_id;
-    let branch_id = req.branchId || req.user?.branch_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
 
-    // If branch_id is missing, find default branch for this tenant
+    if (branch_id) {
+      const validBranchRes = await db.query(
+        'SELECT id FROM branches WHERE id::text = $1::text AND tenant_id::text = $2::text LIMIT 1',
+        [branch_id, tenant_id]
+      );
+      branch_id = validBranchRes.rows[0]?.id || null;
+    }
+
+    // If branch_id is missing, find default/main branch for this tenant
     if (!branch_id) {
-      const bRes = await db.query('SELECT id FROM branches WHERE tenant_id::text = $1::text LIMIT 1', [tenant_id]);
+      const bRes = await db.query(
+        'SELECT id FROM branches WHERE tenant_id::text = $1::text ORDER BY is_main DESC, created_at ASC LIMIT 1',
+        [tenant_id]
+      );
       if (bRes.rows.length > 0) {
         branch_id = bRes.rows[0].id;
       }
@@ -269,7 +292,7 @@ exports.createUser = async (req, res) => {
         national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working,
         tenant_id, branch_id
        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) 
-       RETURNING id, name, email, phone, role, department_id, job_title_id`,
+       RETURNING id, name, email, phone, role, department_id, job_title_id, branch_id`,
       [
         name.trim(),
         email.trim().toLowerCase(),
@@ -302,12 +325,12 @@ exports.createUser = async (req, res) => {
     const accessValues = defaultPages.map(path => `(${newUser.id}, '${path}', true)`).join(',');
     await db.query(`INSERT INTO user_access (user_id, page_path, can_access) VALUES ${accessValues}`);
 
-    // If branch_id exists, associate in user_branches table
+    // If branch_id exists, associate in user_branches table (do not swallow errors silently)
     if (branch_id) {
       await db.query(
-        'INSERT INTO user_branches (user_id, branch_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        'INSERT INTO user_branches (user_id, branch_id) VALUES ($1, $2) ON CONFLICT (user_id, branch_id) DO NOTHING',
         [newUser.id, branch_id]
-      ).catch(() => {});
+      );
     }
 
     // Log action

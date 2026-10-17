@@ -25,7 +25,7 @@ const branchScope = async (req, res, next) => {
 
     // --- Tier 1 & 2: Resolve Branch Context (Fallback when no header provided) ---
     if (!resolvedBranchId) {
-      // 1. Check for User's default/first assigned branch
+      // 1. Check for User's default/first assigned branch in user_branches
       const userBranchRes = await db.query(
         'SELECT branch_id FROM user_branches WHERE user_id::text = $1::text LIMIT 1',
         [userId]
@@ -34,6 +34,17 @@ const branchScope = async (req, res, next) => {
       if (userBranchRes.rows.length > 0) {
         resolvedBranchId = userBranchRes.rows[0].branch_id;
       } else {
+        // 1b. Check User's primary branch_id on users table (same tenant)
+        const primaryBranchRes = await db.query(
+          'SELECT branch_id FROM users WHERE id::text = $1::text AND tenant_id::text = $2::text AND branch_id IS NOT NULL LIMIT 1',
+          [userId, tenantId]
+        );
+        if (primaryBranchRes.rows.length > 0 && primaryBranchRes.rows[0].branch_id) {
+          resolvedBranchId = primaryBranchRes.rows[0].branch_id;
+        }
+      }
+
+      if (!resolvedBranchId) {
         // 2. Fallback to Tenant's Main Branch
         const mainBranchRes = await db.query(
           'SELECT id FROM branches WHERE tenant_id::text = $1::text AND is_main = true LIMIT 1',
@@ -102,12 +113,21 @@ const branchScope = async (req, res, next) => {
 
     // --- Tier 4: User Branch Membership Check ---
     // If the branch was explicitly requested via x-branch-id header, non-admin users MUST be assigned to it
+    // (either in user_branches or as their primary users.branch_id within the same tenant)
     if (headerBranchId && userRole !== 'admin') {
       const userBranchCheck = await db.query(
         'SELECT 1 FROM user_branches WHERE user_id::text = $1::text AND branch_id::text = $2::text LIMIT 1',
         [userId, resolvedBranchId]
       );
-      if (userBranchCheck.rows.length === 0) {
+      let isAssignedBranch = userBranchCheck.rows.length > 0;
+      if (!isAssignedBranch) {
+        const primaryBranchCheck = await db.query(
+          'SELECT 1 FROM users WHERE id::text = $1::text AND tenant_id::text = $2::text AND branch_id::text = $3::text LIMIT 1',
+          [userId, tenantId, resolvedBranchId]
+        );
+        isAssignedBranch = primaryBranchCheck.rows.length > 0;
+      }
+      if (!isAssignedBranch) {
         return res.status(403).json({
           status: 'error',
           message: 'Unauthorized branch access: User is not assigned to this branch.',

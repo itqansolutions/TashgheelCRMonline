@@ -25,6 +25,19 @@ export const AuthProvider = ({ children }) => {
       const res = await api.get('/auth/me');
       const freshUserData = res.data.user || {};
       if (isMounted) {
+        const resolvedBranches = safeArray(freshUserData.branches);
+        const savedBranchId = localStorage.getItem('branch_id');
+        if (resolvedBranches.length > 0) {
+          const validSaved = resolvedBranches.find(b => String(b.id) === String(savedBranchId));
+          if (!validSaved) {
+            localStorage.setItem('branch_id', String(resolvedBranches[0].id));
+          }
+        } else if (freshUserData.branch_id) {
+          localStorage.setItem('branch_id', String(freshUserData.branch_id));
+        } else if (freshUserData.role !== 'admin') {
+          localStorage.removeItem('branch_id');
+        }
+
         setUser(prevUser => {
           const merged = {
             ...(prevUser || {}),
@@ -77,16 +90,21 @@ export const AuthProvider = ({ children }) => {
     const { token, user: userData } = res.data;
     localStorage.setItem('token', token);
     
-    // 🔥 NEW: Auto-Selection Context logic
-    if (userData.branch_id) {
-        localStorage.setItem('branch_id', userData.branch_id);
+    // Auto-Selection Context logic: set valid branch_id or clear stale branch_id from previous session
+    const userBranches = safeArray(userData.branches);
+    const primaryBranchId = userData.branch_id || userBranches[0]?.id || null;
+    if (primaryBranchId) {
+      localStorage.setItem('branch_id', String(primaryBranchId));
+    } else {
+      localStorage.removeItem('branch_id');
     }
 
     setUser({
       ...userData,
+      branch_id: primaryBranchId,
       isDemo: userData.isDemo || false,
       allowedPages: safeArray(userData.allowedPages),
-      branches: safeArray(userData.branches),
+      branches: userBranches,
       financialPermissions: safeArray(userData.financialPermissions),
       dealPermissions: safeArray(userData.dealPermissions)
     });
@@ -116,6 +134,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('subscription');
+    localStorage.removeItem('branch_id');
+    sessionStorage.removeItem('has_welcomed');
     setUser(null);
     setSubscription(null);
   };

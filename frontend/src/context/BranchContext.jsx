@@ -13,14 +13,20 @@ export const BranchProvider = ({ children }) => {
 
   // Sync branches from user profile on login
   useEffect(() => {
+    if (!user) {
+      setBranches([]);
+      setCurrentBranch(null);
+      return;
+    }
+
     const userBranches = safeArray(user?.branches);
     
     if (userBranches.length > 0) {
       setBranches(userBranches);
       
-      // Auto-select first branch if none selected
+      // Auto-select first branch if none selected or if saved branch is not in user's assigned branches
       const savedBranchId = localStorage.getItem('branch_id');
-      const branchToSelect = userBranches.find(b => b.id === savedBranchId) || userBranches[0];
+      const branchToSelect = userBranches.find(b => String(b.id) === String(savedBranchId)) || userBranches[0];
       
       if (branchToSelect) {
         selectBranch(branchToSelect);
@@ -45,6 +51,11 @@ export const BranchProvider = ({ children }) => {
     } else {
       setBranches([]);
       setCurrentBranch(null);
+      if (user?.branch_id) {
+        localStorage.setItem('branch_id', String(user.branch_id));
+      } else if (user?.role !== 'admin') {
+        localStorage.removeItem('branch_id');
+      }
     }
   }, [user]);
 

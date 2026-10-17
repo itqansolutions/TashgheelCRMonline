@@ -236,6 +236,29 @@ const getUserAllowedPages = async (userId, userRole) => {
   }
 };
 
+// Helper to resolve authorized branches for a user (from user_branches and users.branch_id within the same tenant)
+const resolveUserBranches = async (userId, tenantId, primaryUserBranchId) => {
+  try {
+    const branchesRes = await db.query(
+      `SELECT b.* FROM branches b
+       WHERE b.tenant_id::text = $2::text
+         AND (
+           EXISTS (
+             SELECT 1 FROM user_branches ub
+             WHERE ub.user_id::text = $1::text AND ub.branch_id::text = b.id::text
+           )
+           OR ($3::text IS NOT NULL AND b.id::text = $3::text)
+         )
+       ORDER BY b.is_main DESC, b.name ASC`,
+      [userId, tenantId, primaryUserBranchId || null]
+    );
+    return branchesRes.rows;
+  } catch (err) {
+    console.error('Error resolving user branches:', err.message);
+    return [];
+  }
+};
+
 // Login User
 exports.login = async (req, res) => {
   const { email, password } = req.body;
@@ -263,9 +286,9 @@ exports.login = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Invalid Credentials' });
     }
 
-    // Resolve primary branch_id (linked in user_branches or users table)
-    const branchRes = await db.query('SELECT branch_id FROM user_branches WHERE user_id = $1 LIMIT 1', [user.id]);
-    const primaryBranchId = branchRes.rows[0]?.branch_id || user.branch_id;
+    // Resolve accessible branches & primary branch_id (linked in user_branches or users.branch_id within tenant)
+    const userBranches = await resolveUserBranches(user.id, user.tenant_id, user.branch_id);
+    const primaryBranchId = userBranches[0]?.id || null;
 
     // Resolve allowed pages for PBAC
     const allowedPages = await getUserAllowedPages(user.id, user.role);
@@ -292,6 +315,7 @@ exports.login = async (req, res) => {
         tenant_id: user.tenant_id,
         template_name: user.template_name,
         branch_id: primaryBranchId,
+        branches: userBranches,
         allowedPages,
         financialPermissions,
         dealPermissions
@@ -442,7 +466,7 @@ exports.resetPassword = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const userResult = await db.query(`
-      SELECT u.id, u.name, u.email, u.role, u.tenant_id, u.created_at, t.template_name 
+      SELECT u.id, u.name, u.email, u.role, u.tenant_id, u.branch_id, u.created_at, t.template_name 
       FROM users u 
       JOIN tenants t ON u.tenant_id::text = t.id::text
       WHERE u.id = $1
@@ -453,13 +477,9 @@ exports.getMe = async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'User not found' });
     }
 
-    // Fetch accessible branches
-    const branchesResult = await db.query(
-      `SELECT b.* FROM branches b 
-       INNER JOIN user_branches ub ON b.id = ub.branch_id 
-       WHERE ub.user_id = $1`,
-      [req.user.id]
-    );
+    // Fetch accessible branches (from user_branches and users.branch_id within tenant)
+    const userBranches = await resolveUserBranches(user.id, user.tenant_id, user.branch_id);
+    const primaryBranchId = userBranches[0]?.id || null;
 
     const allowedPages = await getUserAllowedPages(user.id, user.role);
     const financialPermissions = await getEffectiveFinancialPermissions(user.id, user.tenant_id, user.role);
@@ -467,7 +487,7 @@ exports.getMe = async (req, res) => {
     
     res.json({ 
       status: 'success', 
-      user: { ...user, branches: branchesResult.rows, allowedPages, financialPermissions, dealPermissions } 
+      user: { ...user, branch_id: primaryBranchId, branches: userBranches, allowedPages, financialPermissions, dealPermissions } 
     });
   } catch (err) {
     console.error(err.message);

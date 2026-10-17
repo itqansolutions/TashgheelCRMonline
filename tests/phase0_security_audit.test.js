@@ -216,6 +216,77 @@ test('Branch Scope Middleware: strictly validates x-branch-id and retains fallba
     assert.equal(responseStatus, 403, 'Cross-tenant branch access must be blocked for all roles');
   });
 
+  await t.test('allows non-admin when user has primary branch_id in users table (same tenant) even if user_branches row is missing', async () => {
+    db.query = async (sql, params) => {
+      if (sql.includes('FROM branches WHERE id::text')) {
+        return { rows: [{ tenant_id: 't1' }] };
+      }
+      if (sql.includes('FROM user_branches WHERE user_id::text')) {
+        return { rows: [] };
+      }
+      if (sql.includes('FROM users WHERE id::text = $1::text AND tenant_id::text = $2::text AND branch_id::text = $3::text')) {
+        if (params[0] === 'u1' && params[1] === 't1' && params[2] === 'branch-primary-1') {
+          return { rows: [{ 1: 1 }] };
+        }
+        return { rows: [] };
+      }
+      return { rows: [] };
+    };
+
+    let nextCalled = false;
+    const req = {
+      headers: { 'x-branch-id': 'branch-primary-1' },
+      user: { id: 'u1', role: 'employee', tenant_id: 't1' }
+    };
+    const res = {};
+    const next = () => { nextCalled = true; };
+
+    await branchScope(req, res, next);
+
+    assert.equal(nextCalled, true, 'Employee should be permitted access to their primary users.branch_id');
+    assert.equal(req.branchId, 'branch-primary-1');
+  });
+
+  await t.test('rejects non-admin with primary users.branch_id when requesting a different branch in the same tenant', async () => {
+    db.query = async (sql, params) => {
+      if (sql.includes('FROM branches WHERE id::text')) {
+        return { rows: [{ tenant_id: 't1' }] };
+      }
+      if (sql.includes('FROM user_branches WHERE user_id::text')) {
+        return { rows: [] };
+      }
+      if (sql.includes('FROM users WHERE id::text = $1::text AND tenant_id::text = $2::text AND branch_id::text = $3::text')) {
+        // User's primary branch is branch-primary-1, NOT branch-other-2
+        if (params[2] === 'branch-primary-1') {
+          return { rows: [{ 1: 1 }] };
+        }
+        return { rows: [] };
+      }
+      return { rows: [] };
+    };
+
+    let responseStatus = null;
+    let responseJson = null;
+    let nextCalled = false;
+    const req = {
+      headers: { 'x-branch-id': 'branch-other-2' },
+      user: { id: 'u1', role: 'employee', tenant_id: 't1' }
+    };
+    const res = {
+      status: (code) => {
+        responseStatus = code;
+        return { json: (data) => { responseJson = data; } };
+      }
+    };
+    const next = () => { nextCalled = true; };
+
+    await branchScope(req, res, next);
+
+    assert.equal(nextCalled, false, 'Employee must not access unassigned sibling branch');
+    assert.equal(responseStatus, 403, 'Must return 403 Forbidden');
+    assert.equal(responseJson.code, 'UNAUTHORIZED_BRANCH_ACCESS');
+  });
+
   await t.test('preserves fallback when x-branch-id header is absent', async () => {
     db.query = async (sql, params) => {
       // User's default branch in user_branches
