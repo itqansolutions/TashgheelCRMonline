@@ -33,8 +33,8 @@ const SalesManagement = () => {
   const [salesTeams, setSalesTeams] = useState([]);
   const [assigning, setAssigning] = useState(false);
 
-  const currencySymbol = isRTL ? 'ر.س' : 'SAR';
-  const formatCurrency = (val) => `${(Number(val) || 0).toLocaleString()} ${currencySymbol}`;
+  const currency = t('common.currency', isRTL ? 'ج.م' : 'EGP');
+  const formatCurrency = (val) => `${(Number(val) || 0).toLocaleString()} ${currency}`;
 
   const fetchOverview = useCallback(async () => {
     try {
