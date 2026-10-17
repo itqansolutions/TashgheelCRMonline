@@ -23,8 +23,7 @@ const scanAndReleaseExpiredReservations = async () => {
         let releasedCount = 0;
 
         for (const unit of expiredUnitsRes.rows) {
-            // Legacy guard: a finalized deal keeps the unit unavailable. New contracts clear
-            // reservation expiry as soon as they are signed, so this is only for older records.
+            // Legacy guard: a finalized deal keeps the unit unavailable.
             const finalizedRes = await db.query(`
                 SELECT id FROM deals
                 WHERE unit_id::text = $1::text AND tenant_id::text = $2::text
@@ -39,6 +38,27 @@ const scanAndReleaseExpiredReservations = async () => {
                 `, [unit.id, unit.tenant_id]);
                 console.log(`[ReservationEngine] Unit ${unit.id} has a closed deal – marked Contracted (not released).`);
                 continue;
+            }
+
+            // Guard: active or signed contract keeps the unit unavailable
+            try {
+                const activeContractRes = await db.query(`
+                    SELECT id, contract_number, status FROM re_contracts
+                    WHERE unit_id::text = $1::text AND tenant_id::text = $2::text
+                    AND status IN ('Signed', 'Active')
+                    LIMIT 1
+                `, [unit.id, unit.tenant_id]);
+                if (activeContractRes.rows.length > 0) {
+                    await db.query(`
+                        UPDATE re_units
+                        SET status = 'Contracted', reservation_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = $1 AND tenant_id::text = $2::text
+                    `, [unit.id, unit.tenant_id]);
+                    console.log(`[ReservationEngine] Unit ${unit.id} has active contract ${activeContractRes.rows[0].contract_number} – kept Contracted (not released).`);
+                    continue;
+                }
+            } catch (contractErr) {
+                // Non-fatal if re_contracts table is absent in specific lightweight testing environments
             }
 
             // Find active (open) deals associated with this unit
@@ -68,32 +88,44 @@ const scanAndReleaseExpiredReservations = async () => {
                 WHERE id = $1
             `, [unit.id]);
 
-            // Close the expired reserving deal(s) as 'Lost'
+            // Release the temporary reservation flag on the deal without silently marking it Lost
             for (const deal of dealsToExpire) {
                 const nextCf = {
                     ...((deal.custom_fields && typeof deal.custom_fields === 'object') ? deal.custom_fields : {}),
-                    is_unit_reservation: false
+                    is_unit_reservation: false,
+                    reservation_expired_at: new Date().toISOString()
                 };
+
+                let nextStage = deal.pipeline_stage;
+                const currentStageLower = String(deal.pipeline_stage || '').trim().toLowerCase();
+                if (['reserved', 'reservation', 'حجز'].includes(currentStageLower)) {
+                    nextStage = 'negotiation';
+                }
+
                 await db.query(`
                     UPDATE deals 
-                    SET pipeline_stage = 'lost',
-                        custom_fields = $2::jsonb,
+                    SET pipeline_stage = $2,
+                        custom_fields = $3::jsonb,
                         updated_at = CURRENT_TIMESTAMP 
                     WHERE id = $1
-                `, [deal.id, JSON.stringify(nextCf)]);
+                `, [deal.id, nextStage, JSON.stringify(nextCf)]);
 
-                // Record the action in system logs (Audit Oracle logic simulation)
-                await db.query(`
-                    INSERT INTO system_logs (tenant_id, branch_id, user_id, action, entity_type, entity_id, details)
-                    VALUES ($1, $2, 'SYSTEM', 'AUTO_RELEASE', 'Deal', $3, $4)
-                `, [
-                    unit.tenant_id, 
-                    unit.branch_id, 
-                    deal.id, 
-                    JSON.stringify({ reason: 'Reservation Expired (Auto-Lost)', unit_id: unit.id })
-                ]);
+                // Record the action in system logs
+                try {
+                    await db.query(`
+                        INSERT INTO system_logs (tenant_id, branch_id, user_id, action, entity_type, entity_id, details)
+                        VALUES ($1, $2, NULL, 'AUTO_RELEASE', 'Deal', $3, $4)
+                    `, [
+                        unit.tenant_id, 
+                        unit.branch_id, 
+                        deal.id, 
+                        JSON.stringify({ reason: 'Reservation Expired (Unit Released to Market)', unit_id: unit.id, previous_stage: deal.pipeline_stage, new_stage: nextStage })
+                    ]);
+                } catch (logErr) {
+                    // Safe swallow: logging failures must never prevent reservation release
+                }
                 
-                console.log(`[ReservationEngine] Unit ${unit.id} released. Deal ${deal.id} marked as LOST.`);
+                console.log(`[ReservationEngine] Unit ${unit.id} released. Deal ${deal.id} reservation expired (Stage: ${nextStage}).`);
             }
             releasedCount++;
         }

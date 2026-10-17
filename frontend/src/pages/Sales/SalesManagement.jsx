@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import SalesSubNav from '../../components/Sales/SalesSubNav';
@@ -7,7 +8,8 @@ import toast from 'react-hot-toast';
 import { 
   BarChart3, Users, Handshake, AlertTriangle, Clock, Target, 
   DollarSign, ArrowUpRight, CheckCircle2, ChevronRight, Filter, 
-  Building2, Phone, Mail, Calendar, Eye, RefreshCw, UserCheck, AlertCircle
+  Building2, Phone, Mail, Calendar, Eye, RefreshCw, UserCheck, AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 
 const SalesManagement = () => {
@@ -33,8 +35,103 @@ const SalesManagement = () => {
   const [salesTeams, setSalesTeams] = useState([]);
   const [assigning, setAssigning] = useState(false);
 
+  const navigate = useNavigate();
   const currency = t('common.currency', isRTL ? 'ج.م' : 'EGP');
   const formatCurrency = (val) => `${(Number(val) || 0).toLocaleString()} ${currency}`;
+
+  const formatDealDuration = (daysSinceUpdate, daysSinceCreated) => {
+    const days = Math.max(0, Math.round(Number(daysSinceUpdate) || 0));
+    const totalAge = Math.max(0, Math.round(Number(daysSinceCreated) || 0));
+
+    let stageText = '';
+    if (days === 0) {
+      stageText = isRTL ? 'اليوم (أقل من 24 ساعة)' : 'Today (< 24h)';
+    } else if (days === 1) {
+      stageText = isRTL ? 'منذ يوم واحد' : '1 day in stage';
+    } else if (days === 2) {
+      stageText = isRTL ? 'منذ يومين' : '2 days in stage';
+    } else if (days >= 3 && days <= 10) {
+      stageText = isRTL ? `منذ ${days} أيام` : `${days} days in stage`;
+    } else {
+      stageText = isRTL ? `منذ ${days} يوماً` : `${days} days in stage`;
+    }
+
+    let ageText = '';
+    if (totalAge === 0) {
+      ageText = isRTL ? 'أُنشئت اليوم' : 'Created today';
+    } else if (totalAge === 1) {
+      ageText = isRTL ? 'العمر: يوم واحد' : 'Age: 1 day';
+    } else if (totalAge === 2) {
+      ageText = isRTL ? 'العمر: يومان' : 'Age: 2 days';
+    } else if (totalAge >= 3 && totalAge <= 10) {
+      ageText = isRTL ? `العمر: ${totalAge} أيام` : `Age: ${totalAge} days`;
+    } else {
+      ageText = isRTL ? `العمر: ${totalAge} يوماً` : `Age: ${totalAge} days`;
+    }
+
+    return { stageText, ageText, days, totalAge };
+  };
+
+  const getStageBadgeInfo = (stage) => {
+    const s = String(stage || '').trim().toLowerCase();
+    const rawKey = s.replace(/[\s-]/g, '_');
+    const translated = t(`deals.stages.${rawKey}`, stage || 'Lead');
+
+    if (['won', 'closed', 'closed won', 'closed_won', 'مغلقة رابحة', 'فوز'].includes(s)) {
+      return {
+        bg: '#ecfdf5',
+        color: '#065f46',
+        border: '#a7f3d0',
+        label: translated || (isRTL ? 'مغلقة رابحة' : 'Won')
+      };
+    }
+    if (['lost', 'closed lost', 'closed_lost', 'cancelled', 'خسارة', 'ملغاة'].includes(s)) {
+      return {
+        bg: '#fef2f2',
+        color: '#991b1b',
+        border: '#fecaca',
+        label: translated || (isRTL ? 'خاسرة / ملغاة' : 'Lost')
+      };
+    }
+    if (['reserved', 'reservation', 'حجز'].includes(s)) {
+      return {
+        bg: '#f0fdf4',
+        color: '#166534',
+        border: '#bbf7d0',
+        label: translated || (isRTL ? 'حجز وحدة' : 'Reserved')
+      };
+    }
+    if (['negotiation', 'تفاوض', 'عقد', 'proposal', 'quote'].includes(s)) {
+      return {
+        bg: '#fffbeb',
+        color: '#92400e',
+        border: '#fde68a',
+        label: translated || (isRTL ? 'تفاوض وعرض' : 'Negotiation')
+      };
+    }
+    if (['site_visit', 'visit', 'معاينة', 'meeting'].includes(s)) {
+      return {
+        bg: '#f5f3ff',
+        color: '#5b21b6',
+        border: '#ddd6fe',
+        label: translated || (isRTL ? 'معاينة ومقابلة' : 'Site Visit')
+      };
+    }
+    if (['contacted', 'qualifying', 'تواصل', 'مؤهل'].includes(s)) {
+      return {
+        bg: '#eef2ff',
+        color: '#3730a3',
+        border: '#c7d2fe',
+        label: translated || (isRTL ? 'تم التواصل' : 'Contacted')
+      };
+    }
+    return {
+      bg: '#f0f9ff',
+      color: '#0369a1',
+      border: '#bae6fd',
+      label: translated || (isRTL ? 'مبدئي / فرصة' : 'Lead')
+    };
+  };
 
   const fetchOverview = useCallback(async () => {
     try {
@@ -437,9 +534,19 @@ const SalesManagement = () => {
                         {t('salesManagement.bottlenecksTab.rep', 'Rep')}: {deal.salesman_name || t('salesManagement.distributionTab.unassigned', 'Unassigned')} • {t('salesManagement.bottlenecksTab.stage', 'Stage')}: {deal.pipeline_stage} • {t('salesManagement.bottlenecksTab.value', 'Value')}: {formatCurrency(deal.value)}
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 bg-rose-50 text-rose-700 font-bold rounded-lg border border-rose-200">
-                      {deal.overdue_hours ? `${deal.overdue_hours} ${t('salesManagement.bottlenecksTab.hoursOverdue', 'hours overdue')}` : t('salesManagement.kpis.requiresImmediateAction', 'Overdue')}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 bg-rose-50 text-rose-700 font-bold rounded-lg border border-rose-200">
+                        {deal.overdue_hours ? `${deal.overdue_hours} ${t('salesManagement.bottlenecksTab.hoursOverdue', 'hours overdue')}` : t('salesManagement.kpis.requiresImmediateAction', 'Overdue')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => window.open(`/deals/${deal.id}`, '_blank')}
+                        className="p-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-lg transition"
+                        title={t('salesManagement.drawer360.openDeal', 'Open Deal')}
+                      >
+                        <ExternalLink size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {(overviewData?.bottlenecks?.overdue_sla_deals || []).length === 0 && (
@@ -462,9 +569,19 @@ const SalesManagement = () => {
                         {t('salesManagement.bottlenecksTab.rep', 'Rep')}: {deal.salesman_name || t('salesManagement.distributionTab.unassigned', 'Unassigned')} • {t('salesManagement.bottlenecksTab.blocker', 'Blocker')}: {deal.blocker_reason || t('salesManagement.bottlenecksTab.noBlocker', 'Not specified')}
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 bg-amber-50 text-amber-700 font-bold rounded-lg border border-amber-200">
-                      {Math.round(deal.days_stagnant || 0)} {t('salesManagement.bottlenecksTab.stagnantDays', 'days stagnant')}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 bg-amber-50 text-amber-700 font-bold rounded-lg border border-amber-200">
+                        {Math.round(deal.days_stagnant || 0)} {t('salesManagement.bottlenecksTab.stagnantDays', 'days stagnant')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => window.open(`/deals/${deal.id}`, '_blank')}
+                        className="p-1.5 bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 rounded-lg transition"
+                        title={t('salesManagement.drawer360.openDeal', 'Open Deal')}
+                      >
+                        <ExternalLink size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {(overviewData?.bottlenecks?.stagnant_deals || []).length === 0 && (
@@ -614,21 +731,93 @@ const SalesManagement = () => {
                     <h4 className="font-bold text-slate-800 flex items-center justify-between">
                       <span>{t('salesManagement.drawer360.assignedDeals', 'Assigned Deals')} ({salesman360?.deals?.length || 0})</span>
                     </h4>
-                    <div className="space-y-2 max-h-56 overflow-y-auto">
-                      {(salesman360?.deals || []).map(deal => (
-                        <div key={deal.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                          <div className="flex items-center justify-between font-bold">
-                            <span className="text-slate-800">{deal.title}</span>
-                            <span className="text-indigo-600">{formatCurrency(deal.value)}</span>
+                    <div className="space-y-2.5 max-h-72 overflow-y-auto pr-0.5">
+                      {(salesman360?.deals || []).map(deal => {
+                        const stageBadge = getStageBadgeInfo(deal.pipeline_stage);
+                        const durationInfo = formatDealDuration(deal.days_since_update, deal.days_since_created);
+
+                        return (
+                          <div 
+                            key={deal.id} 
+                            onClick={() => navigate(`/deals?deal_id=${deal.id}`)}
+                            className="p-3 bg-slate-50 hover:bg-indigo-50/40 rounded-xl border border-slate-200 hover:border-indigo-300 transition space-y-2 group cursor-pointer shadow-xs"
+                          >
+                            <div className="flex items-center justify-between font-bold">
+                              <span className="text-slate-800 group-hover:text-indigo-600 transition flex items-center gap-1.5">
+                                {deal.title}
+                                <span className="text-[10px] text-slate-400 font-normal">#{deal.id}</span>
+                              </span>
+                              <span className="text-indigo-600 font-extrabold">{formatCurrency(deal.value)}</span>
+                            </div>
+
+                            {/* Stage & Duration Row */}
+                            <div className="flex flex-wrap items-center gap-1.5 text-[10.5px]">
+                              <span 
+                                className="px-2 py-0.5 rounded-md font-bold border"
+                                style={{ background: stageBadge.bg, color: stageBadge.color, borderColor: stageBadge.border }}
+                              >
+                                {stageBadge.label}
+                              </span>
+
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold border ${deal.is_stagnant ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-white text-slate-600 border-slate-200'}`}>
+                                <Clock size={10} />
+                                <span>{isRTL ? 'المدة:' : 'In stage:'} {durationInfo.stageText}</span>
+                              </span>
+
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-slate-400">
+                                <Calendar size={10} />
+                                <span>{durationInfo.ageText}</span>
+                              </span>
+
+                              {deal.is_overdue && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                  <AlertCircle size={10} />
+                                  <span>{isRTL ? 'متأخرة SLA' : 'SLA Overdue'}</span>
+                                </span>
+                              )}
+
+                              {deal.is_stagnant && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                  <AlertTriangle size={10} />
+                                  <span>{isRTL ? 'راكدة' : 'Stagnant'}</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                              <span className="truncate max-w-[200px]">
+                                {deal.customer_name || '-'}
+                                {deal.unit_number && <span className="text-sky-600 font-semibold mr-1"> • وحدة {deal.unit_number}</span>}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/deals?deal_id=${deal.id}`);
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-bold text-[10.5px] transition cursor-pointer"
+                                  title={t('salesManagement.drawer360.openDeal', 'Open Deal')}
+                                >
+                                  <ExternalLink size={10} />
+                                  <span>{t('salesManagement.drawer360.openDeal', 'Open Deal')}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.open(`/deals?deal_id=${deal.id}`, '_blank');
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-md transition cursor-pointer"
+                                  title="Open in new tab"
+                                >
+                                  <ArrowUpRight size={12} />
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between text-[11px] text-slate-400">
-                            <span>{deal.customer_name}</span>
-                            <span className="px-2 py-0.5 bg-white border border-slate-200 rounded-md font-semibold text-slate-600">
-                              {deal.pipeline_stage}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {(salesman360?.deals || []).length === 0 && (
                         <p className="text-slate-400 py-4 text-center">{t('salesManagement.drawer360.noDeals', 'No active deals assigned')}</p>
                       )}

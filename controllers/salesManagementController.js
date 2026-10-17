@@ -370,19 +370,61 @@ exports.getSalesman360 = async (req, res) => {
 
     const salesman = userRes.rows[0];
 
-    // 2. Fetch assigned deals with SLA status
+    // Authorization check: Admin, Manager, Supervisor or the rep themselves
+    if (!['admin', 'manager', 'supervisor'].includes(req.user.role) && req.user.id !== targetUserId) {
+      const accessibleDeptIds = await accessScopeService.getAccessibleDepartmentIds(req.user);
+      if (!accessibleDeptIds || !accessibleDeptIds.includes(salesman.department_id)) {
+        return res.status(403).json({ status: 'error', message: 'You are not authorized to view this salesman dossier.' });
+      }
+    }
+
+    // 2. Fetch assigned deals with SLA status, stage duration, customer, and unit/product details
     const dealsRes = await db.query(`
-      SELECT d.id, d.title, d.value, d.pipeline_stage, d.probability, d.expected_close_date,
-             d.custom_fields->>'lost_reason' as lost_reason,
-             d.custom_fields->>'blocker_reason' as blocker_reason,
-             c.name as customer_name, c.phone as customer_phone,
-             EXTRACT(EPOCH FROM (NOW() - d.updated_at)) / 86400 as days_since_update,
-             d.created_at, d.updated_at
+      SELECT 
+        d.id, 
+        d.title, 
+        d.value, 
+        d.pipeline_stage, 
+        d.probability, 
+        d.expected_close_date,
+        d.custom_fields->>'lost_reason' as lost_reason,
+        d.custom_fields->>'blocker_reason' as blocker_reason,
+        c.name as customer_name, 
+        c.phone as customer_phone,
+        c.company_name as customer_company,
+        ru.unit_number,
+        ru.project_name as unit_project,
+        p.name as product_name,
+        EXTRACT(EPOCH FROM (NOW() - d.updated_at)) / 86400 as days_since_update,
+        EXTRACT(EPOCH FROM (NOW() - d.created_at)) / 86400 as days_since_created,
+        d.created_at, 
+        d.updated_at,
+        CASE 
+          WHEN LOWER(COALESCE(d.pipeline_stage, '')) IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost') THEN false
+          WHEN CURRENT_TIMESTAMP > COALESCE(
+            NULLIF(d.custom_fields->>'sla_extended_until', '')::timestamptz,
+            GREATEST(
+              d.created_at,
+              COALESCE(NULLIF(d.custom_fields->>'reassigned_at', '')::timestamptz, d.created_at)
+            ) + INTERVAL '48 hours'
+          ) THEN true
+          ELSE false
+        END as is_overdue,
+        CASE
+          WHEN LOWER(COALESCE(d.pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost') 
+           AND EXTRACT(EPOCH FROM (NOW() - d.updated_at)) / 86400 > 7 THEN true
+          ELSE false
+        END as is_stagnant
       FROM deals d
       LEFT JOIN customers c ON d.client_id = c.id
+      LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND ru.tenant_id::text = d.tenant_id::text
+      LEFT JOIN products p ON d.product_id = p.id
       WHERE d.assigned_to = $1 AND d.tenant_id::text = $2::text
       ORDER BY d.updated_at DESC
-    `, [targetUserId, tenant_id]).catch(() => ({ rows: [] }));
+    `, [targetUserId, tenant_id]).catch((err) => {
+      console.error('[getSalesman360 deals error]:', err.message);
+      return { rows: [] };
+    });
 
     // 3. Fetch overdue and upcoming tasks
     const tasksRes = await db.query(`

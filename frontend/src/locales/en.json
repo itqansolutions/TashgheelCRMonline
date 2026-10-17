@@ -1976,9 +1976,21 @@
         "commissions": "Commissions",
         "settlements": "Monthly Settlements",
         "targetOverview": "Target & Achievement",
+        "deals": "Deals Pipeline",
         "commissionsLedger": "Commissions Ledger",
         "monthlySettlements": "Monthly Settlements"
       },
+      "dealsPipeline": "Deals & Pipeline Stages",
+      "noDeals": "No deals assigned to this salesman",
+      "openDeal": "Open Deal",
+      "openInNewTab": "Open in New Tab",
+      "dealStage": "Current Stage",
+      "dealDuration": "Time in Stage",
+      "dealAge": "Total Deal Age",
+      "stagnantDeal": "Stagnant Deal (+7d inactive)",
+      "overdueDeal": "SLA Overdue Follow-up",
+      "totalDealsValue": "Total Deals Value",
+      "activeDeals": "Active Deals",
       "columns": {
         "contractNo": "Contract No",
         "customer": "Customer",
@@ -3681,6 +3693,7 @@
       "noDeals": "No active deals assigned",
       "noTasks": "No pending tasks",
       "noActivities": "No recent activity records",
+      "openDeal": "Open Deal",
       "close": "Close"
     },
     "alerts": {

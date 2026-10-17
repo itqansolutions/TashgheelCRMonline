@@ -18,7 +18,7 @@ router.get('/performance', authorize(['admin', 'manager', 'supervisor']), contro
 
 // @route   GET /api/sales-management/salesman/:userId/360
 // @desc    Get Salesman 360° Profile
-// @access  Private (Admin, Manager, Supervisor)
-router.get('/salesman/:userId/360', authorize(['admin', 'manager', 'supervisor']), controller.getSalesman360);
+// @access  Private (Admin, Manager, Supervisor, Sales/Agent)
+router.get('/salesman/:userId/360', authorize(['admin', 'manager', 'supervisor', 'sales', 'agent', 'employee', 'user'], ['/sales/salesmen', '/sales-management']), controller.getSalesman360);
 
 module.exports = router;

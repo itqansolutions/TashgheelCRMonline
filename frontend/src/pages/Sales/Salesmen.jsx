@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -8,7 +9,8 @@ import {
   Users, Plus, Edit2, Award, Phone, Mail, MapPin, DollarSign,
   X, Eye, Calendar, Building2, TrendingUp, CheckCircle2, AlertTriangle,
   Clock, FileText, Home, ArrowRight, ShieldCheck, ChevronRight, UserPlus,
-  Sliders, UserCheck, UserX, Briefcase, Shuffle, RefreshCw, Layers
+  Sliders, UserCheck, UserX, Briefcase, Shuffle, RefreshCw, Layers,
+  ExternalLink, ArrowUpRight, Search, Handshake, AlertCircle, Filter
 } from 'lucide-react';
 
 const PERIOD_VALUES = [
@@ -17,6 +19,7 @@ const PERIOD_VALUES = [
 ];
 
 const Salesmen = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { t, isRTL, language } = useLanguage();
   const isRealEstate = user?.template_name === 'real_estate';
@@ -76,6 +79,105 @@ const Salesmen = () => {
   const [genTarget, setGenTarget] = useState(null);
   const [genCommissions, setGenCommissions] = useState([]);
   const [genSettlements, setGenSettlements] = useState([]);
+
+  // Salesman Deals Dossier State
+  const [salesmanDeals, setSalesmanDeals] = useState([]);
+  const [dealStageFilter, setDealStageFilter] = useState('ALL');
+  const [dealSearchTerm, setDealSearchTerm] = useState('');
+
+  const formatDealDuration = (daysSinceUpdate, daysSinceCreated) => {
+    const days = Math.max(0, Math.round(Number(daysSinceUpdate) || 0));
+    const totalAge = Math.max(0, Math.round(Number(daysSinceCreated) || 0));
+
+    let stageText = '';
+    if (days === 0) {
+      stageText = isRTL ? 'اليوم (أقل من 24 ساعة)' : 'Today (< 24h)';
+    } else if (days === 1) {
+      stageText = isRTL ? 'منذ يوم واحد' : '1 day in stage';
+    } else if (days === 2) {
+      stageText = isRTL ? 'منذ يومين' : '2 days in stage';
+    } else if (days >= 3 && days <= 10) {
+      stageText = isRTL ? `منذ ${days} أيام` : `${days} days in stage`;
+    } else {
+      stageText = isRTL ? `منذ ${days} يوماً` : `${days} days in stage`;
+    }
+
+    let ageText = '';
+    if (totalAge === 0) {
+      ageText = isRTL ? 'أُنشئت اليوم' : 'Created today';
+    } else if (totalAge === 1) {
+      ageText = isRTL ? 'العمر: يوم واحد' : 'Age: 1 day';
+    } else if (totalAge === 2) {
+      ageText = isRTL ? 'العمر: يومان' : 'Age: 2 days';
+    } else if (totalAge >= 3 && totalAge <= 10) {
+      ageText = isRTL ? `العمر: ${totalAge} أيام` : `Age: ${totalAge} days`;
+    } else {
+      ageText = isRTL ? `العمر: ${totalAge} يوماً` : `Age: ${totalAge} days`;
+    }
+
+    return { stageText, ageText, days, totalAge };
+  };
+
+  const getStageBadgeInfo = (stage) => {
+    const s = String(stage || '').trim().toLowerCase();
+    const rawKey = s.replace(/[\s-]/g, '_');
+    const translated = t(`deals.stages.${rawKey}`, stage || 'Lead');
+
+    if (['won', 'closed', 'closed won', 'closed_won', 'مغلقة رابحة', 'فوز'].includes(s)) {
+      return {
+        bg: '#ecfdf5',
+        color: '#065f46',
+        border: '#a7f3d0',
+        label: translated || (isRTL ? 'مغلقة رابحة' : 'Won')
+      };
+    }
+    if (['lost', 'closed lost', 'closed_lost', 'cancelled', 'خسارة', 'ملغاة'].includes(s)) {
+      return {
+        bg: '#fef2f2',
+        color: '#991b1b',
+        border: '#fecaca',
+        label: translated || (isRTL ? 'خاسرة / ملغاة' : 'Lost')
+      };
+    }
+    if (['reserved', 'reservation', 'حجز'].includes(s)) {
+      return {
+        bg: '#f0fdf4',
+        color: '#166534',
+        border: '#bbf7d0',
+        label: translated || (isRTL ? 'حجز وحدة' : 'Reserved')
+      };
+    }
+    if (['negotiation', 'تفاوض', 'عقد', 'proposal', 'quote'].includes(s)) {
+      return {
+        bg: '#fffbeb',
+        color: '#92400e',
+        border: '#fde68a',
+        label: translated || (isRTL ? 'تفاوض وعرض' : 'Negotiation')
+      };
+    }
+    if (['site_visit', 'visit', 'معاينة', 'meeting'].includes(s)) {
+      return {
+        bg: '#f5f3ff',
+        color: '#5b21b6',
+        border: '#ddd6fe',
+        label: translated || (isRTL ? 'معاينة ومقابلة' : 'Site Visit')
+      };
+    }
+    if (['contacted', 'qualifying', 'تواصل', 'مؤهل'].includes(s)) {
+      return {
+        bg: '#eef2ff',
+        color: '#3730a3',
+        border: '#c7d2fe',
+        label: translated || (isRTL ? 'تم التواصل' : 'Contacted')
+      };
+    }
+    return {
+      bg: '#f0f9ff',
+      color: '#0369a1',
+      border: '#bae6fd',
+      label: translated || (isRTL ? 'مبدئي / فرصة' : 'Lead')
+    };
+  };
 
   const getPeriodLabel = (val) => {
     switch (val) {
@@ -296,23 +398,33 @@ const Salesmen = () => {
     }
   };
 
-  // Open 360° Drawer and fetch detailed performance & commissions
+  // Open 360° Drawer and fetch detailed performance, commissions & assigned deals
   const handleOpen360Drawer = async (rep) => {
     setActiveSalesman(rep);
     setShowDrawer(true);
     setDrawerLoading(true);
     setDrawerError(null);
     setActiveTab('overview');
+    setDealStageFilter('ALL');
+    setDealSearchTerm('');
 
     setRePerformance(null);
     setReCommissions([]);
     setGenTarget(null);
     setGenCommissions([]);
     setGenSettlements([]);
+    setSalesmanDeals([]);
 
     try {
+      // 1. Fetch 360 profile which includes all deals with current pipeline stage & elapsed time
+      const res360Promise = api.get(`/sales-management/salesman/${rep.id}/360?period=${encodeURIComponent(selectedPeriod)}`)
+        .catch(err => {
+          console.warn('[Salesmen 360 Dossier] Could not load salesman 360 deals:', err.message);
+          return { data: { data: { deals: [] } } };
+        });
+
       if (isRealEstate) {
-        const [perfRes, commRes] = await Promise.all([
+        const [perfRes, commRes, res360] = await Promise.all([
           api.get(`/re-targets/salesmen/${rep.id}/performance?period=${encodeURIComponent(selectedPeriod)}`)
             .catch(err => {
               if (err.response?.status === 403) throw new Error('FORBIDDEN');
@@ -322,12 +434,14 @@ const Salesmen = () => {
             .catch(err => {
               if (err.response?.status === 403) throw new Error('FORBIDDEN');
               return { data: { data: [] } };
-            })
+            }),
+          res360Promise
         ]);
         setRePerformance(perfRes.data?.data || null);
         setReCommissions(commRes.data?.data || []);
+        setSalesmanDeals(res360.data?.data?.deals || []);
       } else {
-        const [targetRes, commRes, settleRes] = await Promise.all([
+        const [targetRes, commRes, settleRes, res360] = await Promise.all([
           api.get(`/sales/targets?user_id=${rep.id}&period=${encodeURIComponent(selectedPeriod)}`)
             .catch(err => {
               if (err.response?.status === 403) throw new Error('FORBIDDEN');
@@ -342,12 +456,14 @@ const Salesmen = () => {
             .catch(err => {
               if (err.response?.status === 403) throw new Error('FORBIDDEN');
               return { data: { data: [] } };
-            })
+            }),
+          res360Promise
         ]);
         const targetList = targetRes.data?.data || [];
         setGenTarget(targetList.length > 0 ? targetList[0] : null);
         setGenCommissions(commRes.data?.data || []);
         setGenSettlements(settleRes.data?.data || []);
+        setSalesmanDeals(res360.data?.data?.deals || []);
       }
     } catch (err) {
       console.error('[Salesmen] Error loading drawer details:', err);
@@ -392,6 +508,330 @@ const Salesmen = () => {
     if (!activeTeam?.members) return true;
     return !activeTeam.members.some(m => m.user_id === emp.id);
   });
+
+  const renderDealsSection = () => {
+    const sDeals = salesmanDeals || [];
+    
+    // Categorize
+    const activeDeals = sDeals.filter(d => !['won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost'].includes((d.pipeline_stage || '').toLowerCase()));
+    const wonDeals = sDeals.filter(d => ['won', 'closed', 'closed won', 'closed_won', 'مغلقة رابحة', 'فوز'].includes((d.pipeline_stage || '').toLowerCase()));
+    const attentionDeals = sDeals.filter(d => d.is_stagnant || d.is_overdue);
+    const lostDeals = sDeals.filter(d => ['lost', 'closed lost', 'closed_lost', 'cancelled', 'خسارة', 'ملغاة'].includes((d.pipeline_stage || '').toLowerCase()));
+
+    const filteredDeals = sDeals.filter(d => {
+      const s = String(d.pipeline_stage || '').toLowerCase();
+      const isWon = ['won', 'closed', 'closed won', 'closed_won', 'مغلقة رابحة', 'فوز'].includes(s);
+      const isLost = ['lost', 'closed lost', 'closed_lost', 'cancelled', 'خسارة', 'ملغاة'].includes(s);
+      const isActive = !isWon && !isLost;
+
+      if (dealStageFilter === 'ACTIVE' && !isActive) return false;
+      if (dealStageFilter === 'WON' && !isWon) return false;
+      if (dealStageFilter === 'ATTENTION' && !(d.is_stagnant || d.is_overdue)) return false;
+      if (dealStageFilter === 'LOST' && !isLost) return false;
+
+      if (dealSearchTerm.trim()) {
+        const q = dealSearchTerm.toLowerCase();
+        const matchTitle = (d.title || '').toLowerCase().includes(q);
+        const matchCustomer = (d.customer_name || '').toLowerCase().includes(q);
+        const matchPhone = (d.customer_phone || '').toLowerCase().includes(q);
+        const matchUnit = (d.unit_number || '').toLowerCase().includes(q);
+        const matchProject = (d.unit_project || '').toLowerCase().includes(q);
+        const matchProduct = (d.product_name || '').toLowerCase().includes(q);
+        const matchStage = (d.pipeline_stage || '').toLowerCase().includes(q);
+        return matchTitle || matchCustomer || matchPhone || matchUnit || matchProject || matchProduct || matchStage;
+      }
+      return true;
+    });
+
+    const totalFilteredValue = filteredDeals.reduce((sum, d) => sum + (parseFloat(d.value) || 0), 0);
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* Top Control Bar: Filters & Search */}
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'space-between',
+          alignItems: 'center', background: '#f8fafc', padding: '12px 14px', borderRadius: '12px',
+          border: '1px solid #e2e8f0'
+        }}>
+          {/* Filter Pills */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {[
+              { id: 'ALL', label: isRTL ? 'كل الصفقات' : 'All Deals', count: sDeals.length, color: '#0284c7' },
+              { id: 'ACTIVE', label: isRTL ? 'قيد المتابعة' : 'Active Pipeline', count: activeDeals.length, color: '#2563eb' },
+              { id: 'WON', label: isRTL ? 'مغلقة رابحة' : 'Won Deals', count: wonDeals.length, color: '#16a34a' },
+              { id: 'ATTENTION', label: isRTL ? 'تحتاج انتباه (SLA/ركود)' : 'Needs Attention', count: attentionDeals.length, color: '#d97706' },
+              { id: 'LOST', label: isRTL ? 'خاسرة / ملغاة' : 'Lost / Cancelled', count: lostDeals.length, color: '#dc2626' }
+            ].map(pill => (
+              <button
+                key={pill.id}
+                onClick={() => setDealStageFilter(pill.id)}
+                style={{
+                  padding: '5px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800,
+                  cursor: 'pointer', transition: 'all 0.15s ease',
+                  background: dealStageFilter === pill.id ? pill.color : 'white',
+                  color: dealStageFilter === pill.id ? 'white' : '#475569',
+                  border: `1px solid ${dealStageFilter === pill.id ? pill.color : '#cbd5e1'}`
+                }}
+              >
+                {pill.label} ({pill.count})
+              </button>
+            ))}
+          </div>
+
+          {/* Quick Search */}
+          <div style={{ position: 'relative', minWidth: '200px', flex: '1 1 auto', maxWidth: '280px' }}>
+            <Search size={14} style={{ position: 'absolute', top: '9px', [isRTL ? 'right' : 'left']: '10px', color: '#94a3b8' }} />
+            <input
+              type="text"
+              value={dealSearchTerm}
+              onChange={(e) => setDealSearchTerm(e.target.value)}
+              placeholder={isRTL ? 'بحث بالصفقة، العميل، الوحدة...' : 'Search deal, customer, unit...'}
+              style={{
+                width: '100%', padding: '6px 10px',
+                [isRTL ? 'paddingRight' : 'paddingLeft']: '30px',
+                borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px',
+                outline: 'none', background: 'white'
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Subtotal Stats Bar */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          fontSize: '12px', color: '#64748b', padding: '0 4px', flexWrap: 'wrap', gap: '8px'
+        }}>
+          <div>
+            <span>{isRTL ? 'الصفقات المعروضة:' : 'Showing:'} </span>
+            <strong style={{ color: '#0f172a' }}>{filteredDeals.length}</strong>
+            <span> • </span>
+            <span>{isRTL ? 'إجمالي القيمة:' : 'Total Value:'} </span>
+            <strong style={{ color: '#0284c7' }} className="num-en">{totalFilteredValue.toLocaleString()}</strong> {currency}
+          </div>
+          <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+            {isRTL ? '💡 اضغط على أي صفقة لفتحها مباشرة في مساحة عمل الصفقات' : '💡 Click any deal to open its dedicated workspace'}
+          </span>
+        </div>
+
+        {/* Deals Cards List */}
+        {filteredDeals.length === 0 ? (
+          <div style={{ padding: '40px 20px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+            <Briefcase size={36} style={{ margin: '0 auto 10px', color: '#94a3b8' }} />
+            <p style={{ margin: 0, fontWeight: 700, fontSize: '14px', color: '#64748b' }}>
+              {t('sales.salesmen.noDeals', 'لا توجد صفقات تطابق المعايير المحددة')}
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {filteredDeals.map(deal => {
+              const stageBadge = getStageBadgeInfo(deal.pipeline_stage);
+              const durationInfo = formatDealDuration(deal.days_since_update, deal.days_since_created);
+
+              return (
+                <div
+                  key={deal.id}
+                  onClick={() => navigate(`/deals?deal_id=${deal.id}`)}
+                  style={{
+                    padding: '16px', borderRadius: '12px', cursor: 'pointer',
+                    background: deal.is_overdue ? '#fef2f2' : (deal.is_stagnant ? '#fffbeb' : '#ffffff'),
+                    border: `1.5px solid ${deal.is_overdue ? '#fca5a5' : (deal.is_stagnant ? '#fde68a' : '#e2e8f0')}`,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                    transition: 'all 0.18s ease',
+                    display: 'flex', flexDirection: 'column', gap: '10px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = isRealEstate ? '#0284c7' : '#10b981';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = deal.is_overdue ? '#fca5a5' : (deal.is_stagnant ? '#fde68a' : '#e2e8f0');
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  {/* Card Header: Title, Value, Open Button */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 300px' }}>
+                      <div style={{
+                        width: '34px', height: '34px', borderRadius: '8px',
+                        background: isRealEstate ? '#e0f2fe' : '#dcfce7',
+                        color: isRealEstate ? '#0284c7' : '#15803d',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                      }}>
+                        <Handshake size={18} />
+                      </div>
+                      <div>
+                        <h4 style={{
+                          margin: 0, fontSize: '15px', fontWeight: 800, color: '#1e293b',
+                          display: 'flex', alignItems: 'center', gap: '6px'
+                        }}>
+                          <span>{deal.title}</span>
+                          <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600 }}>#{deal.id}</span>
+                        </h4>
+                        {deal.customer_name && (
+                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Users size={12} className="text-slate-400" />
+                            <strong>{deal.customer_name}</strong>
+                            {deal.customer_company && <span>({deal.customer_company})</span>}
+                            {deal.customer_phone && <span className="num-en" style={{ direction: 'ltr' }}>• {deal.customer_phone}</span>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 800, color: isRealEstate ? '#0284c7' : '#059669' }}>
+                          <span className="num-en">{parseFloat(deal.value || 0).toLocaleString()}</span> {currency}
+                        </div>
+                        {deal.probability > 0 && (
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                            {isRTL ? 'احتمالية الفوز:' : 'Probability:'} <strong className="num-en">{deal.probability}%</strong>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Direct Navigation Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/deals?deal_id=${deal.id}`);
+                        }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '5px',
+                          padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 800,
+                          background: isRealEstate ? '#0284c7' : '#10b981', color: 'white',
+                          border: 'none', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                        }}
+                        title={t('sales.salesmen.openDeal', 'فتح الصفقة')}
+                      >
+                        <ExternalLink size={13} />
+                        <span>{t('sales.salesmen.openDeal', 'فتح الصفقة')}</span>
+                      </button>
+
+                      {/* Open In New Tab */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(`/deals?deal_id=${deal.id}`, '_blank');
+                        }}
+                        style={{
+                          width: '30px', height: '30px', borderRadius: '8px',
+                          background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1',
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                        }}
+                        title={t('sales.salesmen.openInNewTab', 'فتح في نافذة جديدة')}
+                      >
+                        <ArrowUpRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Badges Row: Stage, Duration, Alerts */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', paddingTop: '4px' }}>
+                    {/* Pipeline Stage Badge */}
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '5px',
+                      padding: '3px 10px', borderRadius: '20px', fontSize: '11.5px', fontWeight: 800,
+                      background: stageBadge.bg, color: stageBadge.color, border: `1px solid ${stageBadge.border}`
+                    }}>
+                      <span>{t('sales.salesmen.dealStage', 'المرحلة')}:</span>
+                      <strong>{stageBadge.label}</strong>
+                    </span>
+
+                    {/* Time in Stage ("وبقالها قد ايه") */}
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '4px',
+                      padding: '3px 10px', borderRadius: '20px', fontSize: '11.5px', fontWeight: 700,
+                      background: deal.is_stagnant ? '#fef3c7' : '#f1f5f9',
+                      color: deal.is_stagnant ? '#b45309' : '#334155',
+                      border: `1px solid ${deal.is_stagnant ? '#fde68a' : '#cbd5e1'}`
+                    }}>
+                      <Clock size={12} />
+                      <span>{t('sales.salesmen.dealDuration', 'المدة في المرحلة')}:</span>
+                      <strong className="num-en">{durationInfo.stageText}</strong>
+                    </span>
+
+                    {/* Total Deal Age */}
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '4px',
+                      padding: '3px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 600,
+                      background: '#f8fafc', color: '#64748b', border: '1px solid #e2e8f0'
+                    }}>
+                      <Calendar size={11} />
+                      <span>{durationInfo.ageText}</span>
+                    </span>
+
+                    {/* SLA Overdue Warning */}
+                    {deal.is_overdue && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                        padding: '3px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 800,
+                        background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5'
+                      }}>
+                        <AlertCircle size={12} />
+                        <span>{t('sales.salesmen.overdueDeal', 'متأخرة عن المتابعة (SLA Overdue)')}</span>
+                      </span>
+                    )}
+
+                    {/* Stagnant Warning */}
+                    {deal.is_stagnant && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                        padding: '3px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 800,
+                        background: '#fef3c7', color: '#b45309', border: '1px solid #fde68a'
+                      }}>
+                        <AlertTriangle size={12} />
+                        <span>{t('sales.salesmen.stagnantDeal', 'راكدة')} ({Math.round(deal.days_since_update)} {isRTL ? 'يوم بدون تحديث' : 'days inactive'})</span>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Metadata & Context footer (Property Unit, Product, Dates) */}
+                  {(deal.unit_number || deal.product_name || deal.expected_close_date || deal.lost_reason || deal.blocker_reason) && (
+                    <div style={{
+                      display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center',
+                      paddingTop: '8px', borderTop: '1px solid #f1f5f9', fontSize: '11.5px', color: '#64748b'
+                    }}>
+                      {deal.unit_number && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#0369a1' }}>
+                          <Home size={12} />
+                          <span>{deal.unit_project ? `${deal.unit_project} • ` : ''}{t('sales.salesmen.unitSuffix', 'وحدة')} <strong className="num-en">{deal.unit_number}</strong></span>
+                        </div>
+                      )}
+                      {deal.product_name && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669' }}>
+                          <Briefcase size={12} />
+                          <span>{deal.product_name}</span>
+                        </div>
+                      )}
+                      {deal.expected_close_date && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span>{isRTL ? 'تاريخ إغلاق متوقع:' : 'Expected Close:'}</span>
+                          <span className="num-en font-bold text-slate-700">{new Date(deal.expected_close_date).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US')}</span>
+                        </div>
+                      )}
+                      {deal.lost_reason && (
+                        <div style={{ color: '#dc2626', fontWeight: 700 }}>
+                          <span>{isRTL ? 'سبب الخسارة:' : 'Loss Reason:'} {deal.lost_reason}</span>
+                        </div>
+                      )}
+                      {deal.blocker_reason && (
+                        <div style={{ color: '#d97706', fontWeight: 700 }}>
+                          <span>{isRTL ? 'العائق:' : 'Blocker:'} {deal.blocker_reason}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '24px', maxWidth: '1350px', margin: '0 auto', fontFamily: 'inherit' }}>
@@ -952,12 +1392,13 @@ const Salesmen = () => {
                       </div>
 
                       {/* Navigation Tabs */}
-                      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', marginBottom: '18px' }}>
+                      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', marginBottom: '18px', overflowX: 'auto' }}>
                         {[
-                          { key: 'overview', label: t('sales.salesmen.tabs.overview') },
-                          { key: 'collections', label: t('sales.salesmen.tabs.collections') },
-                          { key: 'reservations', label: t('sales.salesmen.tabs.reservations') },
-                          { key: 'commissions', label: `${t('sales.salesmen.tabs.commissions')} (${reCommissions.length})` }
+                          { key: 'overview', label: t('sales.salesmen.tabs.overview', 'العقود المبرمة') },
+                          { key: 'deals', label: `${t('sales.salesmen.tabs.deals', isRTL ? 'الصفقات ومراحلها' : 'Deals Pipeline')} (${salesmanDeals.length})` },
+                          { key: 'collections', label: t('sales.salesmen.tabs.collections', 'التحصيلات النقدية') },
+                          { key: 'reservations', label: t('sales.salesmen.tabs.reservations', 'الحجوزات والتسويات') },
+                          { key: 'commissions', label: `${t('sales.salesmen.tabs.commissions', 'العمولات')} (${reCommissions.length})` }
                         ].map(tb => (
                           <button
                             key={tb.key}
@@ -966,7 +1407,7 @@ const Salesmen = () => {
                               padding: '10px 16px', border: 'none', background: 'transparent',
                               borderBottom: activeTab === tb.key ? '2.5px solid #0284c7' : '2.5px solid transparent',
                               color: activeTab === tb.key ? '#0284c7' : '#64748b', fontWeight: 800,
-                              cursor: 'pointer', fontSize: '13px'
+                              cursor: 'pointer', fontSize: '13px', whiteSpace: 'nowrap'
                             }}
                           >
                             {tb.label}
@@ -974,9 +1415,54 @@ const Salesmen = () => {
                         ))}
                       </div>
 
-                      {/* Tab 1: Contracts */}
+                      {/* Tab 1: Contracts & Overview */}
                       {activeTab === 'overview' && (
                         <div>
+                          {/* Quick Deals Pipeline Snapshot */}
+                          <div style={{
+                            background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px',
+                            padding: '14px 16px', marginBottom: '18px', display: 'flex', justifyContent: 'space-between',
+                            alignItems: 'center', flexWrap: 'wrap', gap: '10px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{
+                                width: '36px', height: '36px', borderRadius: '10px',
+                                background: '#0284c7', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                              }}>
+                                <Handshake size={18} />
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 800, fontSize: '13px', color: '#0369a1' }}>
+                                  {isRTL ? 'الصفقات ومراحل المتابعة (Pipeline)' : 'Assigned Deals Pipeline'}
+                                </div>
+                                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                                  <span>{salesmanDeals.filter(d => !['won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost'].includes((d.pipeline_stage || '').toLowerCase())).length} {isRTL ? 'صفقة نشطة قيد المتابعة' : 'active deals'}</span>
+                                  <span> • </span>
+                                  <span>{isRTL ? 'إجمالي قيمة البايبلاين:' : 'Total Value:'} </span>
+                                  <strong style={{ color: '#0284c7' }} className="num-en">{salesmanDeals.reduce((sum, d) => sum + (parseFloat(d.value) || 0), 0).toLocaleString()}</strong> {currency}
+                                  {salesmanDeals.some(d => d.is_stagnant || d.is_overdue) && (
+                                    <span style={{ color: '#dc2626', fontWeight: 800 }}>
+                                      {' • '}
+                                      {salesmanDeals.filter(d => d.is_stagnant || d.is_overdue).length} {isRTL ? 'تحتاج تدخل (SLA/ركود)' : 'need attention'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('deals')}
+                              style={{
+                                padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 800,
+                                background: '#0284c7', color: 'white', border: 'none', cursor: 'pointer',
+                                display: 'inline-flex', alignItems: 'center', gap: '5px'
+                              }}
+                            >
+                              <Eye size={13} />
+                              <span>{isRTL ? 'عرض الصفقات ومراحلها' : 'View Deals & Stages'} ({salesmanDeals.length})</span>
+                            </button>
+                          </div>
+
                           {rePerformance.contracts?.length === 0 ? (
                             <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>
                               {t('sales.salesmen.noContracts')}
@@ -1013,6 +1499,9 @@ const Salesmen = () => {
                           )}
                         </div>
                       )}
+
+                      {/* Tab: Deals Pipeline */}
+                      {activeTab === 'deals' && renderDealsSection()}
 
                       {/* Tab 2: Collections */}
                       {activeTab === 'collections' && (
@@ -1204,11 +1693,12 @@ const Salesmen = () => {
                       </div>
 
                       {/* Navigation Tabs */}
-                      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', marginBottom: '18px' }}>
+                      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #e2e8f0', marginBottom: '18px', overflowX: 'auto' }}>
                         {[
-                          { key: 'overview', label: t('sales.salesmen.tabs.targetOverview') },
-                          { key: 'commissions', label: `${t('sales.salesmen.tabs.commissionsLedger')} (${genCommissions.length})` },
-                          { key: 'settlements', label: `${t('sales.salesmen.tabs.monthlySettlements')} (${genSettlements.length})` }
+                          { key: 'overview', label: t('sales.salesmen.tabs.targetOverview', 'التارجت والإنجاز') },
+                          { key: 'deals', label: `${t('sales.salesmen.tabs.deals', isRTL ? 'الصفقات ومراحلها' : 'Deals Pipeline')} (${salesmanDeals.length})` },
+                          { key: 'commissions', label: `${t('sales.salesmen.tabs.commissionsLedger', 'سجل العمولات')} (${genCommissions.length})` },
+                          { key: 'settlements', label: `${t('sales.salesmen.tabs.monthlySettlements', 'التسويات الشهرية')} (${genSettlements.length})` }
                         ].map(tb => (
                           <button
                             key={tb.key}
@@ -1217,7 +1707,7 @@ const Salesmen = () => {
                               padding: '10px 16px', border: 'none', background: 'transparent',
                               borderBottom: activeTab === tb.key ? '2.5px solid #10b981' : '2.5px solid transparent',
                               color: activeTab === tb.key ? '#059669' : '#64748b', fontWeight: 800,
-                              cursor: 'pointer', fontSize: '13px'
+                              cursor: 'pointer', fontSize: '13px', whiteSpace: 'nowrap'
                             }}
                           >
                             {tb.label}
@@ -1228,6 +1718,51 @@ const Salesmen = () => {
                       {/* Tab 1: Target Overview */}
                       {activeTab === 'overview' && (
                         <div>
+                          {/* Quick Deals Pipeline Snapshot */}
+                          <div style={{
+                            background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px',
+                            padding: '14px 16px', marginBottom: '18px', display: 'flex', justifyContent: 'space-between',
+                            alignItems: 'center', flexWrap: 'wrap', gap: '10px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{
+                                width: '36px', height: '36px', borderRadius: '10px',
+                                background: '#10b981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                              }}>
+                                <Handshake size={18} />
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 800, fontSize: '13px', color: '#166534' }}>
+                                  {isRTL ? 'الصفقات ومراحل المتابعة (Pipeline)' : 'Assigned Deals Pipeline'}
+                                </div>
+                                <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                                  <span>{salesmanDeals.filter(d => !['won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost'].includes((d.pipeline_stage || '').toLowerCase())).length} {isRTL ? 'صفقة نشطة قيد المتابعة' : 'active deals'}</span>
+                                  <span> • </span>
+                                  <span>{isRTL ? 'إجمالي قيمة البايبلاين:' : 'Total Value:'} </span>
+                                  <strong style={{ color: '#059669' }} className="num-en">{salesmanDeals.reduce((sum, d) => sum + (parseFloat(d.value) || 0), 0).toLocaleString()}</strong> {currency}
+                                  {salesmanDeals.some(d => d.is_stagnant || d.is_overdue) && (
+                                    <span style={{ color: '#dc2626', fontWeight: 800 }}>
+                                      {' • '}
+                                      {salesmanDeals.filter(d => d.is_stagnant || d.is_overdue).length} {isRTL ? 'تحتاج تدخل (SLA/ركود)' : 'need attention'}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('deals')}
+                              style={{
+                                padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 800,
+                                background: '#059669', color: 'white', border: 'none', cursor: 'pointer',
+                                display: 'inline-flex', alignItems: 'center', gap: '5px'
+                              }}
+                            >
+                              <Eye size={13} />
+                              <span>{isRTL ? 'عرض الصفقات ومراحلها' : 'View Deals & Stages'} ({salesmanDeals.length})</span>
+                            </button>
+                          </div>
+
                           {genTarget ? (
                             <div style={{ background: '#f8fafc', padding: '18px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -1260,6 +1795,9 @@ const Salesmen = () => {
                           )}
                         </div>
                       )}
+
+                      {/* Tab: Deals Pipeline */}
+                      {activeTab === 'deals' && renderDealsSection()}
 
                       {/* Tab 2: General Commissions */}
                       {activeTab === 'commissions' && (

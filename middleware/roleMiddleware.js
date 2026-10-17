@@ -75,6 +75,9 @@ function resolveCandidatePagePaths(req, customPages = []) {
   } else if (baseUrl === '/api/logs') {
     candidates.add('/logs');
     candidates.add('/settings');
+  } else if (baseUrl === '/api/sales-management') {
+    candidates.add('/sales/salesmen');
+    candidates.add('/sales-management');
   }
 
   // Also check direct match on baseUrl or fullPath

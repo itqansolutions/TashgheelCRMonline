@@ -1976,9 +1976,21 @@
         "commissions": "العمولات",
         "settlements": "التسويات والصرف",
         "targetOverview": "التارجت والإنجاز",
+        "deals": "الصفقات ومراحلها",
         "commissionsLedger": "سجل العمولات",
         "monthlySettlements": "التسويات الشهرية"
       },
+      "dealsPipeline": "الصفقات ومراحل العمل",
+      "noDeals": "لا توجد صفقات مسندة لهذا المندوب",
+      "openDeal": "فتح الصفقة",
+      "openInNewTab": "فتح في نافذة جديدة",
+      "dealStage": "المرحلة الحالية",
+      "dealDuration": "المدة في المرحلة",
+      "dealAge": "إجمالي عمر الصفقة",
+      "stagnantDeal": "صفقة راكدة (+7 أيام بدون تحديث)",
+      "overdueDeal": "متأخرة عن المتابعة (SLA)",
+      "totalDealsValue": "إجمالي قيمة الصفقات",
+      "activeDeals": "الصفقات النشطة",
       "columns": {
         "contractNo": "رقم العقد",
         "customer": "العميل",
@@ -3681,6 +3693,7 @@
       "noDeals": "لا توجد صفقات نشطة مسندة لهذا المندوب",
       "noTasks": "لا توجد مهام أو متابعات معلقة",
       "noActivities": "لا يوجد سجل أنشطة حديث",
+      "openDeal": "فتح الصفقة",
       "close": "إغلاق"
     },
     "alerts": {

@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { useData } from '../context/DataContext';
 import { useLanguage } from '../context/LanguageContext';
 import api from '../services/api';
-import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRight, MapPin, Coins, Ruler, Building2, Layers, Zap, Clock, AlertCircle, FileText, CheckCircle2, XCircle, CreditCard, Award, Key } from 'lucide-react';
+import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRight, MapPin, Coins, Ruler, Building2, Layers, Zap, Clock, AlertCircle, FileText, CheckCircle2, XCircle, CreditCard, Award, Key, ExternalLink } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import KanbanBoard from '../components/Deals/KanbanBoard';
 import Modal from '../components/Common/Modal';
@@ -76,6 +76,16 @@ const Deals = () => {
     deduction_amount: 0,
     unit_action: 'release'
   });
+  // Deal Modal Tabs State: 'overview' | 'customer' | 'unit' | 'contract' | 'followup'
+  const [activeDealTab, setActiveDealTab] = useState('overview');
+  // Deal Finance & Milestones In-Context Sub-Tabs: 'contract' | 'installments' | 'commissions' | 'handover'
+  const [activeRelatedTab, setActiveRelatedTab] = useState('contract');
+  const [dealInstallments, setDealInstallments] = useState(null);
+  const [installmentsLoading, setInstallmentsLoading] = useState(false);
+  const [dealCommissions, setDealCommissions] = useState(null);
+  const [commissionsLoading, setCommissionsLoading] = useState(false);
+  const [dealHandover, setDealHandover] = useState(null);
+  const [handoverLoading, setHandoverLoading] = useState(false);
   // Batch F: Deal SLA Management
   const [isOverdueOnly, setIsOverdueOnly] = useState(false);
   const [dealSla, setDealSla] = useState(null);
@@ -219,6 +229,51 @@ const Deals = () => {
     }
   };
 
+  const fetchDealInstallments = async (dealId) => {
+    if (!dealId) { setDealInstallments(null); return; }
+    setInstallmentsLoading(true);
+    try {
+      const res = await api.get(`/re-installments?deal_id=${dealId}`);
+      setDealInstallments(res.data.data || []);
+    } catch (err) {
+      console.error('Failed to fetch deal installments:', err);
+      setDealInstallments([]);
+    } finally {
+      setInstallmentsLoading(false);
+    }
+  };
+
+  const fetchDealCommissions = async (dealId) => {
+    if (!dealId) { setDealCommissions(null); return; }
+    setCommissionsLoading(true);
+    try {
+      const res = await api.get(`/re-commissions?deal_id=${dealId}`);
+      setDealCommissions({
+        items: res.data.data || [],
+        summary: res.data.summary || {}
+      });
+    } catch (err) {
+      console.error('Failed to fetch deal commissions:', err);
+      setDealCommissions({ items: [], summary: {} });
+    } finally {
+      setCommissionsLoading(false);
+    }
+  };
+
+  const fetchDealHandover = async (dealId) => {
+    if (!dealId) { setDealHandover(null); return; }
+    setHandoverLoading(true);
+    try {
+      const res = await api.get(`/re-handovers?deal_id=${dealId}`);
+      setDealHandover(res.data.data && res.data.data.length > 0 ? res.data.data[0] : null);
+    } catch (err) {
+      console.error('Failed to fetch deal handover:', err);
+      setDealHandover(null);
+    } finally {
+      setHandoverLoading(false);
+    }
+  };
+
   const handleCreateContract = async () => {
     if (!editingDeal?.id) return;
     try {
@@ -352,8 +407,18 @@ const Deals = () => {
   };
 
   const handleOpenModal = (deal = null) => {
+    setActiveDealTab('overview');
+    setActiveRelatedTab('contract');
     if (deal) {
       setEditingDeal(deal);
+      setDealContract(null);
+      setCancellationRecord(null);
+      setShowCancelForm(false);
+      setDealSla(null);
+      setShowReassignModal(false);
+      setDealInstallments(null);
+      setDealCommissions(null);
+      setDealHandover(null);
       fetchDealSla(deal.id);
       setFormData({
         title: deal.title || '',
@@ -373,6 +438,9 @@ const Deals = () => {
       if (isRealEstate) {
         fetchDealContract(deal.id);
         fetchCancellation(deal.id);
+        fetchDealInstallments(deal.id);
+        fetchDealCommissions(deal.id);
+        fetchDealHandover(deal.id);
       }
     } else {
       setEditingDeal(null);
@@ -381,6 +449,10 @@ const Deals = () => {
       setShowCancelForm(false);
       setDealSla(null);
       setShowReassignModal(false);
+      setActiveRelatedTab('contract');
+      setDealInstallments(null);
+      setDealCommissions(null);
+      setDealHandover(null);
       setFormData({ 
         title: '', 
         value: 0, 
@@ -410,6 +482,11 @@ const Deals = () => {
     setShowReassignModal(false);
     setReassignTargetId('');
     setReassignReason('');
+    setActiveDealTab('overview');
+    setActiveRelatedTab('contract');
+    setDealInstallments(null);
+    setDealCommissions(null);
+    setDealHandover(null);
     openedByQueryParamRef.current = null;
     if (routeParams?.id) {
       navigate('/deals', { replace: true });
@@ -820,6 +897,22 @@ const Deals = () => {
       label: t('deals.customer', 'Customer'),
       render: (val, item) => item.client_name || t('deals.unassigned', 'Unassigned')
     },
+    {
+      key: 'next_action',
+      label: t('deals.nextActionRequired', 'Next Action'),
+      render: (val, item) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '180px' }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: val ? '#0f172a' : '#94a3b8' }}>
+            {val || '—'}
+          </span>
+          {item.expected_close_date && (
+            <span style={{ fontSize: '10px', color: '#64748b' }}>
+              <span className="num-en">{item.expected_close_date.split('T')[0]}</span>
+            </span>
+          )}
+        </div>
+      )
+    },
     { 
       key: 'assigned_to_name', 
       label: t('deals.dealOwner', 'Deal Owner'),
@@ -868,6 +961,17 @@ const Deals = () => {
         );
       }
     }
+  ];
+
+  const selectedCustomer = (customers || []).find(c => String(c.id) === String(formData.client_id));
+  const selectedUnit = (reUnits || []).find(u => String(u.id) === String(formData.unit_id));
+
+  const dealTabs = [
+    { id: 'overview', label: isRTL ? 'نظرة عامة' : 'Overview', icon: <Layers size={14} /> },
+    { id: 'customer', label: isRTL ? 'العميل' : 'Customer', icon: <User size={14} />, badge: formData.client_id ? '✓' : null },
+    { id: 'unit', label: isRealEstate ? (isRTL ? 'الوحدة والحجز' : 'Unit & Reservation') : (isRTL ? 'المنتج' : 'Product'), icon: isRealEstate ? <Building2 size={14} /> : <Layers size={14} />, badge: isRealEstate && formData.unit_id ? '✓' : null },
+    ...(isRealEstate && editingDeal ? [{ id: 'contract', label: isRTL ? 'العقد والتحصيلات' : 'Contract & Collections', icon: <CreditCard size={14} />, badge: dealContract ? dealContract.status : null }] : []),
+    { id: 'followup', label: isRTL ? 'المتابعة' : 'Follow-up', icon: <Clock size={14} />, badge: formData.next_action ? '•' : null }
   ];
 
   return (
@@ -1225,9 +1329,19 @@ const Deals = () => {
           <div className="form-group">
             <label>{t('deals.linkToCustomer', 'Link to Customer')}</label>
             {editingDeal?.client_id && editingDeal?.client_name && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#475569', marginBottom: '6px', background: '#f8fafc', padding: '4px 8px', borderRadius: '6px' }}>
-                <User size={13} style={{ opacity: 0.7 }} />
-                <span>{t('deals.linkedCustomer', 'Linked:')} <strong>{editingDeal.client_name}</strong> {editingDeal.client_company ? `(${editingDeal.client_company})` : ''} {editingDeal.client_phone ? `• ${editingDeal.client_phone}` : ''}</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', fontSize: '12px', color: '#475569', marginBottom: '6px', background: '#f8fafc', padding: '6px 10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <User size={13} style={{ opacity: 0.7 }} />
+                  <span>{t('deals.linkedCustomer', 'Linked:')} <strong>{editingDeal.client_name}</strong> {editingDeal.client_company ? `(${editingDeal.client_company})` : ''} {editingDeal.client_phone ? `• ${editingDeal.client_phone}` : ''}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.open(`/customers?customer360=${editingDeal.client_id}`, '_blank')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                  title="Open Customer 360 Workspace"
+                >
+                  <ExternalLink size={11} /> {t('customers.customer360', 'Customer 360')}
+                </button>
               </div>
             )}
             <select 
@@ -1288,23 +1402,30 @@ const Deals = () => {
             </select>
           </div>
           
-          {/* Phase 2: Action Metrics */}
+          {/* Action Metrics & Follow-up */}
+          <div className="form-group">
+              <label>{t('deals.expectedCloseDate', 'Target Close / Follow-up Date')}</label>
+              <input type="date" value={formData.expected_close_date} disabled={isDetailsDisabled} onChange={(e) => setFormData({...formData, expected_close_date: e.target.value})} />
+          </div>
           {!isRealEstate && (
-            <>
-                <div className="form-group">
-                    <label>{t('deals.winProbability', 'Win Probability (%)')}</label>
-                    <input type="number" min="0" max="100" value={formData.probability} disabled={isDetailsDisabled} onChange={(e) => setFormData({...formData, probability: parseInt(e.target.value) || 0})} />
-                </div>
-                <div className="form-group">
-                    <label>{t('deals.expectedCloseDate', 'Expected Close Date')}</label>
-                    <input type="date" value={formData.expected_close_date} disabled={isDetailsDisabled} onChange={(e) => setFormData({...formData, expected_close_date: e.target.value})} />
-                </div>
-                <div className="form-group full">
-                    <label>{t('deals.nextActionRequired', 'Next Action Required')}</label>
-                    <input type="text" placeholder={t('deals.nextActionPlaceholder', 'e.g. Call client to discuss proposal')} value={formData.next_action} disabled={isDetailsDisabled} onChange={(e) => setFormData({...formData, next_action: e.target.value})} />
-                </div>
-            </>
+            <div className="form-group">
+                <label>{t('deals.winProbability', 'Win Probability (%)')}</label>
+                <input type="number" min="0" max="100" value={formData.probability} disabled={isDetailsDisabled} onChange={(e) => setFormData({...formData, probability: parseInt(e.target.value) || 0})} />
+            </div>
           )}
+          <div className="form-group full" style={{ background: '#f8fafc', padding: '12px 14px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0369a1', fontWeight: 800, fontSize: '13px', marginBottom: '6px' }}>
+                <Clock size={15} /> {t('deals.nextActionRequired', 'Next Action Required')}
+              </label>
+              <input 
+                type="text" 
+                placeholder={t('deals.nextActionPlaceholder', 'e.g. Call client to discuss proposal, send contract draft, site visit follow-up')} 
+                value={formData.next_action} 
+                disabled={isDetailsDisabled} 
+                onChange={(e) => setFormData({...formData, next_action: e.target.value})} 
+                style={{ background: 'white' }}
+              />
+          </div>
 
           <div className="form-group full">
             <label>{t('deals.dealOwner', 'Deal Owner')}</label>
@@ -1455,13 +1576,16 @@ const Deals = () => {
             </div>
           )}
 
-          {/* Related Records – downstream workspaces originate from this Deal but live in their own pages */}
+          {/* Deal 360 In-Context Workspace: Contract, Installments, Commissions, Handover */}
           {isRealEstate && editingDeal?.id && (
             <div style={{ gridColumn: 'span 2', background: '#f8fafc', border: '2px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginTop: '6px', marginBottom: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a' }}>
-                  <FileText size={16} color="#2563eb" /> {t('deals.relatedRecords', 'Related Records')}
-                </h4>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FileText size={18} color="#2563eb" />
+                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>
+                    {isRTL ? 'مساحة العمل المتكاملة للصفقة (Deal 360)' : 'Deal 360 Workspace'}
+                  </h4>
+                </div>
                 {contractLoading ? (
                   <span style={{ fontSize: '11px', color: '#64748b' }}>{t('common.loading', 'Loading...')}</span>
                 ) : dealContract ? (
@@ -1475,37 +1599,412 @@ const Deals = () => {
                 )}
               </div>
 
-              {!dealContract && !contractLoading && editingDeal?.unit_id && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '12px', color: '#64748b' }}>{t('deals.canOriginateContract', 'This deal can originate a sales contract.')}</span>
-                  <button
-                    type="button"
-                    onClick={handleCreateContract}
-                    style={{ padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                  >
-                    <FileText size={14} /> {t('deals.createSalesContract', 'Create Sales Contract')}
-                  </button>
-                </div>
-              )}
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+              {/* In-Context Tabs Navigation */}
+              <div style={{ display: 'flex', gap: '6px', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px', marginBottom: '14px', overflowX: 'auto' }}>
                 {[
-                  { label: t('deals.relatedLinks.contract', 'Contract'), path: '/contracts', icon: <FileText size={14} />, enabled: !!dealContract },
-                  { label: t('deals.relatedLinks.installments', 'Installments'), path: '/installments', icon: <CreditCard size={14} />, enabled: !!dealContract },
-                  { label: t('deals.relatedLinks.commissions', 'Commissions'), path: '/commissions', icon: <Award size={14} />, enabled: true },
-                  { label: t('deals.relatedLinks.handover', 'Handover'), path: '/handover', icon: <Key size={14} />, enabled: !!editingDeal?.unit_id },
-                ].map(link => (
+                  { id: 'summary', label: isRTL ? 'نظرة عامة' : 'Summary', icon: <Layers size={13} /> },
+                  { id: 'contract', label: t('deals.relatedLinks.contract', 'Contract'), icon: <FileText size={13} />, count: dealContract ? 1 : 0 },
+                  { id: 'installments', label: t('deals.relatedLinks.installments', 'Installments'), icon: <CreditCard size={13} />, count: (dealInstallments || []).length },
+                  { id: 'commissions', label: t('deals.relatedLinks.commissions', 'Commissions'), icon: <Award size={13} />, count: (dealCommissions?.items || []).length },
+                  { id: 'handover', label: t('deals.relatedLinks.handover', 'Handover'), icon: <Key size={13} />, count: dealHandover ? 1 : 0 },
+                ].map(tab => (
                   <button
-                    key={link.path}
+                    key={tab.id}
                     type="button"
-                    disabled={!link.enabled}
-                    onClick={() => { handleCloseModal(); navigate(`${link.path}?deal_id=${editingDeal.id}`); }}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '8px', borderRadius: '8px', border: '1px solid #cbd5e1', background: link.enabled ? 'white' : '#f1f5f9', color: link.enabled ? '#0f172a' : '#94a3b8', fontSize: '12px', fontWeight: 700, cursor: link.enabled ? 'pointer' : 'not-allowed' }}
+                    onClick={() => setActiveRelatedTab(tab.id)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      border: activeRelatedTab === tab.id ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                      background: activeRelatedTab === tab.id ? '#2563eb' : 'white',
+                      color: activeRelatedTab === tab.id ? 'white' : '#475569',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      whiteSpace: 'nowrap'
+                    }}
                   >
-                    {link.icon} {link.label} <ArrowRight size={12} style={{ transform: isRTL ? 'rotate(180deg)' : 'none' }} />
+                    {tab.icon}
+                    <span>{tab.label}</span>
+                    {tab.count !== undefined && tab.count > 0 && (
+                      <span style={{
+                        padding: '1px 5px',
+                        borderRadius: '999px',
+                        fontSize: '10px',
+                        background: activeRelatedTab === tab.id ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                        color: activeRelatedTab === tab.id ? 'white' : '#1e293b'
+                      }}>
+                        {tab.count}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
+
+              {/* TAB 1: SUMMARY / QUICK GLANCE */}
+              {activeRelatedTab === 'summary' && (
+                <div>
+                  {!dealContract && !contractLoading && editingDeal?.unit_id && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', padding: '10px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px' }}>
+                      <span style={{ fontSize: '12px', color: '#1e40af', fontWeight: 600 }}>{t('deals.canOriginateContract', 'This deal can originate a sales contract.')}</span>
+                      <button
+                        type="button"
+                        onClick={handleCreateContract}
+                        style={{ padding: '6px 14px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+                      >
+                        <FileText size={13} /> {t('deals.createSalesContract', 'Create Sales Contract')}
+                      </button>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                    {/* Contract Card */}
+                    <div 
+                      onClick={() => setActiveRelatedTab('contract')}
+                      style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <FileText size={12} color="#2563eb" /> {t('deals.relatedLinks.contract', 'Contract')}
+                        </span>
+                        <ArrowRight size={12} color="#94a3b8" />
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
+                        {dealContract ? <span className="num-en">{dealContract.contract_number}</span> : <span style={{ color: '#94a3b8' }}>—</span>}
+                      </div>
+                      <div style={{ fontSize: '10px', color: dealContract?.status === 'Active' ? '#16a34a' : '#d97706', marginTop: '2px', fontWeight: 700 }}>
+                        {dealContract ? getContractStatusLabel(dealContract.status) : (isRTL ? 'غير منشأ' : 'Not Created')}
+                      </div>
+                    </div>
+
+                    {/* Installments Card */}
+                    <div 
+                      onClick={() => setActiveRelatedTab('installments')}
+                      style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <CreditCard size={12} color="#0d9488" /> {t('deals.relatedLinks.installments', 'Installments')}
+                        </span>
+                        <ArrowRight size={12} color="#94a3b8" />
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
+                        {(dealInstallments || []).length > 0 ? (
+                          <span>{(dealInstallments || []).length} {isRTL ? 'قسط' : 'installments'}</span>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>—</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                        {(dealInstallments || []).filter(i => i.is_overdue).length > 0 ? (
+                          <span style={{ color: '#dc2626', fontWeight: 800 }}>
+                            {(dealInstallments || []).filter(i => i.is_overdue).length} {isRTL ? 'متأخر' : 'overdue'}
+                          </span>
+                        ) : (
+                          <span>{isRTL ? 'منتظم' : 'On track'}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Commissions Card */}
+                    <div 
+                      onClick={() => setActiveRelatedTab('commissions')}
+                      style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Award size={12} color="#d97706" /> {t('deals.relatedLinks.commissions', 'Commissions')}
+                        </span>
+                        <ArrowRight size={12} color="#94a3b8" />
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
+                        {dealCommissions?.summary?.total_commissions !== undefined ? (
+                          <span><span className="num-en">{Number(dealCommissions.summary.total_commissions).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</span>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>—</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                        {dealCommissions?.summary?.total_pending > 0 ? (
+                          <span style={{ color: '#d97706', fontWeight: 700 }}>
+                            {isRTL ? 'معلق: ' : 'Pending: '}<span className="num-en">{Number(dealCommissions.summary.total_pending).toLocaleString('en-US')}</span>
+                          </span>
+                        ) : (
+                          <span>{isRTL ? 'لا توجد معلقات' : 'No pending'}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Handover Card */}
+                    <div 
+                      onClick={() => setActiveRelatedTab('handover')}
+                      style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Key size={12} color="#7c3aed" /> {t('deals.relatedLinks.handover', 'Handover')}
+                        </span>
+                        <ArrowRight size={12} color="#94a3b8" />
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
+                        {dealHandover ? (
+                          <span>{dealHandover.status}</span>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>{isRTL ? 'غير مجدول' : 'Unscheduled'}</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
+                        {dealHandover?.scheduled_date ? (
+                          <span><span className="num-en">{dealHandover.scheduled_date.split('T')[0]}</span></span>
+                        ) : (
+                          <span>{isRTL ? 'بانتظار الإتمام' : 'Pending'}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: CONTRACT IN-CONTEXT */}
+              {activeRelatedTab === 'contract' && (
+                <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
+                      {dealContract ? (
+                        <span>{t('deals.relatedLinks.contract', 'Contract')}: <span className="num-en">{dealContract.contract_number}</span></span>
+                      ) : (
+                        <span>{t('deals.noContractYet', 'No contract yet for this deal')}</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => window.open(`/contracts?deal_id=${editingDeal.id}`, '_blank')}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      <ExternalLink size={12} /> {isRTL ? 'فتح صفحة العقود' : 'Open Contracts Page'}
+                    </button>
+                  </div>
+
+                  {dealContract ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '12px' }}>
+                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.status', 'Status')}</span>
+                        <strong style={{ color: '#0f172a' }}>{getContractStatusLabel(dealContract.status)}</strong>
+                      </div>
+                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.contractValue', 'Contract Value')}</span>
+                        <strong style={{ color: '#0f172a' }}><span className="num-en">{Number(dealContract.contract_value || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
+                      </div>
+                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.downPayment', 'Down Payment')}</span>
+                        <strong style={{ color: '#16a34a' }}><span className="num-en">{Number(dealContract.down_payment || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
+                      </div>
+                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.remainingAmount', 'Remaining')}</span>
+                        <strong style={{ color: '#dc2626' }}><span className="num-en">{Number(dealContract.remaining_amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}</strong>
+                      </div>
+                      {dealContract.start_date && (
+                        <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                          <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'تاريخ البدء' : 'Start Date'}</span>
+                          <span className="num-en">{dealContract.start_date.split('T')[0]}</span>
+                        </div>
+                      )}
+                      {dealContract.end_date && (
+                        <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                          <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'تاريخ الانتهاء' : 'End Date'}</span>
+                          <span className="num-en">{dealContract.end_date.split('T')[0]}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '16px' }}>
+                      <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '10px' }}>
+                        {isRTL ? 'لا يوجد عقد صادر لهذه الصفقة حتى الآن. يمكنك إنشاء عقد مبيعات بالبيانات المحددة.' : 'No contract has been issued for this deal yet. You can originate a sales contract using current deal details.'}
+                      </p>
+                      {editingDeal?.unit_id && (
+                        <button
+                          type="button"
+                          onClick={handleCreateContract}
+                          style={{ padding: '8px 18px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                        >
+                          <FileText size={14} style={{ verticalAlign: 'middle', marginInlineEnd: '4px' }} /> {t('deals.createSalesContract', 'Create Sales Contract')}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: INSTALLMENTS IN-CONTEXT */}
+              {activeRelatedTab === 'installments' && (
+                <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
+                      {t('deals.relatedLinks.installments', 'Installments & Payment Schedule')}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => window.open(`/installments?deal_id=${editingDeal.id}`, '_blank')}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      <ExternalLink size={12} /> {isRTL ? 'فتح صفحة الأقساط' : 'Open Installments Page'}
+                    </button>
+                  </div>
+
+                  {installmentsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '14px', color: '#64748b', fontSize: '12px' }}>{t('common.loading', 'Loading installments...')}</div>
+                  ) : (dealInstallments || []).length > 0 ? (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                        <thead>
+                          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: isRTL ? 'right' : 'left' }}>
+                            <th style={{ padding: '6px 8px' }}>#</th>
+                            <th style={{ padding: '6px 8px' }}>{isRTL ? 'تاريخ الاستحقاق' : 'Due Date'}</th>
+                            <th style={{ padding: '6px 8px' }}>{isRTL ? 'القيمة' : 'Amount'}</th>
+                            <th style={{ padding: '6px 8px' }}>{isRTL ? 'المدفوع' : 'Paid'}</th>
+                            <th style={{ padding: '6px 8px' }}>{isRTL ? 'الحالة' : 'Status'}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(dealInstallments || []).slice(0, 5).map(inst => (
+                            <tr key={inst.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '6px 8px', fontWeight: 700 }}>{inst.installment_number}</td>
+                              <td style={{ padding: '6px 8px' }}><span className="num-en">{inst.due_date ? inst.due_date.split('T')[0] : '—'}</span></td>
+                              <td style={{ padding: '6px 8px', fontWeight: 700 }}><span className="num-en">{Number(inst.amount).toLocaleString('en-US')}</span></td>
+                              <td style={{ padding: '6px 8px', color: '#16a34a' }}><span className="num-en">{Number(inst.paid_amount || 0).toLocaleString('en-US')}</span></td>
+                              <td style={{ padding: '6px 8px' }}>
+                                <span style={{
+                                  padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800,
+                                  background: inst.status === 'Paid' ? '#dcfce7' : inst.is_overdue ? '#fee2e2' : '#fef3c7',
+                                  color: inst.status === 'Paid' ? '#15803d' : inst.is_overdue ? '#b91c1c' : '#b45309'
+                                }}>
+                                  {inst.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {(dealInstallments || []).length > 5 && (
+                        <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '11px', color: '#64748b' }}>
+                          {isRTL ? `عرض 5 من إجمالي ${dealInstallments.length} قسط. افتح صفحة الأقساط للمزيد.` : `Showing 5 of ${dealInstallments.length} installments. Open page for full list.`}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                      {isRTL ? 'لم يتم إنشاء جدول أقساط لهذه الصفقة بعد.' : 'No installments generated yet for this deal.'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 4: COMMISSIONS IN-CONTEXT */}
+              {activeRelatedTab === 'commissions' && (
+                <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
+                      {t('deals.relatedLinks.commissions', 'Broker & Agent Commissions')}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => window.open(`/commissions?deal_id=${editingDeal.id}`, '_blank')}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      <ExternalLink size={12} /> {isRTL ? 'فتح صفحة العمولات' : 'Open Commissions Page'}
+                    </button>
+                  </div>
+
+                  {commissionsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '14px', color: '#64748b', fontSize: '12px' }}>{t('common.loading', 'Loading commissions...')}</div>
+                  ) : (dealCommissions?.items || []).length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {(dealCommissions.items || []).map(comm => (
+                        <div key={comm.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '12px' }}>
+                          <div>
+                            <strong style={{ color: '#1e293b' }}>{comm.beneficiary_name}</strong>
+                            <span style={{ fontSize: '11px', color: '#64748b', marginInlineStart: '6px' }}>({comm.beneficiary_type})</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontWeight: 800, color: '#0f172a' }}>
+                              <span className="num-en">{Number(comm.calculated_amount).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}
+                            </span>
+                            <span style={{
+                              padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800,
+                              background: comm.status === 'Paid' ? '#dcfce7' : comm.status === 'Approved' ? '#dbeafe' : '#fef3c7',
+                              color: comm.status === 'Paid' ? '#15803d' : comm.status === 'Approved' ? '#1d4ed8' : '#b45309'
+                            }}>
+                              {comm.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                      {isRTL ? 'لا توجد عمولات مسجلة لهذه الصفقة بعد.' : 'No commissions recorded for this deal yet.'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 5: HANDOVER IN-CONTEXT */}
+              {activeRelatedTab === 'handover' && (
+                <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e293b' }}>
+                      {t('deals.relatedLinks.handover', 'Unit Handover & Inspection Milestone')}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => window.open(`/handover?deal_id=${editingDeal.id}`, '_blank')}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#faf5ff', color: '#7e22ce', border: '1px solid #e9d5ff', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      <ExternalLink size={12} /> {isRTL ? 'فتح صفحة التسليم' : 'Open Handover Page'}
+                    </button>
+                  </div>
+
+                  {handoverLoading ? (
+                    <div style={{ textAlign: 'center', padding: '14px', color: '#64748b', fontSize: '12px' }}>{t('common.loading', 'Loading handover details...')}</div>
+                  ) : dealHandover ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '12px' }}>
+                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'حالة التسليم' : 'Status'}</span>
+                        <strong style={{ color: dealHandover.status === 'Handed Over' ? '#16a34a' : '#7c3aed' }}>{dealHandover.status}</strong>
+                      </div>
+                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'الموعد المحدد' : 'Scheduled Date'}</span>
+                        <strong className="num-en">{dealHandover.scheduled_date ? dealHandover.scheduled_date.split('T')[0] : '—'}</strong>
+                      </div>
+                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'تسليم المفاتيح' : 'Keys Delivered'}</span>
+                        <span style={{ color: dealHandover.keys_handed_over ? '#16a34a' : '#64748b', fontWeight: 700 }}>
+                          {dealHandover.keys_handed_over ? (isRTL ? 'تم التسليم ✓' : 'Yes ✓') : (isRTL ? 'معلق' : 'No')}
+                        </span>
+                      </div>
+                      <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                        <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'شهادة المخالصة' : 'Clearance Certificate'}</span>
+                        <span style={{ color: dealHandover.clearance_certificate ? '#16a34a' : '#64748b', fontWeight: 700 }}>
+                          {dealHandover.clearance_certificate ? (isRTL ? 'معتمدة ✓' : 'Certified ✓') : (isRTL ? 'معلق' : 'No')}
+                        </span>
+                      </div>
+                      {dealHandover.snagging_notes && (
+                        <div style={{ gridColumn: '1 / -1', background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
+                          <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'ملاحظات المعاينة الفنية' : 'Snagging Notes'}</span>
+                          <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#1e293b' }}>{dealHandover.snagging_notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '16px', color: '#64748b', fontSize: '12px' }}>
+                      {isRTL ? 'لم يتم جدولة محضر تسليم لهذه الصفقة بعد.' : 'No handover milestone scheduled yet for this deal.'}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
