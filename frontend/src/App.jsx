@@ -169,6 +169,7 @@ function App() {
                   <Route path="tasks" element={<Tasks />} />
                   <Route path="activities" element={<Tasks />} />
                   <Route path="units-registry" element={<UnitsRegistry />} />
+                  <Route path="re-units" element={<UnitsRegistry />} />
                   {/* Real Estate / Sales standalone workspaces (formerly inner tabs of Deals) */}
                   <Route path="reservations" element={<Reservations />} />
                   <Route path="contracts" element={<Contracts />} />

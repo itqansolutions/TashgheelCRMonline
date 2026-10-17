@@ -436,13 +436,13 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                     {timeline.slice(0, 5).map(item => (
                       <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', fontSize: '13px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontWeight: 800, color: '#1e293b' }}>{item.title}</span>
-                          <span style={{ color: '#64748b' }}>{item.description}</span>
+                          <span style={{ fontWeight: 800, color: '#1e293b' }}>{typeof item.title === 'string' ? item.title : String(item.type || 'Activity')}</span>
+                          <span style={{ color: '#64748b' }}>{typeof item.description === 'string' ? item.description : (item.description && typeof item.description === 'object' ? (item.description.note || '') : String(item.description || ''))}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#94a3b8', fontSize: '11px' }}>
-                          <span style={{ fontWeight: 600, color: '#475569' }}>{item.actor_name}</span>
+                          <span style={{ fontWeight: 600, color: '#475569' }}>{typeof item.actor_name === 'string' ? item.actor_name : 'System'}</span>
                           <span>•</span>
-                          <span className="num-en">{formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}</span>
+                          <span className="num-en">{item.timestamp ? formatDistanceToNow(new Date(item.timestamp), { addSuffix: true }) : ''}</span>
                         </div>
                       </div>
                     ))}
@@ -492,16 +492,16 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                       </div>
                       <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                          <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f172a' }}>{item.title}</span>
+                          <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f172a' }}>{typeof item.title === 'string' ? item.title : String(item.type || 'Activity')}</span>
                           <span className="num-en" style={{ fontSize: '11px', color: '#94a3b8' }}>
-                            {new Date(item.timestamp).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {item.timestamp ? new Date(item.timestamp).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
                           </span>
                         </div>
                         <div style={{ fontSize: '13px', color: '#334155', lineHeight: '1.5' }}>
-                          {item.description}
+                          {typeof item.description === 'string' ? item.description : (item.description && typeof item.description === 'object' ? (item.description.note || '') : String(item.description || ''))}
                         </div>
                         <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', fontWeight: 600 }}>
-                          {t('customers.executedBy', 'Executed by:')} <span style={{ color: '#4f46e5' }}>{item.actor_name}</span>
+                          {t('customers.executedBy', 'Executed by:')} <span style={{ color: '#4f46e5' }}>{typeof item.actor_name === 'string' ? item.actor_name : 'System'}</span>
                         </div>
                       </div>
                     </div>
@@ -514,7 +514,7 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
           {/* TAB 3: CRM DIRECT INTERACTIONS */}
           {activeTab === 'crm_activity' && (
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '24px' }}>
-              <ActivityTimeline entityType="customer" entityId={customerId} />
+              <ActivityTimeline entityType="customer" entityId={customerId} onActivityCreated={() => fetch360Data()} />
             </div>
           )}
 

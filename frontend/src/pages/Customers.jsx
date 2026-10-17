@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Plus, User, Building, Mail, Phone, MapPin, Download, Sparkles, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
+import { Plus, User, Building, Building2, Mail, Phone, MapPin, Download, Sparkles, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 import FileUploader from '../components/Common/FileUploader';
@@ -16,6 +17,8 @@ import { useLanguage } from '../context/LanguageContext';
 const Customers = () => {
   const { user } = useAuth();
   const { t, isRTL } = useLanguage();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const {
     customers, fetchCustomers,
     users, fetchUsers,
@@ -82,6 +85,16 @@ const Customers = () => {
     if (!customerClassifications || customerClassifications.length === 0) fetchCustomerClassifications();
     if (!customerAreas || customerAreas.length === 0) fetchCustomerAreas();
   }, []);
+
+  useEffect(() => {
+    const c360Id = searchParams.get('customer360');
+    if (c360Id) {
+      const found = (customers || []).find(c => String(c.id) === String(c360Id));
+      setEditingCustomer(found || { id: c360Id });
+      setIsViewingDetails(true);
+      setIsModalOpen(true);
+    }
+  }, [searchParams, customers]);
 
   useEffect(() => {
       if (isViewingDetails && editingCustomer) {
@@ -315,11 +328,31 @@ const Customers = () => {
       key: 'source_name',
       label: t('customers.source', 'Source'),
       render: (val, item) => (
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
           <span style={{ fontWeight: '600' }}>{val || t('customers.directOther', 'Direct / Other')}</span>
           {item.meta_form_name && (
-            <div style={{ fontSize: '11px', color: '#4f46e5', fontWeight: '700', marginTop: '3px', background: '#eef2ff', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+            <div style={{ fontSize: '11px', color: '#4f46e5', fontWeight: '700', background: '#eef2ff', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
               📋 {item.meta_form_name}
+            </div>
+          )}
+          {item.linked_unit_id && (item.linked_unit_number || item.linked_unit_name) && (
+            <div
+              onClick={() => item.linked_deal_id && navigate(`/deals?deal_id=${item.linked_deal_id}`)}
+              style={{ fontSize: '11px', color: '#0369a1', fontWeight: 800, background: '#f0f9ff', border: '1px solid #bae6fd', padding: '2px 6px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: item.linked_deal_id ? 'pointer' : 'default' }}
+              title={item.linked_unit_name || item.linked_unit_number}
+            >
+              <Building2 size={11} />
+              <span className="num-en">{item.linked_unit_number || item.linked_unit_name}</span>
+              {item.linked_deal_stage && <span style={{ color: '#4f46e5' }}>({item.linked_deal_stage})</span>}
+            </div>
+          )}
+          {!item.linked_unit_id && item.pf_listing_reference && (
+            <div
+              onClick={() => item.linked_deal_id && navigate(`/deals?deal_id=${item.linked_deal_id}`)}
+              style={{ fontSize: '11px', color: '#b45309', fontWeight: 700, background: '#fffbeb', border: '1px solid #fde68a', padding: '2px 6px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: item.linked_deal_id ? 'pointer' : 'default' }}
+            >
+              <Building2 size={11} />
+              <span>PF: <span className="num-en">{item.pf_listing_reference}</span></span>
             </div>
           )}
         </div>

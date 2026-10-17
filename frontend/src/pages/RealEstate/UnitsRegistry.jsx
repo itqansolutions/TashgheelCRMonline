@@ -191,13 +191,23 @@ const UnitsRegistry = () => {
         }
 
         const targetUnitId = searchParams.get('unit_id') || searchParams.get('id');
-        if (targetUnitId && units && units.length > 0) {
-            const found = units.find(u => String(u.id) === String(targetUnitId));
-            if (found) {
-                setSelectedUnit(found);
+        if (targetUnitId) {
+            if (units && units.length > 0) {
+                const found = units.find(u => String(u.id) === String(targetUnitId));
+                if (found) {
+                    setSelectedUnit(found);
+                } else if (!loading) {
+                    api.get(`/re-units/${targetUnitId}`).then(res => {
+                        if (res.data?.data) setSelectedUnit(res.data.data);
+                    }).catch(() => {});
+                }
+            } else if (!loading) {
+                api.get(`/re-units/${targetUnitId}`).then(res => {
+                    if (res.data?.data) setSelectedUnit(res.data.data);
+                }).catch(() => {});
             }
         }
-    }, [searchParams, units]);
+    }, [searchParams, units, loading]);
 
     // Close topmost modal on Escape key
     useEffect(() => {

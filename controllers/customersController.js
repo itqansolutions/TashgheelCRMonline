@@ -812,19 +812,36 @@ exports.getCustomer360 = async (req, res) => {
 
     // A. CRM Activities
     for (const act of activitiesRes.rows) {
-      let message = act.title || act.details || act.action;
-      if (act.meta && act.meta.changes && act.meta.changes.note && act.meta.changes.note.to) {
-        message = act.meta.changes.note.to;
+      const metaObj = typeof act.meta === 'string' ? (() => { try { return JSON.parse(act.meta); } catch (_) { return {}; } })() : (act.meta || {});
+      const changes = metaObj?.changes || {};
+      const detailsStr = typeof act.details === 'string'
+        ? act.details
+        : (act.details && typeof act.details === 'object' && typeof act.details.note === 'string' ? act.details.note : '');
+
+      let message = '';
+      if (typeof changes?.note?.to === 'string' && changes.note.to.trim()) {
+        message = changes.note.to.trim();
+      } else if (changes?.pipeline_stage?.to) {
+        message = `Moved from ${changes.pipeline_stage.from || 'Unknown'} → ${changes.pipeline_stage.to}`;
+      } else if (Array.isArray(changes?.fields_updated?.to) && changes.fields_updated.to.length > 0) {
+        message = `Updated ${changes.fields_updated.to.join(', ')}`;
+      } else if (typeof act.title === 'string' && act.title.trim()) {
+        message = act.title.trim();
+      } else if (detailsStr && detailsStr.trim()) {
+        message = detailsStr.trim();
+      } else {
+        message = String(act.action || act.activity_type || 'Interaction');
       }
+
       timelineItems.push({
         id: `act-${act.id}`,
         timestamp: act.created_at,
         source: 'crm',
-        type: act.action || act.activity_type || 'interaction',
-        actor_name: act.user_name || 'System',
-        title: act.action ? `${act.action.toUpperCase()}` : 'Interaction',
-        description: message,
-        meta: act.meta || {}
+        type: String(act.action || act.activity_type || 'interaction'),
+        actor_name: String(act.user_name || 'System'),
+        title: act.action && typeof act.action === 'string' ? act.action.toUpperCase() : 'Interaction',
+        description: String(message || ''),
+        meta: metaObj
       });
     }
 

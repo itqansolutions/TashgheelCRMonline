@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Edit2, Trash2, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
-const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions }) => {
+const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions, onRowClick }) => {
   const { t, isRTL } = useLanguage();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
@@ -222,7 +222,15 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions })
           <tbody>
             {(currentItems || []).length > 0 ? (
               (currentItems || []).map((item, index) => (
-                <tr key={item.id || index}>
+                <tr 
+                  key={item.id || index}
+                  onClick={(e) => {
+                    if (onRowClick && !e.target.closest('button, a, input, select, textarea, .action-btns, [data-stop-propagation]')) {
+                      onRowClick(item);
+                    }
+                  }}
+                  style={onRowClick ? { cursor: 'pointer' } : undefined}
+                >
                   {(columns || []).map((col) => (
                     <td key={col.key}>
                       {col.render ? col.render(item[col.key], item) : item[col.key]}

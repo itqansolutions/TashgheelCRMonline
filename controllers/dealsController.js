@@ -420,6 +420,21 @@ exports.createDeal = async (req, res) => {
       }
     }
 
+    // Tenant Isolation Guard: verify assigned user exists within current tenant
+    if (assigned_to && cleanAssignedTo) {
+      const userCheck = await db.query(
+        'SELECT id FROM users WHERE id::text = $1::text AND tenant_id::text = $2::text LIMIT 1',
+        [cleanAssignedTo, tenant_id]
+      );
+      if (userCheck.rows.length === 0) {
+        return res.status(400).json({
+          status: 'error',
+          code: 'INVALID_ASSIGNEE',
+          message: 'The assigned user does not exist or does not belong to this organization.'
+        });
+      }
+    }
+
     // Phase 8: Task to Deal Conversion Validation & Auto-Transition
     if (cleanSourceType === 'task' && cleanSourceId) {
       try {
@@ -728,6 +743,21 @@ exports.updateDeal = async (req, res) => {
           code: 'PERMISSION_DENIED',
           message: 'Permission denied: "deal.reassign" is required to reassign deals.',
           required_permission: 'deal.reassign'
+        });
+      }
+    }
+
+    // Tenant Isolation Guard: verify assigned user exists within current tenant
+    if (assigned_to !== undefined && assigned_to !== null && String(assigned_to).trim() !== '' && cleanAssignedTo) {
+      const userCheck = await db.query(
+        'SELECT id FROM users WHERE id::text = $1::text AND tenant_id::text = $2::text LIMIT 1',
+        [cleanAssignedTo, tenant_id]
+      );
+      if (userCheck.rows.length === 0) {
+        return res.status(400).json({
+          status: 'error',
+          code: 'INVALID_ASSIGNEE',
+          message: 'The assigned user does not exist or does not belong to this organization.'
         });
       }
     }

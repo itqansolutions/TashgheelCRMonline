@@ -387,7 +387,7 @@ const Deals = () => {
         pipeline_stage: templateConfig?.pipeline?.[0] || '', 
         client_id: '', 
         product_id: '', 
-        assigned_to: '',
+        assigned_to: user?.id || '',
         unit_id: '',
         probability: 0,
         expected_close_date: '',
@@ -436,8 +436,14 @@ const Deals = () => {
       return;
     }
 
-    // If this deal is already open, avoid redundant work
+    // If this deal was already opened by this URL parameter, do not re-run and overwrite user's form edits
+    if (openedByQueryParamRef.current === String(dealIdParam)) {
+      return;
+    }
+
+    // If this deal is already open, record ref and avoid redundant work
     if (editingDeal && String(editingDeal.id) === String(dealIdParam) && isModalOpen) {
+      openedByQueryParamRef.current = String(dealIdParam);
       return;
     }
 
@@ -483,7 +489,7 @@ const Deals = () => {
     return () => {
       isCancelled = true;
     };
-  }, [searchParams, routeParams?.id, deals, loading, isModalOpen, editingDeal]);
+  }, [searchParams, routeParams?.id, deals, loading]);
 
   const handleCustomFieldChange = (key, value) => {
     setFormData({
@@ -654,6 +660,7 @@ const Deals = () => {
           {isRealEstate && item.unit_id && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', [isRTL ? 'marginRight' : 'marginLeft']: '30px', marginTop: '4px' }}>
                    <div
+                        data-stop-propagation="true"
                         onClick={(e) => {
                           e.stopPropagation();
                           navigate(`/units-registry?unit_id=${item.unit_id}`);
@@ -1217,6 +1224,12 @@ const Deals = () => {
           
           <div className="form-group">
             <label>{t('deals.linkToCustomer', 'Link to Customer')}</label>
+            {editingDeal?.client_id && editingDeal?.client_name && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#475569', marginBottom: '6px', background: '#f8fafc', padding: '4px 8px', borderRadius: '6px' }}>
+                <User size={13} style={{ opacity: 0.7 }} />
+                <span>{t('deals.linkedCustomer', 'Linked:')} <strong>{editingDeal.client_name}</strong> {editingDeal.client_company ? `(${editingDeal.client_company})` : ''} {editingDeal.client_phone ? `• ${editingDeal.client_phone}` : ''}</span>
+              </div>
+            )}
             <select 
               value={formData.client_id}
               disabled={isDetailsDisabled}
@@ -1224,6 +1237,11 @@ const Deals = () => {
               required
             >
               <option value="">{t('deals.selectCustomer', '-- Select Customer --')}</option>
+              {formData.client_id && !(customers || []).some(c => String(c.id) === String(formData.client_id)) && (
+                <option value={formData.client_id}>
+                  {editingDeal?.client_name || `Customer #${formData.client_id}`} ({t('deals.currentCustomer', 'Current Linked Customer')})
+                </option>
+              )}
               {(customers || []).map(c => (
                 <option key={c.id} value={c.id}>{c.name} {c.company_name ? `(${c.company_name})` : ''}</option>
               ))}
@@ -1295,9 +1313,11 @@ const Deals = () => {
               disabled={isReassignDisabled}
               onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
             >
-              <option value="">{t('deals.meDefault', 'Me (Default)')}</option>
+              <option value="">{t('deals.unassignedOption', '-- Unassigned --')}</option>
               {(users || []).map(u => (
-                <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                <option key={u.id} value={u.id}>
+                  {u.name} {user && String(u.id) === String(user.id) ? `(${t('deals.currentUserBadge', 'Current User / Me')})` : `(${u.role})`}
+                </option>
               ))}
             </select>
           </div>
@@ -1390,20 +1410,20 @@ const Deals = () => {
                 <div>
                   <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.reservationExpires', 'Reservation Expires:')}</span>
                   <span style={{ fontWeight: 800, color: editingDeal.unit_reservation_expires_at && new Date(editingDeal.unit_reservation_expires_at) < new Date() ? '#dc2626' : '#166534' }}>
-                    {editingDeal.unit_reservation_expires_at ? <span className="num-en">{new Date(editingDeal.unit_reservation_expires_at).toLocaleString('en-GB')}</span> : (editingDeal.unit_status === 'Reserved' ? t('deals.active', 'Active') : (isRTL ? 'متاحة (غير محجوزة)' : 'Available (Not Reserved)'))}
+                    {editingDeal.unit_reservation_expires_at ? <span className="num-en">{new Date(editingDeal.unit_reservation_expires_at).toLocaleString('en-GB')}</span> : (String(editingDeal.unit_status || '').toLowerCase() === 'reserved' ? t('deals.active', 'Active') : (isRTL ? 'متاحة (غير محجوزة)' : 'Available (Not Reserved)'))}
                   </span>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #dcfce7', gap: '8px', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 700 }}>
-                  {editingDeal.unit_status === 'Reserved'
+                  {String(editingDeal.unit_status || '').toLowerCase() === 'reserved'
                     ? (editingDeal.unit_reservation_extension_count > 0 
                         ? t('deals.extendedTimes', 'Extended {count} time(s)').replace('{count}', editingDeal.unit_reservation_extension_count) 
                         : t('deals.activeReservation', 'Active Reservation'))
                     : (isRTL ? 'الوحدة متاحة لعروض متعددة — يمكنك تأكيد الحجز لمدة 48 ساعة عند الجدية' : 'Unit is available for multi-deal inquiries — reserve explicitly when buyer commits')}
                 </span>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  {editingDeal.unit_status !== 'Reserved' && (
+                  {String(editingDeal.unit_status || '').toLowerCase() !== 'reserved' && (
                     <button
                       type="button"
                       onClick={() => handleReserveUnit(editingDeal.id)}
@@ -1412,7 +1432,7 @@ const Deals = () => {
                       <Clock size={12} /> {isRTL ? 'حجز الوحدة (48 ساعة)' : 'Reserve Unit (48h)'}
                     </button>
                   )}
-                  {editingDeal.unit_status === 'Reserved' && canExtendSla && (
+                  {String(editingDeal.unit_status || '').toLowerCase() === 'reserved' && canExtendSla && (
                     <>
                       <button
                         type="button"
