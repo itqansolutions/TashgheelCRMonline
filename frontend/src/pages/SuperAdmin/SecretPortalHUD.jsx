@@ -6,7 +6,8 @@ import {
     Clock, ArrowUpRight, ArrowDownRight, Eye, Key, Check, X, 
     Lock, Unlock, Mail, Phone, Layers, Box, Filter, Copy, 
     Calendar, ArrowLeft, MoreHorizontal, Sparkles, Terminal,
-    Maximize2, AlertCircle, CheckCheck, ClipboardList
+    Maximize2, AlertCircle, CheckCheck, ClipboardList,
+    Sliders, ToggleLeft, ToggleRight
 } from 'lucide-react';
 
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -32,7 +33,7 @@ const formatTimeAgo = (dateInput) => {
 
 const formatCurrency = (val) => {
     const num = Number(val) || 0;
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(num);
+    return `${num.toLocaleString()} ج.م`;
 };
 
 const PLAN_COLORS = {
@@ -90,6 +91,13 @@ const SecretPortalHUD = () => {
     const [newPassword, setNewPassword] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
     const [pendingRegRequests, setPendingRegRequests] = useState(0);
+
+    // Custom Module & Limit Overrides Modal
+    const [customOverridesModal, setCustomOverridesModal] = useState(null); // tenant object
+    const [customModules, setCustomModules] = useState({});
+    const [customMaxUsers, setCustomMaxUsers] = useState('');
+    const [customMaxBranches, setCustomMaxBranches] = useState('');
+    const [customSaving, setCustomSaving] = useState(false);
 
 
     // Load all platform telemetry
@@ -254,6 +262,118 @@ const SecretPortalHUD = () => {
             toast.error(err.response?.data?.message || 'Rejection failed.');
         } finally {
             setActionLoading(false);
+        }
+    };
+
+    // Open Custom Module & User Limit Override Modal
+    const handleOpenCustomOverrides = async (tenant) => {
+        setCustomOverridesModal(tenant);
+        setCustomSaving(false);
+
+        let initialModules = {};
+        if (tenant.modules) {
+            try {
+                initialModules = typeof tenant.modules === 'string' ? JSON.parse(tenant.modules) : { ...tenant.modules };
+            } catch {
+                initialModules = {};
+            }
+        }
+        setCustomModules({
+            crm: initialModules.crm ?? true,
+            finance: initialModules.finance ?? true,
+            hr: initialModules.hr ?? false,
+            inventory: initialModules.inventory ?? false,
+            automation: initialModules.automation ?? false,
+            reports: initialModules.reports ?? true
+        });
+        setCustomMaxUsers(tenant.max_users !== undefined && tenant.max_users !== null ? String(tenant.max_users) : '10');
+        setCustomMaxBranches(tenant.max_branches !== undefined && tenant.max_branches !== null ? String(tenant.max_branches) : '1');
+
+        try {
+            const res = await api.get(`/admin/tenants/${tenant.id}/override`);
+            if (res.data?.data) {
+                const ov = res.data.data;
+                const ovLimits = ov.limits ? (typeof ov.limits === 'string' ? JSON.parse(ov.limits) : ov.limits) : {};
+                const ovMods = ov.modules ? (typeof ov.modules === 'string' ? JSON.parse(ov.modules) : ov.modules) : {};
+                if (Object.keys(ovMods).length > 0) {
+                    setCustomModules(prev => ({ ...prev, ...ovMods }));
+                }
+                if (ovLimits.max_users !== undefined && ovLimits.max_users !== null) {
+                    setCustomMaxUsers(String(ovLimits.max_users));
+                }
+                if (ovLimits.max_branches !== undefined && ovLimits.max_branches !== null) {
+                    setCustomMaxBranches(String(ovLimits.max_branches));
+                }
+            }
+        } catch (err) {
+            console.warn('Failed to fetch existing override, using tenant state', err);
+        }
+    };
+
+    const handleSaveCustomOverrides = async () => {
+        if (!customOverridesModal) return;
+        try {
+            setCustomSaving(true);
+            const parsedUsers = customMaxUsers.trim() === '' ? null : parseInt(customMaxUsers, 10);
+            const parsedBranches = customMaxBranches.trim() === '' ? null : parseInt(customMaxBranches, 10);
+
+            const limits = {};
+            if (parsedUsers !== null && !isNaN(parsedUsers)) limits.max_users = parsedUsers;
+            if (parsedBranches !== null && !isNaN(parsedBranches)) limits.max_branches = parsedBranches;
+
+            await api.put(`/admin/tenants/${customOverridesModal.id}/override`, {
+                modules: customModules,
+                limits: Object.keys(limits).length > 0 ? limits : null,
+                notes: 'Updated via HUD Quick Customizer'
+            });
+
+            toast.success(`Overrides saved for ${customOverridesModal.name}`);
+
+            setTenants(prev => prev.map(t => {
+                if (t.id === customOverridesModal.id) {
+                    return {
+                        ...t,
+                        modules: customModules,
+                        max_users: parsedUsers !== null ? parsedUsers : t.max_users,
+                        max_branches: parsedBranches !== null ? parsedBranches : t.max_branches,
+                        has_override: true
+                    };
+                }
+                return t;
+            }));
+
+            if (selectedTenantDossier && selectedTenantDossier.id === customOverridesModal.id) {
+                setSelectedTenantDossier(prev => ({
+                    ...prev,
+                    modules: customModules,
+                    max_users: parsedUsers !== null ? parsedUsers : prev.max_users,
+                    max_branches: parsedBranches !== null ? parsedBranches : prev.max_branches,
+                    has_override: true
+                }));
+            }
+
+            setCustomOverridesModal(null);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to save overrides');
+        } finally {
+            setCustomSaving(false);
+        }
+    };
+
+    const handleRevertPlanDefaults = async () => {
+        if (!customOverridesModal) return;
+        if (!window.confirm(`Revert ${customOverridesModal.name} to plan default modules and user limits?`)) return;
+
+        try {
+            setCustomSaving(true);
+            await api.delete(`/admin/tenants/${customOverridesModal.id}/override`);
+            toast.success(`Reverted to plan defaults for ${customOverridesModal.name}`);
+            setCustomOverridesModal(null);
+            fetchPlatformData(true);
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to revert overrides');
+        } finally {
+            setCustomSaving(false);
         }
     };
 
@@ -822,6 +942,13 @@ const SecretPortalHUD = () => {
                                                             <Eye size={14} />
                                                         </button>
                                                         <button 
+                                                            onClick={() => handleOpenCustomOverrides(t)}
+                                                            className="p-2 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
+                                                            title="Customize Modules & User Capacity"
+                                                        >
+                                                            <Sliders size={14} />
+                                                        </button>
+                                                        <button 
                                                             onClick={() => {
                                                                 setQuickPlanModal(t);
                                                                 setTargetPlanId(t.plan_id || '');
@@ -1116,9 +1243,17 @@ const SecretPortalHUD = () => {
 
                         {/* Module Matrix */}
                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                                <Layers size={14} className="text-indigo-600" /> Module Access Entitlements
-                            </h4>
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                    <Layers size={14} className="text-indigo-600" /> Module Access Entitlements
+                                </h4>
+                                <button
+                                    onClick={() => handleOpenCustomOverrides(selectedTenantDossier)}
+                                    className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-slate-200 hover:border-emerald-300 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
+                                >
+                                    <Sliders size={12} /> Customize
+                                </button>
+                            </div>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                                 {Object.entries(MODULE_ICONS).map(([key, info]) => {
                                     let isEnabled = true;
@@ -1142,7 +1277,13 @@ const SecretPortalHUD = () => {
 
                         {/* Dossier Action Buttons */}
                         <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button 
+                                    onClick={() => handleOpenCustomOverrides(selectedTenantDossier)}
+                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
+                                >
+                                    <Sliders size={14} /> Customize Modules & Limits
+                                </button>
                                 <button 
                                     onClick={() => {
                                         setQuickPlanModal(selectedTenantDossier);
@@ -1323,6 +1464,189 @@ const SecretPortalHUD = () => {
                             >
                                 Reset Password
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* 8. CUSTOM MODULES & USER LIMIT OVERRIDES MODAL */}
+            {/* ========================================================================= */}
+            {customOverridesModal && (
+                <div 
+                    className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+                    onClick={() => setCustomOverridesModal(null)}
+                >
+                    <div 
+                        className="bg-white border border-slate-200 rounded-3xl max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-5 text-slate-800 relative animate-in fade-in duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                                        <Sliders size={18} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-900">Customize Modules & User Limit</h3>
+                                        <p className="text-xs text-slate-500">
+                                            Tenant: <strong className="text-emerald-700 font-bold">{customOverridesModal.name}</strong> 
+                                            <span className="text-slate-400 font-mono ml-1.5">({customOverridesModal.slug})</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setCustomOverridesModal(null)} 
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* User Capacity / Limit */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+                                    <Users size={14} className="text-emerald-600" /> Active Users Capacity
+                                </label>
+                                <span className="text-[11px] text-slate-500 font-medium">
+                                    Currently Active: <strong className="text-slate-800 font-bold">{customOverridesModal.user_count ?? 1}</strong>
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="number"
+                                    min="-1"
+                                    value={customMaxUsers}
+                                    onChange={(e) => setCustomMaxUsers(e.target.value)}
+                                    placeholder="Enter user limit (e.g. 10 or -1 for unlimited)"
+                                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-800 font-mono font-bold text-sm outline-none focus:border-emerald-500 transition-all"
+                                />
+                                <span className="text-xs font-bold text-slate-500 whitespace-nowrap px-1">
+                                    {customMaxUsers === '-1' ? 'Unlimited' : 'Users Max'}
+                                </span>
+                            </div>
+
+                            {/* Preset Buttons */}
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                <span className="text-[11px] text-slate-400 mr-1">Presets:</span>
+                                {[3, 5, 10, 20, 50, 100, -1].map((val) => (
+                                    <button
+                                        key={val}
+                                        type="button"
+                                        onClick={() => setCustomMaxUsers(String(val))}
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                                            customMaxUsers === String(val)
+                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                                : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
+                                        }`}
+                                    >
+                                        {val === -1 ? 'Unlimited (∞)' : `${val}`}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Module Access Switcher */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wider">
+                                    <Layers size={14} className="text-indigo-600" /> Module Access Entitlements
+                                </label>
+                                <span className="text-[11px] text-slate-400">Click any module to enable / disable</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                {[
+                                    { key: 'crm', label: 'CRM & Deals', icon: <Users size={16} />, desc: 'Leads, Pipeline, Follow-ups' },
+                                    { key: 'finance', label: 'ERP & Finance', icon: <DollarSign size={16} />, desc: 'Invoices, Treasury, Expenses' },
+                                    { key: 'hr', label: 'HR & Attendance', icon: <Users size={16} />, desc: 'Staff, Payroll, Leaves' },
+                                    { key: 'inventory', label: 'Stock & Inventory', icon: <Box size={16} />, desc: 'Products, Warehouses' },
+                                    { key: 'automation', label: 'Automations', icon: <Zap size={16} />, desc: 'Workflows & System Actions' },
+                                    { key: 'reports', label: 'Reports & Analytics', icon: <Layers size={16} />, desc: 'Insights & Data Exports' }
+                                ].map((mod) => {
+                                    const isEnabled = !!customModules[mod.key];
+                                    return (
+                                        <div 
+                                            key={mod.key}
+                                            onClick={() => setCustomModules(prev => ({ ...prev, [mod.key]: !prev[mod.key] }))}
+                                            className={`p-3 rounded-2xl border transition-all cursor-pointer select-none flex items-center justify-between ${
+                                                isEnabled 
+                                                    ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950 shadow-xs' 
+                                                    : 'bg-white border-slate-200 text-slate-400 opacity-60 hover:opacity-100 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <div className={`p-2 rounded-xl transition-colors ${
+                                                    isEnabled ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
+                                                }`}>
+                                                    {mod.icon}
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs font-bold">{mod.label}</div>
+                                                    <div className="text-[10px] text-slate-500">{mod.desc}</div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                {isEnabled ? (
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-1 rounded-lg">
+                                                        <Check size={12} className="stroke-[3]" /> Active
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">
+                                                        <X size={12} /> Disabled
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                            <button 
+                                type="button"
+                                onClick={handleRevertPlanDefaults}
+                                disabled={customSaving}
+                                className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                                title="Remove tenant overrides and restore original plan limits"
+                            >
+                                <RefreshCw size={13} className={customSaving ? 'animate-spin' : ''} />
+                                Revert Plan Defaults
+                            </button>
+
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    type="button"
+                                    onClick={() => setCustomOverridesModal(null)}
+                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    type="button"
+                                    onClick={handleSaveCustomOverrides}
+                                    disabled={customSaving}
+                                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    {customSaving ? (
+                                        <>
+                                            <RefreshCw size={13} className="animate-spin" />
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Check size={14} />
+                                            Save Overrides
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

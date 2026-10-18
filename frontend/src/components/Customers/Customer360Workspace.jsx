@@ -268,13 +268,11 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
         paddingBottom: '2px'
       }}>
         {[
-          { id: 'overview', label: `📊 ${t('customers.tabs.overview', 'Overview')}` },
-          { id: 'timeline', label: `⏱️ ${t('customers.tabs.timeline', 'Unified Timeline ({count})', { count: timeline.length })}` },
-          { id: 'crm_activity', label: `📞 ${t('customers.tabs.crmInteractions', 'CRM Interactions')}` },
-          { id: 'deals', label: `🤝 ${t('customers.tabs.deals', 'Deals ({count})', { count: deals.length })}` },
-          { id: 'general_sales', label: `🛒 ${t('customers.tabs.generalSales', 'General Sales ({count})', { count: generalSales.sales_orders.length + generalSales.delivery_notes.length })}` },
-          { id: 'finance', label: `💰 ${t('customers.tabs.finance', 'Finance & Invoices ({count})', { count: finance.invoices.length })}` },
-          ...(showRealEstateTab ? [{ id: 'real_estate', label: `🏢 ${t('customers.tabs.realEstate', 'Real Estate ({count})', { count: realEstate.contracts.length })}` }] : [])
+          { id: 'overview', label: `📊 ${t('customers.tabs.overview', isRTL ? 'نظرة عامة' : 'Overview')}` },
+          { id: 'deals_sales', label: `🤝 ${t('customers.tabs.dealsAndSales', isRTL ? 'الصفقات والمبيعات ({count})' : 'Deals & Sales ({count})', { count: deals.length + generalSales.sales_orders.length })}` },
+          ...(showRealEstateTab ? [{ id: 'contracts_units', label: `🏢 ${t('customers.tabs.contractsAndUnits', isRTL ? 'العقود والوحدات ({count})' : 'Contracts & Units ({count})', { count: (realEstate.contracts?.length || 0) + (realEstate.reservations?.length || 0) })}` }] : []),
+          { id: 'finance', label: `💰 ${t('customers.tabs.finance', isRTL ? 'المالية والفواتير ({count})' : 'Finance & Invoices ({count})', { count: finance.invoices.length + (realEstate.collections?.length || 0) })}` },
+          { id: 'followup', label: `📞 ${t('customers.tabs.followupAndTimeline', isRTL ? 'المتابعة والجدول الزمني ({count})' : 'Follow-up & Timeline ({count})', { count: timeline.length })}` }
         ].map(tab => (
           <button
             key={tab.id}
@@ -405,7 +403,7 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                     {t('customers.viewInvoicesVouchers', 'View Invoices & Vouchers')}
                   </button>
                   <button
-                    onClick={() => setActiveTab('timeline')}
+                    onClick={() => setActiveTab('followup')}
                     style={{ flex: 1, padding: '8px 12px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
                   >
                     {t('customers.viewAuditTrail', 'View Audit Trail')}
@@ -420,7 +418,7 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                     <Clock size={16} color="#0284c7" /> {t('customers.latestEngagements', 'Latest Customer Engagements')}
                   </h4>
                   <button
-                    onClick={() => setActiveTab('timeline')}
+                    onClick={() => setActiveTab('followup')}
                     style={{ background: 'none', border: 'none', color: '#4f46e5', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
                   >
                     {t('customers.fullTimeline', 'Full Timeline')} →
@@ -452,78 +450,14 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
             </div>
           )}
 
-          {/* TAB 2: UNIFIED TIMELINE */}
-          {activeTab === 'timeline' && (
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '24px' }}>
-              <div style={{ marginBottom: '20px' }}>
-                <h3 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  {t('customers.timelineTitle', 'Unified Timeline: Who did what and when?')}
-                </h3>
-                <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
-                  {t('customers.timelineSubtitle', 'Chronological synthesis of sales interactions, phone calls, quotations, orders, deliveries, invoices, and payments.')}
-                </p>
-              </div>
-
-              {timeline.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
-                  {t('customers.noHistoricalEntries', 'No historical entries found for this client.')}
-                </div>
-              ) : (
-                <div style={{ position: 'relative', paddingInlineStart: '32px' }}>
-                  <div style={{ position: 'absolute', insetInlineStart: '13px', top: '10px', bottom: '10px', width: '2px', background: '#e2e8f0' }} />
-                  {timeline.map((item, idx) => (
-                    <div key={item.id} style={{ position: 'relative', paddingBottom: idx === timeline.length - 1 ? 0 : '22px' }}>
-                      <div style={{
-                        position: 'absolute',
-                        insetInlineStart: '-32px',
-                        top: '2px',
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '50%',
-                        background: item.source === 'payment' ? '#dcfce7' : item.source === 'crm' ? '#f5f3ff' : item.source === 'invoice' ? '#fee2e2' : '#eff6ff',
-                        color: item.source === 'payment' ? '#16a34a' : item.source === 'crm' ? '#7c3aed' : item.source === 'invoice' ? '#dc2626' : '#2563eb',
-                        border: '2px solid currentColor',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px'
-                      }}>
-                        {item.source === 'payment' ? '💵' : item.source === 'crm' ? '📞' : item.source === 'deal' ? '🤝' : item.source === 'invoice' ? '🧾' : '📄'}
-                      </div>
-                      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                          <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f172a' }}>{typeof item.title === 'string' ? item.title : String(item.type || 'Activity')}</span>
-                          <span className="num-en" style={{ fontSize: '11px', color: '#94a3b8' }}>
-                            {item.timestamp ? new Date(item.timestamp).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '13px', color: '#334155', lineHeight: '1.5' }}>
-                          {typeof item.description === 'string' ? item.description : (item.description && typeof item.description === 'object' ? (item.description.note || '') : String(item.description || ''))}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', fontWeight: 600 }}>
-                          {t('customers.executedBy', 'Executed by:')} <span style={{ color: '#4f46e5' }}>{typeof item.actor_name === 'string' ? item.actor_name : 'System'}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 3: CRM DIRECT INTERACTIONS */}
-          {activeTab === 'crm_activity' && (
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '24px' }}>
-              <ActivityTimeline entityType="customer" entityId={customerId} onActivityCreated={() => fetch360Data()} />
-            </div>
-          )}
-
-          {/* TAB 4: DEALS */}
-          {activeTab === 'deals' && (
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px' }}>
-              <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>
-                {t('customers.clientDeals', 'Client Deals ({count})', { count: deals.length })}
-              </h4>
+          {/* TAB 2: DEALS & COMMERCIAL SALES */}
+          {activeTab === 'deals_sales' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Deals Section */}
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px' }}>
+                <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>
+                  {t('customers.clientDeals', isRTL ? 'صفقات العميل ({count})' : 'Client Deals ({count})', { count: deals.length })}
+                </h4>
               {deals.length === 0 ? (
                 <div style={{ padding: '32px', textAlign: 'center', color: '#94a3b8' }}>{t('customers.noDeals', 'No deals registered for this customer.')}</div>
               ) : (
@@ -618,11 +552,13 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                 </div>
               )}
             </div>
-          )}
 
-          {/* TAB 5: GENERAL SALES */}
-          {activeTab === 'general_sales' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Commercial Sales Sub-Section */}
+            <div style={{ borderTop: '2px dashed #e2e8f0', paddingTop: '12px' }}>
+              <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: 800, color: '#334155', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShoppingCart size={16} color="#4f46e5" /> {isRTL ? 'العمليات التجارية والطلبات' : 'Commercial Sales & Orders'}
+              </h4>
+            </div>
               {/* Sales Orders */}
               <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px' }}>
                 <h4 style={{ margin: '0 0 14px 0', fontSize: '14px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -773,11 +709,36 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                   )}
                 </div>
               </div>
+
+              {/* Property Collections (if Real Estate) */}
+              {showRealEstateTab && (realEstate.collections?.length || 0) > 0 && (
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px' }}>
+                  <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <DollarSign size={16} color="#16a34a" /> {t('customers.propertyCollections', 'Property Collections & Receipts ({count})', { count: realEstate.collections.length })}
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {realEstate.collections.map(col => (
+                      <div key={col.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #dcfce7' }}>
+                        <div>
+                          <span className="num-en" style={{ fontWeight: 800, color: '#16a34a', marginInlineEnd: '8px' }}>{col.voucher_number}</span>
+                          <span style={{ fontSize: '12px', color: '#15803d' }}>
+                            {col.contract_number ? `${t('sidebar.contracts', 'Contract')} ${col.contract_number}` : t('dashboard.financeVouchers', 'Property Receipt')} 
+                            {col.unit_number ? ` • ${t('dashboard.unit', 'Unit')} ${col.unit_number}` : ''} • {t('common.date', 'Date')}: <span className="num-en">{new Date(col.voucher_date).toLocaleDateString('en-GB')}</span>
+                          </span>
+                        </div>
+                        <div style={{ fontWeight: 800, color: '#15803d' }}>
+                          +<span className="num-en">{Number(col.amount || 0).toLocaleString('en-US')}</span> {t('common.currency', 'EGP')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* TAB 7: REAL ESTATE (CONDITIONAL) */}
-          {activeTab === 'real_estate' && showRealEstateTab && (
+          {/* TAB 3: REAL ESTATE CONTRACTS & UNITS (CONDITIONAL) */}
+          {activeTab === 'contracts_units' && showRealEstateTab && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {/* Matched Inventory Units */}
               <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px' }}>
@@ -997,6 +958,76 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                     ))
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: FOLLOW-UP & TIMELINE */}
+          {activeTab === 'followup' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Interaction Logger */}
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '24px' }}>
+                <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Phone size={16} color="#4f46e5" /> {isRTL ? 'تسجيل نشاط ومتابعة' : 'Log Quick Activity & Follow-up'}
+                </h4>
+                <ActivityTimeline entityType="customer" entityId={customerId} onActivityCreated={() => fetch360Data()} />
+              </div>
+
+              {/* Unified Timeline Feed */}
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '24px' }}>
+                <div style={{ marginBottom: '20px' }}>
+                  <h3 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
+                    {t('customers.timelineTitle', 'Unified Timeline: Who did what and when?')}
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                    {t('customers.timelineSubtitle', 'Chronological synthesis of sales interactions, phone calls, quotations, orders, deliveries, invoices, and payments.')}
+                  </p>
+                </div>
+
+                {timeline.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                    {t('customers.noHistoricalEntries', 'No historical entries found for this client.')}
+                  </div>
+                ) : (
+                  <div style={{ position: 'relative', paddingInlineStart: '32px' }}>
+                    <div style={{ position: 'absolute', insetInlineStart: '13px', top: '10px', bottom: '10px', width: '2px', background: '#e2e8f0' }} />
+                    {timeline.map((item, idx) => (
+                      <div key={item.id} style={{ position: 'relative', paddingBottom: idx === timeline.length - 1 ? 0 : '22px' }}>
+                        <div style={{
+                          position: 'absolute',
+                          insetInlineStart: '-32px',
+                          top: '2px',
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '50%',
+                          background: item.source === 'payment' ? '#dcfce7' : item.source === 'crm' ? '#f5f3ff' : item.source === 'invoice' ? '#fee2e2' : '#eff6ff',
+                          color: item.source === 'payment' ? '#16a34a' : item.source === 'crm' ? '#7c3aed' : item.source === 'invoice' ? '#dc2626' : '#2563eb',
+                          border: '2px solid currentColor',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '12px'
+                        }}>
+                          {item.source === 'payment' ? '💵' : item.source === 'crm' ? '📞' : item.source === 'deal' ? '🤝' : item.source === 'invoice' ? '🧾' : '📄'}
+                        </div>
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 16px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: 800, fontSize: '13px', color: '#0f172a' }}>{typeof item.title === 'string' ? item.title : String(item.type || 'Activity')}</span>
+                            <span className="num-en" style={{ fontSize: '11px', color: '#94a3b8' }}>
+                              {item.timestamp ? new Date(item.timestamp).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#334155', lineHeight: '1.5' }}>
+                            {typeof item.description === 'string' ? item.description : (item.description && typeof item.description === 'object' ? (item.description.note || '') : String(item.description || ''))}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '6px', fontWeight: 600 }}>
+                            {t('customers.executedBy', 'Executed by:')} <span style={{ color: '#4f46e5' }}>{typeof item.actor_name === 'string' ? item.actor_name : 'System'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
