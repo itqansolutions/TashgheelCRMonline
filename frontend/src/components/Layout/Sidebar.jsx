@@ -228,7 +228,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Transaction Impact', labelKey: 'sidebar.transactionImpact', icon: <Activity size={18} />,       path: '/inventory/transaction-impact' },
     { name: 'Item Card',          labelKey: 'sidebar.itemCard',          icon: <CreditCard size={18} />,     path: '/inventory/item-card' }
   ];
-  const hasInventory = can('inventory') || can('purchasing');
+  const hasInventory = can('inventory') === true;
   const inventoryItems = hasInventory ? filterByAllowed(rawWarehouseItems) : [];
   const warehouseItems = inventoryItems;
 

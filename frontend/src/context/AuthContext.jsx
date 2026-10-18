@@ -17,7 +17,27 @@ export const AuthProvider = ({ children }) => {
     } else {
       setLoading(false);
     }
-    return () => { isMounted = false; };
+
+    // Auto-sync subscription entitlements when window gains focus or periodically
+    const syncSubscription = () => {
+      if (localStorage.getItem('token')) {
+        api.get('/me/subscription').then(res => {
+          if (res.data?.data && isMounted) {
+            setSubscription(res.data.data);
+            localStorage.setItem('subscription', JSON.stringify(res.data.data));
+          }
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener('focus', syncSubscription);
+    const syncInterval = setInterval(syncSubscription, 15000);
+
+    return () => { 
+      isMounted = false; 
+      window.removeEventListener('focus', syncSubscription);
+      clearInterval(syncInterval);
+    };
   }, []);
 
   const fetchUser = async (isMounted = true) => {

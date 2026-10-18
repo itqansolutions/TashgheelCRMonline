@@ -28,7 +28,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   // Module Entitlement Enforcement (applies to ALL roles including tenant admin)
   if (checkPath.startsWith('/inventory') || checkPath.startsWith('/products')) {
-    if (!can('inventory') && !can('purchasing')) {
+    if (can('inventory') === false || (!can('inventory') && !can('purchasing'))) {
       return <Navigate to={safeFallback} replace />;
     }
   }
