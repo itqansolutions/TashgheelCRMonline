@@ -7,7 +7,8 @@ import {
     Lock, Unlock, Mail, Phone, Layers, Box, Filter, Copy, 
     Calendar, ArrowLeft, MoreHorizontal, Sparkles, Terminal,
     Maximize2, AlertCircle, CheckCheck, ClipboardList,
-    Sliders, ToggleLeft, ToggleRight
+    Sliders, ToggleLeft, ToggleRight,
+    ShoppingBag, UserCheck, Truck, MessageCircle
 } from 'lucide-react';
 
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -52,12 +53,16 @@ const STATUS_CONFIG = {
 };
 
 const MODULE_ICONS = {
-    crm:        { label: 'CRM',       icon: <Users size={12} /> },
-    finance:    { label: 'ERP & Fin', icon: <DollarSign size={12} /> },
-    hr:         { label: 'HR',        icon: <Users size={12} /> },
-    inventory:  { label: 'Stock',     icon: <Box size={12} /> },
-    automation: { label: 'Auto',      icon: <Zap size={12} /> },
-    reports:    { label: 'Intel',     icon: <Layers size={12} /> },
+    crm:         { label: 'CRM',         icon: <Users size={12} /> },
+    sales:       { label: 'Sales',       icon: <ShoppingBag size={12} /> },
+    real_estate: { label: 'Real Estate', icon: <Building2 size={12} /> },
+    finance:     { label: 'Finance',     icon: <DollarSign size={12} /> },
+    hr:          { label: 'HR',          icon: <UserCheck size={12} /> },
+    inventory:   { label: 'Stock',       icon: <Box size={12} /> },
+    purchasing:  { label: 'Purchases',   icon: <Truck size={12} /> },
+    marketing:   { label: 'Marketing',   icon: <MessageCircle size={12} /> },
+    automation:  { label: 'Auto',        icon: <Zap size={12} /> },
+    reports:     { label: 'Reports',     icon: <Layers size={12} /> },
 };
 
 const SecretPortalHUD = () => {
@@ -280,9 +285,13 @@ const SecretPortalHUD = () => {
         }
         setCustomModules({
             crm: initialModules.crm ?? true,
+            sales: initialModules.sales ?? true,
+            real_estate: initialModules.real_estate ?? (tenant.template_name === 'real_estate'),
             finance: initialModules.finance ?? true,
             hr: initialModules.hr ?? false,
             inventory: initialModules.inventory ?? false,
+            purchasing: initialModules.purchasing ?? false,
+            marketing: initialModules.marketing ?? true,
             automation: initialModules.automation ?? false,
             reports: initialModules.reports ?? true
         });
@@ -1561,12 +1570,16 @@ const SecretPortalHUD = () => {
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                 {[
-                                    { key: 'crm', label: 'CRM & Deals', icon: <Users size={16} />, desc: 'Leads, Pipeline, Follow-ups' },
-                                    { key: 'finance', label: 'ERP & Finance', icon: <DollarSign size={16} />, desc: 'Invoices, Treasury, Expenses' },
-                                    { key: 'hr', label: 'HR & Attendance', icon: <Users size={16} />, desc: 'Staff, Payroll, Leaves' },
-                                    { key: 'inventory', label: 'Stock & Inventory', icon: <Box size={16} />, desc: 'Products, Warehouses' },
-                                    { key: 'automation', label: 'Automations', icon: <Zap size={16} />, desc: 'Workflows & System Actions' },
-                                    { key: 'reports', label: 'Reports & Analytics', icon: <Layers size={16} />, desc: 'Insights & Data Exports' }
+                                    { key: 'crm', label: 'CRM & Deals', icon: <Users size={16} />, desc: 'Leads, Pipelines, Tasks & Contacts' },
+                                    { key: 'sales', label: 'Sales & Orders', icon: <ShoppingBag size={16} />, desc: 'Sales Orders, Quotations & Documents' },
+                                    { key: 'real_estate', label: 'Real Estate & Units', icon: <Building2 size={16} />, desc: 'Units, Reservations, Contracts & Handover' },
+                                    { key: 'finance', label: 'ERP & Finance', icon: <DollarSign size={16} />, desc: 'Invoices, Receipts, Treasury & Expenses' },
+                                    { key: 'hr', label: 'HR & Attendance', icon: <UserCheck size={16} />, desc: 'Staff, Shifts, Leaves & Payroll' },
+                                    { key: 'inventory', label: 'Stock & Inventory', icon: <Box size={16} />, desc: 'Products, Warehouses & Movements' },
+                                    { key: 'purchasing', label: 'Purchases & Procurement', icon: <Truck size={16} />, desc: 'Purchase Orders, RFQs & Vendors' },
+                                    { key: 'marketing', label: 'Marketing & WhatsApp', icon: <MessageCircle size={16} />, desc: 'WhatsApp Campaigns, Chat & Meta Forms' },
+                                    { key: 'automation', label: 'Automations & Rules', icon: <Zap size={16} />, desc: 'Smart Workflows & Action Triggers' },
+                                    { key: 'reports', label: 'Reports & Analytics', icon: <Layers size={16} />, desc: 'BI Insights, Data Exports & Intelligence' }
                                 ].map((mod) => {
                                     const isEnabled = !!customModules[mod.key];
                                     return (

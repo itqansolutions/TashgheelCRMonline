@@ -22,7 +22,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isRealEstate = user?.template_name === 'real_estate';
+  const hasRealEstate = can('real_estate') !== false && (user?.template_name === 'real_estate' || can('real_estate') === true);
+  const isRealEstate = hasRealEstate;
 
   // -------------------------------------------------------------
   // Collapsible Group States (Accordion / Open-Close)
@@ -120,11 +121,13 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // -------------------------------------------------------------
   // 1. MY PROFILE ITEMS (All direct siblings)
   // -------------------------------------------------------------
-  const hasPurchasing = can('purchasing') || can('inventory');
+  const hasPurchasing = can('purchasing') === true || (can('purchasing') !== false && can('inventory') === true);
   const hasHr = can('hr');
   const hasFinance = can('finance');
-  const hasReports = can('reports');
+  const hasReports = can('reports') !== false;
   const hasCrm = can('crm');
+  const hasSales = can('sales') !== false && (can('sales') === true || hasCrm);
+  const hasMarketing = can('marketing') !== false && (can('marketing') === true || hasCrm);
 
   const rawProfileItems = [
     ...(hasHr ? [
@@ -210,7 +213,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Handover',     labelKey: 'sidebar.handover',      icon: <Key size={18} />,          path: '/handover' }
     ] : [])
   ];
-  const salesItems = hasCrm ? filterByAllowed(rawSalesItems) : [];
+  const salesItems = hasSales ? filterByAllowed(rawSalesItems) : [];
 
   // -------------------------------------------------------------
   // -------------------------------------------------------------
@@ -255,12 +258,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'WhatsApp Settings',  labelKey: 'sidebar.whatsappSettings',  icon: <AdminSettingsIcon size={16} />, path: '/integrations/whatsapp', roleGuard: ['admin'] }
   ];
 
-  const whatsappSubItems = hasCrm ? rawWhatsappSubItems.filter(item => {
+  const whatsappSubItems = hasMarketing ? rawWhatsappSubItems.filter(item => {
     if (item.roleGuard && !item.roleGuard.includes(user?.role)) return false;
     return isPathAllowed(item.path);
   }) : [];
 
-  const canAccessMetaForms = hasCrm && isPathAllowed('/integrations/meta-forms');
+  const canAccessMetaForms = hasMarketing && isPathAllowed('/integrations/meta-forms');
 
   // -------------------------------------------------------------
   // 8. HR ITEMS (ADMINISTRATION & SYSTEM HR)

@@ -33,7 +33,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     }
   }
   if (checkPath.startsWith('/purchases') || checkPath.startsWith('/contacts/vendors')) {
-    if (!can('purchasing') && !can('inventory')) {
+    if (can('purchasing') === false || (!can('purchasing') && !can('inventory'))) {
       return <Navigate to={safeFallback} replace />;
     }
   }
@@ -58,14 +58,33 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     }
   }
   if (checkPath.startsWith('/reports')) {
-    if (!can('reports')) {
+    if (can('reports') === false) {
+      return <Navigate to={safeFallback} replace />;
+    }
+  }
+  if (['/deals', '/my-deals', '/tasks', '/my-tasks', '/customers', '/my-customers'].some(prefix => checkPath.startsWith(prefix))) {
+    if (can('crm') === false) {
+      return <Navigate to={safeFallback} replace />;
+    }
+  }
+  if (checkPath.startsWith('/sales') || checkPath.startsWith('/erp/sales')) {
+    const hasSales = can('sales') !== false && (can('sales') === true || can('crm') === true);
+    if (!hasSales) {
+      return <Navigate to={safeFallback} replace />;
+    }
+  }
+  if (checkPath.startsWith('/marketing') || checkPath.startsWith('/whatsapp-chat') || checkPath.startsWith('/integrations/meta-forms') || checkPath.startsWith('/integrations/whatsapp')) {
+    const hasMarketing = can('marketing') !== false && (can('marketing') === true || can('crm') === true);
+    if (!hasMarketing) {
       return <Navigate to={safeFallback} replace />;
     }
   }
 
-  // Template Boundary Enforcement (Direct URL Access Isolation for Core Template Features)
+  // Template & Module Boundary Enforcement for Real Estate
   const template = user?.template_name;
-  if (template === 'real_estate') {
+  const hasRealEstate = can('real_estate') !== false && (template === 'real_estate' || can('real_estate') === true);
+
+  if (template === 'real_estate' && !can('sales')) {
     const isGeneralSalesOnly = [
       '/sales/orders', '/sales/documents',
       '/sales/price-tiers',
@@ -75,16 +94,17 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     if (isGeneralSalesOnly) {
       return <Navigate to={safeFallback} replace />;
     }
-  } else if (template === 'general') {
-    // Real Estate-only workspaces (backend also enforces templateGuard('real_estate'))
-    const isReOnly = [
-      '/units-registry', '/my-units',
-      '/reservations', '/contracts', '/installments', '/commissions', '/handover'
-    ].some(prefix => checkPath.startsWith(prefix));
+  }
 
-    if (isReOnly) {
-      return <Navigate to={safeFallback} replace />;
-    }
+  // Real Estate-only workspaces
+  const isReOnly = [
+    '/units-registry', '/my-units',
+    '/reservations', '/contracts', '/installments', '/commissions', '/handover',
+    '/integrations/property-finder'
+  ].some(prefix => checkPath.startsWith(prefix));
+
+  if (isReOnly && !hasRealEstate) {
+    return <Navigate to={safeFallback} replace />;
   }
 
   // Admin always has access to everything within their template & enabled modules

@@ -155,14 +155,14 @@ app.use('/api', authMiddleware, branchScope, subscriptionGuard);
 
 const templateGuard = require('./middleware/templateGuard');
 
-app.use('/api/customers', customerRoutes);
-app.use('/api/meta', metaRoutes);
-app.use('/api/whatsapp', require('./routes/whatsappRoutes'));
+app.use('/api/customers', moduleGuard('crm'), customerRoutes);
+app.use('/api/meta', moduleGuard('marketing', 'crm'), metaRoutes);
+app.use('/api/whatsapp', moduleGuard('marketing', 'crm'), require('./routes/whatsappRoutes'));
 app.use('/api/billing', billingRoutes);
 app.use('/api/products', moduleGuard('inventory'), productRoutes);
-app.use('/api/tasks', taskRoutes);
-app.use('/api/deals', dealRoutes);
-app.use('/api/quotations', quotationRoutes);
+app.use('/api/tasks', moduleGuard('crm'), taskRoutes);
+app.use('/api/deals', moduleGuard('crm'), dealRoutes);
+app.use('/api/quotations', moduleGuard('crm', 'sales'), quotationRoutes);
 // Module-Guarded Routes (require specific plan modules)
 app.use('/api/finance',   moduleGuard('finance'),   financeRoutes);
 app.use('/api/hr',        moduleGuard('hr'),        hrRoutes);

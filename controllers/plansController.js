@@ -88,7 +88,14 @@ exports.getMySubscription = async (req, res) => {
         const rawPlanModules = typeof sub.modules === 'string'
             ? JSON.parse(sub.modules)
             : (sub.modules || {});
-        const planModules = { reports: true, ...rawPlanModules };
+        const planModules = {
+            reports: true,
+            sales: true,
+            purchasing: rawPlanModules.purchasing ?? rawPlanModules.inventory ?? false,
+            marketing: rawPlanModules.marketing ?? rawPlanModules.crm ?? true,
+            real_estate: rawPlanModules.real_estate ?? true,
+            ...rawPlanModules
+        };
 
         sub.modules = { ...planModules, ...overrideModules };
         if (overrideLimits.max_users !== undefined && overrideLimits.max_users !== null) sub.max_users = overrideLimits.max_users;

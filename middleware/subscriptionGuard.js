@@ -106,9 +106,13 @@ module.exports = async (req, res, next) => {
             ? JSON.parse(sub.plan_modules)
             : (sub.plan_modules || {});
 
-        // Ensure 'reports' defaults to true if not explicitly set to false in legacy plan JSON
+        // Ensure complete module map defaults for all modules
         const planModules = {
             reports: true,
+            sales: true,
+            purchasing: rawPlanModules.purchasing ?? rawPlanModules.inventory ?? false,
+            marketing: rawPlanModules.marketing ?? rawPlanModules.crm ?? true,
+            real_estate: rawPlanModules.real_estate ?? true,
             ...rawPlanModules
         };
 
