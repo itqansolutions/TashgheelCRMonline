@@ -201,4 +201,53 @@ test('quotationsController item_type classification integrity', async (t) => {
     assert.equal(res.statusCode, 400);
     assert.match(res.data.message, /'legacy_unclassified' is restricted to historical records/);
   });
+
+  await t.test('6. Accepts quotation with catalog service product AND custom manual service line item', async () => {
+    const executedQueries = [];
+    const mockClient = {
+      query: async (sql, params) => {
+        executedQueries.push({ sql, params });
+        if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+        if (sql.includes('FROM customers')) return { rows: [{ id: 1 }] };
+        if (sql.includes('FROM products')) {
+          return { rows: [{ id: 50, is_inventory_item: false }] };
+        }
+        if (sql.includes('document_sequences') || sql.includes('SELECT current_val FROM')) {
+          return { rows: [{ next_val: 6, current_val: 6 }] };
+        }
+        if (sql.includes('INSERT INTO quotations')) {
+          return { rows: [{ id: 'quo-6', number: 'QUO-2026-00006' }] };
+        }
+        if (sql.includes('INSERT INTO quotation_items')) {
+          return { rows: [{ id: 'qi-' + executedQueries.length }] };
+        }
+        return { rows: [] };
+      },
+      release: () => {}
+    };
+
+    db.connect = async () => mockClient;
+    db.pool = { connect: async () => mockClient };
+
+    const { req, res } = mockReqRes({
+      body: {
+        client_id: 1,
+        items: [
+          // 1. Catalog service item
+          { product_id: 50, item_type: 'service', description: 'Consulting Package', quantity: 1, unit_price: 500 },
+          // 2. Custom manual service line item on the fly
+          { product_id: null, item_type: 'service', description: 'On-site Installation & Training', quantity: 2, unit_price: 250 }
+        ]
+      }
+    });
+
+    await quotationsController.createQuotation(req, res);
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.data.status, 'success');
+
+    const itemInserts = executedQueries.filter(q => q.sql.includes('INSERT INTO quotation_items'));
+    assert.equal(itemInserts.length, 2, 'Both items must be inserted');
+    assert.equal(itemInserts[0].params[3], 'service', 'Catalog item must be inserted as service');
+    assert.equal(itemInserts[1].params[3], 'service', 'Custom manual line item must be inserted as service');
+  });
 });

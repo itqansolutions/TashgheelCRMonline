@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingBag, Truck, FileText, CheckCircle2, Package, Plus, Trash2, X, Eye, ArrowRight, DollarSign, Calendar, User } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import CustomerSearchSelect from '../../components/Common/CustomerSearchSelect';
 
 const SalesCycle = () => {
   const { t, isRTL } = useLanguage();
@@ -190,12 +191,17 @@ const SalesCycle = () => {
         customer_id: parseInt(formData.customer_id),
         deal_id: formData.deal_id ? parseInt(formData.deal_id) : null,
         quotation_id: formData.quotation_id ? parseInt(formData.quotation_id) : null,
-        items: formData.items.map(it => ({
-          product_id: it.product_id ? parseInt(it.product_id) : null,
-          description: it.description,
-          quantity: parseFloat(it.quantity) || 1,
-          unit_price: parseFloat(it.unit_price) || 0
-        }))
+        items: formData.items.map(it => {
+          const prod = it.product_id ? products.find(p => p.id === parseInt(it.product_id, 10)) : null;
+          const itemType = it.item_type || (prod ? (prod.is_inventory_item ? 'inventory' : 'service') : 'service');
+          return {
+            product_id: it.product_id ? parseInt(it.product_id, 10) : null,
+            item_type: itemType,
+            description: (it.description || '').trim() || (itemType === 'service' ? 'Service Line Item' : 'Order Item'),
+            quantity: parseFloat(it.quantity) || 1,
+            unit_price: parseFloat(it.unit_price) || 0
+          };
+        })
       });
 
       toast.success(t('sales.orders.toasts.createdSuccess'));
@@ -478,17 +484,13 @@ const SalesCycle = () => {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                 <div>
                   <label style={labelStyle}>{t('sales.orders.createModal.customer')}</label>
-                  <select
+                  <CustomerSearchSelect
+                    customers={customers}
                     value={formData.customer_id}
-                    onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
-                    style={inputStyle}
+                    onChange={(custId) => setFormData({ ...formData, customer_id: custId })}
+                    placeholder={t('sales.orders.createModal.selectCustomer', 'اختر العميل (بحث بالاسم، رقم الموبايل أو الفئة)...')}
                     required
-                  >
-                    <option value="">{t('sales.orders.createModal.selectCustomer')}</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name} ({c.phone || c.email || t('sales.orders.createModal.noContact')})</option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div>

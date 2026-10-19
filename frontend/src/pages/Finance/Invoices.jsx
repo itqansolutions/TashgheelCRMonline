@@ -16,6 +16,7 @@ import CustomerAccounts from './CustomerAccounts';
 import VendorAccounts from './VendorAccounts';
 import Treasury from './Treasury';
 import Reports from './Reports';
+import CustomerSearchSelect from '../../components/Common/CustomerSearchSelect';
 import { useLanguage } from '../../context/LanguageContext';
 
 const FinanceDashboard = () => {
@@ -73,7 +74,7 @@ const FinanceDashboard = () => {
     payment_method: 'cash',
     treasury_account: 'Main Treasury / Cash',
     reference_no: '',
-    items: [{ product_id: '', description: '', quantity: 1, unit_price: 0 }]
+    items: [{ product_id: '', item_type: 'service', description: '', quantity: 1, unit_price: 0 }]
   });
 
   const isRealEstate = user?.template_name === 'real_estate';
@@ -931,17 +932,15 @@ const FinanceDashboard = () => {
                                           {quickActionType === 'Receipt Voucher' ? t('finance.quickAction.receivedFrom') : t('finance.quickAction.paidTo')}
                                       </label>
                                       {formData.party_type === 'customer' ? (
-                                          <select 
+                                          <CustomerSearchSelect 
+                                              customers={customers}
                                               value={formData.customer_id}
-                                              onChange={e => {
-                                                  const sel = customers.find(c => String(c.id) === e.target.value);
-                                                  setFormData({ ...formData, customer_id: e.target.value, party_name: sel ? sel.name : '' });
+                                              onChange={(custId, cust) => {
+                                                  setFormData({ ...formData, customer_id: custId, party_name: cust ? cust.name : '' });
                                               }}
-                                              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
-                                          >
-                                              <option value="">{t('finance.quickAction.selectCustomer')}</option>
-                                              {customers.map(c => <option key={c.id} value={c.id} style={{color:'black'}}>{c.name}</option>)}
-                                          </select>
+                                              placeholder={t('finance.quickAction.selectCustomer', 'اختر العميل (بحث بالاسم، رقم الموبايل أو الفئة)...')}
+                                              required
+                                          />
                                       ) : (
                                           <input 
                                               type="text" 
@@ -1035,15 +1034,15 @@ const FinanceDashboard = () => {
                                   </label>
                                   {(quickActionType === 'Invoice' || quickActionType === 'Quotation') ? (
                                       <div style={{ display: 'flex', gap: '12px' }}>
-                                        <select 
-                                          required
-                                          value={formData.customer_id} 
-                                          onChange={e => setFormData({...formData, customer_id: e.target.value})}
-                                          style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
-                                        >
-                                            <option value="">{t('finance.invoices.selectCustomer', '-- Select Customer --')}</option>
-                                            {customers.map(c => <option key={c.id} value={c.id} style={{color:'black'}}>{c.name}</option>)}
-                                        </select>
+                                        <div style={{ flex: 1 }}>
+                                          <CustomerSearchSelect 
+                                            customers={customers}
+                                            value={formData.customer_id} 
+                                            onChange={(custId) => setFormData({...formData, customer_id: custId})}
+                                            placeholder={t('finance.invoices.selectCustomer', 'اختر العميل (بحث بالاسم، رقم الموبايل أو الفئة)...')}
+                                            required
+                                          />
+                                        </div>
                                         {isRealEstate && (
                                             <select 
                                               value={formData.unit_id || ''} 
@@ -1071,19 +1070,43 @@ const FinanceDashboard = () => {
                                   <div style={{ marginBottom: '16px' }}>
                                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.itemsServices')}</label>
                                       {formData.items.map((item, index) => (
-                                          <div key={index} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr 0.6fr 0.8fr auto', gap: '8px', marginBottom: '8px' }}>
+                                          <div key={index} style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.9fr 1.6fr 0.6fr 0.8fr auto', gap: '8px', marginBottom: '8px' }}>
                                               <select 
                                                 value={item.product_id} 
                                                 onChange={e => {
                                                     const newItems = [...formData.items];
-                                                    const prod = products.find(p => p.id === parseInt(e.target.value));
-                                                    newItems[index] = { ...newItems[index], product_id: e.target.value, unit_price: prod ? prod.price : (newItems[index].unit_price || 0), description: prod ? prod.name : newItems[index].description };
+                                                    const val = e.target.value;
+                                                    const prod = products.find(p => p.id === parseInt(val, 10));
+                                                    const itemType = prod ? (prod.is_inventory_item ? 'inventory' : 'service') : (item.item_type || 'service');
+                                                    newItems[index] = { 
+                                                      ...newItems[index], 
+                                                      product_id: val, 
+                                                      item_type: itemType,
+                                                      unit_price: prod ? (prod.selling_price !== undefined ? prod.selling_price : (prod.price || 0)) : (newItems[index].unit_price || 0), 
+                                                      description: prod ? prod.name : newItems[index].description 
+                                                    };
                                                     setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
                                                 }}
                                                 style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)', fontSize: '12px' }}
                                               >
-                                                  <option value="">{t('finance.quickAction.linkProduct')}</option>
+                                                  <option value="">{t('finance.quickAction.linkProduct', 'ربط بمنتج (اختياري)')}</option>
                                                   {products.map(p => <option key={p.id} value={p.id} style={{color:'black'}}>{p.name}</option>)}
+                                              </select>
+                                              <select
+                                                value={item.item_type || 'service'}
+                                                disabled={Boolean(item.product_id && products.find(p => p.id === parseInt(item.product_id, 10))?.is_inventory_item)}
+                                                onChange={e => {
+                                                    const newItems = [...formData.items];
+                                                    newItems[index].item_type = e.target.value;
+                                                    setFormData({ ...formData, items: newItems });
+                                                }}
+                                                style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)', fontSize: '12px', opacity: (item.product_id && products.find(p => p.id === parseInt(item.product_id, 10))?.is_inventory_item) ? 0.7 : 1 }}
+                                              >
+                                                  <option value="service" style={{ color: 'black' }}>{t('finance.quickAction.typeService', 'خدمة (Service)')}</option>
+                                                  <option value="non_inventory" style={{ color: 'black' }}>{t('finance.quickAction.typeNonInventory', 'غير مخزني (Non-inv)')}</option>
+                                                  {Boolean(item.product_id && products.find(p => p.id === parseInt(item.product_id, 10))?.is_inventory_item) && (
+                                                    <option value="inventory" style={{ color: 'black' }}>{t('finance.quickAction.typeInventory', 'مخزني (Inventory)')}</option>
+                                                  )}
                                               </select>
                                               <input 
                                                 type="text"
@@ -1124,7 +1147,7 @@ const FinanceDashboard = () => {
                                               }} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }}>✕</button>
                                           </div>
                                       ))}
-                                      <button type="button" onClick={() => setFormData({ ...formData, items: [...formData.items, { product_id: '', quantity: 1, unit_price: 0 }] })} style={{ fontSize: '11px', color: 'var(--primary)', background: 'transparent', border: '1px dashed var(--primary)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>{t('finance.quickAction.addItem')}</button>
+                                      <button type="button" onClick={() => setFormData({ ...formData, items: [...formData.items, { product_id: '', item_type: 'service', description: '', quantity: 1, unit_price: 0 }] })} style={{ fontSize: '11px', color: 'var(--primary)', background: 'transparent', border: '1px dashed var(--primary)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>{t('finance.quickAction.addItem')}</button>
                                   </div>
                               ) : (
                                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
