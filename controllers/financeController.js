@@ -1,5 +1,7 @@
 const db = require('../config/db');
 const { logCreate, logUpdate, logDelete, logAction, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
+const notificationQueueService = require('../services/notificationQueueService');
+const { normalisePhone } = require('../services/whatsappService');
 
 // Ensure finance_vouchers table exists with multi-tenant safety
 let vouchersTableReady = false;
@@ -959,18 +961,244 @@ exports.getInvoiceDetails = async (req, res) => {
         const paymentsRes = await db.query("SELECT * FROM payments WHERE invoice_id::text = $1::text AND tenant_id::text = $2::text AND (COALESCE(status, 'active') != 'cancelled') ORDER BY payment_date DESC", [invoice_id, tenant_id]);
         const tenantRes = await db.query("SELECT * FROM tenants WHERE id::text = $1::text", [tenant_id]);
 
+        // Fetch latest WhatsApp delivery status from notification_logs (without altering invoices table)
+        let latestDelivery = null;
+        try {
+            const latestDeliveryRes = await db.query(`
+                SELECT id, delivery_status, recipient_phone, sent_at, delivered_at, read_at, failed_at, error_message, created_at
+                FROM notification_logs
+                WHERE tenant_id::text = $1::text
+                  AND (
+                      (metadata->>'entity_type' = 'invoice' AND metadata->>'entity_id' = $2::text)
+                      OR (event_name = 'invoice.delivery' AND (metadata->'payload'->>'invoiceId')::text = $2::text)
+                  )
+                ORDER BY created_at DESC
+                LIMIT 1
+            `, [tenant_id, invoice_id]);
+            latestDelivery = latestDeliveryRes.rows[0] || null;
+        } catch (delivErr) {
+            console.warn('[Finance] Note: Failed to fetch latest delivery status:', delivErr.message);
+        }
+
         res.json({
             status: 'success',
             data: {
                 invoice: invRes.rows[0],
                 items: itemsRes.rows,
                 payments: paymentsRes.rows,
-                tenant: tenantRes.rows[0] || null
+                tenant: tenantRes.rows[0] || null,
+                latest_delivery: latestDelivery
             }
         });
     } catch (err) {
         console.error('getInvoiceDetails Error:', err.message);
         res.status(500).json({ status: 'error', message: err.message || 'Failed to retrieve invoice details.' });
+    }
+};
+
+// ==========================================
+// INVOICE WHATSAPP DELIVERY — Phase 3
+// ==========================================
+
+// @desc    Send invoice details to customer via WhatsApp Cloud API
+// @route   POST /api/finance/invoices/:id/send-whatsapp
+exports.sendInvoiceWhatsApp = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) {
+        branch_id = null;
+    }
+    const invoice_id = req.params.id;
+    const { recipient_phone, custom_message, client_action_id } = req.body || {};
+
+    await ensureInvoicesTable();
+
+    try {
+        // 1. Fetch Invoice + Customer Details + Remaining Balance
+        let invQuery = `
+            SELECT i.*, 
+                   c.name as customer_name, c.email as customer_email, c.phone as customer_phone,
+                   COALESCE(p.total_paid, 0) as total_paid, 
+                   (i.total_amount - COALESCE(p.total_paid, 0)) as remaining_balance 
+            FROM invoices i
+            LEFT JOIN (
+                SELECT invoice_id, SUM(amount) as total_paid 
+                FROM payments 
+                WHERE tenant_id::text = $1::text AND (COALESCE(status, 'active') != 'cancelled') 
+                GROUP BY invoice_id
+            ) p ON i.id::text = p.invoice_id::text
+            LEFT JOIN customers c ON (
+                (NULLIF(i.client_id::text, '') IS NOT NULL AND i.client_id::text = c.id::text) OR 
+                (NULLIF(i.customer_id::text, '') IS NOT NULL AND i.customer_id::text = c.id::text)
+            )
+            WHERE i.id::text = $2::text AND i.tenant_id::text = $1::text
+        `;
+        const invParams = [tenant_id, invoice_id];
+        if (branch_id) {
+            invParams.push(String(branch_id));
+            invQuery += ` AND (i.branch_id::text = $${invParams.length}::text OR i.branch_id IS NULL)`;
+        }
+
+        const invRes = await db.query(invQuery, invParams);
+        if (invRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Invoice not found or unauthorized' });
+        }
+
+        const invoice = invRes.rows[0];
+
+        // 2. Resolve Target Phone
+        const rawPhone = recipient_phone || invoice.customer_phone;
+        if (!rawPhone || !String(rawPhone).trim()) {
+            return res.status(400).json({ 
+                status: 'error', 
+                message: 'Customer does not have a phone number. Please specify recipient_phone.' 
+            });
+        }
+
+        const normalisedPhone = normalisePhone(rawPhone);
+        if (!normalisedPhone) {
+            return res.status(400).json({ 
+                status: 'error', 
+                message: 'Invalid phone number format. Please ensure international format (+20...)' 
+            });
+        }
+
+        // 3. Resolve Organization / Tenant Info for the message
+        const tenantRes = await db.query("SELECT name FROM tenants WHERE id::text = $1::text", [tenant_id]);
+        const orgName = tenantRes.rows[0]?.name || 'Tashgheel';
+
+        // 4. Construct Default Message or use custom
+        const customerName = invoice.customer_name || 'العميل العزيز';
+        const formattedTotal = Number(invoice.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const formattedRemaining = Number(invoice.remaining_balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const dueDateStr = invoice.due_date ? new Date(invoice.due_date).toLocaleDateString('ar-EG') : 'عند الاستلام';
+
+        const defaultMsg = custom_message && custom_message.trim() ? custom_message.trim() : 
+            `مرحباً ${customerName}،\n` +
+            `مرفق تفاصيل الفاتورة رقم (${invoice.invoice_number}) الصادرة من ${orgName}:\n` +
+            `• إجمالي الفاتورة: ${formattedTotal} ج.م\n` +
+            `• المبلغ المتبقي: ${formattedRemaining} ج.م\n` +
+            `• موعد الاستحقاق: ${dueDateStr}\n\n` +
+            `شكراً لتعاملكم معنا.`;
+
+        // 5. Generate Deduplication Key
+        // Prevents rapid double-click submissions (within ~30s or per client_action_id)
+        const actionNonce = client_action_id || `${Math.floor(Date.now() / 30000)}`;
+        const deduplicationKey = `invoice.delivery:${tenant_id}:${invoice.id}:${normalisedPhone}:${actionNonce}`;
+
+        // 6. Enqueue Notification Job
+        const queueResult = await notificationQueueService.enqueueNotificationJob({
+            tenantId: tenant_id,
+            branchId: invoice.branch_id || branch_id,
+            eventName: 'invoice.delivery',
+            channel: 'whatsapp',
+            recipientType: 'customer',
+            recipientId: invoice.customer_id || invoice.client_id || null,
+            recipientPhone: normalisedPhone,
+            recipientName: customerName,
+            payload: {
+                invoiceId: invoice.id,
+                invoiceNumber: invoice.invoice_number,
+                totalAmount: invoice.total_amount,
+                remainingBalance: invoice.remaining_balance,
+                dueDate: invoice.due_date,
+                orgName: orgName,
+                customerName: customerName,
+                messageText: defaultMsg
+            },
+            messageBody: defaultMsg,
+            deduplicationKey: deduplicationKey,
+            priority: 15 // High priority for manual invoice dispatch
+        });
+
+        if (!queueResult.enqueued) {
+            if (queueResult.reason === 'DUPLICATE_JOB') {
+                return res.status(409).json({
+                    status: 'error',
+                    code: 'DUPLICATE_JOB',
+                    message: 'تم إرسال هذا الطلب بالفعل مؤخراً. يرجى الانتظار قليلاً قبل إعادة الإرسال.',
+                    jobId: queueResult.jobId
+                });
+            }
+            if (queueResult.reason === 'RULE_DISABLED' || queueResult.reason === 'CHANNEL_DISABLED') {
+                return res.status(403).json({
+                    status: 'error',
+                    code: queueResult.reason,
+                    message: 'إرسال الفواتير عبر واتساب معطّل حالياً من إعدادات قواعد الإشعارات الخاصة بالمؤسسة.'
+                });
+            }
+            return res.status(400).json({
+                status: 'error',
+                code: queueResult.reason,
+                message: `Failed to enqueue invoice delivery: ${queueResult.reason}`
+            });
+        }
+
+        // 7. Update notification_logs metadata to link entity_type: 'invoice'
+        if (queueResult.logId) {
+            await db.query(`
+                UPDATE notification_logs
+                SET metadata = metadata || $1::jsonb
+                WHERE id = $2
+            `, [JSON.stringify({
+                entity_type: 'invoice',
+                entity_id: String(invoice.id),
+                invoice_number: invoice.invoice_number,
+                sent_by_user_id: req.user.id
+            }), queueResult.logId]);
+        }
+
+        return res.json({
+            status: 'success',
+            message: 'تم جدولة إرسال الفاتورة عبر واتساب بنجاح',
+            data: {
+                jobId: queueResult.jobId,
+                logId: queueResult.logId,
+                recipientPhone: normalisedPhone,
+                invoiceNumber: invoice.invoice_number
+            }
+        });
+
+    } catch (err) {
+        console.error('[Finance] sendInvoiceWhatsApp Error:', err.message);
+        return res.status(500).json({
+            status: 'error',
+            message: err.message || 'Failed to send invoice via WhatsApp.'
+        });
+    }
+};
+
+// @desc    Get WhatsApp delivery history/logs for a specific invoice
+// @route   GET /api/finance/invoices/:id/delivery-history
+exports.getInvoiceDeliveryHistory = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    const invoice_id = req.params.id;
+
+    try {
+        const historyRes = await db.query(`
+            SELECT nl.id, nl.job_id, nl.recipient_phone, nl.recipient_name,
+                   nl.delivery_status, nl.meta_message_id, nl.sent_at, nl.delivered_at, 
+                   nl.read_at, nl.failed_at, nl.error_message, nl.message_body,
+                   nl.created_at, nl.updated_at
+            FROM notification_logs nl
+            WHERE nl.tenant_id::text = $1::text
+              AND (
+                  (nl.metadata->>'entity_type' = 'invoice' AND nl.metadata->>'entity_id' = $2::text)
+                  OR (nl.event_name = 'invoice.delivery' AND (nl.metadata->'payload'->>'invoiceId')::text = $2::text)
+              )
+            ORDER BY nl.created_at DESC
+        `, [tenant_id, invoice_id]);
+
+        return res.json({
+            status: 'success',
+            data: historyRes.rows
+        });
+    } catch (err) {
+        console.error('[Finance] getInvoiceDeliveryHistory Error:', err.message);
+        return res.status(500).json({
+            status: 'error',
+            message: err.message || 'Failed to retrieve delivery history.'
+        });
     }
 };
 

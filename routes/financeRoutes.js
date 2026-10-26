@@ -26,6 +26,14 @@ router.post('/invoices/from-deal/:dealId', financeController.createInvoiceFromDe
 // @desc    Deep fetch for particular Invoice (Items + Payments)
 router.get('/invoices/:id', financeController.getInvoiceDetails);
 
+// @route   POST api/finance/invoices/:id/send-whatsapp
+// @desc    Manually dispatch invoice to customer via WhatsApp
+router.post('/invoices/:id/send-whatsapp', financeController.sendInvoiceWhatsApp);
+
+// @route   GET api/finance/invoices/:id/delivery-history
+// @desc    Get WhatsApp delivery logs for a specific invoice
+router.get('/invoices/:id/delivery-history', financeController.getInvoiceDeliveryHistory);
+
 // @route   POST api/finance/payments
 // @desc    Register a payment and run Smart Status calculation
 router.post('/payments', requirePermission('payment.create'), financeController.createPayment);

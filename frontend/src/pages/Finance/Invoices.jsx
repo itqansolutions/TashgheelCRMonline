@@ -8,7 +8,8 @@ import {
   TrendingUp, FileText, DollarSign, Activity, BarChart3, Users,
   CreditCard, Calendar, User, ArrowUpRight, ArrowDownRight,
   Settings, CheckCircle, Clock, AlertCircle, ShoppingBag,
-  Printer, ArrowDownLeft, Wallet, Receipt, Trash2, Building2
+  Printer, ArrowDownLeft, Wallet, Receipt, Trash2, Building2,
+  MessageSquare
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import VoucherPreviewModal from './VoucherPreviewModal';
@@ -375,6 +376,14 @@ const FinanceDashboard = () => {
                                 )}
                                 <button className="action-btn" onClick={() => navigate(`/finance/invoice-preview/${inv.id}`)}>
                                     <Download size={14} /> {t('finance.invoices.pdf', 'PDF')}
+                                </button>
+                                <button 
+                                    className="action-btn" 
+                                    title={isRTL ? "إرسال الفاتورة عبر واتساب" : "Send via WhatsApp"} 
+                                    onClick={() => navigate(`/finance/invoice-preview/${inv.id}`)}
+                                    style={{ color: '#25D366' }}
+                                >
+                                    <MessageSquare size={14} /> {isRTL ? 'واتساب' : 'WhatsApp'}
                                 </button>
                             </div>
                         </td>

@@ -333,6 +333,30 @@ exports.createCustomer = async (req, res) => {
         entityName: name,
         link: '/contacts/customers'
       }).catch(e => console.warn('[Customer Assignment Notification Warning]:', e.message));
+
+      // Emit Domain Event: lead.assigned (Messaging & Notification Layer)
+      try {
+        const { eventBus } = require('../src/infrastructure/events/LocalEventBus');
+        const DomainEvent = require('../src/infrastructure/events/DomainEvent');
+        await eventBus.publish(new DomainEvent({
+          eventName: 'lead.assigned',
+          tenantId: tenant_id,
+          branchId: branch_id,
+          aggregateType: 'Customer',
+          aggregateId: result.rows[0].id,
+          payload: {
+            leadId: result.rows[0].id,
+            leadName: name,
+            leadPhone: phone,
+            assignedTo: cleanAssignedTo,
+            assignedByUserId: req.user.id,
+            assignedByName: req.user.name
+          },
+          actorId: req.user.id
+        }));
+      } catch (e) {
+        // non-blocking
+      }
     }
 
     res.status(201).json({ status: 'success', data: result.rows[0] });
@@ -416,6 +440,30 @@ exports.updateCustomer = async (req, res) => {
             entityName: result.rows[0]?.name || oldData.name,
             link: '/contacts/customers'
           }).catch(e => console.warn('[Customer Reassignment Notification Warning]:', e.message));
+
+          // Emit Domain Event: lead.assigned (Messaging & Notification Layer)
+          try {
+            const { eventBus } = require('../src/infrastructure/events/LocalEventBus');
+            const DomainEvent = require('../src/infrastructure/events/DomainEvent');
+            await eventBus.publish(new DomainEvent({
+              eventName: 'lead.assigned',
+              tenantId: tenant_id,
+              branchId: branch_id,
+              aggregateType: 'Customer',
+              aggregateId: req.params.id,
+              payload: {
+                leadId: req.params.id,
+                leadName: result.rows[0]?.name || oldData.name,
+                leadPhone: result.rows[0]?.phone || oldData.phone,
+                assignedTo: assigned_to,
+                assignedByUserId: req.user.id,
+                assignedByName: req.user.name
+              },
+              actorId: req.user.id
+            }));
+          } catch (e) {
+            // non-blocking
+          }
         }
     } else {
         await logActivity(tenant_id, req.user, 'customer', req.params.id, 'updated', {

@@ -9,4 +9,8 @@ router.get('/:entity_type/:entity_id', protect, activityController.getActivities
 // POST /api/activities/:entity_type/:entity_id  — manually add a log entry
 router.post('/:entity_type/:entity_id', protect, activityController.createActivity);
 
+// PATCH /api/activities/:id/reminder — dismiss or reschedule reminder
+router.patch('/:id/reminder', protect, activityController.updateReminder);
+
 module.exports = router;
+

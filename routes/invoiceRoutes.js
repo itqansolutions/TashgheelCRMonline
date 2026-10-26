@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const invoicesController = require('../controllers/invoicesController');
+const financeController = require('../controllers/financeController');
 const authMiddleware = require('../middleware/auth');
 const { requirePermission } = require('../middleware/financialPermission');
 
@@ -18,6 +19,16 @@ router.get('/', invoicesController.getInvoices);
 // @desc    Get single invoice
 // @access  Private
 router.get('/:id', invoicesController.getInvoiceById);
+
+// @route   POST api/invoices/:id/send-whatsapp
+// @desc    Manually dispatch invoice to customer via WhatsApp
+// @access  Private
+router.post('/:id/send-whatsapp', financeController.sendInvoiceWhatsApp);
+
+// @route   GET api/invoices/:id/delivery-history
+// @desc    Get WhatsApp delivery logs for a specific invoice
+// @access  Private
+router.get('/:id/delivery-history', financeController.getInvoiceDeliveryHistory);
 
 // @route   POST api/invoices/from-quotation/:quotationId
 // @desc    Create invoice from quotation

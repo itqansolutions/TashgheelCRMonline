@@ -26,12 +26,17 @@ async function ensureActivitiesTable() {
         await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS action VARCHAR(100);`);
         await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT '{}';`);
         await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS entity_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP WITH TIME ZONE;`);
+        await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP WITH TIME ZONE;`);
+        await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS is_reminder_dismissed BOOLEAN DEFAULT FALSE;`);
+        await db.query(`ALTER TABLE activities ADD COLUMN IF NOT EXISTS reminder_note TEXT;`);
         // Drop NOT NULL constraints added by dbReconciliation.js that block legacy INSERTs
         await db.query(`ALTER TABLE activities ALTER COLUMN activity_type DROP NOT NULL;`).catch(() => {});
         await db.query(`ALTER TABLE activities ALTER COLUMN title DROP NOT NULL;`).catch(() => {});
         await db.query(`ALTER TABLE activities ALTER COLUMN entity_type DROP NOT NULL;`).catch(() => {});
         await db.query(`ALTER TABLE activities ALTER COLUMN tenant_id DROP NOT NULL;`).catch(() => {});
         await db.query(`CREATE INDEX IF NOT EXISTS idx_activities_entity ON activities(tenant_id, entity_type, entity_id);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_activities_due_reminders ON activities(scheduled_at) WHERE scheduled_at IS NOT NULL AND reminder_sent_at IS NULL AND is_reminder_dismissed = FALSE;`).catch(() => {});
         activitiesTableEnsured = true;
     } catch (e) {
         console.error('[Activities] Ensure table notice:', e.message);
@@ -195,14 +200,18 @@ exports.getActivities = async (req, res) => {
             const display_user_name = activity.user_name || meta?.user_snapshot?.user_name || 'System';
 
             return {
-                id:                activity.id,
-                action:            activity.action,
-                entity_type:       activity.entity_type,
-                entity_id:         activity.entity_id,
-                created_at:        activity.created_at,
-                user_name:         display_user_name,
-                formatted_message: formatActivity(activity.entity_type, activity.action, meta),
-                meta
+                id:                    activity.id,
+                action:                activity.action,
+                entity_type:           activity.entity_type,
+                entity_id:             activity.entity_id,
+                created_at:            activity.created_at,
+                user_name:             display_user_name,
+                formatted_message:     formatActivity(activity.entity_type, activity.action, meta),
+                meta,
+                scheduled_at:          activity.scheduled_at || meta?.scheduled_at || null,
+                reminder_sent_at:      activity.reminder_sent_at || meta?.reminder_sent_at || null,
+                is_reminder_dismissed: Boolean(activity.is_reminder_dismissed || meta?.is_reminder_dismissed),
+                reminder_note:         activity.reminder_note || meta?.reminder_note || null
             };
         });
 
@@ -219,7 +228,7 @@ exports.getActivities = async (req, res) => {
 exports.createActivity = async (req, res) => {
     await ensureActivitiesTable();
     const { entity_type, entity_id } = req.params;
-    const { action, note } = req.body;
+    const { action, note, scheduled_at, reminder_note } = req.body;
     const tenant_id = req.user.tenant_id;
 
     // Validate action type
@@ -238,6 +247,18 @@ exports.createActivity = async (req, res) => {
         });
     }
 
+    let parsedScheduledAt = null;
+    if (scheduled_at) {
+        const dt = new Date(scheduled_at);
+        if (isNaN(dt.getTime())) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'Invalid scheduled_at date.'
+            });
+        }
+        parsedScheduledAt = dt.toISOString();
+    }
+
     try {
         const meta = {
             user_snapshot: {
@@ -250,6 +271,11 @@ exports.createActivity = async (req, res) => {
             },
             is_manual: true
         };
+
+        if (parsedScheduledAt) {
+            meta.scheduled_at = parsedScheduledAt;
+            if (reminder_note) meta.reminder_note = reminder_note.trim();
+        }
 
         const cleanEntityType = (entity_type || 'customer').toLowerCase();
 
@@ -286,9 +312,18 @@ exports.createActivity = async (req, res) => {
         }
 
         const result = await db.query(
-            `INSERT INTO activities (tenant_id, user_id, entity_type, entity_id, action, meta)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-            [tenant_id, req.user.id, cleanEntityType, String(entity_id), action, JSON.stringify(meta)]
+            `INSERT INTO activities (tenant_id, user_id, entity_type, entity_id, action, meta, scheduled_at, reminder_note)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+            [
+                tenant_id,
+                req.user.id,
+                cleanEntityType,
+                String(entity_id),
+                action,
+                JSON.stringify(meta),
+                parsedScheduledAt,
+                reminder_note ? reminder_note.trim() : null
+            ]
         );
 
         const activity = result.rows[0];
@@ -381,16 +416,20 @@ exports.createActivity = async (req, res) => {
         res.status(201).json({
             status: 'success',
             data: {
-                id:                 activity.id,
-                action:             activity.action,
-                entity_type:        activity.entity_type,
-                entity_id:          activity.entity_id,
-                created_at:         activity.created_at,
-                user_name:          req.user.name || 'Unknown',
-                formatted_message:  formattedMessage,
+                id:                    activity.id,
+                action:                activity.action,
+                entity_type:           activity.entity_type,
+                entity_id:             activity.entity_id,
+                created_at:            activity.created_at,
+                user_name:             req.user.name || 'Unknown',
+                formatted_message:     formattedMessage,
                 meta,
-                updated_deal_id:    updatedDealId,
-                updated_deal_stage: updatedDealStage
+                scheduled_at:          activity.scheduled_at || parsedScheduledAt,
+                reminder_sent_at:      activity.reminder_sent_at || null,
+                is_reminder_dismissed: Boolean(activity.is_reminder_dismissed),
+                reminder_note:         activity.reminder_note || (reminder_note ? reminder_note.trim() : null),
+                updated_deal_id:       updatedDealId,
+                updated_deal_stage:    updatedDealStage
             }
         });
     } catch (err) {
@@ -398,3 +437,92 @@ exports.createActivity = async (req, res) => {
         res.status(500).json({ status: 'error', message: 'Failed to save activity log.' });
     }
 };
+
+// @desc    Dismiss or reschedule an activity reminder
+// @route   PATCH /api/activities/:id/reminder
+// @access  Private
+exports.updateReminder = async (req, res) => {
+    await ensureActivitiesTable();
+    const { id } = req.params;
+    const tenant_id = req.user.tenant_id;
+    const { dismiss, scheduled_at, reminder_note } = req.body;
+
+    try {
+        const existing = await db.query(
+            `SELECT * FROM activities WHERE id::text = $1::text AND tenant_id::text = $2::text`,
+            [id, tenant_id]
+        );
+        if (existing.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Activity log not found.' });
+        }
+
+        const act = existing.rows[0];
+        const meta = typeof act.meta === 'string' ? JSON.parse(act.meta) : (act.meta || {});
+
+        if (dismiss) {
+            meta.is_reminder_dismissed = true;
+            const updated = await db.query(
+                `UPDATE activities 
+                 SET is_reminder_dismissed = TRUE, meta = $1 
+                 WHERE id::text = $2::text AND tenant_id::text = $3::text 
+                 RETURNING *`,
+                [JSON.stringify(meta), id, tenant_id]
+            );
+            return res.json({
+                status: 'success',
+                message: 'Reminder dismissed successfully.',
+                data: {
+                    id: updated.rows[0]?.id || id,
+                    is_reminder_dismissed: true
+                }
+            });
+        }
+
+        if (scheduled_at) {
+            const dt = new Date(scheduled_at);
+            if (isNaN(dt.getTime())) {
+                return res.status(400).json({ status: 'error', message: 'Invalid scheduled_at date.' });
+            }
+            const parsedScheduledAt = dt.toISOString();
+            meta.scheduled_at = parsedScheduledAt;
+            meta.is_reminder_dismissed = false;
+            meta.reminder_sent_at = null;
+            if (reminder_note !== undefined) {
+                meta.reminder_note = reminder_note ? reminder_note.trim() : null;
+            }
+
+            const updated = await db.query(
+                `UPDATE activities 
+                 SET scheduled_at = $1, reminder_sent_at = NULL, is_reminder_dismissed = FALSE, reminder_note = $2, meta = $3 
+                 WHERE id::text = $4::text AND tenant_id::text = $5::text 
+                 RETURNING *`,
+                [
+                    parsedScheduledAt,
+                    reminder_note !== undefined ? (reminder_note ? reminder_note.trim() : null) : (act.reminder_note || null),
+                    JSON.stringify(meta),
+                    id,
+                    tenant_id
+                ]
+            );
+
+            return res.json({
+                status: 'success',
+                message: 'Reminder rescheduled successfully.',
+                data: {
+                    id: updated.rows[0]?.id || id,
+                    scheduled_at: updated.rows[0]?.scheduled_at || parsedScheduledAt,
+                    reminder_sent_at: null,
+                    is_reminder_dismissed: false,
+                    reminder_note: updated.rows[0]?.reminder_note || (reminder_note ? reminder_note.trim() : null)
+                }
+            });
+        }
+
+        return res.status(400).json({ status: 'error', message: 'Provide either dismiss: true or a new scheduled_at date.' });
+    } catch (err) {
+        console.error('[Update Reminder Error]', err.message);
+        res.status(500).json({ status: 'error', message: 'Failed to update reminder.' });
+    }
+};
+
+exports.ensureActivitiesTable = ensureActivitiesTable;

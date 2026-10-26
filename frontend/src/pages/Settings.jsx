@@ -70,13 +70,91 @@ const Settings = () => {
   const [uploading, setUploading] = useState(false);
   const [previewMode, setPreviewMode] = useState('Quotation');
 
+  // P4 — Notification Rules & Delivery Audit State
+  const [notificationRules, setNotificationRules] = useState([]);
+  const [savingRules, setSavingRules] = useState(false);
+  const [deliveryLogs, setDeliveryLogs] = useState([]);
+  const [deliverySummary, setDeliverySummary] = useState({ total: 0, queued: 0, sent: 0, delivered: 0, read: 0, failed: 0 });
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [logFilterEvent, setLogFilterEvent] = useState('');
+  const [logFilterStatus, setLogFilterStatus] = useState('');
+
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && TABS.includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
     fetchTenantDetails();
     fetchSources();
     fetchLeadStatuses();
     fetchClassifications();
     fetchTaskStatuses();
+    fetchNotificationRules();
+    fetchDeliveryLogs('', '');
   }, []);
+
+  const fetchNotificationRules = async () => {
+    try {
+      const res = await api.get('/notifications/rules');
+      if (res.data?.data) {
+        setNotificationRules(res.data.data);
+      }
+    } catch (err) {
+      console.error('Failed to load notification rules', err);
+    }
+  };
+
+  const fetchDeliveryLogs = async (eventName = logFilterEvent, status = logFilterStatus) => {
+    setLoadingLogs(true);
+    try {
+      const query = new URLSearchParams();
+      if (eventName) query.set('event_name', eventName);
+      if (status) query.set('delivery_status', status);
+      query.set('limit', '30');
+      const res = await api.get(`/notifications/delivery-logs?${query.toString()}`);
+      if (res.data?.data) {
+        setDeliveryLogs(res.data.data);
+      }
+      if (res.data?.summary) {
+        setDeliverySummary(res.data.summary);
+      }
+    } catch (err) {
+      console.error('Failed to load notification delivery logs', err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const handleRuleFieldChange = (eventName, field, value) => {
+    setNotificationRules(prev =>
+      prev.map(r => (r.event_name === eventName ? { ...r, [field]: value } : r))
+    );
+  };
+
+  const handleSaveNotificationRules = async () => {
+    setSavingRules(true);
+    try {
+      const payload = {
+        rules: notificationRules.map(r => ({
+          event_name: r.event_name,
+          is_enabled: Boolean(r.is_enabled),
+          channels: r.channels,
+          template_name: r.template_name || null,
+          template_language: r.template_language || 'ar'
+        }))
+      };
+      const res = await api.put('/notifications/rules', payload);
+      if (res.data?.data) {
+        setNotificationRules(res.data.data);
+      }
+      toast.success('تم حفظ قواعد إشعارات واتساب والنظام بنجاح');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل حفظ قواعد الإشعارات');
+    } finally {
+      setSavingRules(false);
+    }
+  };
 
 
   const fetchTenantDetails = async () => {
@@ -980,41 +1058,266 @@ const Settings = () => {
       {/* Tab 6: Automation & Rules */}
       {activeTab === 'Automation & Rules' && (
         <div className="settings-layout full-width">
-          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <div style={{ maxWidth: '920px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Card 1: Per-Tenant WhatsApp & System Notification Rules */}
             <div className="settings-card">
-              <div className="card-header">
-                <h3><Zap size={16} color="#8b5cf6" /> System Automation & Notification Rules</h3>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <h3><Zap size={16} color="#16a34a" /> قواعد إشعارات واتساب والنظام (WhatsApp & Notification Rules)</h3>
+                <span style={{ fontSize: '12px', color: '#15803d', background: '#dcfce7', padding: '4px 10px', borderRadius: '20px', fontWeight: 600 }}>
+                  Cloud API v21.0 — مستويات تحكم لكل شركة
+                </span>
               </div>
               <div className="card-body">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                    <div>
-                      <strong style={{ fontSize: '13px', color: '#1e293b', display: 'block' }}>Auto-Assign Inbound Leads to Sales Reps</strong>
-                      <span style={{ fontSize: '12px', color: '#64748b' }}>Round-robin lead assignment among active sales representatives</span>
-                    </div>
-                    <input type="checkbox" defaultChecked style={{ width: '20px', height: '20px', cursor: 'pointer' }} />
-                  </div>
+                <p style={{ fontSize: '13px', color: '#475569', marginTop: 0, marginBottom: '16px', lineHeight: 1.6 }}>
+                  تحكم في تفعيل أو إيقاف رسائل واتساب التلقائية للموظفين وإرسال الفواتير للعملاء. إيقاف أي قاعدة هنا يمنع إرسال رسائل واتساب فقط مع استمرار الإشعارات الداخلية (In-App) للموظفين بشكل طبيعي.
+                </p>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                    <div>
-                      <strong style={{ fontSize: '13px', color: '#1e293b', display: 'block' }}>Automated Quotation Expiry Alerts</strong>
-                      <span style={{ fontSize: '12px', color: '#64748b' }}>Send reminders 48 hours before quotation validity expires</span>
-                    </div>
-                    <input type="checkbox" defaultChecked style={{ width: '20px', height: '20px', cursor: 'pointer' }} />
-                  </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {notificationRules.map((rule) => (
+                    <div
+                      key={rule.event_name}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        padding: '14px 16px',
+                        background: rule.is_enabled ? '#f8fafc' : '#fef2f2',
+                        borderRadius: '10px',
+                        border: `1px solid ${rule.is_enabled ? '#e2e8f0' : '#fecaca'}`
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <strong style={{ fontSize: '14px', color: '#1e293b' }}>
+                              {rule.label_ar || rule.event_name}
+                            </strong>
+                            <code style={{ fontSize: '11px', background: '#e2e8f0', color: '#334155', padding: '2px 6px', borderRadius: '4px' }}>
+                              {rule.event_name}
+                            </code>
+                            <span style={{
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontWeight: 600,
+                              background: rule.recipient_type === 'customer' ? '#dbeafe' : '#f3e8ff',
+                              color: rule.recipient_type === 'customer' ? '#1d4ed8' : '#7e22ce'
+                            }}>
+                              {rule.recipient_type === 'customer' ? 'عميل (Customer)' : 'موظف (Employee)'}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '12px', color: '#64748b', display: 'block', marginTop: '4px' }}>
+                            {rule.description_ar || ''}
+                          </span>
+                        </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                    <div>
-                      <strong style={{ fontSize: '13px', color: '#1e293b', display: 'block' }}>Overdue Invoice Dunning Engine</strong>
-                      <span style={{ fontSize: '12px', color: '#64748b' }}>Trigger notification flags on accounts with unpaid invoices</span>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: rule.is_enabled ? '#16a34a' : '#dc2626' }}>
+                            {rule.is_enabled ? 'مفعّل' : 'متوقف'}
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(rule.is_enabled)}
+                            onChange={(e) => handleRuleFieldChange(rule.event_name, 'is_enabled', e.target.checked)}
+                            style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: '#16a34a' }}
+                          />
+                        </label>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', paddingTop: '6px', borderTop: '1px dashed #cbd5e1' }}>
+                        <div style={{ flex: 1, minWidth: '200px' }}>
+                          <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                            اسم قالب Meta المعتمد (اختياري — اتركه فارغاً للنص المباشر أو الافتراضي)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="مثال: lead_assigned_alert"
+                            value={rule.template_name || ''}
+                            onChange={(e) => handleRuleFieldChange(rule.event_name, 'template_name', e.target.value)}
+                            style={{ width: '100%', padding: '6px 10px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff' }}
+                          />
+                        </div>
+                        <div style={{ width: '130px' }}>
+                          <label style={{ fontSize: '11px', color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                            لغة القالب
+                          </label>
+                          <select
+                            value={rule.template_language || 'ar'}
+                            onChange={(e) => handleRuleFieldChange(rule.event_name, 'template_language', e.target.value)}
+                            style={{ width: '100%', padding: '6px 10px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff' }}
+                          >
+                            <option value="ar">العربية (ar)</option>
+                            <option value="en">English (en)</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
-                    <input type="checkbox" defaultChecked style={{ width: '20px', height: '20px', cursor: 'pointer' }} />
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                  <button
+                    type="button"
+                    disabled={savingRules}
+                    onClick={handleSaveNotificationRules}
+                    className="btn-save"
+                    style={{ background: '#16a34a', opacity: savingRules ? 0.7 : 1 }}
+                  >
+                    <Save size={16} /> {savingRules ? 'جاري الحفظ...' : 'حفظ قواعد الإشعارات'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: WhatsApp Delivery Audit Logs */}
+            <div className="settings-card">
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <h3><Activity size={16} color="#0284c7" /> سجل إرسال وتسليم رسائل واتساب (Delivery Audit Logs)</h3>
+                <button
+                  type="button"
+                  onClick={() => fetchDeliveryLogs(logFilterEvent, logFilterStatus)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    borderRadius: '6px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {loadingLogs ? 'جاري التحديث...' : '🔄 تحديث السجل'}
+                </button>
+              </div>
+              <div className="card-body">
+                {/* Summary KPIs */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px', marginBottom: '16px' }}>
+                  <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>الإجمالي</div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{deliverySummary.total || 0}</div>
+                  </div>
+                  <div style={{ padding: '10px', background: '#fefce8', borderRadius: '8px', border: '1px solid #fde047', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#854d0e' }}>في الطابور (Queued)</div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#854d0e' }}>{deliverySummary.queued || 0}</div>
+                  </div>
+                  <div style={{ padding: '10px', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#1e40af' }}>تم الإرسال (Sent)</div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e40af' }}>{deliverySummary.sent || 0}</div>
+                  </div>
+                  <div style={{ padding: '10px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#166534' }}>تم التسليم (Delivered)</div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#166534' }}>{deliverySummary.delivered || 0}</div>
+                  </div>
+                  <div style={{ padding: '10px', background: '#ecfeff', borderRadius: '8px', border: '1px solid #a5f3fc', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#155e75' }}>مقروءة (Read)</div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#155e75' }}>{deliverySummary.read || 0}</div>
+                  </div>
+                  <div style={{ padding: '10px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca', textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#991b1b' }}>فشل (Failed)</div>
+                    <div style={{ fontSize: '18px', fontWeight: 700, color: '#991b1b' }}>{deliverySummary.failed || 0}</div>
                   </div>
                 </div>
 
-                <button type="button" onClick={() => toast.success('Automation preferences saved')} className="btn-save" style={{ background: '#8b5cf6' }}>
-                  <Save size={16} /> Save Automation Rules
-                </button>
+                {/* Filters */}
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                  <select
+                    value={logFilterEvent}
+                    onChange={(e) => {
+                      setLogFilterEvent(e.target.value);
+                      fetchDeliveryLogs(e.target.value, logFilterStatus);
+                    }}
+                    style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+                  >
+                    <option value="">كل الأحداث (All Events)</option>
+                    <option value="lead.assigned">إسناد عميل محتمل (lead.assigned)</option>
+                    <option value="task.assigned">تعيين مهمة (task.assigned)</option>
+                    <option value="task.overdue">تأخر مهمة (task.overdue)</option>
+                    <option value="activity.reminder">تذكير متابعة (activity.reminder)</option>
+                    <option value="invoice.delivery">إرسال فاتورة (invoice.delivery)</option>
+                  </select>
+
+                  <select
+                    value={logFilterStatus}
+                    onChange={(e) => {
+                      setLogFilterStatus(e.target.value);
+                      fetchDeliveryLogs(logFilterEvent, e.target.value);
+                    }}
+                    style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+                  >
+                    <option value="">كل الحالات (All Statuses)</option>
+                    <option value="queued">في الطابور (queued)</option>
+                    <option value="sent">تم الإرسال (sent)</option>
+                    <option value="delivered">تم التسليم (delivered)</option>
+                    <option value="read">مقروءة (read)</option>
+                    <option value="failed">فشل (failed)</option>
+                  </select>
+                </div>
+
+                {/* Logs Table */}
+                {deliveryLogs.length === 0 ? (
+                  <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', background: '#f8fafc', borderRadius: '8px', fontSize: '13px' }}>
+                    لا توجد سجلات إشعارات مطابقة للفلتر الحالي.
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ background: '#f1f5f9', color: '#334155', textAlign: 'right' }}>
+                          <th style={{ padding: '10px' }}>الحدث</th>
+                          <th style={{ padding: '10px' }}>المستلم</th>
+                          <th style={{ padding: '10px' }}>الحالة</th>
+                          <th style={{ padding: '10px' }}>معرّف Meta (wamid) / الخطأ</th>
+                          <th style={{ padding: '10px' }}>التوقيت</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deliveryLogs.map((log) => (
+                          <tr key={log.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: '10px', fontWeight: 600 }}>{log.event_name}</td>
+                            <td style={{ padding: '10px', fontFamily: 'monospace' }}>
+                              {log.recipient_phone || '—'}
+                              <span style={{ display: 'block', fontSize: '10px', color: '#64748b' }}>
+                                {log.recipient_type}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px' }}>
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                fontWeight: 700,
+                                fontSize: '11px',
+                                background:
+                                  log.delivery_status === 'read' || log.delivery_status === 'delivered' ? '#dcfce7' :
+                                  log.delivery_status === 'sent' ? '#dbeafe' :
+                                  log.delivery_status === 'failed' ? '#fee2e2' : '#fef9c3',
+                                color:
+                                  log.delivery_status === 'read' || log.delivery_status === 'delivered' ? '#166534' :
+                                  log.delivery_status === 'sent' ? '#1e40af' :
+                                  log.delivery_status === 'failed' ? '#991b1b' : '#854d0e'
+                              }}>
+                                {log.delivery_status}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {log.error_message ? (
+                                <span style={{ color: '#dc2626' }} title={log.error_message}>
+                                  ⚠️ {log.error_message}
+                                </span>
+                              ) : (
+                                <code style={{ fontSize: '11px', color: '#475569' }}>
+                                  {log.meta_message_id || log.provider_message_id || '—'}
+                                </code>
+                              )}
+                            </td>
+                            <td style={{ padding: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                              {log.created_at ? new Date(log.created_at).toLocaleString('ar-EG') : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           </div>

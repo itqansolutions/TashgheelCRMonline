@@ -87,7 +87,7 @@ const Customers = () => {
   }, []);
 
   useEffect(() => {
-    const c360Id = searchParams.get('customer360');
+    const c360Id = searchParams.get('customer360') || searchParams.get('id');
     if (c360Id) {
       const found = (customers || []).find(c => String(c.id) === String(c360Id));
       setEditingCustomer(found || { id: c360Id });

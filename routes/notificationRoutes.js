@@ -10,6 +10,9 @@ router.use(authMiddleware);
 router.use(branchScope);
 
 router.get('/', notificationController.getNotifications);
+router.get('/rules', notificationController.getNotificationRules);
+router.put('/rules', notificationController.updateNotificationRules);
+router.get('/delivery-logs', notificationController.getNotificationDeliveryLogs);
 router.patch('/read-all', notificationController.markAllRead);
 router.patch('/:id/read', notificationController.markAsRead);
 

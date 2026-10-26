@@ -701,9 +701,16 @@ app.listen(PORT, '0.0.0.0', async () => {
     outboxService.startOutboxPoller(10000);
     console.log('⚡ [Boot] Enterprise Event Bus, Event Store & Outbox Engine initialized.');
 
+    // 📬 Initialize Messaging & Notification Layer Worker Engine
+    const notificationWorkerService = require('./services/notificationWorkerService');
+    notificationWorkerService.startWorker(5000);
+    console.log('⚡ [Boot] Messaging & Notification Layer Worker initialized.');
+
     startReservationScanner(10);
     require('./services/contractExpiryService').startContractExpiryScanner(60);
     require('./services/dealSlaService').startSlaScanner(15);
+    require('./services/activityReminderService').startActivityReminderScanner(30);
+    require('./services/taskOverdueService').startTaskOverdueScanner(60);
     await promoteOnStartup();
     await seedDemoAccount();
   } catch (bootErr) {

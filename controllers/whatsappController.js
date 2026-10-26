@@ -1937,6 +1937,28 @@ exports.handleWebhookEvent = async (req, res) => {
                 OR (status = 'read' AND $1 = 'read')
               )
           `, [status, errorMsg, wamid]);
+
+          // Monotonic status update for notification_logs (Messaging & Notification Layer)
+          try {
+            await db.query(`
+              UPDATE notification_logs
+              SET delivery_status = $1,
+                  error_message = COALESCE($2, error_message),
+                  delivered_at = CASE WHEN $1 = 'delivered' AND delivered_at IS NULL THEN NOW() ELSE delivered_at END,
+                  read_at = CASE WHEN $1 = 'read' AND read_at IS NULL THEN NOW() ELSE read_at END,
+                  failed_at = CASE WHEN $1 = 'failed' AND failed_at IS NULL THEN NOW() ELSE failed_at END,
+                  updated_at = NOW()
+              WHERE meta_message_id = $3
+                AND (
+                  delivery_status = 'queued'
+                  OR (delivery_status = 'sent' AND $1 IN ('delivered', 'read', 'failed'))
+                  OR (delivery_status = 'delivered' AND $1 IN ('read', 'failed'))
+                  OR (delivery_status = 'read' AND $1 = 'read')
+                )
+            `, [status, errorMsg, wamid]);
+          } catch (notifLogErr) {
+            console.warn('[WhatsApp Webhook] notification_logs status update notice:', notifLogErr.message);
+          }
         }
       }
     }

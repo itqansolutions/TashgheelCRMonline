@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { Bell, Search, User, LogOut, ChevronDown, Menu, Moon, Sun, Clock, Check, AlertCircle, Globe } from 'lucide-react';
+import { Bell, Search, User, LogOut, ChevronDown, Menu, Moon, Sun, Clock, Check, AlertCircle, Globe, PhoneCall } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -60,6 +60,7 @@ const Header = ({ toggleSidebar }) => {
 
   const getNotifIcon = (type) => {
     switch(type) {
+      case 'activity_reminder': return <PhoneCall size={16} color="#7c3aed" />;
       case 'INVOICE_PAID': return <Check size={16} color="#16a34a" />;
       case 'MOVEMENT_CREATED': return <Clock size={16} color="#3b82f6" />;
       case 'EMPLOYEE_LATE': return <User size={16} color="#f59e0b" />;

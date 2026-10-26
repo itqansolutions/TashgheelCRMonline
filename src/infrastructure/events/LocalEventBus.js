@@ -47,19 +47,19 @@ class LocalEventBus extends EventBusInterface {
         // 2. Trigger qualified listeners e.g. 'reservation.created.v1'
         const qualifiedListeners = this.emitter.listeners(event.qualifiedName);
         for (const handler of qualifiedListeners) {
-            this._safeExecute(handler, event);
+            await this._safeExecute(handler, event);
         }
 
         // 3. Trigger generic listeners e.g. 'reservation.created'
         const genericListeners = this.emitter.listeners(event.eventName);
         for (const handler of genericListeners) {
-            this._safeExecute(handler, event);
+            await this._safeExecute(handler, event);
         }
 
         // 4. Trigger wildcard listeners e.g. '*'
         const wildcardListeners = this.emitter.listeners('*');
         for (const handler of wildcardListeners) {
-            this._safeExecute(handler, event);
+            await this._safeExecute(handler, event);
         }
     }
 

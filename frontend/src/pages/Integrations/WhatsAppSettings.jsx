@@ -1670,6 +1670,48 @@ const WhatsAppSettings = () => {
           </div>
         )}
       </div>
+
+      {/* ── P4: Notification Rules & Delivery Audit Logs Quick Link ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #f0fdf4, #ecfeff)',
+        border: '1px solid #bbf7d0',
+        borderRadius: 12,
+        padding: 20,
+        marginTop: 20,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 14
+      }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#14532d', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <MessageCircle size={18} color="#16a34a" /> قواعد إشعارات الموظفين وسجل تسليم رسائل واتساب
+          </h3>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#166534' }}>
+            تحكم في تفعيل/إيقاف تنبيهات الموظفين (`lead.assigned`, `task.assigned`, `task.overdue`, `activity.reminder`) وإرسال الفواتير (`invoice.delivery`) وراجع سجل التسليم وحالات `wamid`.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/settings?tab=Automation%20%26%20Rules')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 18px',
+            background: '#16a34a',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            fontWeight: 700,
+            fontSize: 13,
+            cursor: 'pointer'
+          }}
+        >
+          <ExternalLink size={15} /> إدارة قواعد الإشعارات وسجل التسليم
+        </button>
+      </div>
     </div>
   );
 };

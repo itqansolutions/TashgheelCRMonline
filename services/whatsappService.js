@@ -38,10 +38,17 @@ const WA_BASE_URL = `https://graph.facebook.com/${WA_API_VERSION}`;
 function normalisePhone(rawPhone, defaultCountryCode = '20') {
   if (!rawPhone) return null;
 
-  // Strip everything except digits and the leading '+'
-  let cleaned = String(rawPhone).replace(/[\s\-().]/g, '');
+  const rawStr = String(rawPhone).trim();
+  // Reject if contains alphabetic characters
+  if (/[a-zA-Z]/.test(rawStr)) return null;
 
-  if (!cleaned) return null;
+  // Determine if had a leading '+'
+  const hasLeadingPlus = rawStr.startsWith('+');
+  const digitsOnly = rawStr.replace(/\D/g, '');
+
+  if (!digitsOnly || digitsOnly.length < 7) return null;
+
+  let cleaned = hasLeadingPlus ? '+' + digitsOnly : digitsOnly;
 
   // Already has a '+' prefix  →  trust it
   if (cleaned.startsWith('+')) {

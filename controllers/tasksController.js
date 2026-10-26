@@ -178,19 +178,55 @@ exports.createTask = async (req, res) => {
       }
     }
 
+    let taskAssignedEvent = null;
+    if (assigned_to && String(assigned_to) !== String(req.user.id)) {
+      const DomainEvent = require('../src/infrastructure/events/DomainEvent');
+      const outboxService = require('../src/infrastructure/events/OutboxService');
+      taskAssignedEvent = new DomainEvent({
+        eventName: 'task.assigned',
+        tenantId: tenant_id,
+        branchId: branch_id,
+        aggregateType: 'Task',
+        aggregateId: taskId,
+        payload: {
+          taskId,
+          taskTitle: title,
+          dueDate: due_date || null,
+          priority: priority || 'medium',
+          assignedTo: assigned_to,
+          assignedByUserId: req.user.id,
+          assignedByName: req.user.name,
+          assignedAt: result.rows[0].created_at || new Date().toISOString()
+        },
+        actorId: req.user.id
+      });
+
+      // Stage atomically in outbox inside same database transaction
+      await outboxService.stageEvent(client, taskAssignedEvent);
+    }
+
     await client.query('COMMIT');
 
     // Trigger Notification for Assignee
-    if (assigned_to && assigned_to !== req.user.id) {
-        notificationService.notify({
-            user_id: assigned_to,
-            tenant_id: tenant_id,
-            branch_id: branch_id,
-            type: 'info',
-            title: 'New Task Assigned',
-            message: `You have been assigned a new task: ${title}`,
-            link: '/tasks'
-        });
+    if (taskAssignedEvent) {
+      notificationService.notify({
+        user_id: assigned_to,
+        tenant_id: tenant_id,
+        branch_id: branch_id,
+        type: 'info',
+        title: 'New Task Assigned',
+        message: `You have been assigned a new task: ${title}`,
+        link: '/tasks'
+      });
+
+      // Emit Domain Event: task.assigned (Messaging & Notification Layer)
+      try {
+        const { eventBus } = require('../src/infrastructure/events/LocalEventBus');
+        await eventBus.publish(taskAssignedEvent);
+        await db.query(`UPDATE outbox_events SET status = 'published', processed_at = CURRENT_TIMESTAMP WHERE id = $1`, [taskAssignedEvent.id]).catch(() => {});
+      } catch (eventErr) {
+        console.warn('⚠️ [task.assigned] Immediate publish failed; Outbox poller will retry automatically:', eventErr.message);
+      }
     }
 
     // Audit Logging
@@ -282,10 +318,39 @@ exports.updateTask = async (req, res) => {
       }
     }
 
+    const isReassigned = assigned_to && String(assigned_to) !== String(verifyResult.rows[0].assigned_to);
+    let taskReassignedEvent = null;
+    if (isReassigned && String(assigned_to) !== String(req.user.id)) {
+      const DomainEvent = require('../src/infrastructure/events/DomainEvent');
+      const outboxService = require('../src/infrastructure/events/OutboxService');
+      taskReassignedEvent = new DomainEvent({
+        eventName: 'task.assigned',
+        tenantId: tenant_id,
+        branchId: branch_id,
+        aggregateType: 'Task',
+        aggregateId: req.params.id,
+        payload: {
+          taskId: req.params.id,
+          taskTitle: result.rows[0].title,
+          dueDate: result.rows[0].due_date || null,
+          priority: result.rows[0].priority || 'medium',
+          assignedTo: assigned_to,
+          previousAssignedTo: verifyResult.rows[0].assigned_to,
+          assignedByUserId: req.user.id,
+          assignedByName: req.user.name,
+          assignedAt: result.rows[0].updated_at || new Date().toISOString()
+        },
+        actorId: req.user.id
+      });
+
+      // Stage atomically in outbox inside same database transaction
+      await outboxService.stageEvent(client, taskReassignedEvent);
+    }
+
     await client.query('COMMIT');
 
     // Trigger Notification if task was reassigned to another user
-    if (assigned_to && assigned_to !== verifyResult.rows[0].assigned_to && String(assigned_to) !== String(req.user.id)) {
+    if (taskReassignedEvent) {
       notificationService.notifyAssignment({
         tenantId: tenant_id,
         branchId: branch_id,
@@ -296,6 +361,15 @@ exports.updateTask = async (req, res) => {
         entityName: result.rows[0].title,
         link: '/tasks'
       }).catch(e => console.warn('[Task Reassignment Notification Warning]:', e.message));
+
+      // Emit Domain Event: task.assigned (Messaging & Notification Layer)
+      try {
+        const { eventBus } = require('../src/infrastructure/events/LocalEventBus');
+        await eventBus.publish(taskReassignedEvent);
+        await db.query(`UPDATE outbox_events SET status = 'published', processed_at = CURRENT_TIMESTAMP WHERE id = $1`, [taskReassignedEvent.id]).catch(() => {});
+      } catch (eventErr) {
+        console.warn('⚠️ [task.assigned] Immediate publish failed; Outbox poller will retry automatically:', eventErr.message);
+      }
     }
 
     // Detect status change for specific activity logging
