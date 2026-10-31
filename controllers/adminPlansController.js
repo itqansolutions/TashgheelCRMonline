@@ -166,21 +166,36 @@ exports.assignPlanToTenant = async (req, res) => {
     const { plan_id, status, expires_at } = req.body;
     try {
         const effectiveStatus = status || 'active';
+        const effectiveExpiresAt = (expires_at && typeof expires_at === 'string' && expires_at.trim() !== '')
+            ? expires_at
+            : (expires_at instanceof Date ? expires_at : null);
+
         const result = await db.query(`
             INSERT INTO subscriptions (tenant_id, plan_id, status, expires_at, trial_ends_at)
-            VALUES ($1, $2, $3, $4, CASE WHEN $3 = 'trial' THEN COALESCE($4, NOW() + INTERVAL '14 days') ELSE NULL END)
+            VALUES (
+                $1, 
+                $2, 
+                $3::varchar, 
+                $4::timestamptz, 
+                CASE WHEN $3::varchar = 'trial' THEN COALESCE($4::timestamptz, NOW() + INTERVAL '14 days') ELSE NULL END
+            )
             ON CONFLICT (tenant_id)
-            DO UPDATE SET plan_id = $2, status = $3, expires_at = $4, updated_at = NOW()
+            DO UPDATE SET 
+                plan_id = $2, 
+                status = $3::varchar, 
+                expires_at = $4::timestamptz,
+                trial_ends_at = CASE WHEN $3::varchar = 'trial' THEN COALESCE($4::timestamptz, subscriptions.trial_ends_at, NOW() + INTERVAL '14 days') ELSE subscriptions.trial_ends_at END,
+                updated_at = NOW()
             RETURNING *
-        `, [tenant_id, plan_id, effectiveStatus, expires_at || null]);
+        `, [tenant_id, plan_id, effectiveStatus, effectiveExpiresAt]);
 
         // Keep tenants table synchronized with subscription status & plan name
         const planRes = await db.query(`SELECT name FROM plans WHERE id = $1`, [plan_id]);
         const planName = planRes.rows[0]?.name || 'basic';
         const mappedTenantStatus = effectiveStatus === 'suspended' ? 'suspended' : 'active';
         await db.query(
-            `UPDATE tenants SET plan = $1, status = $2, subscription_end = $3 WHERE id::text = $4::text`,
-            [planName, mappedTenantStatus, expires_at || null, tenant_id]
+            `UPDATE tenants SET plan = $1, status = $2, subscription_end = $3::timestamptz WHERE id::text = $4::text`,
+            [planName, mappedTenantStatus, effectiveExpiresAt, tenant_id]
         );
 
         res.json({ status: 'success', data: result.rows[0], message: 'Plan assigned successfully.' });
