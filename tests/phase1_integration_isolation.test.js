@@ -1,19 +1,20 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Pool } = require('pg');
+const { PROD_HOST, validateTestEnvironmentConfig } = require('./helpers/testSafetyGuard');
 
 /**
  * Phase 1 Integration Tests — Strictly Isolated PostgreSQL Harness
  *
  * RIGID SAFETY CONTRACT:
- * 1. Checks that TEST_DATABASE_URL is explicitly set.
+ * 1. Checks that DATABASE_URL_TEST is explicitly set.
  * 2. Positively verifies host is on the approved local whitelist ('localhost', '127.0.0.1', '::1', 'postgres-test').
  * 3. Never connects or exposes credentials in output/logs.
  * 4. Checks current_database() and inet_server_addr() upon connection to verify local identity.
  * 5. Refuses execution if anything points to a cloud/production host (Railway, AWS, etc.).
  */
 
-const testDbUrl = process.env.TEST_DATABASE_URL;
+const testDbUrl = process.env.DATABASE_URL_TEST;
 
 const APPROVED_HOSTS = ['localhost', '127.0.0.1', '::1', 'postgres-test'];
 

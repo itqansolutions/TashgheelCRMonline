@@ -153,13 +153,13 @@ exports.generateSchedule = async (req, res) => {
         // Advisory transaction lock to serialize schedule operations on this contract
         await client.query(`SELECT pg_advisory_xact_lock(hashtext('re_schedule:' || $1::text))`, [String(contract_id)]);
 
-        // 1. Fetch contract with FOR UPDATE
+        // 1. Fetch contract with FOR UPDATE (explicitly lock rc to prevent outer join lock error)
         const contractRes = await client.query(`
             SELECT rc.id, rc.deal_id, rc.branch_id, rc.contract_value, rc.down_payment, rc.status, d.branch_id as deal_branch_id
             FROM re_contracts rc
             LEFT JOIN deals d ON rc.deal_id = d.id
             WHERE rc.id::text = $1::text AND rc.tenant_id::text = $2::text
-            FOR UPDATE
+            FOR UPDATE OF rc
         `, [contract_id, tenant_id]);
 
         if (contractRes.rows.length === 0) {
@@ -220,7 +220,7 @@ exports.generateSchedule = async (req, res) => {
             WHERE contract_id = $1 AND tenant_id::text = $2::text AND paid_amount > 0
         `, [contract.id, tenant_id]);
 
-        if (parseInt(paidCheck.rows[0].count) > 0) {
+        if (parseInt(paidCheck.rows[0]?.count || 0) > 0) {
             await client.query('ROLLBACK');
             return res.status(400).json({
                 status: 'error',
@@ -244,7 +244,7 @@ exports.generateSchedule = async (req, res) => {
                   )
             `, [tenant_id, String(contract.id)]);
 
-            if (parseInt(voucherCheck.rows[0].count) > 0) {
+            if (parseInt(voucherCheck.rows[0]?.count || 0) > 0) {
                 await client.query('ROLLBACK');
                 return res.status(400).json({
                     status: 'error',
@@ -333,7 +333,7 @@ exports.generateSchedule = async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('[Generate Schedule Error]:', err.message);
-        res.status(500).json({ status: 'error', message: err.message });
+        res.status(500).json({ status: 'error', message: 'Failed to generate installment schedule. Please try again or contact support.' });
     } finally {
         client.release();
     }
@@ -355,14 +355,14 @@ exports.recordPayment = async (req, res) => {
     try {
         await client.query('BEGIN');
 
-        // 1. Fetch and lock installment
+        // 1. Fetch and lock installment (explicitly lock ri to prevent outer join lock error)
         const instRes = await client.query(`
             SELECT ri.*, d.branch_id as deal_branch_id, rc.branch_id as contract_branch_id
             FROM re_installments ri
             LEFT JOIN deals d ON ri.deal_id = d.id
             LEFT JOIN re_contracts rc ON ri.contract_id = rc.id
             WHERE ri.id::text = $1::text AND ri.tenant_id::text = $2::text
-            FOR UPDATE
+            FOR UPDATE OF ri
         `, [id, tenant_id]);
 
         if (instRes.rows.length === 0) {
@@ -504,7 +504,7 @@ exports.recordPayment = async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('[Record Installment Payment Error]:', err.message);
-        res.status(500).json({ status: 'error', message: err.message });
+        res.status(500).json({ status: 'error', message: 'Failed to record installment payment. Please try again or contact support.' });
     } finally {
         client.release();
     }

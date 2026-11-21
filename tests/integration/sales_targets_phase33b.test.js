@@ -5,6 +5,13 @@
  * Tests run against isolated PostgreSQL database specified in .env.test.
  */
 
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('../helpers/testDb');
+initTestContext();
+
 const fs = require('fs');
 const dotenv = require('dotenv');
 

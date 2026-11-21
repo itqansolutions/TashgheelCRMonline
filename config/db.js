@@ -1,10 +1,27 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const connectionString = process.env.DATABASE_URL || `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`;
+// Determine execution context
+const isTestContext = process.env.NODE_ENV === 'test' ||
+                      process.env.npm_lifecycle_event === 'test' ||
+                      (process.argv[1] && /[\\/]tests[\\/]/.test(process.argv[1]));
 
-if (!process.env.DATABASE_URL && !process.env.DB_HOST) {
-  console.error('❌ CRITICAL: No database connection information found in environment variables!');
+let connectionString;
+
+if (isTestContext) {
+  // STRICT TEST SAFETY ENFORCEMENT:
+  // When running in a test context, config/db.js strictly REFUSES to connect
+  // to application DATABASE_URL. It mandates DATABASE_URL_TEST via testSafetyGuard.
+  const { validateTestEnvironmentConfig } = require('../tests/helpers/testSafetyGuard');
+  const validated = validateTestEnvironmentConfig();
+  connectionString = validated.connectionString;
+} else {
+  // Application Runtime (Production / Staging / Local Dev Server)
+  connectionString = process.env.DATABASE_URL || `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`;
+
+  if (!process.env.DATABASE_URL && !process.env.DB_HOST) {
+    console.error('❌ CRITICAL: No database connection information found in environment variables!');
+  }
 }
 
 const pool = new Pool({

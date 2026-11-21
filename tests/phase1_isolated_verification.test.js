@@ -9,6 +9,13 @@
  * NO network requests, NO socket connections, NO live DB dependencies.
  */
 
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
+
 const assert = require('assert');
 
 // ============================================================================

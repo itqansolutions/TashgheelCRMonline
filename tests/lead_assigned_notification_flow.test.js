@@ -12,6 +12,13 @@
  * 8. Safe worker processing in `dryRun` mode (zero real WhatsApp API calls).
  */
 
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
+
 const db = require('../config/db');
 const { eventBus } = require('../src/infrastructure/events/LocalEventBus');
 const registerGlobalSubscribers = require('../src/domains/shared/subscribers/eventSubscribers');

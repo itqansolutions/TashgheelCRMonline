@@ -188,7 +188,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/lead-statuses', require('./routes/leadStatusRoutes'));
 app.use('/api/tenants', tenantRoutes);
 app.use('/api/branches', branchRoutes);
-app.use('/api/sales-teams', require('./routes/salesTeamRoutes'));
+app.use('/api/sales-teams', moduleGuard('sales', 'crm'), require('./routes/salesTeamRoutes'));
 app.use('/api/sales-management', moduleGuard('crm'), require('./routes/salesManagementRoutes'));
 
 // Real Estate Module Routes (Protected by templateGuard)
@@ -217,9 +217,9 @@ app.use('/api/purchase-orders',   moduleGuard('purchasing', 'inventory'), requir
 app.use('/api/purchasing',        moduleGuard('purchasing', 'inventory'), require('./routes/purchasingRoutes'));
 app.use('/api/erp/purchasing',    moduleGuard('purchasing', 'inventory'), require('./routes/purchasingRoutes'));
 
-// General Sales & Delivery Routes (General template core)
-app.use('/api/sales',             templateGuard('general'), require('./routes/salesRoutes'));
-app.use('/api/erp/sales',         templateGuard('general'), require('./routes/salesRoutes'));
+// General Sales & Delivery Routes (General template core + explicit sales module entitlement)
+app.use('/api/sales',             moduleGuard('sales'), templateGuard('general'), require('./routes/salesRoutes'));
+app.use('/api/erp/sales',         moduleGuard('sales'), templateGuard('general'), require('./routes/salesRoutes'));
 app.use('/api/job-titles', jobTitleRoutes);
 
 // HR Extension Modules

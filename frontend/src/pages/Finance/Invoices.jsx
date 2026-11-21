@@ -19,10 +19,12 @@ import Treasury from './Treasury';
 import Reports from './Reports';
 import CustomerSearchSelect from '../../components/Common/CustomerSearchSelect';
 import { useLanguage } from '../../context/LanguageContext';
+import { useModule } from '../../hooks/useModule';
 
 const FinanceDashboard = () => {
   const { t, isRTL } = useLanguage();
   const { user, hasFinancialPermission } = useAuth();
+  const { can } = useModule();
   const { customers, products, units, fetchUnits, fetchCustomers, fetchProducts } = useData();
   const navigate = useNavigate();
   const location = useLocation();
@@ -106,7 +108,7 @@ const FinanceDashboard = () => {
   useEffect(() => {
     fetchData();
     fetchCustomers();
-    fetchProducts();
+    if (can('inventory')) fetchProducts();
     if (isRealEstate) fetchUnits();
   }, [activeTab]);
 

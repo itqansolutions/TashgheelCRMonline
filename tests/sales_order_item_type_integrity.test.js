@@ -1,3 +1,10 @@
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const TransactionEngine = require('../src/domains/shared/TransactionEngine');

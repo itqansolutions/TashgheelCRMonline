@@ -10,6 +10,13 @@
  * 6. Multi-tenant isolation
  */
 
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
+
 const db = require('../config/db');
 const notificationQueueService = require('../services/notificationQueueService');
 const notificationWorkerService = require('../services/notificationWorkerService');

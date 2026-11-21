@@ -30,6 +30,14 @@ router.put('/tenants/:tenant_id/plan',          ctrl.assignPlanToTenant);
 router.get('/tenants/:tenant_id/override',      ctrl.getTenantOverride);
 router.put('/tenants/:tenant_id/override',      ctrl.setTenantOverride);
 router.delete('/tenants/:tenant_id/override',   ctrl.removeTenantOverride);
+router.get('/tenants/:tenant_id/audit-log',     ctrl.getTenantAccessAuditLog);
+
+// Commercial Contracts Ledger (Phase 4.2.6 — Reference Ledger Only)
+const contractsCtrl = require('../controllers/tenantContractsController');
+router.get('/tenants/:tenant_id/contracts',                contractsCtrl.getTenantContracts);
+router.post('/tenants/:tenant_id/contracts',               contractsCtrl.createTenantContract);
+router.put('/tenants/:tenant_id/contracts/:contract_id',   contractsCtrl.updateTenantContract);
+router.get('/tenants/:tenant_id/contracts/audit-log',      contractsCtrl.getTenantContractAuditLogs);
 
 // Billing — Upgrade Request Management
 router.get('/upgrade-requests',                             billing.getUpgradeRequests);
@@ -43,5 +51,6 @@ router.get('/registration-requests',             regReqCtrl.getAll);
 router.post('/registration-requests/:id/approve', regReqCtrl.approve);
 router.post('/registration-requests/:id/reject',  regReqCtrl.reject);
 
+router.superAdminOnly = superAdminOnly;
 module.exports = router;
 

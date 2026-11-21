@@ -14,6 +14,13 @@
  * 7. Clawback & Reversal: requires reason, preserves history, creates documented reversal voucher on recovery.
  */
 
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

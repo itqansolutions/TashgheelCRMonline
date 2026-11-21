@@ -755,7 +755,7 @@ const Deals = () => {
                    </div>
                    
                    {/* RESERVATION STATUS / EXPIRATION BADGE */}
-                   {String(item.unit_status || '').toLowerCase() === 'reserved' && item.unit_reservation_expires_at && (
+                   {String(item.unit_status || '').toLowerCase() === 'reserved' && item.unit_reservation_expires_at && Boolean(item.custom_fields?.is_unit_reservation || ['reserved', 'reservation', 'حجز'].includes(String(item.pipeline_stage || '').trim().toLowerCase())) && (
                        <div style={{ 
                             display: 'flex', alignItems: 'center', gap: '4px', 
                             fontSize: '11px', 
@@ -767,6 +767,19 @@ const Deals = () => {
                        }}>
                             <Clock size={11} /> {new Date(item.unit_reservation_expires_at) < new Date() ? t('deals.expired', 'EXPIRED') : `${t('deals.expiresOn', 'Expires {date}').replace('{date}', new Date(item.unit_reservation_expires_at).toLocaleDateString('en-GB'))}`}
                             {item.unit_reservation_extension_count > 0 && <span style={{ opacity: 0.8 }}>(<span className="num-en">{item.unit_reservation_extension_count}</span>x)</span>}
+                       </div>
+                   )}
+                   {String(item.unit_status || '').toLowerCase() === 'reserved' && !Boolean(item.custom_fields?.is_unit_reservation || ['reserved', 'reservation', 'حجز'].includes(String(item.pipeline_stage || '').trim().toLowerCase())) && (
+                       <div style={{ 
+                            display: 'flex', alignItems: 'center', gap: '4px', 
+                            fontSize: '11px', 
+                            color: '#d97706', 
+                            background: '#fffbeb',
+                            padding: '2px 8px', borderRadius: '6px', 
+                            border: '1px solid #fde68a',
+                            fontWeight: 700
+                       }}>
+                            <Clock size={11} /> {isRTL ? 'الوحدة محجوزة لصفقة أخرى' : 'Unit Reserved by Another Deal'}
                        </div>
                    )}
 
@@ -1728,19 +1741,21 @@ const Deals = () => {
                           <div>
                             <span style={{ color: '#64748b', display: 'block', fontWeight: 600 }}>{t('deals.reservationExpires', 'Reservation Expires:')}</span>
                             <span style={{ fontWeight: 800, color: editingDeal.unit_reservation_expires_at && new Date(editingDeal.unit_reservation_expires_at) < new Date() ? '#dc2626' : '#166534' }}>
-                              {editingDeal.unit_reservation_expires_at ? <span className="num-en">{new Date(editingDeal.unit_reservation_expires_at).toLocaleString('en-GB')}</span> : (String(editingDeal.unit_status || '').toLowerCase() === 'reserved' ? t('deals.active', 'Active') : (isRTL ? 'متاحة (غير محجوزة)' : 'Available (Not Reserved)'))}
+                              {editingDeal.unit_reservation_expires_at ? (Boolean(editingDeal.custom_fields?.is_unit_reservation || ['reserved', 'reservation', 'حجز'].includes(String(editingDeal.pipeline_stage || '').trim().toLowerCase())) ? <span className="num-en">{new Date(editingDeal.unit_reservation_expires_at).toLocaleString('en-GB')}</span> : (isRTL ? 'محجوزة لصفقة أخرى' : 'Reserved by another deal')) : (String(editingDeal.unit_status || '').toLowerCase() === 'reserved' ? (Boolean(editingDeal.custom_fields?.is_unit_reservation || ['reserved', 'reservation', 'حجز'].includes(String(editingDeal.pipeline_stage || '').trim().toLowerCase())) ? t('deals.active', 'Active') : (isRTL ? 'محجوزة لصفقة أخرى' : 'Reserved by another deal')) : (isRTL ? 'متاحة (غير محجوزة)' : 'Available (Not Reserved)'))}
                             </span>
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid #dcfce7', gap: '8px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '11px', color: '#15803d', fontWeight: 700 }}>
                             {String(editingDeal.unit_status || '').toLowerCase() === 'reserved'
-                              ? (editingDeal.unit_reservation_extension_count > 0 
-                                  ? t('deals.extendedTimes', 'Extended {count} time(s)').replace('{count}', editingDeal.unit_reservation_extension_count) 
-                                  : t('deals.activeReservation', 'Active Reservation'))
+                              ? (Boolean(editingDeal.custom_fields?.is_unit_reservation || ['reserved', 'reservation', 'حجز'].includes(String(editingDeal.pipeline_stage || '').trim().toLowerCase()))
+                                  ? (editingDeal.unit_reservation_extension_count > 0 
+                                      ? t('deals.extendedTimes', 'Extended {count} time(s)').replace('{count}', editingDeal.unit_reservation_extension_count) 
+                                      : t('deals.activeReservation', 'Active Reservation'))
+                                  : (isRTL ? 'الوحدة محجوزة لصفقة أخرى في انتظار العقد أو انتهاء المهلة' : 'Unit is reserved by another deal pending contract or expiration'))
                               : (isRTL ? 'الوحدة متاحة لعروض متعددة — يمكنك تأكيد الحجز لمدة 48 ساعة عند الجدية' : 'Unit is available for multi-deal inquiries — reserve explicitly when buyer commits')}
                           </span>
-                          <div style={{ display: 'flex', gap: '8px' }}>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                             {String(editingDeal.unit_status || '').toLowerCase() !== 'reserved' && (
                               <button
                                 type="button"
@@ -1750,7 +1765,7 @@ const Deals = () => {
                                 <Clock size={12} /> {isRTL ? 'حجز الوحدة (48 ساعة)' : 'Reserve Unit (48h)'}
                               </button>
                             )}
-                            {String(editingDeal.unit_status || '').toLowerCase() === 'reserved' && canExtendSla && (
+                            {String(editingDeal.unit_status || '').toLowerCase() === 'reserved' && Boolean(editingDeal.custom_fields?.is_unit_reservation || ['reserved', 'reservation', 'حجز'].includes(String(editingDeal.pipeline_stage || '').trim().toLowerCase())) && canExtendSla && (
                               <>
                                 <button
                                   type="button"
@@ -1767,6 +1782,11 @@ const Deals = () => {
                                   {t('deals.extend48h', 'Extend +48h')}
                                 </button>
                               </>
+                            )}
+                            {String(editingDeal.unit_status || '').toLowerCase() === 'reserved' && !Boolean(editingDeal.custom_fields?.is_unit_reservation || ['reserved', 'reservation', 'حجز'].includes(String(editingDeal.pipeline_stage || '').trim().toLowerCase())) && (
+                              <span style={{ padding: '4px 10px', background: '#fef3c7', color: '#92400e', borderRadius: '6px', fontSize: '11px', fontWeight: 700, border: '1px solid #fde68a' }}>
+                                {isRTL ? 'الوحدة محجوزة لصفقة أخرى' : 'Unit Reserved by Another Deal'}
+                              </span>
                             )}
                           </div>
                         </div>

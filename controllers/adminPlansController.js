@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const tenantEntitlementService = require('../services/tenantEntitlementService');
 
 /**
  * Admin Pricing Engine — Full Plans CRUD
@@ -131,6 +132,8 @@ exports.getAdminTenants = async (req, res) => {
                 o.limits as override_limits,
                 (SELECT COUNT(*)::int FROM users u WHERE u.tenant_id::text = t.id::text AND COALESCE(u.is_working, true) = true) as user_count,
                 (SELECT COUNT(*)::int FROM users u WHERE u.tenant_id::text = t.id::text) as total_user_count,
+                (SELECT COUNT(*)::int FROM branches b WHERE b.tenant_id::text = t.id::text AND COALESCE(b.is_active, true) = true) as branch_count,
+                o.updated_at as override_updated_at,
                 -- Check for override
                 CASE WHEN o.id IS NOT NULL THEN TRUE ELSE FALSE END as has_override
             FROM tenants t
@@ -204,41 +207,53 @@ exports.assignPlanToTenant = async (req, res) => {
     }
 };
 
-// ── GET tenant override ─────────────────────────────────────────
+// ── GET tenant override (Entitlement Profile) ───────────────────
 exports.getTenantOverride = async (req, res) => {
     const { tenant_id } = req.params;
     try {
-        const result = await db.query(`SELECT * FROM tenant_overrides WHERE tenant_id::text = $1::text`, [tenant_id]);
-        res.json({ status: 'success', data: result.rows[0] || null });
+        const entitlements = await tenantEntitlementService.getTenantEntitlements(tenant_id, db);
+        res.json({
+            status: 'success',
+            data: {
+                tenant_id,
+                modules: entitlements.modules,
+                limits: entitlements.limits,
+                notes: entitlements.notes,
+                isConfigured: entitlements.isConfigured,
+                updated_at: entitlements.updated_at
+            }
+        });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });
     }
 };
 
-// ── SET per-tenant override (module/limit overrides) ───────────
+// ── SET per-tenant override (module/limit entitlements) ─────────
 exports.setTenantOverride = async (req, res) => {
     const { tenant_id } = req.params;
-    const { modules, limits, notes } = req.body;
+    const { modules, limits, notes, reason } = req.body;
     try {
-        const result = await db.query(`
-            INSERT INTO tenant_overrides (tenant_id, modules, limits, notes)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (tenant_id)
-            DO UPDATE SET
-                modules = COALESCE($2, tenant_overrides.modules),
-                limits = COALESCE($3, tenant_overrides.limits),
-                notes = COALESCE($4, tenant_overrides.notes),
-                updated_at = NOW()
-            RETURNING *
-        `, [
+        const auditReason = reason && typeof reason === 'string' && reason.trim().length >= 5
+            ? reason.trim()
+            : (notes && notes.trim().length >= 5 ? notes.trim() : 'Updated via ITQAN Platform HUD');
+
+        const updated = await tenantEntitlementService.setTenantEntitlements({
             tenant_id,
-            modules !== undefined ? (modules ? JSON.stringify(modules) : null) : null,
-            limits !== undefined ? (limits ? JSON.stringify(limits) : null) : null,
-            notes !== undefined ? notes : null
-        ]);
-        res.json({ status: 'success', data: result.rows[0], message: 'Tenant override saved.' });
+            modules,
+            limits,
+            notes,
+            reason: auditReason,
+            admin_user_id: req.user?.id,
+            ip_address: req.ip
+        }, db);
+
+        res.json({
+            status: 'success',
+            message: 'Tenant access profile saved successfully.',
+            data: updated
+        });
     } catch (err) {
-        res.status(500).json({ status: 'error', message: err.message });
+        res.status(400).json({ status: 'error', message: err.message });
     }
 };
 
@@ -247,8 +262,31 @@ exports.removeTenantOverride = async (req, res) => {
     const { tenant_id } = req.params;
     try {
         await db.query(`DELETE FROM tenant_overrides WHERE tenant_id::text = $1::text`, [tenant_id]);
-        res.json({ status: 'success', message: 'Override removed. Tenant reverts to plan defaults.' });
+        tenantEntitlementService.invalidateTenantEntitlements(tenant_id);
+        res.json({ status: 'success', message: 'Tenant access profile removed.' });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });
+    }
+};
+
+// ── GET tenant access audit log ─────────────────────────────────
+exports.getTenantAccessAuditLog = async (req, res) => {
+    const { tenant_id } = req.params;
+    try {
+        const result = await db.query(`
+            SELECT 
+                a.id, a.tenant_id, a.changed_by, a.previous_modules, a.new_modules,
+                a.previous_limits, a.new_limits, a.reason, a.ip_address, a.created_at,
+                u.name as admin_name, u.email as admin_email
+            FROM tenant_access_audit_logs a
+            LEFT JOIN users u ON a.changed_by = u.id
+            WHERE a.tenant_id::text = $1::text
+            ORDER BY a.created_at DESC
+            LIMIT 50
+        `, [tenant_id]);
+        res.json({ status: 'success', data: result.rows });
+    } catch (err) {
+        // Graceful fallback if audit table not yet migrated
+        res.json({ status: 'success', data: [], notice: 'Audit table pending migration' });
     }
 };

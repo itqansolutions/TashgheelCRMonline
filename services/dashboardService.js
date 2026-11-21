@@ -401,7 +401,7 @@ async function getRealEstatePipeline(tenantId) {
         else if (raw === 'interested' || raw === 'qualification') targetKey = 'Interested';
         else if (raw === 'site visit' || raw === 'site_visit') targetKey = 'Site Visit';
         else if (raw === 'negotiation' || raw === 'proposal') targetKey = 'Negotiation';
-        else if (raw === 'closed' || raw === 'won') targetKey = 'Closed';
+        else if (['closed', 'won', 'closed won', 'closed_won', 'contracted'].includes(raw)) targetKey = 'Closed';
 
         if (targetKey) {
             counts[targetKey] += parseInt(r.count) || 0;

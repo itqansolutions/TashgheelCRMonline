@@ -2,6 +2,13 @@
  * Comprehensive Automated Test Suite:
  * Phase A (Unit Lifecycle Protection) & Phase B (Branch Scope Enforcement)
  */
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const db = require('../config/db');

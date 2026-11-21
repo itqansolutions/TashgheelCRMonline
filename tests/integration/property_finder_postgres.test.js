@@ -10,6 +10,13 @@
  * The schema is rebuilt from the repo's own definitions (database/schema.sql shapes for customers/deals/
  * lead_sources, migrations/019 verbatim, migrations/023 verbatim) so the real constraints are exercised.
  */
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('../helpers/testDb');
+initTestContext();
+
 const url = process.env.PF_TEST_PG_URL;
 const fs = require('fs');
 const path = require('path');

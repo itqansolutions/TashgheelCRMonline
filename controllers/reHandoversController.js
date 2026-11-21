@@ -201,7 +201,7 @@ exports.updateHandoverStatus = async (req, res) => {
             FROM re_handovers rh
             LEFT JOIN deals d ON rh.deal_id = d.id
             WHERE rh.id::text = $1::text AND rh.tenant_id::text = $2::text
-            FOR UPDATE
+            FOR UPDATE OF rh
         `, [id, tenant_id]);
 
         if (hoRes.rows.length === 0) {
@@ -282,7 +282,7 @@ exports.updateHandoverStatus = async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('[Update Handover Status Error]:', err.message);
-        res.status(500).json({ status: 'error', message: err.message });
+        res.status(500).json({ status: 'error', message: 'Failed to update handover status. Please try again or contact support.' });
     } finally {
         client.release();
     }

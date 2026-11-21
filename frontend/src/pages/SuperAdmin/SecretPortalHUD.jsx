@@ -8,13 +8,15 @@ import {
     Calendar, ArrowLeft, MoreHorizontal, Sparkles, Terminal,
     Maximize2, AlertCircle, CheckCheck, ClipboardList,
     Sliders, ToggleLeft, ToggleRight,
-    ShoppingBag, UserCheck, Truck, MessageCircle
+    ShoppingBag, UserCheck, Truck, MessageCircle, FileText
 } from 'lucide-react';
 
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { safeArray, safeObject, safeNumber, safeString } from '../../utils/dataUtils';
+import TenantAccessManagementModal from './TenantAccessManagementModal';
+import TenantContractManagementModal from './TenantContractManagementModal';
 
 // Helper for relative time
 const formatTimeAgo = (dateInput) => {
@@ -84,11 +86,15 @@ const SecretPortalHUD = () => {
     // UI & Filter states
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [templateFilter, setTemplateFilter] = useState('all');
+    const [configStatusFilter, setConfigStatusFilter] = useState('all');
     const [planFilter, setPlanFilter] = useState('all');
     const [copiedKey, setCopiedKey] = useState(null);
 
     // Modal / Drawer states
     const [selectedTenantDossier, setSelectedTenantDossier] = useState(null);
+    const [tenantAccessModal, setTenantAccessModal] = useState(null); // tenant object for manual entitlements
+    const [tenantContractModal, setTenantContractModal] = useState(null); // tenant object for commercial contracts
     const [quickPlanModal, setQuickPlanModal] = useState(null); // tenant object
     const [targetPlanId, setTargetPlanId] = useState('');
     const [targetPlanExpire, setTargetPlanExpire] = useState('');
@@ -97,8 +103,8 @@ const SecretPortalHUD = () => {
     const [actionLoading, setActionLoading] = useState(false);
     const [pendingRegRequests, setPendingRegRequests] = useState(0);
 
-    // Custom Module & Limit Overrides Modal
-    const [customOverridesModal, setCustomOverridesModal] = useState(null); // tenant object
+    // Custom Module & Limit Overrides Modal (Legacy compatibility)
+    const [customOverridesModal, setCustomOverridesModal] = useState(null);
     const [customModules, setCustomModules] = useState({});
     const [customMaxUsers, setCustomMaxUsers] = useState('');
     const [customMaxBranches, setCustomMaxBranches] = useState('');
@@ -391,6 +397,7 @@ const SecretPortalHUD = () => {
         return tenants.filter(t => {
             const matchesSearch = 
                 (t.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+                (t.id?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                 (t.slug?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                 (t.admin_email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
                 (t.admin_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -401,13 +408,23 @@ const SecretPortalHUD = () => {
                 statusFilter === 'expiring' ? (t.expires_at && new Date(t.expires_at) < new Date(Date.now() + 7 * 86400000)) :
                 t.status === statusFilter;
 
+            const matchesTemplate = 
+                templateFilter === 'all' ? true :
+                (t.template_name || 'general') === templateFilter;
+
+            const isConfigured = Boolean(t.has_override);
+            const matchesConfigStatus = 
+                configStatusFilter === 'all' ? true :
+                configStatusFilter === 'configured' ? isConfigured :
+                !isConfigured;
+
             const matchesPlan = 
                 planFilter === 'all' ? true :
                 (t.plan_name || t.plan || '').toLowerCase() === planFilter.toLowerCase();
 
-            return matchesSearch && matchesStatus && matchesPlan;
+            return matchesSearch && matchesStatus && matchesTemplate && matchesConfigStatus && matchesPlan;
         });
-    }, [tenants, searchTerm, statusFilter, planFilter]);
+    }, [tenants, searchTerm, statusFilter, templateFilter, configStatusFilter, planFilter]);
 
     // Computed high-level metrics
     const metrics = useMemo(() => {
@@ -756,24 +773,65 @@ const SecretPortalHUD = () => {
                                 )}
                             </div>
 
-                            {/* Filter Pills */}
-                            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                                <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 mr-1">
-                                    <Filter size={12} /> Filter:
-                                </span>
-                                {['all', 'active', 'trial', 'expiring', 'suspended'].map(s => (
-                                    <button
-                                        key={s}
-                                        onClick={() => setStatusFilter(s)}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all ${
-                                            statusFilter === s 
-                                                ? 'bg-indigo-600 text-white shadow-sm' 
-                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
-                                        }`}
-                                    >
-                                        {s === 'expiring' ? 'Expiring (<7d)' : s}
-                                    </button>
-                                ))}
+                            {/* Filter Controls Bar */}
+                            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                                {/* Configuration Status Filter */}
+                                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                                    <span className="text-slate-500 font-bold px-2 flex items-center gap-1">
+                                        <Shield size={12} className="text-emerald-600" /> Entitlements:
+                                    </span>
+                                    {['all', 'configured', 'unconfigured'].map(cs => (
+                                        <button
+                                            key={cs}
+                                            onClick={() => setConfigStatusFilter(cs)}
+                                            className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-all ${
+                                                configStatusFilter === cs
+                                                    ? 'bg-white text-emerald-700 shadow-xs border border-emerald-200'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            {cs}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Template Filter */}
+                                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                                    <span className="text-slate-500 font-bold px-2 flex items-center gap-1">
+                                        <Building2 size={12} className="text-indigo-600" /> Template:
+                                    </span>
+                                    {['all', 'general', 'real_estate'].map(tmpl => (
+                                        <button
+                                            key={tmpl}
+                                            onClick={() => setTemplateFilter(tmpl)}
+                                            className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-all ${
+                                                templateFilter === tmpl
+                                                    ? 'bg-white text-indigo-700 shadow-xs border border-indigo-200'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            {tmpl === 'real_estate' ? 'Real Estate' : tmpl}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Tenant Lifecycle Status Filter */}
+                                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                                    <span className="text-slate-500 font-bold px-2">Status:</span>
+                                    {['all', 'active', 'suspended'].map(s => (
+                                        <button
+                                            key={s}
+                                            onClick={() => setStatusFilter(s)}
+                                            className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-all ${
+                                                statusFilter === s
+                                                    ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            {s}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -784,18 +842,19 @@ const SecretPortalHUD = () => {
                             <thead>
                                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
                                     <th className="py-3.5 px-5">Company / Workspace</th>
-                                    <th className="py-3.5 px-4">Primary Admin</th>
-                                    <th className="py-3.5 px-4">Current Plan</th>
-                                    <th className="py-3.5 px-4">Subscription Status</th>
-                                    <th className="py-3.5 px-4">Capacity / Users</th>
-                                    <th className="py-3.5 px-4">Modules</th>
+                                    <th className="py-3.5 px-4">Template</th>
+                                    <th className="py-3.5 px-4">Entitlements Status</th>
+                                    <th className="py-3.5 px-4">Tenant Status</th>
+                                    <th className="py-3.5 px-4">Capacity (Users & Branches)</th>
+                                    <th className="py-3.5 px-4">Enabled Modules</th>
+                                    <th className="py-3.5 px-4">Last Access Update</th>
                                     <th className="py-3.5 px-5 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                                        <td colSpan={8} className="py-12 text-center text-slate-400">
                                             <div className="flex flex-col items-center justify-center gap-3">
                                                 <RefreshCw size={24} className="animate-spin text-indigo-600" />
                                                 <span className="font-bold text-sm">Loading companies...</span>
@@ -804,7 +863,7 @@ const SecretPortalHUD = () => {
                                     </tr>
                                 ) : filteredTenants.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                                        <td colSpan={8} className="py-12 text-center text-slate-400">
                                             <div className="flex flex-col items-center justify-center gap-2">
                                                 <AlertCircle size={28} className="text-slate-300" />
                                                 <span className="font-bold text-sm text-slate-700">No companies found</span>
@@ -814,10 +873,18 @@ const SecretPortalHUD = () => {
                                     </tr>
                                 ) : (
                                     filteredTenants.map((t) => {
-                                        const planKey = (t.plan_name || t.plan || 'basic').toLowerCase();
-                                        const planStyle = PLAN_COLORS[planKey] || PLAN_COLORS.basic;
                                         const statusStyle = STATUS_CONFIG[t.status] || STATUS_CONFIG.inactive;
-                                        const isExpiring = t.expires_at && new Date(t.expires_at) < new Date(Date.now() + 7 * 86400000);
+                                        const isConfigured = Boolean(t.has_override);
+
+                                        let activeModsCount = 0;
+                                        if (t.modules) {
+                                            try {
+                                                const parsed = typeof t.modules === 'string' ? JSON.parse(t.modules) : t.modules;
+                                                activeModsCount = Object.values(parsed).filter(Boolean).length;
+                                            } catch {
+                                                activeModsCount = 0;
+                                            }
+                                        }
 
                                         return (
                                             <tr 
@@ -825,169 +892,126 @@ const SecretPortalHUD = () => {
                                                 className="hover:bg-slate-50 transition-colors group cursor-pointer"
                                                 onClick={() => setSelectedTenantDossier(t)}
                                             >
-                                                {/* Company Name & Slug */}
+                                                {/* Company Name & Slug & Short ID */}
                                                 <td className="py-3.5 px-5">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-indigo-700 text-sm">
+                                                        <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center font-bold text-indigo-700 text-sm shrink-0">
                                                             {t.name ? t.name.charAt(0).toUpperCase() : 'C'}
                                                         </div>
                                                         <div>
                                                             <span className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">
                                                                 {t.name}
                                                             </span>
-                                                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">
-                                                                <span className="font-mono">{t.slug || t.id.slice(0, 8)}</span>
+                                                            <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400">
+                                                                <span className="font-mono bg-slate-100 px-1.5 py-0.2 rounded text-[10px] text-slate-600 font-semibold" title={t.id}>
+                                                                    ID: {t.id ? t.id.slice(0, 8) : '—'}
+                                                                </span>
                                                                 <span>•</span>
-                                                                <span>{formatTimeAgo(t.created_at)}</span>
+                                                                <span className="font-mono text-slate-500">{t.slug}</span>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </td>
 
-                                                {/* Admin Contact */}
+                                                {/* Template Badge */}
                                                 <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
-                                                    <div>
-                                                        <p className="font-medium text-slate-800 text-xs">{t.admin_name || 'Admin User'}</p>
-                                                        {t.admin_email && (
-                                                            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-indigo-600 mt-0.5">
-                                                                <span className="truncate max-w-[150px]">{t.admin_email}</span>
-                                                                <button 
-                                                                    onClick={() => handleCopy(t.admin_email, `email-${t.id}`)}
-                                                                    title="Copy email"
-                                                                    className="text-slate-400 hover:text-slate-600"
-                                                                >
-                                                                    {copiedKey === `email-${t.id}` ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border capitalize ${
+                                                        t.template_name === 'real_estate' 
+                                                            ? 'bg-purple-50 text-purple-700 border-purple-200' 
+                                                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                    }`}>
+                                                        <Building2 size={11} />
+                                                        {t.template_name === 'real_estate' ? 'Real Estate' : 'General'}
+                                                    </span>
                                                 </td>
 
-                                                {/* Plan & Price */}
-                                                <td className="py-3.5 px-4">
-                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold uppercase border ${planStyle.bg} ${planStyle.border} ${planStyle.text}`}>
-                                                        <CreditCard size={11} />
-                                                        {t.display_name || t.plan_name || t.plan || 'Free Plan'}
-                                                    </span>
-                                                    {t.price_monthly && (
-                                                        <p className="text-[11px] text-slate-500 font-semibold mt-1">
-                                                            {formatCurrency(t.price_monthly)}/mo
-                                                        </p>
+                                                {/* Entitlements Configuration Status */}
+                                                <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                                                    {isConfigured ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                                            Configured
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200" title="No manual entitlement record exists. Operational access is blocked.">
+                                                            <AlertTriangle size={12} className="text-amber-600" />
+                                                            Unconfigured
+                                                        </span>
                                                     )}
                                                 </td>
 
-                                                {/* Status & Expiry */}
-                                                <td className="py-3.5 px-4">
-                                                    <div className="space-y-1">
-                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusStyle.bg} ${statusStyle.border} ${statusStyle.text}`}>
-                                                            <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
-                                                            {statusStyle.label}
-                                                        </span>
-                                                        {t.expires_at && (
-                                                            <p className={`text-[11px] font-medium flex items-center gap-1 ${isExpiring ? 'text-amber-600' : 'text-slate-400'}`}>
-                                                                <Calendar size={10} />
-                                                                {new Date(t.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                                                            </p>
-                                                        )}
-                                                    </div>
+                                                {/* Tenant Lifecycle Status */}
+                                                <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusStyle.bg} ${statusStyle.border} ${statusStyle.text}`}>
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
+                                                        {statusStyle.label}
+                                                    </span>
                                                 </td>
 
-                                                {/* Capacity / Users */}
-                                                <td className="py-3.5 px-4">
-                                                    <div className="space-y-1 w-28">
+                                                {/* Capacity / Users & Branches */}
+                                                <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="space-y-1 w-32">
                                                         <div className="flex items-center justify-between text-[11px]">
                                                             <span className="text-slate-600 font-semibold flex items-center gap-1">
-                                                                <Users size={11} /> {t.user_count ?? 1}
+                                                                <Users size={11} className="text-emerald-600" /> {t.user_count ?? 1}
                                                             </span>
-                                                            <span className="text-slate-400 text-[10px]">
-                                                                {Number(t.max_users) === -1 ? 'Unlimited' : `max ${t.max_users || 10}`}
+                                                            <span className="text-slate-500 font-mono text-[10px]">
+                                                                / {Number(t.max_users) === -1 ? '∞' : `${t.max_users || 10} Users`}
                                                             </span>
                                                         </div>
-                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div 
-                                                                className="h-full bg-indigo-600 rounded-full"
-                                                                style={{ width: `${Number(t.max_users) === -1 ? 25 : Math.min(100, ((t.user_count ?? 1) / (t.max_users || 10)) * 100)}%` }}
-                                                            />
+                                                        <div className="flex items-center justify-between text-[11px]">
+                                                            <span className="text-slate-600 font-semibold flex items-center gap-1">
+                                                                <Building2 size={11} className="text-indigo-600" /> {t.branch_count ?? 1}
+                                                            </span>
+                                                            <span className="text-slate-500 font-mono text-[10px]">
+                                                                / {Number(t.max_branches) === -1 ? '∞' : `${t.max_branches || 1} Branches`}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </td>
 
-                                                {/* Enabled Modules */}
-                                                <td className="py-3.5 px-4">
-                                                    <div className="flex items-center gap-1 text-slate-400">
-                                                        {Object.entries(MODULE_ICONS).map(([k, m]) => {
-                                                            let isEnabled = true;
-                                                            if (t.modules) {
-                                                                try {
-                                                                    const parsed = typeof t.modules === 'string' ? JSON.parse(t.modules) : t.modules;
-                                                                    isEnabled = !!parsed[k];
-                                                                } catch {}
-                                                            }
-                                                            return (
-                                                                <span 
-                                                                    key={k}
-                                                                    title={`${m.label}: ${isEnabled ? 'Enabled' : 'Disabled'}`}
-                                                                    className={`p-1.5 rounded-md border ${
-                                                                        isEnabled 
-                                                                            ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' 
-                                                                            : 'bg-slate-50 border-slate-200 text-slate-300 opacity-40'
-                                                                    }`}
-                                                                >
-                                                                    {m.icon}
-                                                                </span>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                {/* Enabled Modules Count & Preview */}
+                                                <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 font-bold text-xs border border-slate-200">
+                                                        <Layers size={12} className="text-indigo-600" />
+                                                        {activeModsCount} / 10 Modules
+                                                    </span>
+                                                </td>
+
+                                                {/* Last Access Config Update */}
+                                                <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]" onClick={(e) => e.stopPropagation()}>
+                                                    {t.override_updated_at ? formatTimeAgo(t.override_updated_at) : '—'}
                                                 </td>
 
                                                 {/* Quick Actions */}
                                                 <td className="py-3.5 px-5 text-right" onClick={(e) => e.stopPropagation()}>
                                                     <div className="flex items-center justify-end gap-1.5">
                                                         <button 
+                                                            onClick={() => setTenantAccessModal(t)}
+                                                            className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5"
+                                                            title="Configure Manual Module Entitlements and Usage Limits"
+                                                            data-testid={`btn-manage-access-${t.id}`}
+                                                        >
+                                                            <Sliders size={13} />
+                                                            Manage Access
+                                                        </button>
+                                                        <button 
                                                             onClick={() => setSelectedTenantDossier(t)}
-                                                            className="p-2 rounded-xl bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 border border-slate-200 transition-colors"
+                                                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 transition-colors"
                                                             title="Inspect Full Dossier"
                                                         >
-                                                            <Eye size={14} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleOpenCustomOverrides(t)}
-                                                            className="p-2 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 border border-slate-200 transition-colors"
-                                                            title="Customize Modules & User Capacity"
-                                                        >
-                                                            <Sliders size={14} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => {
-                                                                setQuickPlanModal(t);
-                                                                setTargetPlanId(t.plan_id || '');
-                                                                setTargetPlanExpire(t.expires_at ? t.expires_at.slice(0, 10) : '');
-                                                            }}
-                                                            className="p-2 rounded-xl bg-slate-100 hover:bg-violet-50 text-slate-600 hover:text-violet-600 border border-slate-200 transition-colors"
-                                                            title="Change Subscription Plan"
-                                                        >
-                                                            <CreditCard size={14} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => {
-                                                                setResetPassModal(t);
-                                                                setNewPassword('');
-                                                            }}
-                                                            className="p-2 rounded-xl bg-slate-100 hover:bg-amber-50 text-slate-600 hover:text-amber-600 border border-slate-200 transition-colors"
-                                                            title="Reset Admin Password"
-                                                        >
-                                                            <Key size={14} />
+                                                            <Eye size={13} />
                                                         </button>
                                                         <button 
                                                             onClick={() => handleToggleTenantStatus(t)}
-                                                            className={`p-2 rounded-xl border transition-colors ${
+                                                            className={`p-1.5 rounded-xl border transition-colors ${
                                                                 t.status === 'active' 
                                                                     ? 'bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border-slate-200' 
                                                                     : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
                                                             }`}
                                                             title={t.status === 'active' ? 'Suspend Company' : 'Activate Company'}
                                                         >
-                                                            {t.status === 'active' ? <Lock size={14} /> : <Unlock size={14} />}
+                                                            {t.status === 'active' ? <Lock size={13} /> : <Unlock size={13} />}
                                                         </button>
                                                     </div>
                                                 </td>
@@ -1222,30 +1246,69 @@ const SecretPortalHUD = () => {
                                 </div>
                             </div>
 
-                            {/* Subscription Card */}
+                            {/* Commercial Agreement Ledger Card */}
                             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-                                <h4 className="text-xs font-bold uppercase tracking-wider text-violet-700 flex items-center gap-1.5">
-                                    <CreditCard size={14} /> Subscription & Limits
-                                </h4>
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-violet-700 flex items-center gap-1.5">
+                                        <FileText size={14} /> Commercial Agreement
+                                    </h4>
+                                    <button
+                                        onClick={() => setTenantContractModal(selectedTenantDossier)}
+                                        className="px-2.5 py-1 bg-white hover:bg-violet-50 text-violet-700 border border-slate-200 hover:border-violet-300 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
+                                    >
+                                        <FileText size={12} /> Manage
+                                    </button>
+                                </div>
                                 <div className="space-y-2 text-xs">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-slate-400 text-[11px]">Active Plan:</span>
-                                        <strong className="text-violet-700 font-bold uppercase">{selectedTenantDossier.display_name || selectedTenantDossier.plan_name || selectedTenantDossier.plan || 'Free'}</strong>
+                                        <span className="text-slate-400 text-[11px]">Agreement Model:</span>
+                                        <strong className="text-slate-800">Custom Commercial Contract</strong>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-slate-400 text-[11px]">Monthly Rate:</span>
-                                        <span className="text-slate-800 font-bold">{formatCurrency(selectedTenantDossier.price_monthly || 0)}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-slate-400 text-[11px]">User Capacity:</span>
-                                        <span className="text-slate-800">
-                                            {selectedTenantDossier.user_count ?? 1} / {Number(selectedTenantDossier.max_users) === -1 ? 'Unlimited' : `${selectedTenantDossier.max_users || 10} Users`}
+                                        <span className="text-slate-400 text-[11px]">Contract Status:</span>
+                                        <span className="text-violet-700 font-bold text-xs bg-violet-50 px-2.5 py-0.5 rounded-full border border-violet-200">
+                                            Reference Ledger
                                         </span>
                                     </div>
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-slate-400 text-[11px]">Subscription End:</span>
-                                        <span className="text-slate-800">{selectedTenantDossier.expires_at ? new Date(selectedTenantDossier.expires_at).toLocaleDateString() : 'Continuous'}</span>
+                                    <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                                        <span className="text-slate-400 text-[11px]">Contracts Ledger:</span>
+                                        <button 
+                                            onClick={() => setTenantContractModal(selectedTenantDossier)}
+                                            className="text-violet-700 font-bold hover:underline flex items-center gap-1"
+                                        >
+                                            View Value & History →
+                                        </button>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Technical Capacity & Seat Limits (Preserved Independently) */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                                    <Cpu size={14} className="text-indigo-600" /> Technical Capacity & Seat Limits
+                                </h4>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                    selectedTenantDossier.has_override 
+                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                                }`}>
+                                    {selectedTenantDossier.has_override ? 'Configured (Manual)' : 'Unconfigured'}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                                <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                                    <span className="text-slate-400 text-[11px] block">Active User Seats</span>
+                                    <strong className="text-slate-800 text-sm">
+                                        {selectedTenantDossier.user_count ?? 0} / {Number(selectedTenantDossier.max_users) === -1 ? 'Unlimited' : (selectedTenantDossier.max_users || 10)}
+                                    </strong>
+                                </div>
+                                <div className="p-2.5 bg-white rounded-xl border border-slate-200">
+                                    <span className="text-slate-400 text-[11px] block">Physical Branches</span>
+                                    <strong className="text-slate-800 text-sm">
+                                        {selectedTenantDossier.branch_count ?? 1} / {Number(selectedTenantDossier.max_branches) === -1 ? 'Unlimited' : (selectedTenantDossier.max_branches || 1)}
+                                    </strong>
                                 </div>
                             </div>
                         </div>
@@ -1257,7 +1320,7 @@ const SecretPortalHUD = () => {
                                     <Layers size={14} className="text-indigo-600" /> Module Access Entitlements
                                 </h4>
                                 <button
-                                    onClick={() => handleOpenCustomOverrides(selectedTenantDossier)}
+                                    onClick={() => setTenantAccessModal(selectedTenantDossier)}
                                     className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-slate-200 hover:border-emerald-300 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-xs"
                                 >
                                     <Sliders size={12} /> Customize
@@ -1288,21 +1351,17 @@ const SecretPortalHUD = () => {
                         <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                             <div className="flex flex-wrap items-center gap-2">
                                 <button 
-                                    onClick={() => handleOpenCustomOverrides(selectedTenantDossier)}
+                                    onClick={() => setTenantAccessModal(selectedTenantDossier)}
                                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
                                 >
                                     <Sliders size={14} /> Customize Modules & Limits
                                 </button>
                                 <button 
-                                    onClick={() => {
-                                        setQuickPlanModal(selectedTenantDossier);
-                                        setTargetPlanId(selectedTenantDossier.plan_id || '');
-                                        setTargetPlanExpire(selectedTenantDossier.expires_at ? selectedTenantDossier.expires_at.slice(0, 10) : '');
-                                        setSelectedTenantDossier(null);
-                                    }}
-                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
+                                    onClick={() => setTenantContractModal(selectedTenantDossier)}
+                                    className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1.5"
+                                    title="Manage Commercial Agreement, Value and Duration"
                                 >
-                                    <CreditCard size={14} /> Change Plan
+                                    <FileText size={14} /> Commercial Contracts
                                 </button>
                                 <button 
                                     onClick={() => {
@@ -1663,6 +1722,52 @@ const SecretPortalHUD = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* ITQAN HUD Manual Tenant Access & Entitlements Management Modal */}
+            {tenantAccessModal && (
+                <TenantAccessManagementModal
+                    tenant={tenantAccessModal}
+                    isOpen={Boolean(tenantAccessModal)}
+                    onClose={() => setTenantAccessModal(null)}
+                    onUpdated={(updated) => {
+                        setTenants(prev => prev.map(t => {
+                            if (t.id === updated.tenant_id) {
+                                return {
+                                    ...t,
+                                    modules: updated.modules,
+                                    max_users: updated.max_users,
+                                    max_branches: updated.max_branches,
+                                    has_override: true,
+                                    override_updated_at: updated.updated_at
+                                };
+                            }
+                            return t;
+                        }));
+                        if (selectedTenantDossier?.id === updated.tenant_id) {
+                            setSelectedTenantDossier(prev => ({
+                                ...prev,
+                                modules: updated.modules,
+                                max_users: updated.max_users,
+                                max_branches: updated.max_branches,
+                                has_override: true,
+                                override_updated_at: updated.updated_at
+                            }));
+                        }
+                    }}
+                />
+            )}
+
+            {/* ITQAN HUD Commercial Contracts Management Modal (Phase 4.2.6) */}
+            {tenantContractModal && (
+                <TenantContractManagementModal
+                    tenant={tenantContractModal}
+                    isOpen={Boolean(tenantContractModal)}
+                    onClose={() => setTenantContractModal(null)}
+                    onUpdated={() => {
+                        fetchPlatformData(true);
+                    }}
+                />
             )}
         </div>
     );

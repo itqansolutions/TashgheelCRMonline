@@ -70,7 +70,9 @@ export const DataProvider = ({ children }) => {
       const res = await api.get('/products');
       setProducts(safeArray(res.data.data));
     } catch (err) {
-      toast.error('Failed to load products');
+      if (err.response?.status !== 403) {
+        toast.error('Failed to load products');
+      }
     } finally {
       setLoading(false);
     }

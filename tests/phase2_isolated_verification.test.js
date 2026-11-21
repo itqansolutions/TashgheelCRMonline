@@ -12,6 +12,13 @@
  * 8. Real Estate payment controller: separation of administrative adjustment vs actual cash collection recording.
  */
 
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const pg = require('pg');

@@ -14,6 +14,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
 
 test('Phase 2 - Focus 3: Installments Scheduling & Deletion Governance Suite', async (t) => {
   // Triple-Barrier Network & Database Isolation Guard

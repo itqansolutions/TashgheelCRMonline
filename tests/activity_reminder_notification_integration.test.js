@@ -13,6 +13,13 @@
  * 7. Safe Worker execution in `dryRun: true` mode (zero real WhatsApp API calls).
  */
 
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
+
 const db = require('../config/db');
 const { scanAndSendReminders } = require('../services/activityReminderService');
 const notificationWorkerService = require('../services/notificationWorkerService');

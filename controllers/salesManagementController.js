@@ -197,8 +197,8 @@ exports.getOverview = async (req, res) => {
         period,
         kpis: {
           ...targetSummary,
-          open_deals_count: stageSummaryRes.rows.filter(s => !['won', 'lost', 'cancelled'].includes(s.pipeline_stage)).reduce((acc, s) => acc + s.count, 0),
-          open_deals_value: stageSummaryRes.rows.filter(s => !['won', 'lost', 'cancelled'].includes(s.pipeline_stage)).reduce((acc, s) => acc + parseFloat(s.total_value), 0),
+          open_deals_count: stageSummaryRes.rows.filter(s => !['won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost', 'closed_won', 'closed_lost', 'contracted'].includes(String(s.pipeline_stage || '').trim().toLowerCase())).reduce((acc, s) => acc + s.count, 0),
+          open_deals_value: stageSummaryRes.rows.filter(s => !['won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost', 'closed_won', 'closed_lost', 'contracted'].includes(String(s.pipeline_stage || '').trim().toLowerCase())).reduce((acc, s) => acc + parseFloat(s.total_value), 0),
           overdue_deals_count: scopedOverdueDeals.length,
           overdue_tasks_count: overdueTasksRes.rows[0]?.count || 0,
           win_rate_pct: winRate,

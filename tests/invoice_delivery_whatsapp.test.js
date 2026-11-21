@@ -17,6 +17,13 @@
  * 13. Monotonic delivery status progression when delivery webhook event occurs
  */
 
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
+
 const db = require('../config/db');
 const financeController = require('../controllers/financeController');
 const notificationWorkerService = require('../services/notificationWorkerService');

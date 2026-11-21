@@ -6,6 +6,13 @@
  * 3. Keeps unit as 'Contracted' if protected by an active/signed contract.
  * 4. Keeps unit as 'Contracted' if protected by a won/closed deal.
  */
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const db = require('../config/db');

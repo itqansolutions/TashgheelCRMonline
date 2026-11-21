@@ -12,6 +12,13 @@
  *   8. Zero live external WhatsApp Cloud API calls (strictly offline/safe).
  */
 
+// ============================================================================
+// CANONICAL TEST SAFETY ENFORCEMENT (Phase S)
+// Strictly mandates DATABASE_URL_TEST and prevents execution against PROD_HOST
+// ============================================================================
+const { initTestContext } = require('./helpers/testDb');
+initTestContext();
+
 require('dotenv').config();
 const db = require('../config/db');
 const notificationController = require('../controllers/notificationController');
