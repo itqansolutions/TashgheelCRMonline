@@ -1,6 +1,7 @@
 -- 027: History of replaced real estate installment schedules.
 -- Written by generateSchedule before an existing schedule is replaced.
--- Not applied automatically. Review, test on a non-production database, then run deliberately.
+-- Forward migration: the application's startup runner may apply it when unrecorded.
+-- Review and test on a non-production database before an approved deployment.
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS re_installment_schedule_history (

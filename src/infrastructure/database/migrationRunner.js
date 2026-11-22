@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { isForwardMigration, isRollbackMigration } = require('./migrationFiles');
 const db = require('../../../config/db');
 const { ensurePurchasesSchema } = require('../../../controllers/purchasesController');
 const { ensureInvoicesTable, ensureVouchersTable } = require('../../../controllers/financeController');
@@ -280,7 +281,7 @@ async function runMigrations() {
         return;
     }
 
-    const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
+    const files = fs.readdirSync(migrationsDir).filter(isForwardMigration).sort();
 
     for (const file of files) {
         const checkRes = await db.query('SELECT 1 FROM schema_migrations WHERE name = $1', [file]);
@@ -289,16 +290,39 @@ async function runMigrations() {
             continue;
         }
 
+        // A prior deliberate or accidentally auto-applied rollback must not silently
+        // cause its missing forward marker to recreate unrelated tables on startup.
+        // In particular, rollback 026 removes its own forward marker. Leave that
+        // commercial ledger for operator review, not automatic reconstruction.
+        const version = file.split('_')[0];
+        const recorded = await db.query(
+            "SELECT name FROM schema_migrations WHERE split_part(name, '_', 1) = $1", [version]
+        );
+        if (recorded.rows.some(row => isRollbackMigration(row.name))) {
+            console.warn(`[Migration Runner] HOLD ${file}: rollback recorded for this version; operator review required.`);
+            continue;
+        }
+
         console.log(`🚀 [Migration Runner] Applying migration: ${file}...`);
         const filePath = path.join(migrationsDir, file);
         const sql = fs.readFileSync(filePath, 'utf8');
 
+        const migrationClient = await db.connect();
         try {
-            await db.query(sql);
-            await db.query('INSERT INTO schema_migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [file]);
+            await migrationClient.query(sql);
+            await migrationClient.query('INSERT INTO schema_migrations (name) VALUES ($1) ON CONFLICT (name) DO NOTHING', [file]);
             console.log(`✅ [Migration Runner] Successfully applied: ${file}`);
         } catch (err) {
+            // A failed multi-statement migration may have left BEGIN open. Clean up
+            // on this same connection before returning it to the pool.
+            await migrationClient.query('ROLLBACK').catch(() => {});
             console.error(`❌ [Migration Runner] Failed to apply ${file}:`, err.message);
+            // Return a runner failure for the history prerequisite. The existing
+            // server listens before startup work, so this is NOT a readiness probe.
+            if (file === '027_create_re_installment_schedule_history.sql'
+                || file === '028_verify_re_installment_schedule_history.sql') throw err;
+        } finally {
+            migrationClient.release();
         }
     }
 

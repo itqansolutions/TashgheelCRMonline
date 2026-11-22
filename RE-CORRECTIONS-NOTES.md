@@ -1,12 +1,14 @@
 # Combined corrections, local verification
 
+> Integration correction, 22 November 2026: the original packet below missed the startup runner's automatic execution of rollback files. See `MIGRATION-RUNNER-CORRECTION.md` before any further deployment or schedule replacement. The new incremental correction targets `d7952b891785e72427430ba302d2fcbe6a891e7b`; do not reapply the original patch to that source. Deployment success alone does not verify the history table or recover any prior data.
+
 This is one patch against source commit `2b101d8`. It replaces the earlier correction patches. It is not a production readiness certificate: no live or staging app, database, account, or deployment was changed or tested.
 
 ## Included changes
 
 ### Installment history and payment integrity
 - Confirmed schedule replacement saves the old schedule in a history table in the same transaction. A missing history table prevents replacement without deleting the old rows.
-- The UI shows schedule history and asks for confirmation before replacement. Confirmation tokens prevent replacing a schedule that changed after review.
+- The UI asks for confirmation before replacement. Confirmation tokens prevent replacing a schedule that changed after review. Archived schedule snapshots are stored by the backend, but the current UI does not display those archived schedules. Its History modal displays payment-voucher history. The original notes incorrectly described this as a schedule-history viewer.
 - Collection on a Cancelled contract is refused. Cancellation and collection use consistent locks; installment deletion cannot win after collection has created a voucher.
 - Existing commission deletion checks remain, with transactional locking and best-effort delete logging.
 
