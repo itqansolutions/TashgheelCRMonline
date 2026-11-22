@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, Users, Handshake, Activity, Filter, Calendar, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink, Image as ImageIcon, Camera, Upload, Eye } from 'lucide-react';
+import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, Users, Handshake, Activity, Filter, Calendar, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink, Image as ImageIcon, Camera, Upload, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Navigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -46,8 +46,28 @@ const UnitsRegistry = () => {
     const [unitPhotos, setUnitPhotos] = useState([]);
     const [photoPreviews, setPhotoPreviews] = useState([]);
     const [uploadingUnitPhotos, setUploadingUnitPhotos] = useState(false);
-    const [lightboxPhoto, setLightboxPhoto] = useState(null);
+    const [lightboxIndex, setLightboxIndex] = useState(null);
+    const [lightboxPhotos, setLightboxPhotos] = useState([]);
+    const [overviewCarouselIndex, setOverviewCarouselIndex] = useState(0);
     const [uploadingMorePhotos, setUploadingMorePhotos] = useState(false);
+
+    // Keyboard navigation for Lightbox Carousel
+    useEffect(() => {
+        if (lightboxIndex === null || !lightboxPhotos.length) return;
+
+        const handleKeyDown = (e) => {
+            if (e.key === 'ArrowRight') {
+                setLightboxIndex(prev => (prev + 1) % lightboxPhotos.length);
+            } else if (e.key === 'ArrowLeft') {
+                setLightboxIndex(prev => (prev - 1 + lightboxPhotos.length) % lightboxPhotos.length);
+            } else if (e.key === 'Escape') {
+                setLightboxIndex(null);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [lightboxIndex, lightboxPhotos.length]);
 
     const [showMatchBuyersModal, setShowMatchBuyersModal] = useState(false);
     const [matchedBuyersUnit, setMatchedBuyersUnit] = useState(null);
@@ -98,6 +118,7 @@ const UnitsRegistry = () => {
             const res = await api.get(`/re-units/${unitId}/overview`);
             if (res.data?.data) {
                 setUnitOverview(res.data.data);
+                setOverviewCarouselIndex(0);
             }
         } catch (err) {
             console.warn('[Unit Overview Load Warning]:', err.message);
@@ -113,6 +134,7 @@ const UnitsRegistry = () => {
             fetchUnitOverview(selectedUnit.id);
         } else {
             setUnitOverview(null);
+            setOverviewCarouselIndex(0);
             setOverviewSearch('');
             setOverviewStageFilter('all');
             setOverviewRepFilter('all');
@@ -1537,96 +1559,269 @@ const UnitsRegistry = () => {
                                                         <Plus size={12} /> {t('realEstate.unitsRegistry.btnAddPhotos') || 'Add Photos'}
                                                     </label>
                                                 </div>
-                                            ) : (
-                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '10px' }}>
-                                                    {photos.map((photo, pIdx) => {
-                                                        const imgPath = photo.file_path ? `/${photo.file_path.replace(/\\/g, '/')}` : '';
+                                             ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                    {/* Main Carousel Stage */}
+                                                    {(() => {
+                                                        const activeIdx = Math.min(overviewCarouselIndex, photos.length - 1);
+                                                        const activePhoto = photos[activeIdx];
+                                                        const activeImgPath = activePhoto?.file_path ? `/${activePhoto.file_path.replace(/\\/g, '/')}` : '';
+
+                                                        const handlePrev = (e) => {
+                                                            e.stopPropagation();
+                                                            setOverviewCarouselIndex(prev => (prev - 1 + photos.length) % photos.length);
+                                                        };
+                                                        const handleNext = (e) => {
+                                                            e.stopPropagation();
+                                                            setOverviewCarouselIndex(prev => (prev + 1) % photos.length);
+                                                        };
+
                                                         return (
                                                             <div 
-                                                                key={photo.id || pIdx}
-                                                                style={{
-                                                                    position: 'relative',
-                                                                    height: '95px',
-                                                                    borderRadius: '10px',
-                                                                    overflow: 'hidden',
-                                                                    border: pIdx === 0 ? '2px solid var(--primary)' : '1px solid #cbd5e1',
-                                                                    background: '#e2e8f0',
-                                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.06)'
+                                                                style={{ 
+                                                                    position: 'relative', 
+                                                                    width: '100%', 
+                                                                    height: '280px', 
+                                                                    borderRadius: '14px', 
+                                                                    overflow: 'hidden', 
+                                                                    background: '#090d16',
+                                                                    boxShadow: '0 8px 20px -4px rgba(0,0,0,0.2)',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center'
                                                                 }}
                                                             >
-                                                                <img 
-                                                                    src={imgPath} 
-                                                                    alt={photo.original_name || 'Unit photo'}
-                                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
-                                                                    onClick={() => setLightboxPhoto(photo)}
+                                                                {/* Blurred Ambient Background */}
+                                                                <div 
+                                                                    style={{
+                                                                        position: 'absolute',
+                                                                        inset: 0,
+                                                                        backgroundImage: `url(${activeImgPath})`,
+                                                                        backgroundSize: 'cover',
+                                                                        backgroundPosition: 'center',
+                                                                        filter: 'blur(20px) brightness(0.4)',
+                                                                        transform: 'scale(1.1)'
+                                                                    }}
                                                                 />
-                                                                {pIdx === 0 && (
-                                                                    <span style={{ 
-                                                                        position: 'absolute', 
-                                                                        bottom: '4px', 
-                                                                        [isRTL ? 'right' : 'left']: '4px', 
-                                                                        background: 'var(--primary)', 
-                                                                        color: 'white', 
-                                                                        fontSize: '9px', 
-                                                                        fontWeight: 800, 
-                                                                        padding: '1px 6px', 
-                                                                        borderRadius: '4px',
-                                                                        pointerEvents: 'none'
-                                                                    }}>
-                                                                        {t('realEstate.unitsRegistry.primaryPhotoBadge') || 'Cover'}
-                                                                    </span>
+
+                                                                {/* Main Centered Image */}
+                                                                <img 
+                                                                    src={activeImgPath} 
+                                                                    alt={activePhoto?.original_name || 'Unit photo'}
+                                                                    style={{ 
+                                                                        position: 'relative', 
+                                                                        maxWidth: '100%', 
+                                                                        maxHeight: '100%', 
+                                                                        objectFit: 'contain', 
+                                                                        cursor: 'pointer',
+                                                                        zIndex: 2,
+                                                                        transition: 'transform 0.3s'
+                                                                    }}
+                                                                    onClick={() => {
+                                                                        setLightboxPhotos(photos);
+                                                                        setLightboxIndex(activeIdx);
+                                                                    }}
+                                                                    title={t('realEstate.unitsRegistry.viewPhoto') || 'Click to preview full-screen'}
+                                                                />
+
+                                                                {/* Left Arrow Button */}
+                                                                {photos.length > 1 && (
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={isRTL ? handleNext : handlePrev}
+                                                                        style={{
+                                                                            position: 'absolute',
+                                                                            left: '12px',
+                                                                            top: '50%',
+                                                                            transform: 'translateY(-50%)',
+                                                                            width: '40px',
+                                                                            height: '40px',
+                                                                            borderRadius: '50%',
+                                                                            background: 'rgba(15, 23, 42, 0.75)',
+                                                                            backdropFilter: 'blur(8px)',
+                                                                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                                                                            color: 'white',
+                                                                            cursor: 'pointer',
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'center',
+                                                                            zIndex: 3,
+                                                                            transition: 'all 0.2s',
+                                                                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                                                                        }}
+                                                                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary)'; }}
+                                                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(15, 23, 42, 0.75)'; }}
+                                                                        title="Previous Photo"
+                                                                    >
+                                                                        <ChevronLeft size={22} />
+                                                                    </button>
                                                                 )}
-                                                                <div style={{ 
-                                                                    position: 'absolute', 
-                                                                    top: '4px', 
-                                                                    [isRTL ? 'left' : 'right']: '4px', 
-                                                                    display: 'flex', 
-                                                                    gap: '4px' 
-                                                                }}>
-                                                                    <button
+
+                                                                {/* Right Arrow Button */}
+                                                                {photos.length > 1 && (
+                                                                    <button 
                                                                         type="button"
-                                                                        onClick={() => setLightboxPhoto(photo)}
+                                                                        onClick={isRTL ? handlePrev : handleNext}
                                                                         style={{
-                                                                            width: '24px',
-                                                                            height: '24px',
+                                                                            position: 'absolute',
+                                                                            right: '12px',
+                                                                            top: '50%',
+                                                                            transform: 'translateY(-50%)',
+                                                                            width: '40px',
+                                                                            height: '40px',
                                                                             borderRadius: '50%',
-                                                                            background: 'rgba(0,0,0,0.65)',
+                                                                            background: 'rgba(15, 23, 42, 0.75)',
+                                                                            backdropFilter: 'blur(8px)',
+                                                                            border: '1px solid rgba(255, 255, 255, 0.2)',
                                                                             color: 'white',
-                                                                            border: 'none',
                                                                             cursor: 'pointer',
                                                                             display: 'flex',
                                                                             alignItems: 'center',
-                                                                            justifyContent: 'center'
+                                                                            justifyContent: 'center',
+                                                                            zIndex: 3,
+                                                                            transition: 'all 0.2s',
+                                                                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                                                                         }}
-                                                                        title={t('realEstate.unitsRegistry.viewPhoto') || 'Preview'}
+                                                                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary)'; }}
+                                                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(15, 23, 42, 0.75)'; }}
+                                                                        title="Next Photo"
                                                                     >
-                                                                        <Eye size={12} />
+                                                                        <ChevronRight size={22} />
                                                                     </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleDeleteUnitPhoto(photo.id, selectedUnit.id)}
-                                                                        style={{
-                                                                            width: '24px',
-                                                                            height: '24px',
-                                                                            borderRadius: '50%',
-                                                                            background: 'rgba(0,0,0,0.65)',
-                                                                            color: 'white',
-                                                                            border: 'none',
-                                                                            cursor: 'pointer',
-                                                                            display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            justifyContent: 'center'
-                                                                        }}
-                                                                        onMouseEnter={(e) => { e.currentTarget.style.background = '#dc2626'; }}
-                                                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.65)'; }}
-                                                                        title={t('realEstate.unitsRegistry.removePhoto') || 'Delete'}
-                                                                    >
-                                                                        <Trash2 size={12} />
-                                                                    </button>
+                                                                )}
+
+                                                                {/* Top Badges & Actions Overlay */}
+                                                                <div style={{ position: 'absolute', top: '12px', left: '12px', right: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 3, pointerEvents: 'none' }}>
+                                                                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                                        {activeIdx === 0 && (
+                                                                            <span style={{ 
+                                                                                background: 'var(--primary)', 
+                                                                                color: 'white', 
+                                                                                fontSize: '11px', 
+                                                                                fontWeight: 800, 
+                                                                                padding: '3px 10px', 
+                                                                                borderRadius: '6px',
+                                                                                boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+                                                                            }}>
+                                                                                {t('realEstate.unitsRegistry.primaryPhotoBadge') || 'Cover'}
+                                                                            </span>
+                                                                        )}
+                                                                        <span style={{ 
+                                                                            background: 'rgba(0, 0, 0, 0.65)', 
+                                                                            backdropFilter: 'blur(4px)',
+                                                                            color: 'white', 
+                                                                            fontSize: '11px', 
+                                                                            fontWeight: 800, 
+                                                                            padding: '3px 10px', 
+                                                                            borderRadius: '6px' 
+                                                                        }}>
+                                                                            <span className="num-en">{activeIdx + 1}</span> / <span className="num-en">{photos.length}</span>
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div style={{ display: 'flex', gap: '6px', pointerEvents: 'auto' }}>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setLightboxPhotos(photos);
+                                                                                setLightboxIndex(activeIdx);
+                                                                            }}
+                                                                            style={{
+                                                                                width: '32px',
+                                                                                height: '32px',
+                                                                                borderRadius: '8px',
+                                                                                background: 'rgba(0,0,0,0.65)',
+                                                                                backdropFilter: 'blur(4px)',
+                                                                                color: 'white',
+                                                                                border: 'none',
+                                                                                cursor: 'pointer',
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                transition: 'background 0.2s'
+                                                                            }}
+                                                                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary)'; }}
+                                                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.65)'; }}
+                                                                            title={t('realEstate.unitsRegistry.viewPhoto') || 'Preview Fullscreen'}
+                                                                        >
+                                                                            <Eye size={15} />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleDeleteUnitPhoto(activePhoto.id, selectedUnit.id)}
+                                                                            style={{
+                                                                                width: '32px',
+                                                                                height: '32px',
+                                                                                borderRadius: '8px',
+                                                                                background: 'rgba(0,0,0,0.65)',
+                                                                                backdropFilter: 'blur(4px)',
+                                                                                color: 'white',
+                                                                                border: 'none',
+                                                                                cursor: 'pointer',
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                transition: 'background 0.2s'
+                                                                            }}
+                                                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#dc2626'; }}
+                                                                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.65)'; }}
+                                                                            title={t('realEstate.unitsRegistry.removePhoto') || 'Delete Photo'}
+                                                                        >
+                                                                            <Trash2 size={15} />
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         );
-                                                    })}
+                                                    })()}
+
+                                                    {/* Bottom Thumbnails Track */}
+                                                    {photos.length > 1 && (
+                                                        <div 
+                                                            style={{ 
+                                                                display: 'flex', 
+                                                                gap: '8px', 
+                                                                overflowX: 'auto', 
+                                                                paddingBottom: '4px',
+                                                                paddingTop: '2px',
+                                                                scrollbarWidth: 'thin'
+                                                            }}
+                                                        >
+                                                            {photos.map((photo, pIdx) => {
+                                                                const isCurrent = pIdx === Math.min(overviewCarouselIndex, photos.length - 1);
+                                                                const imgPath = photo.file_path ? `/${photo.file_path.replace(/\\/g, '/')}` : '';
+                                                                return (
+                                                                    <button
+                                                                        key={photo.id || pIdx}
+                                                                        type="button"
+                                                                        onClick={() => setOverviewCarouselIndex(pIdx)}
+                                                                        style={{
+                                                                            flex: '0 0 64px',
+                                                                            height: '52px',
+                                                                            borderRadius: '8px',
+                                                                            overflow: 'hidden',
+                                                                            border: isCurrent ? '2.5px solid var(--primary)' : '1px solid #cbd5e1',
+                                                                            padding: 0,
+                                                                            background: '#e2e8f0',
+                                                                            cursor: 'pointer',
+                                                                            opacity: isCurrent ? 1 : 0.65,
+                                                                            transform: isCurrent ? 'scale(1.04)' : 'scale(1)',
+                                                                            transition: 'all 0.2s',
+                                                                            boxShadow: isCurrent ? '0 3px 8px rgba(99, 102, 241, 0.3)' : 'none'
+                                                                        }}
+                                                                        onMouseEnter={(e) => { if (!isCurrent) e.currentTarget.style.opacity = '1'; }}
+                                                                        onMouseLeave={(e) => { if (!isCurrent) e.currentTarget.style.opacity = '0.65'; }}
+                                                                    >
+                                                                        <img 
+                                                                            src={imgPath} 
+                                                                            alt={`Thumbnail ${pIdx + 1}`} 
+                                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                                                        />
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -2776,78 +2971,244 @@ const UnitsRegistry = () => {
                 document.body
             )}
 
-            {/* Photo Lightbox / Full-Screen Preview Modal */}
-            {lightboxPhoto && createPortal(
+            {/* Photo Lightbox / Full-Screen Carousel Modal */}
+            {lightboxIndex !== null && lightboxPhotos[lightboxIndex] && createPortal(
                 <div 
-                    onClick={() => setLightboxPhoto(null)}
+                    onClick={() => setLightboxIndex(null)}
                     style={{
                         position: 'fixed',
                         inset: 0,
                         width: '100vw',
                         height: '100vh',
-                        background: 'rgba(0, 0, 0, 0.88)',
-                        backdropFilter: 'blur(8px)',
+                        background: 'rgba(5, 8, 16, 0.94)',
+                        backdropFilter: 'blur(12px)',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
-                        justifyContent: 'center',
+                        justifyContent: 'space-between',
                         zIndex: 100000,
-                        padding: '24px'
+                        padding: '20px 24px',
+                        userSelect: 'none'
                     }}
                 >
+                    {/* Lightbox Top Header */}
                     <div 
                         onClick={(e) => e.stopPropagation()}
                         style={{
-                            maxWidth: '92vw',
-                            maxHeight: '90vh',
-                            position: 'relative',
+                            width: '100%',
+                            maxWidth: '1200px',
                             display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center'
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            zIndex: 10
                         }}
                     >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ 
+                                background: 'rgba(255, 255, 255, 0.15)', 
+                                color: 'white', 
+                                padding: '4px 12px', 
+                                borderRadius: '20px', 
+                                fontSize: '12px', 
+                                fontWeight: 800,
+                                backdropFilter: 'blur(6px)'
+                            }}>
+                                <span className="num-en">{lightboxIndex + 1}</span> / <span className="num-en">{lightboxPhotos.length}</span>
+                            </span>
+                            <span style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '13px', fontWeight: 600, maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {lightboxPhotos[lightboxIndex].original_name}
+                            </span>
+                        </div>
+
                         <button
                             type="button"
-                            onClick={() => setLightboxPhoto(null)}
+                            onClick={() => setLightboxIndex(null)}
                             style={{
-                                position: 'absolute',
-                                top: '-46px',
-                                [isRTL ? 'left' : 'right']: '0',
-                                background: 'rgba(255,255,255,0.2)',
-                                border: 'none',
+                                background: 'rgba(255,255,255,0.15)',
+                                border: '1px solid rgba(255,255,255,0.2)',
                                 borderRadius: '50%',
-                                width: '38px',
-                                height: '38px',
+                                width: '40px',
+                                height: '40px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 color: 'white',
                                 cursor: 'pointer',
-                                transition: 'background 0.2s'
+                                transition: 'all 0.2s',
+                                backdropFilter: 'blur(6px)'
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.4)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
-                            title={t('common.close') || 'Close'}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.3)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
+                            title={t('common.close') || 'Close (Esc)'}
                         >
                             <X size={20} />
                         </button>
-                        <img 
-                            src={lightboxPhoto.file_path ? `/${lightboxPhoto.file_path.replace(/\\/g, '/')}` : ''}
-                            alt={lightboxPhoto.original_name || 'Unit Photo'}
-                            style={{
-                                maxWidth: '100%',
-                                maxHeight: '82vh',
-                                objectFit: 'contain',
-                                borderRadius: '12px',
-                                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.6)'
+                    </div>
+
+                    {/* Main Stage with Navigation Arrows */}
+                    <div 
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            position: 'relative',
+                            width: '100%',
+                            maxWidth: '1200px',
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            margin: '12px 0'
+                        }}
+                    >
+                        {/* Prev Button */}
+                        {lightboxPhotos.length > 1 && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLightboxIndex(prev => (prev - 1 + lightboxPhotos.length) % lightboxPhotos.length);
+                                }}
+                                style={{
+                                    position: 'absolute',
+                                    left: '8px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    width: '52px',
+                                    height: '52px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255,255,255,0.15)',
+                                    backdropFilter: 'blur(8px)',
+                                    border: '1px solid rgba(255,255,255,0.25)',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    zIndex: 20,
+                                    transition: 'all 0.2s',
+                                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
+                                title="Previous Photo (Left Arrow)"
+                            >
+                                <ChevronLeft size={28} />
+                            </button>
+                        )}
+
+                        {/* Image Viewport */}
+                        <div 
+                            style={{ 
+                                width: '100%', 
+                                height: '100%', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                padding: '0 64px'
                             }}
-                        />
-                        {lightboxPhoto.original_name && (
-                            <div style={{ color: 'rgba(255,255,255,0.85)', marginTop: '12px', fontSize: '13px', fontWeight: 600, textAlign: 'center' }}>
-                                {lightboxPhoto.original_name}
-                            </div>
+                        >
+                            <img 
+                                key={lightboxPhotos[lightboxIndex].id || lightboxIndex}
+                                src={lightboxPhotos[lightboxIndex].file_path ? `/${lightboxPhotos[lightboxIndex].file_path.replace(/\\/g, '/')}` : ''}
+                                alt={lightboxPhotos[lightboxIndex].original_name || 'Unit Photo'}
+                                style={{
+                                    maxWidth: '100%',
+                                    maxHeight: 'calc(100vh - 180px)',
+                                    objectFit: 'contain',
+                                    borderRadius: '12px',
+                                    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)'
+                                }}
+                            />
+                        </div>
+
+                        {/* Next Button */}
+                        {lightboxPhotos.length > 1 && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLightboxIndex(prev => (prev + 1) % lightboxPhotos.length);
+                                }}
+                                style={{
+                                    position: 'absolute',
+                                    right: '8px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    width: '52px',
+                                    height: '52px',
+                                    borderRadius: '50%',
+                                    background: 'rgba(255,255,255,0.15)',
+                                    backdropFilter: 'blur(8px)',
+                                    border: '1px solid rgba(255,255,255,0.25)',
+                                    color: 'white',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    zIndex: 20,
+                                    transition: 'all 0.2s',
+                                    boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1.08)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; e.currentTarget.style.transform = 'translateY(-50%) scale(1)'; }}
+                                title="Next Photo (Right Arrow)"
+                            >
+                                <ChevronRight size={28} />
+                            </button>
                         )}
                     </div>
+
+                    {/* Bottom Thumbnail Strip */}
+                    {lightboxPhotos.length > 1 && (
+                        <div 
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                display: 'flex',
+                                gap: '8px',
+                                maxWidth: '100%',
+                                overflowX: 'auto',
+                                padding: '6px 12px',
+                                background: 'rgba(0, 0, 0, 0.45)',
+                                backdropFilter: 'blur(10px)',
+                                borderRadius: '14px',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                zIndex: 10
+                            }}
+                        >
+                            {lightboxPhotos.map((p, pIdx) => {
+                                const isActive = pIdx === lightboxIndex;
+                                const thumbUrl = p.file_path ? `/${p.file_path.replace(/\\/g, '/')}` : '';
+                                return (
+                                    <button
+                                        key={p.id || pIdx}
+                                        type="button"
+                                        onClick={() => setLightboxIndex(pIdx)}
+                                        style={{
+                                            width: '56px',
+                                            height: '46px',
+                                            borderRadius: '8px',
+                                            overflow: 'hidden',
+                                            border: isActive ? '2px solid var(--primary)' : '1px solid rgba(255,255,255,0.2)',
+                                            padding: 0,
+                                            background: '#1e293b',
+                                            cursor: 'pointer',
+                                            opacity: isActive ? 1 : 0.5,
+                                            transform: isActive ? 'scale(1.06)' : 'scale(1)',
+                                            transition: 'all 0.2s',
+                                            flexShrink: 0
+                                        }}
+                                        onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.opacity = '0.9'; }}
+                                        onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.opacity = '0.5'; }}
+                                    >
+                                        <img 
+                                            src={thumbUrl} 
+                                            alt={`Thumb ${pIdx + 1}`} 
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                        />
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>,
                 document.body
             )}
