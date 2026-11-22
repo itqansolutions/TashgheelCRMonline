@@ -475,14 +475,17 @@ exports.getUnitOverview = async (req, res) => {
         let attachments = [];
         try {
             const attachRes = await db.query(`
-                SELECT id, filename, original_name, mime_type, file_path, created_at
+                SELECT id, filename, original_name, mime_type, file_path, created_at, file_data
                 FROM attachments
                 WHERE (linked_type = 'unit' OR linked_type = 're_unit')
                   AND linked_id = $1::text
                   AND tenant_id::text = $2::text
                 ORDER BY created_at DESC
             `, [id, tenant_id]);
-            attachments = attachRes.rows || [];
+            attachments = (attachRes.rows || []).map(r => ({
+                ...r,
+                file_path: r.file_data ? `data:${r.mime_type || 'image/png'};base64,${r.file_data}` : r.file_path
+            }));
         } catch (attachErr) {
             console.warn('[Unit Attachments Fetch Warning]:', attachErr.message);
         }

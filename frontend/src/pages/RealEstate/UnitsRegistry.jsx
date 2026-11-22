@@ -1609,6 +1609,10 @@ const UnitsRegistry = () => {
                                                                 <img 
                                                                     src={activeImgPath} 
                                                                     alt={activePhoto?.original_name || 'Unit photo'}
+                                                                    onError={(e) => {
+                                                                        e.currentTarget.onerror = null;
+                                                                        e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='1.5'%3E%3Crect width='18' height='18' x='3' y='3' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='9' cy='9' r='2'%3E%3C/circle%3E%3Cpath d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'%3E%3C/path%3E%3Cline x1='2' y1='2' x2='22' y2='22' stroke='%23ef4444' stroke-width='1.5'%3E%3C/line%3E%3C/svg%3E";
+                                                                    }}
                                                                     style={{ 
                                                                         position: 'relative', 
                                                                         maxWidth: '100%', 
@@ -1816,6 +1820,10 @@ const UnitsRegistry = () => {
                                                                         <img 
                                                                             src={imgPath} 
                                                                             alt={`Thumbnail ${pIdx + 1}`} 
+                                                                            onError={(e) => {
+                                                                                e.currentTarget.onerror = null;
+                                                                                e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='1.5'%3E%3Crect width='18' height='18' x='3' y='3' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='9' cy='9' r='2'%3E%3C/circle%3E%3Cpath d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'%3E%3C/path%3E%3C/svg%3E";
+                                                                            }}
                                                                             style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                                                                         />
                                                                     </button>
@@ -3111,6 +3119,10 @@ const UnitsRegistry = () => {
                                 key={lightboxPhotos[lightboxIndex].id || lightboxIndex}
                                 src={getFileUrl(lightboxPhotos[lightboxIndex]?.file_path || lightboxPhotos[lightboxIndex]?.filename)}
                                 alt={lightboxPhotos[lightboxIndex].original_name || 'Unit Photo'}
+                                onError={(e) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='1.5'%3E%3Crect width='18' height='18' x='3' y='3' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='9' cy='9' r='2'%3E%3C/circle%3E%3Cpath d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'%3E%3C/path%3E%3Cline x1='2' y1='2' x2='22' y2='22' stroke='%23ef4444' stroke-width='1.5'%3E%3C/line%3E%3C/svg%3E";
+                                }}
                                 style={{
                                     maxWidth: '100%',
                                     maxHeight: 'calc(100vh - 180px)',
@@ -3203,6 +3215,10 @@ const UnitsRegistry = () => {
                                         <img 
                                             src={thumbUrl} 
                                             alt={`Thumb ${pIdx + 1}`} 
+                                            onError={(e) => {
+                                                e.currentTarget.onerror = null;
+                                                e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='1.5'%3E%3Crect width='18' height='18' x='3' y='3' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='9' cy='9' r='2'%3E%3C/circle%3E%3Cpath d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'%3E%3C/path%3E%3C/svg%3E";
+                                            }}
                                             style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                                         />
                                     </button>

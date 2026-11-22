@@ -3,6 +3,7 @@ const accessScopeService = require('../services/accessScopeService');
 const notificationService = require('../services/notificationService');
 const { logAction, logCreate, logUpdate, logDelete, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 const { logActivity } = require('../utils/activityLogger');
+const crypto = require('crypto');
 
 // Ensure customer columns exist to prevent missing-column 500 crashes
 // NOTE: node-postgres (pg) does NOT support multiple SQL statements in one
@@ -1099,6 +1100,18 @@ exports.getCustomer360 = async (req, res) => {
   }
 };
 
+// Helper to compute deterministic hash for idempotency integrity check
+function computeAssignmentPayloadHash({ customer_ids, target_user_id, team_id, distribution_method, active_branch_id }) {
+  const normalized = {
+    customer_ids: Array.from(new Set(customer_ids.map(Number))).sort((a, b) => a - b),
+    target_user_id: target_user_id ? Number(target_user_id) : null,
+    team_id: team_id ? Number(team_id) : null,
+    distribution_method: team_id ? (distribution_method || 'least_loaded') : null,
+    active_branch_id: active_branch_id ? String(active_branch_id) : null
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+}
+
 // @desc    Bulk assign leads/customers to sales representative or sales team
 // @route   POST /api/customers/bulk-assign
 // @access  Private (Admin, Manager, Supervisor)
@@ -1110,95 +1123,358 @@ exports.bulkAssignLeads = async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'customer_ids array is required and must not be empty.' });
   }
 
+  // Validate targets: either target_user_id or team_id, never both or neither
+  if ((!target_user_id && !team_id) || (target_user_id && team_id)) {
+    return res.status(400).json({ status: 'error', message: 'Either target_user_id or team_id must be provided (not both).' });
+  }
+
+  // Validate distribution_method when team_id is provided
+  if (team_id && distribution_method !== 'least_loaded' && distribution_method !== 'round_robin') {
+    return res.status(400).json({ status: 'error', message: "Invalid distribution_method. Must be 'least_loaded' or 'round_robin'." });
+  }
+
+  const endpoint = 'POST /customers/bulk-assign';
+  const rawIdempotencyKey = req.headers['idempotency-key'] || req.body?.idempotency_key;
+  const effectiveIdempotencyKey = (rawIdempotencyKey && String(rawIdempotencyKey).trim()) 
+    ? String(rawIdempotencyKey).trim() 
+    : crypto.randomUUID();
+
+  const active_branch_id = req.branchId || req.user?.branch_id || null;
+  const payloadHash = computeAssignmentPayloadHash({
+    customer_ids,
+    target_user_id,
+    team_id,
+    distribution_method,
+    active_branch_id
+  });
+
+  const client = db.connect ? await db.connect() : await db.pool.connect();
+
   try {
-    let assignedCount = 0;
+    await client.query('BEGIN');
 
-    // Mode A: Direct assignment to specific user
-    if (target_user_id) {
-      const targetUserRes = await db.query(
-        `SELECT id, name FROM users WHERE id = $1 AND tenant_id::text = $2::text`,
-        [target_user_id, tenant_id]
-      );
-      if (targetUserRes.rows.length === 0) {
-        return res.status(404).json({ status: 'error', message: 'Target sales representative not found.' });
-      }
+    // 1. Transaction-Scoped Advisory Lock for concurrency control
+    await client.query(
+      'SELECT pg_advisory_xact_lock(hashtext($1::text), hashtext($2::text))',
+      [tenant_id, effectiveIdempotencyKey]
+    );
 
-      const updateRes = await db.query(
-        `UPDATE customers
-         SET assigned_to = $1, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ANY($2::int[]) AND tenant_id::text = $3::text
-         RETURNING id`,
-        [target_user_id, customer_ids, tenant_id]
-      );
-      assignedCount = updateRes.rows.length;
+    // 2. Authoritative Database-Time Replay Evaluation
+    const idempotencyRes = await client.query(`
+      SELECT 
+          status, 
+          request_hash, 
+          user_id,
+          response_code, 
+          response_body, 
+          created_at,
+          (clock_timestamp() <= created_at + INTERVAL '24 hours') AS is_within_ttl
+      FROM request_idempotency
+      WHERE tenant_id = $1 AND endpoint = $2 AND idempotency_key = $3
+      FOR SHARE
+    `, [tenant_id, endpoint, effectiveIdempotencyKey]);
 
-      // Log activity for each customer
-      for (const cid of customer_ids) {
-        await logActivity(req, {
-          parent_type: 'customer',
-          parent_id: cid,
-          type: 'reassigned',
-          description: `Assigned to ${targetUserRes.rows[0].name}`
+    if (idempotencyRes.rows.length > 0) {
+      const record = idempotencyRes.rows[0];
+
+      // A. Check Expiration (strictly enforced by clock_timestamp)
+      if (!record.is_within_ttl || record.status === 'expired') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          status: 'error',
+          code: 'IDEMPOTENCY_KEY_EXPIRED',
+          message: 'This idempotency key has expired (exceeded 24 hours). Please generate a new unique key.'
         });
       }
 
-      return res.json({
-        status: 'success',
-        message: `Successfully assigned ${assignedCount} leads to ${targetUserRes.rows[0].name}.`,
-        assigned_count: assignedCount
-      });
+      // B. Check Payload Hash Integrity
+      if (record.request_hash !== payloadHash) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          status: 'error',
+          code: 'IDEMPOTENCY_PAYLOAD_MISMATCH',
+          message: 'Idempotency key was previously used with a different request payload.'
+        });
+      }
+
+      // C. Cross-user isolation check
+      if (record.user_id !== req.user.id && req.user.role !== 'admin') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          status: 'error',
+          code: 'IDEMPOTENCY_USER_MISMATCH',
+          message: 'This idempotency key was registered by another user.'
+        });
+      }
+
+      // Valid Replay: Commit lock and return exact stored response
+      await client.query('COMMIT');
+      res.setHeader('X-Idempotency-Replay', 'true');
+      return res.status(record.response_code || 200).json(record.response_body);
     }
 
-    // Mode B: Team distribution (round-robin or least_loaded)
+    // ── Fresh Execution Path ──
+
+    // 3. Verify Caller Account & Active Branch Authorization
+    const callerRes = await client.query(
+      `SELECT id, role, is_active, branch_id 
+       FROM users 
+       WHERE id = $1 AND tenant_id::text = $2::text 
+       FOR SHARE`,
+      [req.user.id, tenant_id]
+    );
+
+    if (callerRes.rows.length === 0 || !callerRes.rows[0].is_active) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ status: 'error', message: 'Caller account is inactive or unauthorized.' });
+    }
+    const caller = callerRes.rows[0];
+
+    if (active_branch_id && caller.role !== 'admin') {
+      const ubCheck = await client.query(
+        'SELECT 1 FROM user_branches WHERE user_id::text = $1::text AND branch_id::text = $2::text LIMIT 1',
+        [caller.id, active_branch_id]
+      );
+      if (ubCheck.rows.length === 0 && String(caller.branch_id) !== String(active_branch_id)) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ status: 'error', message: 'Caller is not authorized for the active branch.' });
+      }
+    }
+
+    let targetUser = null;
+    let members = [];
+
+    // 4. Validate Target Rep (Mode A)
+    if (target_user_id) {
+      const targetUserRes = await client.query(
+        `SELECT id, name, role, is_active, COALESCE(is_working, true) as is_working, branch_id 
+         FROM users 
+         WHERE id = $1 AND tenant_id::text = $2::text 
+         FOR SHARE`,
+        [target_user_id, tenant_id]
+      );
+      if (targetUserRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ status: 'error', message: 'Target sales representative not found.' });
+      }
+      targetUser = targetUserRes.rows[0];
+
+      if (!targetUser.is_active || !targetUser.is_working) {
+        await client.query('ROLLBACK');
+        return res.status(422).json({ status: 'error', message: 'Target sales representative is inactive or not currently working.' });
+      }
+
+      if (active_branch_id && caller.role !== 'admin') {
+        const targetUb = await client.query(
+          'SELECT 1 FROM user_branches WHERE user_id::text = $1::text AND branch_id::text = $2::text LIMIT 1',
+          [targetUser.id, active_branch_id]
+        );
+        if (targetUb.rows.length === 0 && String(targetUser.branch_id) !== String(active_branch_id)) {
+          await client.query('ROLLBACK');
+          return res.status(422).json({ status: 'error', message: 'Target sales representative is not authorized for the active branch.' });
+        }
+      }
+    }
+
+    // 5. Validate Target Team (Mode B)
     if (team_id) {
-      const membersRes = await db.query(`
+      const teamRes = await client.query(
+        'SELECT id, name, branch_id, is_active FROM sales_teams WHERE id = $1 AND tenant_id::text = $2::text FOR SHARE',
+        [team_id, tenant_id]
+      );
+      if (teamRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ status: 'error', message: 'Selected sales team not found.' });
+      }
+      const team = teamRes.rows[0];
+      if (!team.is_active) {
+        await client.query('ROLLBACK');
+        return res.status(422).json({ status: 'error', message: 'Selected sales team is inactive.' });
+      }
+
+      if (team.branch_id && active_branch_id && String(team.branch_id) !== String(active_branch_id) && caller.role !== 'admin') {
+        await client.query('ROLLBACK');
+        return res.status(422).json({ status: 'error', message: 'Selected sales team does not belong to active branch.' });
+      }
+
+      // Query eligible members with deterministic tie-breaking (ORDER BY current_load ASC, stm.user_id ASC)
+      const membersRes = await client.query(`
         SELECT stm.user_id, u.name,
           (SELECT COUNT(*)::int FROM customers c WHERE c.assigned_to = stm.user_id AND c.tenant_id::text = $1::text) as current_load
         FROM sales_team_members stm
         JOIN users u ON stm.user_id = u.id
-        WHERE stm.team_id = $2 AND stm.tenant_id::text = $1::text AND stm.is_active = true
-        ORDER BY current_load ASC
-      `, [tenant_id, team_id]);
+        WHERE stm.team_id = $2 
+          AND stm.tenant_id::text = $1::text 
+          AND stm.is_active = true
+          AND u.is_active = true
+          AND COALESCE(u.is_working, true) = true
+          AND (
+            $3::text IS NULL
+            OR u.branch_id::text = $3::text 
+            OR EXISTS (SELECT 1 FROM user_branches ub WHERE ub.user_id::text = u.id::text AND ub.branch_id::text = $3::text)
+          )
+        ORDER BY current_load ASC, stm.user_id ASC
+        FOR SHARE OF stm, u
+      `, [tenant_id, team_id, active_branch_id]);
 
       if (membersRes.rows.length === 0) {
-        return res.status(400).json({ status: 'error', message: 'Selected sales team has no active members.' });
+        await client.query('ROLLBACK');
+        return res.status(422).json({ status: 'error', message: 'Selected sales team has no eligible active members in this branch.' });
       }
+      members = membersRes.rows;
+    }
 
-      const members = membersRes.rows;
+    // 6. Lock Customers in Deterministic Order (ORDER BY id ASC FOR UPDATE)
+    const uniqueCustomerIds = Array.from(new Set(customer_ids.map(Number))).sort((a, b) => a - b);
+    const customersRes = await client.query(
+      `SELECT id, name, phone, branch_id, assigned_to, department_id, tenant_id 
+       FROM customers 
+       WHERE id = ANY($1::int[]) AND tenant_id::text = $2::text 
+       ORDER BY id ASC 
+       FOR UPDATE`,
+      [uniqueCustomerIds, tenant_id]
+    );
+
+    if (customersRes.rows.length !== uniqueCustomerIds.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ status: 'error', message: 'One or more customer records not found.' });
+    }
+
+    // Branch authorization check on customers
+    for (const cust of customersRes.rows) {
+      if (active_branch_id && cust.branch_id && String(cust.branch_id) !== String(active_branch_id) && caller.role !== 'admin') {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ status: 'error', message: `Customer ID ${cust.id} does not belong to authorized branch.` });
+      }
+    }
+
+    // 7. Execute Assignment, Activity Logging, and Event Preparation
+    let assignedCount = 0;
+    const assignments = [];
+    const pendingEvents = [];
+
+    if (target_user_id) {
+      await client.query(
+        `UPDATE customers 
+         SET assigned_to = $1, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = ANY($2::int[]) AND tenant_id::text = $3::text`,
+        [target_user_id, uniqueCustomerIds, tenant_id]
+      );
+      assignedCount = uniqueCustomerIds.length;
+
+      for (const cust of customersRes.rows) {
+        assignments.push({ customer_id: cust.id, assigned_to: target_user_id });
+
+        await logActivity(tenant_id, req.user, 'customer', cust.id, 'reassigned', {
+          assigned_to: target_user_id,
+          assigned_to_name: targetUser.name
+        }, client);
+
+        pendingEvents.push({
+          eventName: 'lead.assigned',
+          tenantId: tenant_id,
+          branchId: cust.branch_id || active_branch_id,
+          aggregateType: 'Customer',
+          aggregateId: cust.id,
+          payload: {
+            leadId: cust.id,
+            leadName: cust.name,
+            leadPhone: cust.phone,
+            assignedTo: target_user_id,
+            assignedByUserId: req.user.id,
+            assignedByName: req.user.name
+          },
+          actorId: req.user.id
+        });
+      }
+    } else {
       let memberIdx = 0;
-
-      for (const cid of customer_ids) {
+      for (const cust of customersRes.rows) {
         const selectedMember = distribution_method === 'least_loaded'
           ? members.sort((a, b) => a.current_load - b.current_load)[0]
           : members[memberIdx % members.length];
 
-        await db.query(
+        await client.query(
           `UPDATE customers SET assigned_to = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text`,
-          [selectedMember.user_id, cid, tenant_id]
+          [selectedMember.user_id, cust.id, tenant_id]
         );
         selectedMember.current_load++;
         memberIdx++;
         assignedCount++;
 
-        await logActivity(req, {
-          parent_type: 'customer',
-          parent_id: cid,
-          type: 'reassigned',
-          description: `Assigned via team distribution to ${selectedMember.name}`
+        assignments.push({ customer_id: cust.id, assigned_to: selectedMember.user_id });
+
+        await logActivity(tenant_id, req.user, 'customer', cust.id, 'reassigned', {
+          assigned_to: selectedMember.user_id,
+          assigned_to_name: selectedMember.name
+        }, client);
+
+        pendingEvents.push({
+          eventName: 'lead.assigned',
+          tenantId: tenant_id,
+          branchId: cust.branch_id || active_branch_id,
+          aggregateType: 'Customer',
+          aggregateId: cust.id,
+          payload: {
+            leadId: cust.id,
+            leadName: cust.name,
+            leadPhone: cust.phone,
+            assignedTo: selectedMember.user_id,
+            assignedByUserId: req.user.id,
+            assignedByName: req.user.name
+          },
+          actorId: req.user.id
         });
       }
-
-      return res.json({
-        status: 'success',
-        message: `Successfully distributed ${assignedCount} leads across ${members.length} team members.`,
-        assigned_count: assignedCount
-      });
     }
 
-    return res.status(400).json({ status: 'error', message: 'Either target_user_id or team_id must be provided.' });
+    const responseBody = {
+      status: 'success',
+      message: target_user_id
+        ? `Successfully assigned ${assignedCount} leads to ${targetUser.name}.`
+        : `Successfully distributed ${assignedCount} leads across ${members.length} team members.`,
+      assigned_count: assignedCount,
+      distribution_method: team_id ? distribution_method : 'direct',
+      assignments
+    };
+
+    // 8. Atomic Insert of Idempotency Record
+    await client.query(`
+      INSERT INTO request_idempotency (
+        tenant_id, endpoint, idempotency_key, request_hash, user_id, status, response_code, response_body
+      ) VALUES ($1, $2, $3, $4, $5, 'completed', 200, $6)
+      ON CONFLICT (tenant_id, endpoint, idempotency_key) DO UPDATE
+      SET status = 'completed', response_code = 200, response_body = EXCLUDED.response_body, updated_at = CURRENT_TIMESTAMP
+    `, [tenant_id, endpoint, effectiveIdempotencyKey, payloadHash, req.user.id, JSON.stringify(responseBody)]);
+
+    // 9. Commit Transaction Atomically
+    await client.query('COMMIT');
+
+    // 10. Post-Commit Event Emission (Safe Error Boundary)
+    setImmediate(async () => {
+      for (const evt of pendingEvents) {
+        try {
+          const { eventBus } = require('../src/infrastructure/events/LocalEventBus');
+          const DomainEvent = require('../src/infrastructure/events/DomainEvent');
+          await eventBus.publish(new DomainEvent(evt));
+        } catch (eErr) {
+          console.error('[BulkAssign PostCommit Event Error]:', eErr.message);
+        }
+      }
+    });
+
+    return res.json(responseBody);
+
   } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rbErr) {
+      // rollback error suppressed
+    }
     console.error('[bulkAssignLeads error]:', err.message);
-    res.status(500).json({ status: 'error', message: 'Failed to assign leads.' });
+    return res.status(500).json({ status: 'error', message: 'Failed to assign leads.' });
+  } finally {
+    client.release();
   }
 };
 

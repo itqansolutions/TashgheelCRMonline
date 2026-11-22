@@ -10,10 +10,11 @@ const eventBus = require('../services/eventBus');
  * @param {string} entity_type - Type of entity ('task', 'deal', 'customer')
  * @param {number} entity_id - ID of the entity
  * @param {string} action - Action performed (e.g., 'created', 'updated', 'status_changed')
- * @param {object} changes - Structured changes object { status: { from: 'A', to: 'B' } }
+ * @param {object} [dbClient=null] - Optional pg client for participating in a transaction
  */
-const logActivity = async (tenant_id, user, entity_type, entity_id, action, changes = {}) => {
+const logActivity = async (tenant_id, user, entity_type, entity_id, action, changes = {}, dbClient = null) => {
     try {
+        const client = dbClient || db;
         // Construct User Snapshot and Meta Data
         const meta = {
             user_snapshot: {
@@ -32,15 +33,21 @@ const logActivity = async (tenant_id, user, entity_type, entity_id, action, chan
             RETURNING *
         `;
         const values = [tenant_id, user?.id || null, entity_type, entity_id, action, JSON.stringify(meta)];
-        const result = await db.query(query, values);
+        const result = await client.query(query, values);
 
         const activityRecord = result.rows[0];
 
         // Emit to EventBus for Automation Engine (Phase 2 Prep)
-        eventBus.emit(eventName, activityRecord);
+        // If inside transaction, caller handles post-commit dispatch.
+        if (!dbClient) {
+            eventBus.emit(eventName, activityRecord);
+        }
+
+        return activityRecord;
 
     } catch (err) {
         console.error(`[ActivityLogger] Failed to log activity for ${entity_type} ${entity_id}:`, err);
+        if (dbClient) throw err;
     }
 };
 

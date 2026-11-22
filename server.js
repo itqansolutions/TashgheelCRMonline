@@ -654,6 +654,7 @@ app.listen(PORT, '0.0.0.0', async () => {
     await execSql(`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(255);`, 'attachments.tenant_id');
     await execSql(`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS branch_id VARCHAR(255);`, 'attachments.branch_id');
     await execSql(`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS uploaded_by INTEGER;`, 'attachments.uploaded_by');
+    await execSql(`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS file_data TEXT;`, 'attachments.file_data');
     await execSql(`ALTER TABLE attachments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;`, 'attachments.created_at');
     await execSql(`CREATE INDEX IF NOT EXISTS idx_attachments_tenant ON attachments(tenant_id);`, 'idx_attachments_tenant');
     await execSql(`CREATE INDEX IF NOT EXISTS idx_attachments_tenant_linked ON attachments(tenant_id, linked_type, linked_id);`, 'idx_attachments_tenant_linked');

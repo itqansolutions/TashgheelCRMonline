@@ -57,7 +57,7 @@ function secureUploads(uploadsDir) {
       if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
         try {
           const attachLookup = await db.query(
-            'SELECT tenant_id, file_path, linked_type FROM attachments WHERE filename = $1 OR file_path LIKE $2 LIMIT 1',
+            'SELECT tenant_id, file_path, linked_type, mime_type, file_data FROM attachments WHERE filename = $1 OR file_path LIKE $2 LIMIT 1',
             [requestedFilename, `%${requestedFilename}`]
           );
           if (attachLookup.rows.length > 0) {
@@ -69,6 +69,19 @@ function secureUploads(uploadsDir) {
             const candidatePath = path.resolve(resolvedUploadsDir, rawDbPath);
             if (candidatePath.startsWith(resolvedUploadsDir + path.sep) && fs.existsSync(candidatePath) && !fs.statSync(candidatePath).isDirectory()) {
               filePath = candidatePath;
+            } else if (attachmentRecord.file_data) {
+              // Self-healing: reconstruct file on disk or stream buffer
+              try {
+                const targetDir = path.dirname(candidatePath);
+                if (!fs.existsSync(targetDir)) {
+                  fs.mkdirSync(targetDir, { recursive: true });
+                }
+                fs.writeFileSync(candidatePath, Buffer.from(attachmentRecord.file_data, 'base64'));
+                filePath = candidatePath;
+              } catch (writeErr) {
+                res.setHeader('Content-Type', attachmentRecord.mime_type || 'image/png');
+                return res.send(Buffer.from(attachmentRecord.file_data, 'base64'));
+              }
             }
           }
         } catch (dbErr) {

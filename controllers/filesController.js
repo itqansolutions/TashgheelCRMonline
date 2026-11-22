@@ -57,11 +57,21 @@ exports.uploadFile = async (req, res) => {
     uploadedById = Number(req.user.id);
   }
 
+  let fileData = null;
+  try {
+    if (req.file.path && fs.existsSync(req.file.path) && req.file.size <= 10 * 1024 * 1024) {
+      fileData = fs.readFileSync(req.file.path).toString('base64');
+    }
+  } catch (readErr) {
+    console.warn('[Upload] Buffer read error:', readErr.message);
+  }
+
   let attachmentRecord = {
     filename: req.file.filename,
     original_name: req.file.originalname,
     mime_type: req.file.mimetype,
     file_path: storedFilePath,
+    file_data: fileData,
     linked_type,
     linked_id: String(effectiveLinkedId),
     uploaded_by: uploadedById,
@@ -71,7 +81,7 @@ exports.uploadFile = async (req, res) => {
 
   try {
     const result = await db.query(
-      'INSERT INTO attachments (filename, original_name, mime_type, file_path, linked_type, linked_id, uploaded_by, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+      'INSERT INTO attachments (filename, original_name, mime_type, file_path, linked_type, linked_id, uploaded_by, tenant_id, branch_id, file_data) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
       [
         req.file.filename, 
         req.file.originalname, 
@@ -81,7 +91,8 @@ exports.uploadFile = async (req, res) => {
         String(effectiveLinkedId), 
         uploadedById, 
         String(tenant_id), 
-        branch_id ? String(branch_id) : null
+        branch_id ? String(branch_id) : null,
+        fileData
       ]
     );
 
@@ -160,9 +171,18 @@ exports.uploadMultipleFiles = async (req, res) => {
     const normalizedRelativePath = path.relative(uploadsRootDir, file.path).replace(/\\/g, '/');
     const storedFilePath = `uploads/${normalizedRelativePath}`;
 
+    let fileData = null;
+    try {
+      if (file.path && fs.existsSync(file.path) && file.size <= 10 * 1024 * 1024) {
+        fileData = fs.readFileSync(file.path).toString('base64');
+      }
+    } catch (readErr) {
+      console.warn('[Upload Multiple] Buffer read error:', readErr.message);
+    }
+
     try {
       const result = await db.query(
-        'INSERT INTO attachments (filename, original_name, mime_type, file_path, linked_type, linked_id, uploaded_by, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+        'INSERT INTO attachments (filename, original_name, mime_type, file_path, linked_type, linked_id, uploaded_by, tenant_id, branch_id, file_data) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
         [
           file.filename,
           file.originalname,
@@ -172,7 +192,8 @@ exports.uploadMultipleFiles = async (req, res) => {
           String(effectiveLinkedId),
           uploadedById,
           String(tenant_id),
-          branch_id ? String(branch_id) : null
+          branch_id ? String(branch_id) : null,
+          fileData
         ]
       );
       if (result.rows && result.rows.length > 0) {
@@ -211,7 +232,11 @@ exports.getAttachments = async (req, res) => {
        ORDER BY created_at DESC`,
       isUnit ? [entityType, entityId, tenant_id, branch_id || null] : [entityType, entityId, tenant_id, branch_id || null]
     );
-    res.json({ status: 'success', data: result.rows });
+    const normalizedRows = (result.rows || []).map(r => ({
+      ...r,
+      file_path: r.file_data ? `data:${r.mime_type || 'image/png'};base64,${r.file_data}` : r.file_path
+    }));
+    res.json({ status: 'success', data: normalizedRows });
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ status: 'error', message: 'Server error' });
