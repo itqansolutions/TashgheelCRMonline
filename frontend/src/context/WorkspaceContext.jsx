@@ -86,7 +86,10 @@ export const WORKSPACE_DEFINITIONS = [
     iconName: 'Settings',
     defaultPath: '/settings',
     module: null,
-    checkModule: (_can, user) => user?.role === 'admin' || user?.role === 'super_admin',
+    // Files is also available to non-admin users with that existing screen grant.
+    // Item-level role and page filters still decide which administration links render.
+    checkModule: (_can, user) => user?.role === 'admin' || user?.role === 'super_admin'
+      || safeArray(user?.allowedPages).includes('/files'),
     routePrefixes: ['/settings', '/files', '/logs', '/billing']
   }
 ];
@@ -140,14 +143,22 @@ export const WorkspaceProvider = ({ children }) => {
       if (user.role === 'admin' || user.role === 'super_admin') {
         return true;
       }
-      // 3. For non-admin, verify at least one route in this workspace is allowed
-      return ws.routePrefixes.some(pathPrefix => isPathAllowed(pathPrefix));
+      // A category is visible when an already-authorized child page belongs to it.
+      // This does not grant the category prefix or any sibling page permission.
+      return ws.routePrefixes.some(pathPrefix => isPathAllowed(pathPrefix))
+        || safeArray(user.allowedPages).some(path => {
+          if (typeof path !== 'string' || !isPathAllowed(path)) return false;
+          const basePath = path.split('?')[0];
+          const canonicalPath = ROUTE_ALIASES[basePath] || basePath;
+          return ws.routePrefixes.some(prefix => canonicalPath === prefix
+            || canonicalPath.startsWith(prefix + '/'));
+        });
     });
-  }, [user, can, isPathAllowed]);
+  }, [user, can, isPathAllowed, ROUTE_ALIASES]);
 
   // Compute default workspace based on role and accessible workspaces
   const computeDefaultWorkspace = useCallback(() => {
-    if (!accessibleWorkspaces.length) return 'sales';
+    if (!accessibleWorkspaces.length) return null;
 
     const role = (user?.role || '').toLowerCase();
     const jobTitle = (user?.job_title || user?.jobTitle || '').toLowerCase();
@@ -172,29 +183,25 @@ export const WorkspaceProvider = ({ children }) => {
     return accessibleWorkspaces[0].id;
   }, [user, accessibleWorkspaces]);
 
-  // Active workspace state initialized from localStorage with safe fallback
-  const [activeWorkspace, setActiveWorkspaceState] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved || 'sales';
+  // A stale/other-user selection must not render an inaccessible primary group.
+  const [requestedWorkspace, setActiveWorkspaceState] = useState(() => {
+    try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
   });
+  const activeWorkspace = accessibleWorkspaces.some(ws => ws.id === requestedWorkspace)
+    ? requestedWorkspace
+    : computeDefaultWorkspace();
 
-  // Verify and reconcile active workspace whenever accessibleWorkspaces changes
   useEffect(() => {
-    if (!accessibleWorkspaces.length) return;
-
-    const accessibleIds = accessibleWorkspaces.map(w => w.id);
-    const saved = localStorage.getItem(STORAGE_KEY);
-
-    if (saved && accessibleIds.includes(saved)) {
-      if (activeWorkspace !== saved) {
-        setActiveWorkspaceState(saved);
-      }
-    } else {
-      const defaultWs = computeDefaultWorkspace();
-      setActiveWorkspaceState(defaultWs);
-      localStorage.setItem(STORAGE_KEY, defaultWs);
+    if (requestedWorkspace !== activeWorkspace) {
+      setActiveWorkspaceState(activeWorkspace);
     }
-  }, [accessibleWorkspaces, computeDefaultWorkspace, activeWorkspace]);
+    if (!activeWorkspace) return;
+    try {
+      if (localStorage.getItem(STORAGE_KEY) !== activeWorkspace) {
+        localStorage.setItem(STORAGE_KEY, activeWorkspace);
+      }
+    } catch { /* Navigation remains usable when browser storage is unavailable. */ }
+  }, [requestedWorkspace, activeWorkspace]);
 
   // Explicit switch handler (frontend-only, preserves tenant/branch/permissions)
   const switchWorkspace = useCallback((workspaceId) => {
@@ -204,7 +211,7 @@ export const WorkspaceProvider = ({ children }) => {
       return;
     }
     setActiveWorkspaceState(workspaceId);
-    localStorage.setItem(STORAGE_KEY, workspaceId);
+    try { localStorage.setItem(STORAGE_KEY, workspaceId); } catch { /* Optional preference only. */ }
   }, [accessibleWorkspaces]);
 
   // Helper to find which workspace a route pathname belongs to

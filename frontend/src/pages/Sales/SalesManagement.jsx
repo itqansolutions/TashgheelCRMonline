@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import SalesSubNav from '../../components/Sales/SalesSubNav';
@@ -12,12 +12,34 @@ import {
   ExternalLink
 } from 'lucide-react';
 
+const VALID_TABS = ['overview', 'performance', 'bottlenecks', 'distribution'];
+
 const SalesManagement = () => {
   const { user } = useAuth();
   const { t, isRTL } = useLanguage();
   const isRealEstate = user?.template_name === 'real_estate';
 
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'performance' | 'bottlenecks' | 'distribution'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab = VALID_TABS.includes(tabParam) ? tabParam : 'overview';
+
+  const [activeTab, setActiveTab] = useState(initialTab); // 'overview' | 'performance' | 'bottlenecks' | 'distribution'
+
+  // Sync tab with URL search parameter
+  useEffect(() => {
+    if (tabParam && VALID_TABS.includes(tabParam) && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', newTab);
+      return next;
+    }, { replace: true });
+  };
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -229,6 +251,42 @@ const SalesManagement = () => {
       <SalesSubNav />
 
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        {/* Quick Context Switcher / Breadcrumb to Daily Sales */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-500 gap-2 pb-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-400">{t('sales.sections.management', 'Sales Management')}</span>
+            <span>/</span>
+            <span className="font-bold text-slate-700">
+              {isRealEstate 
+                ? t('salesManagement.titleRealEstate', 'Real Estate Cockpit') 
+                : t('salesManagement.titleGeneral', 'Cockpit')}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-slate-400 font-medium">{t('sales.sections.dailyWork', 'Daily Sales Work')}:</span>
+            <button
+              onClick={() => navigate('/customers')}
+              className="text-indigo-600 hover:text-indigo-800 font-semibold hover:underline"
+            >
+              {t('sales.subNav.customers', 'Customers')}
+            </button>
+            <span className="text-slate-300">•</span>
+            <button
+              onClick={() => navigate('/deals')}
+              className="text-indigo-600 hover:text-indigo-800 font-semibold hover:underline"
+            >
+              {t('deals.title', 'Deals')}
+            </button>
+            <span className="text-slate-300">•</span>
+            <button
+              onClick={() => navigate('/tasks')}
+              className="text-indigo-600 hover:text-indigo-800 font-semibold hover:underline"
+            >
+              {t('sales.subNav.tasks', 'My Tasks')}
+            </button>
+          </div>
+        </div>
+
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div>
@@ -351,7 +409,7 @@ const SalesManagement = () => {
         {/* Tabs */}
         <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
           <button
-            onClick={() => setActiveTab('overview')}
+            onClick={() => handleTabChange('overview')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
               activeTab === 'overview' 
                 ? 'bg-indigo-600 text-white shadow-sm' 
@@ -361,7 +419,7 @@ const SalesManagement = () => {
             {t('salesManagement.tabs.overview', 'Overview & Pipeline Velocity')}
           </button>
           <button
-            onClick={() => setActiveTab('performance')}
+            onClick={() => handleTabChange('performance')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
               activeTab === 'performance' 
                 ? 'bg-indigo-600 text-white shadow-sm' 
@@ -371,7 +429,7 @@ const SalesManagement = () => {
             {t('salesManagement.tabs.performance', 'Sales Team Performance')} ({performanceData.length})
           </button>
           <button
-            onClick={() => setActiveTab('bottlenecks')}
+            onClick={() => handleTabChange('bottlenecks')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
               activeTab === 'bottlenecks' 
                 ? 'bg-indigo-600 text-white shadow-sm' 
@@ -381,7 +439,7 @@ const SalesManagement = () => {
             {t('salesManagement.tabs.bottlenecks', 'Bottlenecks & Lost Analysis')}
           </button>
           <button
-            onClick={() => setActiveTab('distribution')}
+            onClick={() => handleTabChange('distribution')}
             className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
               activeTab === 'distribution' 
                 ? 'bg-indigo-600 text-white shadow-sm' 

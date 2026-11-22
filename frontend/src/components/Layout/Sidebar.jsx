@@ -221,7 +221,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Tasks',            labelKey: 'sidebar.tasks',            icon: <CheckSquare size={18} />,  path: '/tasks' },
     ] : []),
     ...(isRealEstate && isPathAllowed('/units-registry') ? [
-      { name: 'Units',            labelKey: 'sidebar.units',            icon: <Key size={18} />,          path: '/units-registry' }
+      { name: 'Units',            labelKey: 'sidebar.units',            icon: <Key size={18} />,          path: '/units-registry', isShortcut: true }
     ] : []),
     {
       name: isRealEstate ? 'RE Sales Management' : 'Sales Management',
@@ -244,6 +244,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     ] : [])
   ];
   const salesItems = hasSales ? filterByAllowed(rawSalesItems) : [];
+  const dailyPaths = ['/customers', '/deals', '/tasks', '/units-registry'];
+  const managementPaths = ['/sales/management', '/sales/salesmen', '/sales/target'];
+  const dailySalesItems = salesItems.filter(item => dailyPaths.includes(item.path));
+  const salesManagementItems = salesItems.filter(item => managementPaths.includes(item.path));
+  const salesOperationItems = salesItems.filter(item => !dailyPaths.includes(item.path) && !managementPaths.includes(item.path));
 
   // -------------------------------------------------------------
   // 5. WAREHOUSE & INVENTORY ITEMS
@@ -391,12 +396,62 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               {isOpen && (isExpanded ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
             </div>
             <div className={`group-sub-items ${isOpen && isExpanded ? 'expanded' : 'collapsed'}`}>
-              {salesItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                  {item.icon}
-                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                </NavLink>
-              ))}
+              {/* Daily Sales Work */}
+              {dailySalesItems.length > 0 && (
+                <>
+                  {isOpen && isPrimary && (
+                    <div className="workspace-sub-section-header">
+                      <span>{t('sales.sections.dailyWork', 'Daily Sales Work')}</span>
+                    </div>
+                  )}
+                  {dailySalesItems.map(item => (
+                    <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
+                      {item.icon}
+                      <span style={{ flex: 1 }}>{item.labelKey ? t(item.labelKey) : item.name}</span>
+                      {item.isShortcut && (
+                        <span className="shortcut-pill" title={t('sidebar.shortcut')}>
+                          <ExternalLink size={10} />
+                          {t('sidebar.shortcut')}
+                        </span>
+                      )}
+                    </NavLink>
+                  ))}
+                </>
+              )}
+
+              {/* Sales Management */}
+              {salesManagementItems.length > 0 && (
+                <>
+                  {isOpen && isPrimary && (
+                    <div className="workspace-sub-section-header" style={{ marginTop: '8px' }}>
+                      <span>{t('sales.sections.management', 'Sales Management')}</span>
+                    </div>
+                  )}
+                  {salesManagementItems.map(item => (
+                    <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
+                      {item.icon}
+                      <span style={{ flex: 1 }}>{item.labelKey ? t(item.labelKey) : item.name}</span>
+                    </NavLink>
+                  ))}
+                </>
+              )}
+
+              {/* Operations & Documents */}
+              {salesOperationItems.length > 0 && (
+                <>
+                  {isOpen && isPrimary && (
+                    <div className="workspace-sub-section-header" style={{ marginTop: '8px' }}>
+                      <span>{t('sales.sections.operations', 'Operations & Config')}</span>
+                    </div>
+                  )}
+                  {salesOperationItems.map(item => (
+                    <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
+                      {item.icon}
+                      <span style={{ flex: 1 }}>{item.labelKey ? t(item.labelKey) : item.name}</span>
+                    </NavLink>
+                  ))}
+                </>
+              )}
             </div>
           </div>
         );
@@ -1008,6 +1063,17 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           white-space: nowrap;
         }
         .sidebar.closed .workspace-section-divider { display: none; }
+
+        .workspace-sub-section-header {
+          padding: 8px 10px 3px;
+          font-size: 9.5px;
+          font-weight: 800;
+          color: var(--primary);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          opacity: 0.85;
+        }
+        .sidebar.closed .workspace-sub-section-header { display: none; }
 
         .trial-banner {
           margin: 0 8px 8px; border-radius: 8px; padding: 8px 10px;

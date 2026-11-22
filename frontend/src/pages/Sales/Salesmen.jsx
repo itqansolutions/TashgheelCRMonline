@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -18,8 +18,14 @@ const PERIOD_VALUES = [
   '2026-Q4', '2026-Q3', '2026-Q2', '2026-Q1', '2026'
 ];
 
+const VALID_MAIN_TABS = ['teams', 'salesmen'];
+
 const Salesmen = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialMainTab = VALID_MAIN_TABS.includes(tabParam) ? tabParam : 'teams';
+
   const { user } = useAuth();
   const { t, isRTL, language } = useLanguage();
   const isRealEstate = user?.template_name === 'real_estate';
@@ -27,7 +33,22 @@ const Salesmen = () => {
   const canManageTeams = ['admin', 'manager', 'supervisor'].includes(user?.role);
 
   // Main View Switcher ('teams' | 'salesmen')
-  const [activeMainTab, setActiveMainTab] = useState('teams');
+  const [activeMainTab, setActiveMainTab] = useState(initialMainTab);
+
+  useEffect(() => {
+    if (tabParam && VALID_MAIN_TABS.includes(tabParam) && tabParam !== activeMainTab) {
+      setActiveMainTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const handleMainTabChange = (newTab) => {
+    setActiveMainTab(newTab);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', newTab);
+      return next;
+    }, { replace: true });
+  };
 
   // Salesmen State
   const [salesmen, setSalesmen] = useState([]);
@@ -838,6 +859,38 @@ const Salesmen = () => {
       {/* Sales Navigation */}
       <SalesSubNav />
 
+      {/* Quick Context Switcher / Breadcrumb to Daily Sales */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', fontSize: '12px', color: '#64748b', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontWeight: 600, color: '#94a3b8' }}>{t('sales.sections.management', 'Sales Management')}</span>
+          <span>/</span>
+          <span style={{ fontWeight: 700, color: '#334155' }}>{t('sales.teams.title', 'Sales Teams & Organization')}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ color: '#94a3b8', fontWeight: 500 }}>{t('sales.sections.dailyWork', 'Daily Sales Work')}:</span>
+          <button
+            onClick={() => navigate('/customers')}
+            style={{ background: 'none', border: 'none', padding: 0, color: '#4f46e5', fontWeight: 600, cursor: 'pointer' }}
+          >
+            {t('sales.subNav.customers', 'Customers')}
+          </button>
+          <span style={{ color: '#cbd5e1' }}>•</span>
+          <button
+            onClick={() => navigate('/deals')}
+            style={{ background: 'none', border: 'none', padding: 0, color: '#4f46e5', fontWeight: 600, cursor: 'pointer' }}
+          >
+            {t('deals.title', 'Deals')}
+          </button>
+          <span style={{ color: '#cbd5e1' }}>•</span>
+          <button
+            onClick={() => navigate('/tasks')}
+            style={{ background: 'none', border: 'none', padding: 0, color: '#4f46e5', fontWeight: 600, cursor: 'pointer' }}
+          >
+            {t('sales.subNav.tasks', 'My Tasks')}
+          </button>
+        </div>
+      </div>
+
       {/* Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
@@ -910,7 +963,7 @@ const Salesmen = () => {
       {/* Main Tabs Switcher: Teams vs Representatives */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '12px' }}>
         <button
-          onClick={() => setActiveMainTab('teams')}
+          onClick={() => handleMainTabChange('teams')}
           style={{
             display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
             borderRadius: '10px', fontWeight: 800, fontSize: '14px', cursor: 'pointer', border: 'none',
@@ -923,7 +976,7 @@ const Salesmen = () => {
           <ShieldCheck size={18} /> {t('sales.teams.tabTeams') || 'Sales Teams'} ({teams.length})
         </button>
         <button
-          onClick={() => setActiveMainTab('salesmen')}
+          onClick={() => handleMainTabChange('salesmen')}
           style={{
             display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
             borderRadius: '10px', fontWeight: 800, fontSize: '14px', cursor: 'pointer', border: 'none',

@@ -1719,15 +1719,25 @@
     }
   },
   "sales": {
+    "sections": {
+      "dailyWork": "Daily Sales Work",
+      "management": "Sales Management",
+      "operations": "Operations & Documents"
+    },
     "subNav": {
       "management": "Sales Management",
       "reManagement": "RE Sales Management",
+      "customers": "Customers",
       "deals": "Deals",
+      "tasks": "My Tasks",
+      "units": "Units",
       "orders": "Sales Orders",
       "documents": "Documents Hub",
       "priceTiers": "Price Tiers",
-      "salesmen": "Salesmen",
-      "targets": "Target & Goals"
+      "salesmen": "Salesmen & Teams",
+      "targets": "Target & Goals",
+      "quotations": "Quotations",
+      "distribution": "Lead Distribution"
     },
     "orders": {
       "title": "Sales Orders & Fulfillment Cycle",
