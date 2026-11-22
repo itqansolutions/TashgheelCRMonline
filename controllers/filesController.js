@@ -115,6 +115,78 @@ exports.uploadFile = async (req, res) => {
   }
 };
 
+// @desc    Upload multiple files and link to entity
+// @route   POST /api/files/upload-multiple
+// @access  Private
+exports.uploadMultipleFiles = async (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ status: 'error', message: 'No files were uploaded.' });
+  }
+
+  const { linked_type, linked_id } = req.body;
+  const tenant_id = req.user?.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id || null;
+
+  if (!tenant_id) {
+    for (const file of req.files) {
+      if (file.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+    }
+    return res.status(401).json({ status: 'error', message: 'Tenant context is missing.' });
+  }
+
+  let effectiveLinkedId = linked_id;
+  if (!effectiveLinkedId || effectiveLinkedId === 'undefined' || effectiveLinkedId === 'null' || String(effectiveLinkedId).trim() === '') {
+    if (String(linked_type).toLowerCase() === 'tenant') {
+      effectiveLinkedId = String(tenant_id);
+    }
+  }
+
+  if (!linked_type || !effectiveLinkedId || String(effectiveLinkedId).trim() === '') {
+    for (const file of req.files) {
+      if (file.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+    }
+    return res.status(400).json({ status: 'error', message: 'Entity linkage information (type/id) is missing.' });
+  }
+
+  let uploadedById = null;
+  if (req.user?.id && !isNaN(Number(req.user.id))) {
+    uploadedById = Number(req.user.id);
+  }
+
+  const uploadsRootDir = path.resolve(__dirname, '..', 'uploads');
+  const insertedRecords = [];
+
+  for (const file of req.files) {
+    const normalizedRelativePath = path.relative(uploadsRootDir, file.path).replace(/\\/g, '/');
+    const storedFilePath = `uploads/${normalizedRelativePath}`;
+
+    try {
+      const result = await db.query(
+        'INSERT INTO attachments (filename, original_name, mime_type, file_path, linked_type, linked_id, uploaded_by, tenant_id, branch_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+        [
+          file.filename,
+          file.originalname,
+          file.mimetype,
+          storedFilePath,
+          linked_type,
+          String(effectiveLinkedId),
+          uploadedById,
+          String(tenant_id),
+          branch_id ? String(branch_id) : null
+        ]
+      );
+      if (result.rows && result.rows.length > 0) {
+        insertedRecords.push(result.rows[0]);
+      }
+    } catch (err) {
+      console.error('[Upload Multiple DB Error]:', err.message);
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+    }
+  }
+
+  return res.status(201).json({ status: 'success', data: insertedRecords });
+};
+
 // @desc    Get all attachments for an entity
 // @route   GET /api/files/:entityType/:entityId
 // @access  Private
@@ -127,10 +199,17 @@ exports.getAttachments = async (req, res) => {
     return res.status(401).json({ status: 'error', message: 'Tenant context is missing.' });
   }
 
+  const isUnit = entityType === 'unit' || entityType === 're_unit';
+
   try {
     const result = await db.query(
-      'SELECT * FROM attachments WHERE linked_type = $1 AND linked_id = $2 AND tenant_id::text = $3::text AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) ORDER BY created_at DESC',
-      [entityType, entityId, tenant_id, branch_id || null]
+      `SELECT * FROM attachments 
+       WHERE (${isUnit ? "(linked_type = 'unit' OR linked_type = 're_unit')" : "linked_type = $1"})
+         AND linked_id = $2 
+         AND tenant_id::text = $3::text 
+         AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) 
+       ORDER BY created_at DESC`,
+      isUnit ? [entityType, entityId, tenant_id, branch_id || null] : [entityType, entityId, tenant_id, branch_id || null]
     );
     res.json({ status: 'success', data: result.rows });
   } catch (err) {

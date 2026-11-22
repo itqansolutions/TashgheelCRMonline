@@ -471,6 +471,22 @@ exports.getUnitOverview = async (req, res) => {
 
         const unit = unitRes.rows[0];
 
+        // 1.5 Fetch Unit Attachments/Photos
+        let attachments = [];
+        try {
+            const attachRes = await db.query(`
+                SELECT id, filename, original_name, mime_type, file_path, created_at
+                FROM attachments
+                WHERE (linked_type = 'unit' OR linked_type = 're_unit')
+                  AND linked_id = $1::text
+                  AND tenant_id::text = $2::text
+                ORDER BY created_at DESC
+            `, [id, tenant_id]);
+            attachments = attachRes.rows || [];
+        } catch (attachErr) {
+            console.warn('[Unit Attachments Fetch Warning]:', attachErr.message);
+        }
+
         // 2. Build strict RBAC Scope Predicate for Deals on this Unit
         const accessScopeService = require('../services/accessScopeService');
         const dealParams = [id, tenant_id, branch_id ? String(branch_id) : null];
@@ -772,7 +788,8 @@ exports.getUnitOverview = async (req, res) => {
                 },
                 deals: filteredDeals,
                 total_scoped_deals: scopedDeals.length,
-                filtered_deals_count: filteredDeals.length
+                filtered_deals_count: filteredDeals.length,
+                attachments: attachments
             }
         });
     } catch (err) {

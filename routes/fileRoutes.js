@@ -69,6 +69,22 @@ router.post('/upload', (req, res, next) => {
   });
 }, filesController.uploadFile);
 
+// @route   POST api/files/upload-multiple
+// @desc    Upload multiple files and link to entity
+// @access  Private
+router.post('/upload-multiple', (req, res, next) => {
+  upload.array('files', 20)(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      console.error('[Multer Error]:', err.message);
+      return res.status(400).json({ status: 'error', message: `Upload error: ${err.message}` });
+    } else if (err) {
+      console.error('[File Filter Error]:', err.message);
+      return res.status(400).json({ status: 'error', message: err.message || 'File upload failed' });
+    }
+    next();
+  });
+}, filesController.uploadMultipleFiles);
+
 // @route   GET api/files/:entityType/:entityId
 // @desc    Get attachments for entity
 // @access  Private

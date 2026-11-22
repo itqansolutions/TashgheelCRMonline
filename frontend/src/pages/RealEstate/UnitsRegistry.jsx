@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, Users, Handshake, Activity, Filter, Calendar, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink } from 'lucide-react';
+import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, Users, Handshake, Activity, Filter, Calendar, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink, Image as ImageIcon, Camera, Upload, Eye } from 'lucide-react';
 import { Navigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -41,6 +41,13 @@ const UnitsRegistry = () => {
     const [selectedUnit, setSelectedUnit] = useState(null);
     const [viewMode, setViewMode] = useState('map'); // 'map' | 'cards' | 'list'
     const [assigningEmployee, setAssigningEmployee] = useState('');
+
+    // Unit Photos state
+    const [unitPhotos, setUnitPhotos] = useState([]);
+    const [photoPreviews, setPhotoPreviews] = useState([]);
+    const [uploadingUnitPhotos, setUploadingUnitPhotos] = useState(false);
+    const [lightboxPhoto, setLightboxPhoto] = useState(null);
+    const [uploadingMorePhotos, setUploadingMorePhotos] = useState(false);
 
     const [showMatchBuyersModal, setShowMatchBuyersModal] = useState(false);
     const [matchedBuyersUnit, setMatchedBuyersUnit] = useState(null);
@@ -453,16 +460,131 @@ const UnitsRegistry = () => {
         }
     };
 
+    const handlePhotoSelection = (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        const validPhotos = [];
+        const newPreviews = [];
+
+        files.forEach(f => {
+            if (!f.type.startsWith('image/')) {
+                toast.error(`${f.name}: Only image files are allowed`);
+                return;
+            }
+            if (f.size > 5 * 1024 * 1024) {
+                toast.error(`${f.name}: Image exceeds 5MB limit`);
+                return;
+            }
+            validPhotos.push(f);
+            newPreviews.push({
+                file: f,
+                previewUrl: URL.createObjectURL(f)
+            });
+        });
+
+        setUnitPhotos(prev => [...prev, ...validPhotos]);
+        setPhotoPreviews(prev => [...prev, ...newPreviews]);
+        e.target.value = '';
+    };
+
+    const handleRemoveSelectedPhoto = (indexToRemove) => {
+        setPhotoPreviews(prev => {
+            const item = prev[indexToRemove];
+            if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+            return prev.filter((_, idx) => idx !== indexToRemove);
+        });
+        setUnitPhotos(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    };
+
+    const handleCloseAddModal = () => {
+        setShowAddModal(false);
+        photoPreviews.forEach(p => {
+            if (p?.previewUrl) URL.revokeObjectURL(p.previewUrl);
+        });
+        setUnitPhotos([]);
+        setPhotoPreviews([]);
+    };
+
+    const handleUploadMorePhotos = async (e, unitId) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0 || !unitId) return;
+
+        const validPhotos = files.filter(f => {
+            if (!f.type.startsWith('image/')) {
+                toast.error(`${f.name}: Only image files are allowed`);
+                return false;
+            }
+            if (f.size > 5 * 1024 * 1024) {
+                toast.error(`${f.name}: Image exceeds 5MB limit`);
+                return false;
+            }
+            return true;
+        });
+
+        if (validPhotos.length === 0) return;
+
+        const photoFormData = new FormData();
+        validPhotos.forEach(f => photoFormData.append('files', f));
+        photoFormData.append('linked_type', 'unit');
+        photoFormData.append('linked_id', String(unitId));
+
+        setUploadingMorePhotos(true);
+        try {
+            await api.post('/files/upload-multiple', photoFormData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            toast.success(t('realEstate.unitsRegistry.toastPhotosUploaded') || 'Photos uploaded successfully');
+            fetchUnitOverview(unitId);
+        } catch (err) {
+            toast.error(err.response?.data?.message || t('common.errorOccurred'));
+        } finally {
+            setUploadingMorePhotos(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleDeleteUnitPhoto = async (attachmentId, unitId) => {
+        if (!window.confirm(t('realEstate.unitsRegistry.confirmDeletePhoto') || 'Are you sure you want to delete this photo?')) return;
+        try {
+            await api.delete(`/files/${attachmentId}`);
+            toast.success(t('realEstate.unitsRegistry.toastPhotoDeleted') || 'Photo deleted successfully');
+            fetchUnitOverview(unitId);
+        } catch (err) {
+            toast.error(err.response?.data?.message || t('common.errorOccurred'));
+        }
+    };
+
     const handleAddUnit = async (e) => {
         e.preventDefault();
+        setUploadingUnitPhotos(true);
         try {
             const payload = {
                 ...formData,
                 price: formData.price ? parseFloat(String(formData.price).replace(/,/g, '')) : 0
             };
-            await api.post('/re-units', payload);
+            const res = await api.post('/re-units', payload);
+            const createdUnit = res.data?.data;
+
+            // Upload attached photos if any
+            if (unitPhotos.length > 0 && createdUnit?.id) {
+                try {
+                    const photoFormData = new FormData();
+                    unitPhotos.forEach(p => photoFormData.append('files', p));
+                    photoFormData.append('linked_type', 'unit');
+                    photoFormData.append('linked_id', String(createdUnit.id));
+
+                    await api.post('/files/upload-multiple', photoFormData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                } catch (photoErr) {
+                    console.error('[Photo Upload Error]:', photoErr);
+                    toast.error(t('common.errorOccurred') || 'Unit created, but failed to upload photos');
+                }
+            }
+
             toast.success(t('realEstate.unitsRegistry.toastUnitAdded'));
-            setShowAddModal(false);
+            handleCloseAddModal();
             setFormData({ 
                 project_name: '', unit_number: '', name: '', type: 'Apartment', floor: '', 
                 area_sqm: '', price: '', vendor_id: '', assigned_to: '', responsible_person_id: '', 
@@ -473,6 +595,8 @@ const UnitsRegistry = () => {
             fetchUnits();
         } catch (err) {
             toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastAddUnitError'));
+        } finally {
+            setUploadingUnitPhotos(false);
         }
     };
 
@@ -879,14 +1003,14 @@ const UnitsRegistry = () => {
                 <div 
                     dir={isRTL ? 'rtl' : 'ltr'}
                     onClick={(e) => {
-                        if (e.target === e.currentTarget) setShowAddModal(false);
+                        if (e.target === e.currentTarget) handleCloseAddModal();
                     }}
                     style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
                 >
                     <div className="ap-card" style={{ width: '100%', maxWidth: '650px', padding: '40px', background: 'white', position: 'relative', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
                         <button 
                             type="button"
-                            onClick={() => setShowAddModal(false)}
+                            onClick={handleCloseAddModal}
                             style={{ position: 'absolute', top: '24px', [isRTL ? 'left' : 'right']: '24px', padding: '8px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
                             title={t('common.close') || 'Close'}
                         >
@@ -1092,11 +1216,136 @@ const UnitsRegistry = () => {
                                         Format: N2 (e.g. 1,500,000.00). Thousands separators are auto-applied on blur.
                                     </div>
                                 </div>
+
+                                {/* Unit Photos & Gallery */}
+                                <div style={{ gridColumn: 'span 2', paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '8px', marginTop: '8px' }}>
+                                    <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                        {t('realEstate.unitsRegistry.secPhotos') || 'Unit Photos & Media'}
+                                    </h4>
+                                </div>
+                                <div className="ap-form-group" style={{ gridColumn: 'span 2' }}>
+                                    <label 
+                                        htmlFor="unit-photos-add-input"
+                                        style={{
+                                            border: '2px dashed #cbd5e1',
+                                            borderRadius: '12px',
+                                            padding: '24px 16px',
+                                            textAlign: 'center',
+                                            background: '#f8fafc',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '8px',
+                                            transition: 'border-color 0.2s'
+                                        }}
+                                        onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--primary)'; }}
+                                        onDragLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; }}
+                                        onDrop={(e) => {
+                                            e.preventDefault();
+                                            e.currentTarget.style.borderColor = '#cbd5e1';
+                                            if (e.dataTransfer.files) {
+                                                handlePhotoSelection({ target: { files: e.dataTransfer.files, value: '' } });
+                                            }
+                                        }}
+                                    >
+                                        <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.06)' }}>
+                                            <Camera size={22} />
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-main)' }}>
+                                                {t('realEstate.unitsRegistry.dragOrClickPhotos') || 'Click or drag photos here to attach'}
+                                            </div>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                                {t('realEstate.unitsRegistry.photosHelp') || 'Attach photos of this unit (JPEG, PNG, WEBP, up to 5MB each).'}
+                                            </div>
+                                        </div>
+                                        <input 
+                                            id="unit-photos-add-input"
+                                            type="file" 
+                                            multiple 
+                                            accept="image/*" 
+                                            onChange={handlePhotoSelection}
+                                            style={{ display: 'none' }} 
+                                        />
+                                    </label>
+
+                                    {/* Previews Grid */}
+                                    {photoPreviews.length > 0 && (
+                                        <div style={{ marginTop: '14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
+                                            {photoPreviews.map((p, idx) => (
+                                                <div 
+                                                    key={idx} 
+                                                    style={{ 
+                                                        position: 'relative', 
+                                                        width: '100%', 
+                                                        height: '90px', 
+                                                        borderRadius: '10px', 
+                                                        overflow: 'hidden', 
+                                                        border: idx === 0 ? '2px solid var(--primary)' : '1px solid #cbd5e1',
+                                                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                                                    }}
+                                                >
+                                                    <img 
+                                                        src={p.previewUrl} 
+                                                        alt={`Preview ${idx + 1}`} 
+                                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                                    />
+                                                    {idx === 0 && (
+                                                        <span style={{ 
+                                                            position: 'absolute', 
+                                                            bottom: '4px', 
+                                                            [isRTL ? 'right' : 'left']: '4px', 
+                                                            background: 'var(--primary)', 
+                                                            color: 'white', 
+                                                            fontSize: '9px', 
+                                                            fontWeight: 800, 
+                                                            padding: '1px 6px', 
+                                                            borderRadius: '4px' 
+                                                        }}>
+                                                            {t('realEstate.unitsRegistry.primaryPhotoBadge') || 'Cover'}
+                                                        </span>
+                                                    )}
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => handleRemoveSelectedPhoto(idx)}
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: '4px',
+                                                            [isRTL ? 'left' : 'right']: '4px',
+                                                            width: '22px',
+                                                            height: '22px',
+                                                            borderRadius: '50%',
+                                                            background: 'rgba(0,0,0,0.6)',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            transition: 'background 0.2s'
+                                                        }}
+                                                        onMouseEnter={(e) => { e.currentTarget.style.background = '#dc2626'; }}
+                                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.6)'; }}
+                                                        title={t('realEstate.unitsRegistry.removePhoto') || 'Remove'}
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div style={{ display: 'flex', gap: '16px' }}>
-                                <button type="submit" className="btn-primary-premium" style={{ flex: 1, justifyContent: 'center', height: '56px' }}>{t('realEstate.unitsRegistry.btnConfirmReg')}</button>
-                                <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '0 32px', borderRadius: '12px', border: '2px solid var(--border)', fontWeight: 800, color: 'var(--text-muted)' }}>{t('realEstate.unitsRegistry.btnDiscard')}</button>
+                                <button type="submit" disabled={uploadingUnitPhotos} className="btn-primary-premium" style={{ flex: 1, justifyContent: 'center', height: '56px' }}>
+                                    {uploadingUnitPhotos ? (t('common.uploading') || 'Saving Unit & Photos...') : t('realEstate.unitsRegistry.btnConfirmReg')}
+                                </button>
+                                <button type="button" onClick={handleCloseAddModal} style={{ padding: '0 32px', borderRadius: '12px', border: '2px solid var(--border)', fontWeight: 800, color: 'var(--text-muted)' }}>
+                                    {t('realEstate.unitsRegistry.btnDiscard')}
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -1123,6 +1372,10 @@ const UnitsRegistry = () => {
                                 distinct_sales_reps_count: 0
                             };
                             const activeResDeal = unitOverview?.active_reservation_deal;
+                            const photos = (unitOverview?.attachments || []).filter(a => 
+                                a.mime_type?.startsWith('image/') || 
+                                /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(a.file_path || a.filename || '')
+                            );
 
                             // Filter deals locally according to user selection
                             const rawDeals = unitOverview?.deals || [];
@@ -1213,6 +1466,169 @@ const UnitsRegistry = () => {
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>{t('realEstate.unitsRegistry.drawerLayout')}</div>
                                                 <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.drawerFloorRooms', { floor: selectedUnit.floor || '—', rooms: selectedUnit.rooms ?? '—' })}</div>
                                             </div>
+                                        </div>
+
+                                        {/* ─── Unit Photos & Gallery Section ─── */}
+                                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <ImageIcon size={14} color="var(--primary)" />
+                                                    <span>{t('realEstate.unitsRegistry.galleryTitle') || 'Unit Photos & Gallery'}</span>
+                                                    {photos.length > 0 && (
+                                                        <span style={{ fontSize: '10px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--primary)', padding: '1px 6px', borderRadius: '10px', fontWeight: 800 }}>
+                                                            {photos.length}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label 
+                                                        htmlFor={`unit-gallery-upload-${selectedUnit.id}`}
+                                                        style={{ 
+                                                            cursor: uploadingMorePhotos ? 'not-allowed' : 'pointer',
+                                                            fontSize: '11px',
+                                                            fontWeight: 800,
+                                                            color: 'var(--primary)',
+                                                            background: 'white',
+                                                            border: '1px solid var(--border)',
+                                                            padding: '5px 10px',
+                                                            borderRadius: '8px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '4px',
+                                                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                                        }}
+                                                    >
+                                                        <Upload size={12} /> {uploadingMorePhotos ? (t('common.uploading') || 'Uploading...') : (t('realEstate.unitsRegistry.btnAddPhotos') || 'Add Photos')}
+                                                    </label>
+                                                    <input 
+                                                        id={`unit-gallery-upload-${selectedUnit.id}`}
+                                                        type="file"
+                                                        multiple
+                                                        accept="image/*"
+                                                        disabled={uploadingMorePhotos}
+                                                        onChange={(e) => handleUploadMorePhotos(e, selectedUnit.id)}
+                                                        style={{ display: 'none' }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {photos.length === 0 ? (
+                                                <div style={{ textAlign: 'center', padding: '20px 10px', background: 'white', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+                                                    <Camera size={28} color="#94a3b8" style={{ margin: '0 auto 8px' }} />
+                                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                                        {t('realEstate.unitsRegistry.noPhotosAttached') || 'No photos attached to this unit yet.'}
+                                                    </div>
+                                                    <label 
+                                                        htmlFor={`unit-gallery-upload-${selectedUnit.id}`}
+                                                        style={{ 
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px',
+                                                            marginTop: '10px',
+                                                            padding: '6px 14px',
+                                                            background: 'var(--primary)',
+                                                            color: 'white',
+                                                            borderRadius: '8px',
+                                                            fontSize: '11px',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        <Plus size={12} /> {t('realEstate.unitsRegistry.btnAddPhotos') || 'Add Photos'}
+                                                    </label>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '10px' }}>
+                                                    {photos.map((photo, pIdx) => {
+                                                        const imgPath = photo.file_path ? `/${photo.file_path.replace(/\\/g, '/')}` : '';
+                                                        return (
+                                                            <div 
+                                                                key={photo.id || pIdx}
+                                                                style={{
+                                                                    position: 'relative',
+                                                                    height: '95px',
+                                                                    borderRadius: '10px',
+                                                                    overflow: 'hidden',
+                                                                    border: pIdx === 0 ? '2px solid var(--primary)' : '1px solid #cbd5e1',
+                                                                    background: '#e2e8f0',
+                                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.06)'
+                                                                }}
+                                                            >
+                                                                <img 
+                                                                    src={imgPath} 
+                                                                    alt={photo.original_name || 'Unit photo'}
+                                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }}
+                                                                    onClick={() => setLightboxPhoto(photo)}
+                                                                />
+                                                                {pIdx === 0 && (
+                                                                    <span style={{ 
+                                                                        position: 'absolute', 
+                                                                        bottom: '4px', 
+                                                                        [isRTL ? 'right' : 'left']: '4px', 
+                                                                        background: 'var(--primary)', 
+                                                                        color: 'white', 
+                                                                        fontSize: '9px', 
+                                                                        fontWeight: 800, 
+                                                                        padding: '1px 6px', 
+                                                                        borderRadius: '4px',
+                                                                        pointerEvents: 'none'
+                                                                    }}>
+                                                                        {t('realEstate.unitsRegistry.primaryPhotoBadge') || 'Cover'}
+                                                                    </span>
+                                                                )}
+                                                                <div style={{ 
+                                                                    position: 'absolute', 
+                                                                    top: '4px', 
+                                                                    [isRTL ? 'left' : 'right']: '4px', 
+                                                                    display: 'flex', 
+                                                                    gap: '4px' 
+                                                                }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setLightboxPhoto(photo)}
+                                                                        style={{
+                                                                            width: '24px',
+                                                                            height: '24px',
+                                                                            borderRadius: '50%',
+                                                                            background: 'rgba(0,0,0,0.65)',
+                                                                            color: 'white',
+                                                                            border: 'none',
+                                                                            cursor: 'pointer',
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'center'
+                                                                        }}
+                                                                        title={t('realEstate.unitsRegistry.viewPhoto') || 'Preview'}
+                                                                    >
+                                                                        <Eye size={12} />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleDeleteUnitPhoto(photo.id, selectedUnit.id)}
+                                                                        style={{
+                                                                            width: '24px',
+                                                                            height: '24px',
+                                                                            borderRadius: '50%',
+                                                                            background: 'rgba(0,0,0,0.65)',
+                                                                            color: 'white',
+                                                                            border: 'none',
+                                                                            cursor: 'pointer',
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'center'
+                                                                        }}
+                                                                        onMouseEnter={(e) => { e.currentTarget.style.background = '#dc2626'; }}
+                                                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.65)'; }}
+                                                                        title={t('realEstate.unitsRegistry.removePhoto') || 'Delete'}
+                                                                    >
+                                                                        <Trash2 size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* ─── 4 RBAC-Scoped KPIs (Condition 3) ─── */}
@@ -2355,6 +2771,82 @@ const UnitsRegistry = () => {
                                 )
                             )}
                         </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* Photo Lightbox / Full-Screen Preview Modal */}
+            {lightboxPhoto && createPortal(
+                <div 
+                    onClick={() => setLightboxPhoto(null)}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        width: '100vw',
+                        height: '100vh',
+                        background: 'rgba(0, 0, 0, 0.88)',
+                        backdropFilter: 'blur(8px)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 100000,
+                        padding: '24px'
+                    }}
+                >
+                    <div 
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            maxWidth: '92vw',
+                            maxHeight: '90vh',
+                            position: 'relative',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center'
+                        }}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => setLightboxPhoto(null)}
+                            style={{
+                                position: 'absolute',
+                                top: '-46px',
+                                [isRTL ? 'left' : 'right']: '0',
+                                background: 'rgba(255,255,255,0.2)',
+                                border: 'none',
+                                borderRadius: '50%',
+                                width: '38px',
+                                height: '38px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'white',
+                                cursor: 'pointer',
+                                transition: 'background 0.2s'
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.4)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
+                            title={t('common.close') || 'Close'}
+                        >
+                            <X size={20} />
+                        </button>
+                        <img 
+                            src={lightboxPhoto.file_path ? `/${lightboxPhoto.file_path.replace(/\\/g, '/')}` : ''}
+                            alt={lightboxPhoto.original_name || 'Unit Photo'}
+                            style={{
+                                maxWidth: '100%',
+                                maxHeight: '82vh',
+                                objectFit: 'contain',
+                                borderRadius: '12px',
+                                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.6)'
+                            }}
+                        />
+                        {lightboxPhoto.original_name && (
+                            <div style={{ color: 'rgba(255,255,255,0.85)', marginTop: '12px', fontSize: '13px', fontWeight: 600, textAlign: 'center' }}>
+                                {lightboxPhoto.original_name}
+                            </div>
+                        )}
                     </div>
                 </div>,
                 document.body
