@@ -16,6 +16,15 @@ export const formatN2 = (val) => {
     return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+// Advisory only: which of max budget / location a buyer has not stated (derived, nothing stored)
+const missingMatchInputs = (c = {}) => {
+    const miss = [];
+    if (!(parseFloat(c.budget_max) > 0)) miss.push('budget');
+    const l = String(c.preferred_location || '').trim().toLowerCase();
+    if (l === '' || ['any', 'anywhere', 'all'].includes(l)) miss.push('location');
+    return miss;
+};
+
 const UnitsRegistry = () => {
     const { user } = useAuth();
     const { t, isRTL } = useLanguage();
@@ -1688,10 +1697,16 @@ const UnitsRegistry = () => {
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                {matchedBuyersList.map(({ customer, match_score, match_grade, breakdown }) => {
+                                {matchedBuyersList.some(m => missingMatchInputs(m.customer).length > 0) && (
+                                    <div role="alert" style={{ padding: '10px 12px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', color: '#92400e', fontSize: '12px', fontWeight: 600 }}>
+                                        ⚠️ {t('realEstate.unitsRegistry.buyersMissingInputsNotice', { count: matchedBuyersList.filter(m => missingMatchInputs(m.customer).length > 0).length })}
+                                    </div>
+                                )}
+                                {matchedBuyersList.map(({ customer, match_score, match_grade, breakdown, has_requirements }) => {
                                     const isExpanded = expandedBuyerId === customer.id;
-                                    const gradeColor = match_score >= 85 ? '#16a34a' : match_score >= 65 ? '#2563eb' : match_score >= 45 ? '#d97706' : '#64748b';
-                                    const gradeBg = match_score >= 85 ? '#dcfce7' : match_score >= 65 ? '#dbeafe' : match_score >= 45 ? '#fef3c7' : '#f1f5f9';
+                                    const noPrefs = has_requirements === false;
+                                    const gradeColor = noPrefs ? '#64748b' : match_score >= 85 ? '#16a34a' : match_score >= 65 ? '#2563eb' : match_score >= 45 ? '#d97706' : '#64748b';
+                                    const gradeBg = noPrefs ? '#f1f5f9' : match_score >= 85 ? '#dcfce7' : match_score >= 65 ? '#dbeafe' : match_score >= 45 ? '#fef3c7' : '#f1f5f9';
 
                                     return (
                                         <div key={customer.id} style={{ border: `1px solid ${isExpanded ? gradeColor : '#e2e8f0'}`, borderRadius: '12px', background: 'white', overflow: 'hidden', transition: 'all 0.2s' }}>
@@ -1701,16 +1716,24 @@ const UnitsRegistry = () => {
                                             >
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                                                     <div style={{ textAlign: 'center', minWidth: '55px', padding: '5px 8px', borderRadius: '8px', background: gradeBg, color: gradeColor, fontWeight: 900 }}>
-                                                        <div style={{ fontSize: '16px', lineHeight: '1' }}>{match_score}%</div>
-                                                        <div style={{ fontSize: '9px', textTransform: 'uppercase' }}>{match_grade}</div>
+                                                        {noPrefs ? (
+                                                            <div style={{ fontSize: '16px', lineHeight: '1' }}>-</div>
+                                                        ) : (
+                                                            <>
+                                                                <div style={{ fontSize: '16px', lineHeight: '1' }}>{match_score}%</div>
+                                                                <div style={{ fontSize: '9px', textTransform: 'uppercase' }}>{match_grade}</div>
+                                                            </>
+                                                        )}
                                                     </div>
                                                     <div>
                                                         <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--text-main)' }}>{customer.name}</div>
                                                         <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
                                                             {customer.phone && <span>📞 {customer.phone}</span>}
+                                                            {has_requirements === false && <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>{t('realEstate.unitsRegistry.noStatedPreferences')}</span>}
                                                             {customer.preferred_location && <span>📍 {customer.preferred_location}</span>}
-                                                            {customer.budget_max && <span>{t('realEstate.unitsRegistry.maxBudgetLabel', { amount: Number(customer.budget_max).toLocaleString('en-US') })}</span>}
-                                                            {customer.preferred_rooms && <span>{t('realEstate.unitsRegistry.roomsLabel', { count: customer.preferred_rooms })}</span>}
+                                                            {missingMatchInputs(customer).length > 0 && <span style={{ color: '#b45309', background: '#fef3c7', borderRadius: '6px', padding: '0 6px', fontWeight: 700 }}>{t('realEstate.unitsRegistry.buyerMissingInputs', { fields: missingMatchInputs(customer).map(k => k === 'budget' ? t('customers.missingMaxBudget') : t('customers.missingLocation')).join(' / ') })}</span>}
+                                                            {Number(customer.budget_max) > 0 && <span>{t('realEstate.unitsRegistry.maxBudgetLabel', { amount: Number(customer.budget_max).toLocaleString('en-US') })}</span>}
+                                                            {Number(customer.preferred_rooms) > 0 && <span>{t('realEstate.unitsRegistry.roomsLabel', { count: customer.preferred_rooms })}</span>}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1718,7 +1741,7 @@ const UnitsRegistry = () => {
                                                     <Link 
                                                         to={`/deals?new=1&client_id=${customer.id}&unit_id=${matchedBuyersUnit.id}`}
                                                         onClick={(e) => e.stopPropagation()}
-                                                        style={{ padding: '7px 14px', borderRadius: '8px', background: 'var(--primary)', color: 'white', textDecoration: 'none', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                        style={{ padding: '7px 14px', borderRadius: '8px', background: 'var(--primary)', color: 'white', textDecoration: 'none', fontSize: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' , flexShrink: 0, whiteSpace: 'nowrap'}}
                                                     >
                                                         {t('realEstate.unitsRegistry.btnCreateDeal')} <ArrowRight size={13} />
                                                     </Link>
@@ -1726,7 +1749,7 @@ const UnitsRegistry = () => {
                                                 </div>
                                             </div>
 
-                                            {isExpanded && (
+                                            {isExpanded && !noPrefs && (
                                                 <div style={{ padding: '12px 18px', borderTop: '1px solid #f1f5f9', background: '#fafafa', fontSize: '12px' }}>
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                                                         <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>

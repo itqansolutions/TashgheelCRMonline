@@ -318,6 +318,10 @@
     }
   },
   "customers": {
+    "matchMissingInputs": "Results may be less accurate. Add {{fields}} to this customer for better matches.",
+    "missingMaxBudget": "max budget",
+    "missingLocation": "preferred location",
+    "matchNeedsPreferences": "Not enough preferences to match. Add a budget, area, location or rooms to this customer.",
     "title": "Customers",
     "leadsTitle": "Leads & Prospective Buyers",
     "subtitle": "Manage your leads and active clients.",
@@ -2375,6 +2379,10 @@
       "toastSelectContract": "Select a contract",
       "toastPlanSuccess": "Installment plan generated",
       "toastPlanError": "Failed to generate plan",
+      "confirmReplace": "This contract already has a schedule of {{count}} installment(s) totaling {{total}}. Generating a new one replaces it (a copy is kept in history) and sets the contract down payment from {{downPayment}} to {{newDownPayment}}. Continue?",
+      "confirmReplaceTitle": "Replace existing installment schedule?",
+      "confirmReplaceAction": "Replace schedule",
+      "confirmReplaceChanged": "The schedule changed after you opened this. Review the current numbers below.",
       "toastPaySuccess": "Payment recorded",
       "toastPayError": "Payment failed",
       "toastHistoryError": "Failed to load payment history"
@@ -2600,6 +2608,9 @@
       "btnPublishPf": "Publish to PF",
       "btnUnpublish": "Unpublish",
       "pfOpenTooltip": "Open in Property Finder",
+      "buyerMissingInputs": "Missing: {{fields}}",
+      "buyersMissingInputsNotice": "{{count}} of these buyers are missing max budget or preferred location, so their scores may be less accurate.",
+      "noStatedPreferences": "No stated preferences",
       "btnMatchBuyers": "🎯 Match Buyers",
       "btnDisableDelete": "Disable & Delete",
       "confirmDeleteProperty": "Are you sure you want to remove this property from the inventory? This action is permanent.",

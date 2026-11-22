@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const roleGuard = require('../middleware/roleGuard');
+// Owner-approved: only admin and manager may delete these records (phases are intentionally not included).
+const DELETE_ROLES = ['admin', 'manager'];
 const ctrl = require('../controllers/reUnitsController');
 const authMiddleware = require('../middleware/auth');
 const branchScope = require('../middleware/branchScope');
@@ -16,7 +19,7 @@ router.get('/:id/overview', ctrl.getUnitOverview);
 router.get('/:id', ctrl.getUnitById);
 router.post('/', ctrl.createUnit);
 router.put('/:id', ctrl.updateUnit);
-router.delete('/:id', ctrl.deleteUnit);
+router.delete('/:id', roleGuard(DELETE_ROLES), ctrl.deleteUnit);
 router.post('/:id/extend-reservation', ctrl.extendUnitReservation);
 
 module.exports = router;

@@ -28,6 +28,7 @@ const Installments = () => {
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [replaceInfo, setReplaceInfo] = useState(null);
 
   const [planOpen, setPlanOpen] = useState(false);
   const [contracts, setContracts] = useState([]);
@@ -72,7 +73,7 @@ const Installments = () => {
     }
   };
 
-  const generate = async () => {
+  const generate = async (replaceToken = null) => {
     if (!plan.contract_id) return toast.error(t('realEstate.installments.toastSelectContract'));
     try {
       const res = await api.post('/re-installments/generate-schedule', {
@@ -80,13 +81,25 @@ const Installments = () => {
         down_payment: Number(plan.down_payment) || 0,
         number_of_installments: parseInt(plan.number_of_installments) || 1,
         frequency: plan.frequency,
-        start_date: plan.start_date
+        start_date: plan.start_date,
+        confirm_replace_token: typeof replaceToken === 'string' ? replaceToken : undefined
       });
       toast.success(res.data.message || t('realEstate.installments.toastPlanSuccess'));
       setPlanOpen(false);
       load();
     } catch (err) {
-      toast.error(err.response?.data?.message || t('realEstate.installments.toastPlanError'));
+      const data = err.response?.data;
+      if (err.response?.status === 409 && data?.confirm_replace_token &&
+          ['SCHEDULE_REPLACE_CONFIRMATION_REQUIRED', 'SCHEDULE_CHANGED_SINCE_CONFIRMATION'].includes(data.code)) {
+        setReplaceInfo({
+          token: data.confirm_replace_token,
+          existing: data.existing || {},
+          requested: data.requested || {},
+          changed: data.code === 'SCHEDULE_CHANGED_SINCE_CONFIRMATION'
+        });
+        return;
+      }
+      toast.error(data?.message || t('realEstate.installments.toastPlanError'));
     }
   };
 
@@ -216,7 +229,7 @@ const Installments = () => {
           <button onClick={() => setPlanOpen(false)} style={{ background: '#f1f5f9', padding: '10px 20px', borderRadius: '8px', fontWeight: 600 }}>
             {t('realEstate.common.cancel')}
           </button>
-          <button onClick={generate} style={{ background: 'var(--primary)', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 600 }}>
+          <button onClick={() => generate(null)} style={{ background: 'var(--primary)', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 600 }}>
             {t('realEstate.installments.btnGeneratePlan')}
           </button>
         </>}
@@ -263,6 +276,38 @@ const Installments = () => {
             <input type="date" style={fieldStyle} value={plan.start_date} onChange={e => setPlan({ ...plan, start_date: e.target.value })} />
           </div>
         </div>
+      </Modal>
+
+      {/* Confirm replacing an existing installment schedule */}
+      <Modal
+        isOpen={!!replaceInfo}
+        onClose={() => setReplaceInfo(null)}
+        title={t('realEstate.installments.confirmReplaceTitle')}
+        footer={<>
+          <button onClick={() => setReplaceInfo(null)} style={{ background: '#f1f5f9', padding: '10px 20px', borderRadius: '8px', fontWeight: 600 }}>
+            {t('realEstate.common.cancel')}
+          </button>
+          <button onClick={() => { const tok = replaceInfo.token; setReplaceInfo(null); generate(tok); }}
+            style={{ background: '#b91c1c', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 600 }}>
+            {t('realEstate.installments.confirmReplaceAction')}
+          </button>
+        </>}
+      >
+        {replaceInfo && (
+          <div data-testid="replace-confirmation" style={{ lineHeight: 1.7 }}>
+            {replaceInfo.changed && (
+              <div style={{ color: '#b45309', fontWeight: 600, marginBottom: '8px' }}>
+                {t('realEstate.installments.confirmReplaceChanged')}
+              </div>
+            )}
+            {t('realEstate.installments.confirmReplace', {
+              count: replaceInfo.existing.count,
+              total: Number(replaceInfo.existing.total || 0).toLocaleString('en-US'),
+              downPayment: Number(replaceInfo.existing.contract_down_payment || 0).toLocaleString('en-US'),
+              newDownPayment: Number(replaceInfo.requested.down_payment || 0).toLocaleString('en-US')
+            })}
+          </div>
+        )}
       </Modal>
 
       {/* Collect payment → finance voucher */}

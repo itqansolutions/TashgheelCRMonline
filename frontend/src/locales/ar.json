@@ -318,6 +318,10 @@
     }
   },
   "customers": {
+    "matchMissingInputs": "النتائج ممكن تكون أقل دقة. أضف {{fields}} لهذا العميل للحصول على مطابقة أدق.",
+    "missingMaxBudget": "الحد الأقصى للميزانية",
+    "missingLocation": "المنطقة المفضلة",
+    "matchNeedsPreferences": "لا توجد تفضيلات كافية للمطابقة. أضف ميزانية أو مساحة أو موقعًا أو عدد غرف لهذا العميل.",
     "title": "العملاء",
     "leadsTitle": "العملاء المحتملون والمشترون المرتقبون",
     "subtitle": "إدارة العملاء والعملاء المحتملين ومتابعة مسارهم.",
@@ -2375,6 +2379,10 @@
       "toastSelectContract": "يرجى اختيار العقد أولاً",
       "toastPlanSuccess": "تم إنشاء جدول الأقساط بنجاح",
       "toastPlanError": "فشل توليد جدول الأقساط",
+      "confirmReplace": "هذا العقد له جدول من {{count}} قسط بإجمالي {{total}}. توليد جدول جديد سيستبدله (وتُحفظ نسخة منه في السجل) ويغيّر مقدم العقد من {{downPayment}} إلى {{newDownPayment}}. هل تريد المتابعة؟",
+      "confirmReplaceTitle": "استبدال جدول الأقساط الحالي؟",
+      "confirmReplaceAction": "استبدال الجدول",
+      "confirmReplaceChanged": "تغيّر الجدول بعد فتحك لهذه الشاشة. راجع الأرقام الحالية أدناه.",
       "toastPaySuccess": "تم تسجيل الدفعة وإصدار سند القبض بنجاح",
       "toastPayError": "فشل تسجيل الدفعة",
       "toastHistoryError": "فشل تحميل سجل الدفعات"
@@ -2600,6 +2608,9 @@
       "btnPublishPf": "نشر على بروبرتي فايندر",
       "btnUnpublish": "إلغاء النشر",
       "pfOpenTooltip": "فتح في موقع بروبرتي فايندر",
+      "buyerMissingInputs": "ناقص: {{fields}}",
+      "buyersMissingInputsNotice": "{{count}} من هؤلاء العملاء ناقصهم الحد الأقصى للميزانية أو المنطقة المفضلة، فدرجات التطابق ممكن تكون أقل دقة.",
+      "noStatedPreferences": "لا توجد تفضيلات مسجلة",
       "btnMatchBuyers": "🎯 مطابقة المشترين بالذكاء الاصطناعي",
       "btnDisableDelete": "تعطيل وحذف الوحدة",
       "confirmDeleteProperty": "هل أنت متأكد من رغبتك في حذف هذا العقار نهائيًا من المخزون؟ هذا الإجراء لا يمكن التراجع عنه.",

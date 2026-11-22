@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const db = require('../config/db');
+const { logDelete } = require('../services/loggerService');
 
 /**
  * Real Estate Payments MVP Controller
@@ -356,7 +357,10 @@ exports.deletePayment = async (req, res) => {
             }
         }
 
-        await db.query('DELETE FROM re_payments_mvp WHERE id = $1 AND tenant_id::text = $2::text', [id, tenant_id]);
+        const delRes = await db.query('DELETE FROM re_payments_mvp WHERE id = $1 AND tenant_id::text = $2::text RETURNING id, deal_id, paid_amount', [id, tenant_id]);
+        if (delRes.rows.length > 0) {
+            logDelete(req, 'PaymentTracking', String(id), { deal_id: delRes.rows[0].deal_id, paid_amount: delRes.rows[0].paid_amount });
+        }
         res.json({ status: 'success', message: 'Payment tracking removed' });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });

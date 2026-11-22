@@ -4,6 +4,7 @@
  */
 
 const db = require('../config/db');
+const { logDelete } = require('../services/loggerService');
 const accessScopeService = require('../services/accessScopeService');
 
 // @desc    Get handovers
@@ -297,33 +298,73 @@ exports.deleteHandover = async (req, res) => {
         : (req.branchId || req.user?.branch_id || null);
     const { id } = req.params;
 
+    const client = await db.connect();
     try {
-        const hoRes = await db.query(`
-            SELECT rh.id, rh.status, rh.branch_id, d.branch_id as deal_branch_id
+        await client.query('BEGIN');
+        const hoRes = await client.query(`
+            SELECT rh.id, rh.status, rh.branch_id, rh.deal_id, rh.contract_id, rh.unit_id, d.branch_id as deal_branch_id
             FROM re_handovers rh
-            LEFT JOIN deals d ON rh.deal_id = d.id
+            LEFT JOIN deals d ON rh.deal_id = d.id AND d.tenant_id::text = rh.tenant_id::text
             WHERE rh.id::text = $1::text AND rh.tenant_id::text = $2::text
+            FOR UPDATE OF rh
         `, [id, tenant_id]);
 
         if (hoRes.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Handover not found or unauthorized.' });
         }
 
         const ho = hoRes.rows[0];
         const hoBranch = ho.branch_id || ho.deal_branch_id;
         if (branch_id && hoBranch && String(hoBranch) !== String(branch_id)) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Handover not found or unauthorized.' });
         }
 
         if (ho.status === 'Handed Over') {
+            await client.query('ROLLBACK');
             return res.status(400).json({ status: 'error', message: 'Cannot delete a finalized handover.' });
         }
 
-        await db.query(`DELETE FROM re_handovers WHERE id::text = $1::text AND tenant_id::text = $2::text`, [id, tenant_id]);
+        // Owner rule: a record linked to a sale, contract or deal must never be deleted, whatever its
+        // status and whatever the caller's role. A handover belongs to a deal by design, so this
+        // refuses any handover that has business records attached and changes nothing when it does.
+        const linked = {};
+        if (ho.deal_id != null) linked.deals = 1;
+        if (ho.contract_id != null) linked.contracts = 1;
+        if (ho.deal_id != null || ho.unit_id != null) {
+            const extra = await client.query(`
+                SELECT
+                    (SELECT count(*)::int FROM re_contracts c
+                      WHERE c.tenant_id::text = $1::text
+                        AND (c.deal_id = $2 OR c.unit_id::text = $3::text)) AS contracts,
+                    (SELECT count(*)::int FROM re_cancellations x
+                      WHERE x.tenant_id::text = $1::text
+                        AND (x.deal_id = $2 OR x.unit_id::text = $3::text)) AS cancellations
+            `, [tenant_id, ho.deal_id, ho.unit_id == null ? '' : String(ho.unit_id)]);
+            if (extra.rows[0].contracts > 0) linked.contracts = Math.max(linked.contracts || 0, extra.rows[0].contracts);
+            if (extra.rows[0].cancellations > 0) linked.cancellations = extra.rows[0].cancellations;
+        }
+        if (Object.keys(linked).length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                status: 'error',
+                code: 'HANDOVER_HAS_LINKED_RECORDS',
+                message: 'This handover is linked to a sale, contract or deal and cannot be deleted.',
+                linked
+            });
+        }
 
+        await client.query(`DELETE FROM re_handovers WHERE id::text = $1::text AND tenant_id::text = $2::text`, [id, tenant_id]);
+        await client.query('COMMIT');
+
+        logDelete(req, 'Handover', String(id), { status: ho.status });
         res.json({ status: 'success', message: 'Handover deleted successfully.' });
     } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
         console.error('[Delete Handover Error]:', err.message);
         res.status(500).json({ status: 'error', message: err.message });
+    } finally {
+        client.release();
     }
 };

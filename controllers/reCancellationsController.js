@@ -128,11 +128,18 @@ exports.processCancellation = async (req, res) => {
             return res.status(409).json({ status: 'error', message: 'This deal has already been cancelled.' });
         }
 
+        // 2b. Lock order: unit before contract, matching contract status changes (unit -> contract),
+        // so the contract lock below cannot form a cycle with them.
+        if (deal.unit_id) {
+            await client.query(`SELECT id FROM re_units WHERE id::text = $1::text AND tenant_id::text = $2::text FOR UPDATE`, [String(deal.unit_id), tenant_id]);
+        }
+
         // 3. Find contract if exists
         const contractRes = await client.query(`
             SELECT id, contract_number, status, down_payment
             FROM re_contracts
             WHERE deal_id = $1 AND tenant_id::text = $2::text
+            FOR UPDATE
         `, [deal.id, tenant_id]);
 
         const contract = contractRes.rows.length > 0 ? contractRes.rows[0] : null;

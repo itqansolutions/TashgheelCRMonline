@@ -151,7 +151,7 @@ app.use(express.static(frontendPath, {
 }));
 
 // Global Subscription & Branch Guard (applies only to /api routes below)
-app.use('/api', authMiddleware, branchScope, subscriptionGuard);
+app.use('/api', authMiddleware, require('./middleware/deleteRoleBoundary'), branchScope, subscriptionGuard);
 
 const templateGuard = require('./middleware/templateGuard');
 

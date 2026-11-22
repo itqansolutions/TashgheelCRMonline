@@ -18,6 +18,8 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
   const [data360, setData360] = useState(null);
   const [error, setError] = useState(null);
   const [matchedUnits, setMatchedUnits] = useState([]);
+  const [matchNeedsPrefs, setMatchNeedsPrefs] = useState(false);
+  const [matchMissing, setMatchMissing] = useState([]);
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [expandedMatchId, setExpandedMatchId] = useState(null);
 
@@ -44,6 +46,15 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
     setLoadingMatches(true);
     try {
       const res = await api.get(`/re-units/match-customer/${customerId}`);
+      const needsPrefs = res.data?.data?.has_requirements === false;
+      setMatchNeedsPrefs(needsPrefs);
+      // Advisory only: which of max budget / location the customer has not stated (derived, nothing stored)
+      const mc = res.data?.data?.customer || {};
+      const miss = [];
+      if (!(parseFloat(mc.budget_max) > 0)) miss.push('budget');
+      const ml = String(mc.preferred_location || '').trim().toLowerCase();
+      if (ml === '' || ['any', 'anywhere', 'all'].includes(ml)) miss.push('location');
+      setMatchMissing(miss);
       setMatchedUnits(res.data?.data?.matches || []);
     } catch (err) {
       console.warn('[Customer 360 Match Units Fetch Notice]:', err.message);
@@ -69,9 +80,11 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
   const timeline = data360?.timeline || [];
 
   const showRealEstateTab = summary.has_real_estate === true || 
-    (customer.budget_min > 0 || customer.preferred_location) ||
+    (customer.budget_min > 0 || customer.budget_max > 0 || customer.preferred_location ||
+      customer.preferred_area_min > 0 || customer.preferred_area_max > 0 || customer.preferred_rooms > 0) ||
     realEstate.contracts.length > 0 ||
-    matchedUnits.length > 0;
+    matchedUnits.length > 0 ||
+    matchNeedsPrefs;
 
   const getEntityLabel = (type) => {
     switch (type) {
@@ -755,6 +768,11 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                   </button>
                 </div>
 
+                {!loadingMatches && matchMissing.length > 0 && (
+                  <div role="alert" style={{ marginBottom: '10px', padding: '10px 12px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '8px', color: '#92400e', fontSize: '12px', fontWeight: 600 }}>
+                    ⚠️ {t('customers.matchMissingInputs', 'Results may be less accurate. Add {{fields}} to this customer for better matches.', { fields: matchMissing.map(k => k === 'budget' ? t('customers.missingMaxBudget', 'max budget') : t('customers.missingLocation', 'preferred location')).join(' / ') })}
+                  </div>
+                )}
                 {loadingMatches ? (
                   <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
                     {t('customers.analyzingMatches', 'Matching property inventory against buyer budget, area, and rooms...')}
@@ -767,8 +785,8 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {matchedUnits.map(({ unit, match_score, match_grade, breakdown }) => {
                       const isExpanded = expandedMatchId === unit.id;
-                      const gradeColor = match_score >= 85 ? '#16a34a' : match_score >= 65 ? '#2563eb' : match_score >= 45 ? '#d97706' : '#64748b';
-                      const gradeBg = match_score >= 85 ? '#dcfce7' : match_score >= 65 ? '#dbeafe' : match_score >= 45 ? '#fef3c7' : '#f1f5f9';
+                      const gradeColor = matchNeedsPrefs ? '#64748b' : match_score >= 85 ? '#16a34a' : match_score >= 65 ? '#2563eb' : match_score >= 45 ? '#d97706' : '#64748b';
+                      const gradeBg = matchNeedsPrefs ? '#f1f5f9' : match_score >= 85 ? '#dcfce7' : match_score >= 65 ? '#dbeafe' : match_score >= 45 ? '#fef3c7' : '#f1f5f9';
                       const isAvailable = unit.status?.toLowerCase() === 'available';
 
                       return (
@@ -779,8 +797,8 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               <div style={{ textAlign: 'center', minWidth: '50px', padding: '4px 6px', borderRadius: '8px', background: gradeBg, color: gradeColor, fontWeight: 900 }}>
-                                <div style={{ fontSize: '15px', lineHeight: '1' }}>{match_score}%</div>
-                                <div style={{ fontSize: '9px', textTransform: 'uppercase' }}>{match_grade}</div>
+                                <div style={{ fontSize: '15px', lineHeight: '1' }}>{matchNeedsPrefs ? '-' : `${match_score}%`}</div>
+                                <div style={{ fontSize: '9px', textTransform: 'uppercase' }}>{matchNeedsPrefs ? t('realEstate.unitsRegistry.noStatedPreferences') : match_grade}</div>
                               </div>
                               <div>
                                 <div style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b' }}>
@@ -788,8 +806,8 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                                 </div>
                                 <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
                                   <span style={{ fontWeight: 700, color: 'var(--primary)' }}><span className="num-en">{Number(unit.price || 0).toLocaleString('en-US')}</span> EGP</span>
-                                  {unit.area_sqm && <span>📐 <span className="num-en">{unit.area_sqm}</span> m²</span>}
-                                  {unit.rooms && <span>🚪 <span className="num-en">{unit.rooms}</span> rooms</span>}
+                                  {Number(unit.area_sqm) > 0 && <span>📐 <span className="num-en">{unit.area_sqm}</span> m²</span>}
+                                  {Number(unit.rooms) > 0 && <span>🚪 <span className="num-en">{unit.rooms}</span> rooms</span>}
                                   {unit.location && <span>📍 {unit.location}</span>}
                                   <span style={{ padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 800, background: isAvailable ? '#dcfce7' : '#fee2e2', color: isAvailable ? '#15803d' : '#b91c1c' }}>
                                     {unit.status}
@@ -816,7 +834,7 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                             </div>
                           </div>
 
-                          {isExpanded && breakdown && (
+                          {isExpanded && !matchNeedsPrefs && breakdown && (
                             <div style={{ padding: '10px 16px', borderTop: '1px solid #f1f5f9', background: '#fafafa', fontSize: '12px' }}>
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
                                 <div style={{ background: 'white', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>

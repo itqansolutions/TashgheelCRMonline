@@ -1,4 +1,6 @@
 const db = require('../config/db');
+const { checkHierarchyDelete } = require('../services/reDeletionGuard');
+const { logDelete } = require('../services/loggerService');
 
 /**
  * Real Estate Project Hierarchy Controller
@@ -59,21 +61,34 @@ exports.deleteDeveloper = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const { id } = req.params;
 
+    const client = await db.connect();
     try {
-        const result = await db.query(`
-            DELETE FROM re_developers
-            WHERE id::text = $1::text AND tenant_id::text = $2::text
-            RETURNING id
-        `, [id, tenant_id]);
-
-        if (result.rows.length === 0) {
+        await client.query('BEGIN');
+        const chk = await checkHierarchyDelete(client, 'developer', id, tenant_id);
+        if (!chk.found) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Developer not found.' });
         }
-
+        if (chk.blocked) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                status: 'error',
+                code: 'HIERARCHY_HAS_DEPENDENTS',
+                message: 'Cannot delete this developer while it contains units or child records, or while any unit under it is linked to a deal, contract, cancellation, handover or payment record. Nothing was changed.',
+                linked: chk.linked,
+                contains: chk.contains
+            });
+        }
+        await client.query('DELETE FROM re_developers WHERE id::text = $1::text AND tenant_id::text = $2::text', [id, tenant_id]);
+        await client.query('COMMIT');
+        logDelete(req, 'Developer', String(id), {});
         res.json({ status: 'success', message: 'Developer deleted successfully.' });
     } catch (err) {
+        try { await client.query('ROLLBACK'); } catch (_) { /* already closed */ }
         console.error('[Delete Developer Error]:', err.message);
         res.status(500).json({ status: 'error', message: err.message });
+    } finally {
+        client.release();
     }
 };
 
@@ -147,21 +162,34 @@ exports.deleteProject = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const { id } = req.params;
 
+    const client = await db.connect();
     try {
-        const result = await db.query(`
-            DELETE FROM re_projects
-            WHERE id::text = $1::text AND tenant_id::text = $2::text
-            RETURNING id
-        `, [id, tenant_id]);
-
-        if (result.rows.length === 0) {
+        await client.query('BEGIN');
+        const chk = await checkHierarchyDelete(client, 'project', id, tenant_id);
+        if (!chk.found) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Project not found.' });
         }
-
+        if (chk.blocked) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                status: 'error',
+                code: 'HIERARCHY_HAS_DEPENDENTS',
+                message: 'Cannot delete this project while it contains units or child records, or while any unit under it is linked to a deal, contract, cancellation, handover or payment record. Nothing was changed.',
+                linked: chk.linked,
+                contains: chk.contains
+            });
+        }
+        await client.query('DELETE FROM re_projects WHERE id::text = $1::text AND tenant_id::text = $2::text', [id, tenant_id]);
+        await client.query('COMMIT');
+        logDelete(req, 'Project', String(id), {});
         res.json({ status: 'success', message: 'Project deleted successfully.' });
     } catch (err) {
+        try { await client.query('ROLLBACK'); } catch (_) { /* already closed */ }
         console.error('[Delete Project Error]:', err.message);
         res.status(500).json({ status: 'error', message: err.message });
+    } finally {
+        client.release();
     }
 };
 
@@ -238,21 +266,34 @@ exports.deletePhase = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const { id } = req.params;
 
+    const client = await db.connect();
     try {
-        const result = await db.query(`
-            DELETE FROM re_phases
-            WHERE id::text = $1::text AND tenant_id::text = $2::text
-            RETURNING id
-        `, [id, tenant_id]);
-
-        if (result.rows.length === 0) {
+        await client.query('BEGIN');
+        const chk = await checkHierarchyDelete(client, 'phase', id, tenant_id);
+        if (!chk.found) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Phase not found.' });
         }
-
+        if (chk.blocked) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                status: 'error',
+                code: 'HIERARCHY_HAS_DEPENDENTS',
+                message: 'Cannot delete this phase while it contains units or child records, or while any unit under it is linked to a deal, contract, cancellation, handover or payment record. Nothing was changed.',
+                linked: chk.linked,
+                contains: chk.contains
+            });
+        }
+        await client.query('DELETE FROM re_phases WHERE id::text = $1::text AND tenant_id::text = $2::text', [id, tenant_id]);
+        await client.query('COMMIT');
+        logDelete(req, 'Phase', String(id), {});
         res.json({ status: 'success', message: 'Phase deleted successfully.' });
     } catch (err) {
+        try { await client.query('ROLLBACK'); } catch (_) { /* already closed */ }
         console.error('[Delete Phase Error]:', err.message);
         res.status(500).json({ status: 'error', message: err.message });
+    } finally {
+        client.release();
     }
 };
 
@@ -337,21 +378,34 @@ exports.deleteBuilding = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const { id } = req.params;
 
+    const client = await db.connect();
     try {
-        const result = await db.query(`
-            DELETE FROM re_buildings
-            WHERE id::text = $1::text AND tenant_id::text = $2::text
-            RETURNING id
-        `, [id, tenant_id]);
-
-        if (result.rows.length === 0) {
+        await client.query('BEGIN');
+        const chk = await checkHierarchyDelete(client, 'building', id, tenant_id);
+        if (!chk.found) {
+            await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Building not found.' });
         }
-
+        if (chk.blocked) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                status: 'error',
+                code: 'HIERARCHY_HAS_DEPENDENTS',
+                message: 'Cannot delete this building while it contains units or child records, or while any unit under it is linked to a deal, contract, cancellation, handover or payment record. Nothing was changed.',
+                linked: chk.linked,
+                contains: chk.contains
+            });
+        }
+        await client.query('DELETE FROM re_buildings WHERE id::text = $1::text AND tenant_id::text = $2::text', [id, tenant_id]);
+        await client.query('COMMIT');
+        logDelete(req, 'Building', String(id), {});
         res.json({ status: 'success', message: 'Building deleted successfully.' });
     } catch (err) {
+        try { await client.query('ROLLBACK'); } catch (_) { /* already closed */ }
         console.error('[Delete Building Error]:', err.message);
         res.status(500).json({ status: 'error', message: err.message });
+    } finally {
+        client.release();
     }
 };
 

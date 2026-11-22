@@ -11,6 +11,26 @@ const db = require('../config/db');
  * - Rooms:    10 points max
  */
 
+/**
+ * True when the customer stated at least one requirement. A customer with no
+ * stated budget/area/location/rooms has no meaningful match score,
+ * so callers use this flag to show an unscored result instead of a recommendation.
+ */
+// The customer form offers rooms "1, 2, 3, 4+" and stores 4 for "4+".
+const ROOMS_OPEN_ENDED_FROM = 4;
+// Lowest score returned by default. 0 = list everything (unchanged behavior). Any cutoff is a product decision
+// that has not been made; callers can pass min_score. Do not set a number here without that decision.
+const DEFAULT_MIN_SCORE = 0;
+
+function hasStatedRequirements(customer) {
+    const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0; };
+    const loc = customer.preferred_location ? String(customer.preferred_location).trim().toLowerCase() : '';
+    return num(customer.budget_min) || num(customer.budget_max) ||
+        num(customer.preferred_area_min) || num(customer.preferred_area_max) ||
+        (loc !== '' && !['any', 'anywhere', 'all'].includes(loc)) ||
+        (parseInt(customer.preferred_rooms) > 0);
+}
+
 function calculateMatch(customer, unit) {
     // 1. Budget (40 points max)
     let budgetScore = 0;
@@ -23,9 +43,11 @@ function calculateMatch(customer, unit) {
         ? parseFloat(customer.budget_max) : null;
     const unitPrice = unit.price !== null && unit.price !== undefined ? parseFloat(unit.price) : 0;
 
-    if ((minB === null || minB === 0) && (maxB === null || maxB === 0)) {
-        budgetScore = maxBudgetScore;
-        budgetReason = 'No buyer budget constraints specified (Full 40 pts)';
+    const budgetStated = (minB !== null && minB > 0) || (maxB !== null && maxB > 0);
+    if (!budgetStated) {
+        budgetReason = 'No buyer budget specified (not scored)';
+    } else if (!(unitPrice > 0)) {
+        budgetReason = 'Unit has no price, budget cannot be checked (0 pts)';
     } else {
         const floorB = minB !== null && minB > 0 ? minB : 0;
         const ceilB = maxB !== null && maxB > 0 ? maxB : Infinity;
@@ -68,9 +90,11 @@ function calculateMatch(customer, unit) {
         ? parseFloat(customer.preferred_area_max) : null;
     const unitArea = unit.area_sqm !== null && unit.area_sqm !== undefined ? parseFloat(unit.area_sqm) : 0;
 
-    if ((minA === null || minA === 0) && (maxA === null || maxA === 0)) {
-        areaScore = maxAreaScore;
-        areaReason = 'No buyer area preference specified (Full 30 pts)';
+    const areaStated = (minA !== null && minA > 0) || (maxA !== null && maxA > 0);
+    if (!areaStated) {
+        areaReason = 'No buyer area specified (not scored)';
+    } else if (!(unitArea > 0)) {
+        areaReason = 'Unit has no area, area cannot be checked (0 pts)';
     } else {
         const floorA = minA !== null && minA > 0 ? minA : 0;
         const ceilA = maxA !== null && maxA > 0 ? maxA : Infinity;
@@ -111,9 +135,9 @@ function calculateMatch(customer, unit) {
     const maxLocScore = 20;
 
     const prefLoc = customer.preferred_location ? customer.preferred_location.trim().toLowerCase() : '';
-    if (!prefLoc || prefLoc === 'any' || prefLoc === 'anywhere' || prefLoc === 'all') {
-        locScore = maxLocScore;
-        locReason = 'No specific location constraint (Full 20 pts)';
+    const locStated = !(!prefLoc || prefLoc === 'any' || prefLoc === 'anywhere' || prefLoc === 'all');
+    if (!locStated) {
+        locReason = 'No buyer location specified (not scored)';
     } else {
         const unitLocStr = [
             unit.location || '',
@@ -123,15 +147,29 @@ function calculateMatch(customer, unit) {
             unit.developer_name || ''
         ].join(' ').toLowerCase();
 
-        if (unitLocStr.includes(prefLoc)) {
+        // The form accepts several areas ("New Cairo, Sheikh Zayed"), so each is an alternative.
+        const alternatives = prefLoc.split(/[,،;|\/]+/).map(a => a.trim()).filter(Boolean);
+        const wordsOf = (a) => a.split(/[\s-]+/).filter(w => w.length > 2);
+        const matchedAlt = alternatives.find(a => unitLocStr.includes(a));
+        if (matchedAlt) {
             locScore = maxLocScore;
-            locReason = `Exact location match with "${customer.preferred_location}" (+20 pts)`;
+            locReason = `Exact location match with "${matchedAlt}" (+20 pts)`;
         } else {
-            const words = prefLoc.split(/[\s,،-]+/).filter(w => w.length > 2);
-            const partial = words.some(w => unitLocStr.includes(w));
-            if (partial) {
+            // Partial credit only when every word of an alternative is present (different order or
+            // extra words in the unit location). One shared word is not enough: "New Cairo" and
+            // "New Capital" share "new" but are different areas.
+            const wordMatchAlt = alternatives.find(a => {
+                const w = wordsOf(a);
+                return w.length > 1 && w.every(x => unitLocStr.includes(x));
+            });
+            const unitOwnLoc = String(unit.location || '').trim().toLowerCase();
+            const containedAlt = unitOwnLoc.length > 2 ? alternatives.find(a => a.includes(unitOwnLoc)) : null;
+            if (containedAlt) {
                 locScore = 10;
-                locReason = `Partial location match with "${customer.preferred_location}" (+10 pts)`;
+                locReason = `Unit area "${unit.location}" is part of preferred "${containedAlt}" (+10 pts)`;
+            } else if (wordMatchAlt) {
+                locScore = 10;
+                locReason = `Location words of "${wordMatchAlt}" all appear in the unit location (+10 pts)`;
             } else {
                 locScore = 0;
                 locReason = `Location "${unit.location || unit.project_name || 'N/A'}" does not match preferred "${customer.preferred_location}" (0 pts)`;
@@ -147,13 +185,17 @@ function calculateMatch(customer, unit) {
     const prefRooms = customer.preferred_rooms ? parseInt(customer.preferred_rooms) : null;
     const unitRooms = unit.rooms ? parseInt(unit.rooms) : 0;
 
-    if (!prefRooms) {
-        roomsScore = maxRoomsScore;
-        roomsReason = 'No room preference specified (Full 10 pts)';
+    const roomsStated = !!prefRooms;
+    if (!roomsStated) {
+        roomsReason = 'No room preference specified (not scored)';
+    } else if (!(unitRooms > 0)) {
+        roomsReason = 'Unit has no room count, rooms cannot be checked (0 pts)';
     } else {
-        if (unitRooms === prefRooms) {
+        if (unitRooms === prefRooms || (prefRooms >= ROOMS_OPEN_ENDED_FROM && unitRooms >= prefRooms)) {
             roomsScore = maxRoomsScore;
-            roomsReason = `Exact room count match: ${unitRooms} rooms (+10 pts)`;
+            roomsReason = prefRooms >= ROOMS_OPEN_ENDED_FROM && unitRooms !== prefRooms
+                ? `${unitRooms} rooms satisfies "${prefRooms}+" (+10 pts)`
+                : `Exact room count match: ${unitRooms} rooms (+10 pts)`;
         } else if (Math.abs(unitRooms - prefRooms) === 1) {
             roomsScore = 5;
             roomsReason = `Close room count: unit has ${unitRooms} rooms vs preferred ${prefRooms} (+5 pts)`;
@@ -163,7 +205,12 @@ function calculateMatch(customer, unit) {
         }
     }
 
-    const totalScore = Math.min(100, Math.max(0, Math.round(budgetScore + areaScore + locScore + roomsScore)));
+    // Score only the criteria the buyer actually stated: earned / available of those criteria.
+    // Unstated criteria no longer add free points, so one stated mismatch cannot hide behind them.
+    const availableMax = (budgetStated ? maxBudgetScore : 0) + (areaStated ? maxAreaScore : 0) +
+        (locStated ? maxLocScore : 0) + (roomsStated ? maxRoomsScore : 0);
+    const earned = budgetScore + areaScore + locScore + roomsScore;
+    const totalScore = availableMax === 0 ? 0 : Math.min(100, Math.max(0, Math.round((earned / availableMax) * 100)));
     let matchGrade = 'Low';
     if (totalScore >= 85) matchGrade = 'Excellent';
     else if (totalScore >= 65) matchGrade = 'Good';
@@ -173,10 +220,10 @@ function calculateMatch(customer, unit) {
         match_score: totalScore,
         match_grade: matchGrade,
         breakdown: {
-            budget: { score: budgetScore, max: maxBudgetScore, reason: budgetReason },
-            area: { score: areaScore, max: maxAreaScore, reason: areaReason },
-            location: { score: locScore, max: maxLocScore, reason: locReason },
-            rooms: { score: roomsScore, max: maxRoomsScore, reason: roomsReason }
+            budget: { score: budgetScore, max: maxBudgetScore, stated: budgetStated, reason: budgetReason },
+            area: { score: areaScore, max: maxAreaScore, stated: areaStated, reason: areaReason },
+            location: { score: locScore, max: maxLocScore, stated: locStated, reason: locReason },
+            rooms: { score: roomsScore, max: maxRoomsScore, stated: roomsStated, reason: roomsReason }
         }
     };
 }
@@ -184,7 +231,7 @@ function calculateMatch(customer, unit) {
 /**
  * Match all eligible inventory units for a given customer
  */
-async function matchUnitsForCustomer({ tenantId, branchId, customerId, includeAllStatus = false }) {
+async function matchUnitsForCustomer({ tenantId, branchId, customerId, includeAllStatus = false, minScore = DEFAULT_MIN_SCORE }) {
     // 1. Fetch customer requirements
     const custRes = await db.query(`
         SELECT id, name, email, phone, budget_min, budget_max, 
@@ -227,8 +274,9 @@ async function matchUnitsForCustomer({ tenantId, branchId, customerId, includeAl
     const unitsRes = await db.query(query, params);
     const units = unitsRes.rows || [];
 
-    // 3. Score every unit
-    const scoredMatches = units.map(unit => {
+    // 3. Score every unit (a customer who stated nothing has nothing to match against)
+    const customerHasRequirements = hasStatedRequirements(customer);
+    const allScored = units.map(unit => {
         const matchResult = calculateMatch(customer, unit);
         return {
             unit: {
@@ -252,6 +300,8 @@ async function matchUnitsForCustomer({ tenantId, branchId, customerId, includeAl
             breakdown: matchResult.breakdown
         };
     });
+    const scoredMatches = allScored.filter(m => m.match_score >= minScore);
+    const hiddenLowCount = allScored.length - scoredMatches.length;
 
     // Sort descending by score
     scoredMatches.sort((a, b) => b.match_score - a.match_score);
@@ -267,15 +317,31 @@ async function matchUnitsForCustomer({ tenantId, branchId, customerId, includeAl
             preferred_location: customer.preferred_location,
             preferred_rooms: customer.preferred_rooms
         },
+        // false = the customer stated no budget/area/location/rooms, so scores are not meaningful
+        has_requirements: customerHasRequirements,
+        min_score: minScore,
+        hidden_low_count: hiddenLowCount,
         matches_count: scoredMatches.length,
         matches: scoredMatches
     };
 }
 
+// entity_type / is_active are added by separate bootstraps; only filter on them when present
+// so a missing column can never turn into a 500.
+async function customerExtraFilters() {
+    const colRes = await db.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = 'customers' AND column_name IN ('entity_type', 'is_active')`
+    );
+    const cols = new Set((colRes.rows || []).map(r => r.column_name));
+    return (cols.has('is_active') ? 'AND (is_active IS NOT FALSE) ' : '') +
+        (cols.has('entity_type') ? "AND (COALESCE(entity_type, 'customer') <> 'vendor') " : '');
+}
+
 /**
  * Match all eligible buyer leads for a given inventory unit
  */
-async function matchCustomersForUnit({ tenantId, branchId, unitId, minScore = 0 }) {
+async function matchCustomersForUnit({ tenantId, branchId, unitId, minScore = DEFAULT_MIN_SCORE }) {
     // 1. Fetch unit details
     const unitRes = await db.query(`
         SELECT 
@@ -289,7 +355,7 @@ async function matchCustomersForUnit({ tenantId, branchId, unitId, minScore = 0 
         LEFT JOIN re_projects proj ON ru.project_id::text = proj.id::text AND proj.tenant_id::text = ru.tenant_id::text
         LEFT JOIN re_phases phase ON ru.phase_id::text = phase.id::text AND phase.tenant_id::text = ru.tenant_id::text
         LEFT JOIN re_buildings bld ON ru.building_id::text = bld.id::text AND bld.tenant_id::text = ru.tenant_id::text
-        WHERE ru.id = $1::uuid AND ru.tenant_id::text = $2::text
+        WHERE ru.id::text = $1::text AND ru.tenant_id::text = $2::text
           AND ($3::text IS NULL OR ru.branch_id::text = $3::text OR ru.branch_id IS NULL)
     `, [unitId, tenantId, branchId ? String(branchId) : null]);
 
@@ -302,6 +368,7 @@ async function matchCustomersForUnit({ tenantId, branchId, unitId, minScore = 0 
     const unit = unitRes.rows[0];
 
     // 2. Fetch active customers with requirements
+    const extraFilters = await customerExtraFilters();
     const custRes = await db.query(`
         SELECT id, name, email, phone, budget_min, budget_max, 
                preferred_area_min, preferred_area_max, preferred_location, preferred_rooms,
@@ -309,13 +376,16 @@ async function matchCustomersForUnit({ tenantId, branchId, unitId, minScore = 0 
         FROM customers
         WHERE tenant_id::text = $1::text
           AND (is_blacklisted IS NOT TRUE)
-          AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL OR branch_id = 'default-branch')
+          ${extraFilters}AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL OR branch_id = 'default-branch')
     `, [tenantId, branchId ? String(branchId) : null]);
 
     const customers = custRes.rows || [];
 
     // 3. Score every customer against this unit
-    const scoredMatches = customers.map(cust => {
+    // Keep no-requirement buyers visible; has_requirements=false makes the UI show them unscored.
+    const withReqs = customers.filter(c => hasStatedRequirements(c));
+    const noPrefsCount = customers.length - withReqs.length;
+    const allScored = customers.map(cust => {
         const matchResult = calculateMatch(cust, unit);
         return {
             customer: {
@@ -331,13 +401,15 @@ async function matchCustomersForUnit({ tenantId, branchId, unitId, minScore = 0 
                 preferred_rooms: cust.preferred_rooms,
                 status: cust.status
             },
+            has_requirements: hasStatedRequirements(cust),
             match_score: matchResult.match_score,
             match_grade: matchResult.match_grade,
             breakdown: matchResult.breakdown
         };
-    }).filter(m => m.match_score >= minScore);
+    });
+    const scoredMatches = allScored.filter(m => m.match_score >= minScore);
+    const hiddenLowCount = allScored.length - scoredMatches.length;
 
-    // Sort descending by score
     scoredMatches.sort((a, b) => b.match_score - a.match_score);
 
     return {
@@ -352,6 +424,9 @@ async function matchCustomersForUnit({ tenantId, branchId, unitId, minScore = 0 
             location: unit.location,
             status: unit.status
         },
+        min_score: minScore,
+        hidden_low_count: hiddenLowCount,
+        no_preferences_count: noPrefsCount,
         matches_count: scoredMatches.length,
         matches: scoredMatches
     };
@@ -359,6 +434,7 @@ async function matchCustomersForUnit({ tenantId, branchId, unitId, minScore = 0 
 
 module.exports = {
     calculateMatch,
+    hasStatedRequirements,
     matchUnitsForCustomer,
     matchCustomersForUnit
 };

@@ -5,6 +5,7 @@ const crypto = require('crypto');
  */
 
 const db = require('../config/db');
+const { logDelete } = require('../services/loggerService');
 const accessScopeService = require('../services/accessScopeService');
 
 // @desc    Get commissions list with summary
@@ -754,34 +755,39 @@ exports.deleteCommission = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const { id } = req.params;
 
+    // Checks and delete share one transaction holding the commission row lock.
+    const client = await db.connect();
     try {
-        const checkRes = await db.query(`
+        await client.query('BEGIN');
+        const checkRes = await client.query(`
             SELECT id, paid_amount, status FROM re_commissions
             WHERE id::text = $1::text AND tenant_id::text = $2::text
+            FOR UPDATE
         `, [id, tenant_id]);
+        const reject = async (code, body) => { await client.query('ROLLBACK'); return res.status(code).json(body); };
 
         if (checkRes.rows.length === 0) {
-            return res.status(404).json({ status: 'error', message: 'Commission not found or unauthorized.' });
+            return await reject(404, { status: 'error', message: 'Commission not found or unauthorized.' });
         }
 
         const comm = checkRes.rows[0];
 
         if (comm.status === 'Clawback') {
-            return res.status(400).json({
+            return await reject(400, {
                 status: 'error',
                 message: 'Cannot delete a clawbacked commission; historical audit record must be preserved.'
             });
         }
 
         if (comm.status === 'Paid' || parseFloat(comm.paid_amount) > 0) {
-            return res.status(400).json({
+            return await reject(400, {
                 status: 'error',
                 message: 'Cannot delete commission with payments recorded.'
             });
         }
 
         // Check if any payment vouchers exist
-        const voucherRes = await db.query(`
+        const voucherRes = await client.query(`
             SELECT id FROM finance_vouchers
             WHERE reference_no LIKE 'COMM-PAY-' || $1 || '%'
               AND tenant_id::text = $2::text
@@ -791,17 +797,22 @@ exports.deleteCommission = async (req, res) => {
         `, [id, tenant_id]);
 
         if (voucherRes.rows.length > 0) {
-            return res.status(400).json({
+            return await reject(400, {
                 status: 'error',
                 message: 'Cannot delete commission with associated payment vouchers.'
             });
         }
 
-        await db.query(`DELETE FROM re_commissions WHERE id::text = $1::text AND tenant_id::text = $2::text`, [id, tenant_id]);
+        await client.query(`DELETE FROM re_commissions WHERE id::text = $1::text AND tenant_id::text = $2::text`, [id, tenant_id]);
+        await client.query('COMMIT');
 
+        logDelete(req, 'Commission', String(id), { status: comm.status });
         res.json({ status: 'success', message: 'Commission deleted successfully.' });
     } catch (err) {
+        try { await client.query('ROLLBACK'); } catch (_) { /* already rolled back */ }
         console.error('[Delete Commission Error]:', err.message);
         res.status(500).json({ status: 'error', message: err.message });
+    } finally {
+        client.release();
     }
 };

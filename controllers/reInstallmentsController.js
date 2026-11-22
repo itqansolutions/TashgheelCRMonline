@@ -4,13 +4,30 @@
  */
 
 const db = require('../config/db');
+const crypto = require('crypto');
+const { logDelete } = require('../services/loggerService');
 const accessScopeService = require('../services/accessScopeService');
+const { logAction, ACTIONS } = require('../services/loggerService');
 
 // Helper to add months to a Date
 function addMonths(date, months) {
     const d = new Date(date);
     d.setMonth(d.getMonth() + months);
     return d.toISOString().split('T')[0];
+}
+
+// Fingerprint of the schedule a user is about to replace. The confirmation token sent back by the
+// client must match the schedule as it is NOW (checked under the contract lock), so a confirmation
+// given for an older view of the schedule cannot replace a newer one.
+function scheduleToken(rows, contract) {
+    const parts = (rows || []).map(r => [
+        r.id, r.installment_number, r.installment_type,
+        String(parseFloat(r.amount)), String(parseFloat(r.paid_amount)), r.status,
+        r.due_date instanceof Date ? r.due_date.toISOString() : String(r.due_date),
+        r.updated_at instanceof Date ? r.updated_at.toISOString() : String(r.updated_at)
+    ].join('|'));
+    parts.push(`dp:${parseFloat(contract.down_payment || 0)}|cv:${parseFloat(contract.contract_value || 0)}|st:${contract.status}`);
+    return crypto.createHash('sha256').update(parts.join('\n')).digest('hex');
 }
 
 // @desc    Get installments (workspace list, or filtered by contract / deal)
@@ -125,7 +142,8 @@ exports.generateSchedule = async (req, res) => {
         down_payment = 0,
         number_of_installments,
         frequency = 'monthly', // 'monthly', 'quarterly', 'semi-annual', 'annual'
-        start_date
+        start_date,
+        confirm_replace_token = null
     } = req.body;
 
     if (!contract_id) {
@@ -257,7 +275,60 @@ exports.generateSchedule = async (req, res) => {
             }
         }
 
-        // 3. Clear existing unpaid installments for this contract
+        // 3. Existing unpaid schedule: require explicit confirmation and keep a history snapshot
+        //    before it is replaced (the replaced rows get new IDs, so the snapshot is the only trace).
+        const existingRes = await client.query(`
+            SELECT * FROM re_installments
+            WHERE contract_id = $1 AND tenant_id::text = $2::text
+            ORDER BY installment_number
+        `, [contract.id, tenant_id]);
+        const existingRows = existingRes.rows || [];
+        const priorDownPayment = parseFloat(contract.down_payment || 0);
+        let historyId = null;
+
+        if (existingRows.length > 0) {
+            const currentToken = scheduleToken(existingRows, contract);
+            if (confirm_replace_token !== currentToken) {
+                await client.query('ROLLBACK');
+                const supplied = typeof confirm_replace_token === 'string' && confirm_replace_token.length > 0;
+                return res.status(409).json({
+                    status: 'error',
+                    code: supplied ? 'SCHEDULE_CHANGED_SINCE_CONFIRMATION' : 'SCHEDULE_REPLACE_CONFIRMATION_REQUIRED',
+                    message: supplied
+                        ? 'The installment schedule changed after you reviewed it. Review the current schedule and confirm again.'
+                        : 'This contract already has an installment schedule. Generating a new one replaces it. Confirm to continue.',
+                    confirm_replace_token: currentToken,
+                    existing: {
+                        count: existingRows.length,
+                        total: Number(existingRows.reduce((a, r) => a + (parseFloat(r.amount) || 0), 0).toFixed(2)),
+                        contract_down_payment: priorDownPayment,
+                        ids: existingRows.map(r => r.id)
+                    },
+                    requested: { down_payment: dpAmount, number_of_installments: numInstallments, frequency }
+                });
+            }
+
+            // Fail closed: if the history cannot be written, the schedule is not replaced.
+            const histRes = await client.query(`
+                INSERT INTO re_installment_schedule_history (
+                    tenant_id, branch_id, contract_id, replaced_by_user_id,
+                    prior_down_payment, new_down_payment, prior_installments, new_parameters
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)
+                RETURNING id
+            `, [
+                tenant_id,
+                effectiveBranchId,
+                contract.id,
+                req.user?.id || null,
+                priorDownPayment,
+                dpAmount,
+                JSON.stringify(existingRows),
+                JSON.stringify({ down_payment: dpAmount, number_of_installments: numInstallments, frequency, start_date: start_date || null })
+            ]);
+            historyId = histRes.rows[0]?.id || null;
+        }
+
+        // 3b. Clear existing unpaid installments for this contract
         await client.query(`
             DELETE FROM re_installments
             WHERE contract_id = $1 AND tenant_id::text = $2::text
@@ -325,9 +396,26 @@ exports.generateSchedule = async (req, res) => {
 
         await client.query('COMMIT');
 
+        logAction({
+            req,
+            action: existingRows.length > 0 ? ACTIONS.UPDATE : ACTIONS.CREATE,
+            entityType: 'InstallmentSchedule',
+            entityId: String(contract.id),
+            details: {
+                contract_id: contract.id,
+                replaced_installments: existingRows.length,
+                replaced_total: Number(existingRows.reduce((a, r) => a + (parseFloat(r.amount) || 0), 0).toFixed(2)),
+                prior_down_payment: priorDownPayment,
+                new_down_payment: dpAmount,
+                generated_installments: generatedInstallments.length,
+                history_id: historyId
+            }
+        });
+
         res.status(201).json({
             status: 'success',
             message: `Generated schedule of ${numInstallments} installment(s).`,
+            history_id: historyId,
             data: generatedInstallments
         });
     } catch (err) {
@@ -341,6 +429,21 @@ exports.generateSchedule = async (req, res) => {
 
 // @desc    Record a payment towards an installment
 // @route   POST /api/re-installments/:id/pay
+// Linkage columns used by installment payments. Created once per process, outside any payment
+// transaction, so a payment never waits on schema locks while holding its installment row lock.
+let paymentColumnsReady = null;
+function ensurePaymentColumns() {
+    if (!paymentColumnsReady) {
+        paymentColumnsReady = (async () => {
+            await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS contract_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS installment_id VARCHAR(255)`);
+            await db.query(`ALTER TABLE re_installments ADD COLUMN IF NOT EXISTS last_voucher_id INTEGER`);
+        })().catch((err) => { paymentColumnsReady = null; throw err; });
+    }
+    return paymentColumnsReady;
+}
+
 exports.recordPayment = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const { id } = req.params;
@@ -349,6 +452,13 @@ exports.recordPayment = async (req, res) => {
     const payAmount = parseFloat(amount !== undefined ? amount : payment_amount);
     if (isNaN(payAmount) || payAmount <= 0) {
         return res.status(400).json({ status: 'error', message: 'Payment amount must be greater than 0.' });
+    }
+
+    try {
+        await ensurePaymentColumns();
+    } catch (ddlErr) {
+        console.error('[Record Payment] schema check failed:', ddlErr.message);
+        return res.status(500).json({ status: 'error', message: ddlErr.message });
     }
 
     const client = await db.connect();
@@ -377,6 +487,25 @@ exports.recordPayment = async (req, res) => {
             await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Installment not found or unauthorized.' });
         }
+
+        // A cancelled contract is closed: its refund was settled from the payments recorded at cancellation,
+        // and deleteInstallment already treats Cancelled as closed. Share-lock the contract row so a
+        // cancellation cannot commit between this check and the payment.
+        if (inst.contract_id) {
+            const csRes = await client.query(
+                `SELECT status FROM re_contracts WHERE id::text = $1::text AND tenant_id::text = $2::text FOR SHARE`,
+                [String(inst.contract_id), tenant_id]
+            );
+            if (csRes.rows.length > 0 && csRes.rows[0].status === 'Cancelled') {
+                await client.query('ROLLBACK');
+                return res.status(409).json({
+                    status: 'error',
+                    code: 'CONTRACT_CANCELLED',
+                    message: 'Cannot record a payment on an installment of a Cancelled contract.'
+                });
+            }
+        }
+
         const currentPaid = parseFloat(inst.paid_amount) || 0;
         const totalDue = parseFloat(inst.amount) || 0;
         const newPaidTotal = Number((currentPaid + payAmount).toFixed(2));
@@ -394,11 +523,7 @@ exports.recordPayment = async (req, res) => {
         const newStatus = isFull ? 'Paid' : 'Partially Paid';
         const paidAt = isFull ? (payment_date || new Date().toISOString()) : inst.paid_at;
 
-        // Ensure finance_vouchers has RE linkage columns
-        await client.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS deal_id VARCHAR(255)`);
-        await client.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS contract_id VARCHAR(255)`);
-        await client.query(`ALTER TABLE finance_vouchers ADD COLUMN IF NOT EXISTS installment_id VARCHAR(255)`);
-        await client.query(`ALTER TABLE re_installments ADD COLUMN IF NOT EXISTS last_voucher_id INTEGER`);
+        // (RE linkage columns on finance_vouchers / re_installments are ensured before the transaction.)
 
         // Fetch customer name for party_name
         let customerName = 'Real Estate Customer';
@@ -565,49 +690,60 @@ exports.deleteInstallment = async (req, res) => {
         : (req.branchId || req.user?.branch_id || null);
     const { id } = req.params;
 
+    // Read, checks and delete run in one transaction holding the installment row lock, so a payment
+    // recorded at the same time (which locks the same row) cannot slip in between check and delete.
+    const client = await db.connect();
     try {
-        const checkRes = await db.query(`
-            SELECT ri.id, ri.paid_amount, ri.branch_id, ri.contract_id,
+        await client.query('BEGIN');
+        const checkRes = await client.query(`
+            SELECT ri.id, ri.paid_amount, ri.branch_id, ri.contract_id, ri.installment_number,
                    d.branch_id as deal_branch_id, rc.branch_id as contract_branch_id,
                    rc.status as contract_status
             FROM re_installments ri
             LEFT JOIN deals d ON ri.deal_id = d.id
             LEFT JOIN re_contracts rc ON ri.contract_id = rc.id
             WHERE ri.id::text = $1::text AND ri.tenant_id::text = $2::text
+            FOR UPDATE OF ri
         `, [id, tenant_id]);
 
+        const reject = async (code, body) => {
+            await client.query('ROLLBACK');
+            return res.status(code).json(body);
+        };
+
         if (checkRes.rows.length === 0) {
-            return res.status(404).json({ status: 'error', message: 'Installment not found or unauthorized.' });
+            return await reject(404, { status: 'error', message: 'Installment not found or unauthorized.' });
         }
 
         const row = checkRes.rows[0];
         const instBranch = row.branch_id || row.deal_branch_id || row.contract_branch_id;
         if (branch_id && instBranch && String(instBranch) !== String(branch_id)) {
-            return res.status(404).json({ status: 'error', message: 'Installment not found or unauthorized.' });
+            return await reject(404, { status: 'error', message: 'Installment not found or unauthorized.' });
         }
 
         const contractStatus = row.contract_status || 'Draft';
         if (['Completed', 'Cancelled'].includes(contractStatus)) {
-            return res.status(400).json({
+            return await reject(400, {
                 status: 'error',
                 message: `Cannot delete an installment from a '${contractStatus}' contract.`
             });
         }
 
         if (['Signed', 'Active'].includes(contractStatus) && req.user?.role !== 'admin') {
-            return res.status(403).json({
+            return await reject(403, {
                 status: 'error',
                 message: `Cannot delete an installment from an approved contract (${contractStatus}). Requires admin authorization.`
             });
         }
 
         if (parseFloat(row.paid_amount) > 0) {
-            return res.status(400).json({ status: 'error', message: 'Cannot delete an installment that has payments recorded.' });
+            return await reject(400, { status: 'error', message: 'Cannot delete an installment that has payments recorded.' });
         }
 
-        // Check for official financial receipt vouchers
+        // Check for official financial receipt vouchers (savepoint: older schemas may lack the column)
+        await client.query('SAVEPOINT voucher_check');
         try {
-            const voucherCheck = await db.query(`
+            const voucherCheck = await client.query(`
                 SELECT id FROM finance_vouchers
                 WHERE installment_id::text = $1::text
                   AND tenant_id::text = $2::text
@@ -615,8 +751,9 @@ exports.deleteInstallment = async (req, res) => {
                   AND (COALESCE(status, 'active') != 'cancelled')
                 LIMIT 1
             `, [id, tenant_id]);
+            await client.query('RELEASE SAVEPOINT voucher_check');
             if (voucherCheck.rows.length > 0) {
-                return res.status(400).json({
+                return await reject(400, {
                     status: 'error',
                     message: 'Cannot delete an installment that has associated receipt vouchers.'
                 });
@@ -625,13 +762,19 @@ exports.deleteInstallment = async (req, res) => {
             if (!vErr.message.includes('column') && !vErr.message.includes('does not exist')) {
                 throw vErr;
             }
+            await client.query('ROLLBACK TO SAVEPOINT voucher_check');
         }
 
-        await db.query(`DELETE FROM re_installments WHERE id::text = $1::text AND tenant_id::text = $2::text`, [id, tenant_id]);
+        await client.query(`DELETE FROM re_installments WHERE id::text = $1::text AND tenant_id::text = $2::text`, [id, tenant_id]);
+        await client.query('COMMIT');
 
+        logDelete(req, 'Installment', id, { contract_id: row.contract_id, installment_number: row.installment_number });
         res.json({ status: 'success', message: 'Installment deleted successfully.' });
     } catch (err) {
+        try { await client.query('ROLLBACK'); } catch (_) { /* already rolled back */ }
         console.error('[Delete Installment Error]:', err.message);
         res.status(500).json({ status: 'error', message: err.message });
+    } finally {
+        client.release();
     }
 };

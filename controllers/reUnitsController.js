@@ -1,4 +1,6 @@
 const db = require('../config/db');
+const { countUnitLinks } = require('../services/reDeletionGuard');
+const { logDelete } = require('../services/loggerService');
 
 /**
  * Real Estate Units Controller
@@ -787,26 +789,47 @@ exports.deleteUnit = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const branch_id = req.branchId || req.user?.branch_id || null;
 
+    const client = await db.connect();
     try {
-        // Safety: Can only delete Available units in the user's branch (or global)
-        const check = await db.query(
-            'SELECT status FROM re_units WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)',
+        await client.query('BEGIN');
+        // Lock the unit row. Deal and contract creation lock the same row first, so a link committed
+        // before this lock is visible to the checks below, and a later one waits for this transaction.
+        const check = await client.query(
+            `SELECT id, status, unit_number FROM re_units
+              WHERE id::text = $1::text AND tenant_id::text = $2::text
+                AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)
+              FOR UPDATE`,
             [id, tenant_id, branch_id ? String(branch_id) : null]
         );
-        if (check.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Unit not found' });
-
+        if (check.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ status: 'error', message: 'Unit not found' });
+        }
         if (check.rows[0].status !== 'Available') {
+            await client.query('ROLLBACK');
             return res.status(400).json({ status: 'error', message: `Cannot delete a unit with status '${check.rows[0].status}'. Only Available units can be removed.` });
         }
-
-        await db.query(
-            'DELETE FROM re_units WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)',
-            [id, tenant_id, branch_id ? String(branch_id) : null]
-        );
+        // Status alone is not enough: a unit released or reset after a sale still has history attached.
+        const linked = await countUnitLinks(client, [check.rows[0].id], tenant_id);
+        if (Object.keys(linked).length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                status: 'error',
+                code: 'UNIT_HAS_LINKED_RECORDS',
+                message: 'Cannot delete a unit that is linked to a deal, contract, cancellation, handover or payment record.',
+                linked
+            });
+        }
+        await client.query(`DELETE FROM re_units WHERE id = $1`, [check.rows[0].id]);
+        await client.query('COMMIT');
+        logDelete(req, 'Unit', String(id), { unit_number: check.rows[0].unit_number });
         res.json({ status: 'success', message: 'Unit removed from inventory' });
     } catch (err) {
+        try { await client.query('ROLLBACK'); } catch (_) { /* already closed */ }
         console.error('[Unit Delete Error]', err.message);
         res.status(500).json({ status: 'error', message: 'Server error' });
+    } finally {
+        client.release();
     }
 };
 
@@ -851,7 +874,8 @@ exports.matchUnitsForCustomer = async (req, res) => {
             tenantId: tenant_id,
             branchId: branch_id,
             customerId,
-            includeAllStatus: include_all === 'true' || include_all === '1'
+            includeAllStatus: include_all === 'true' || include_all === '1',
+            minScore: (req.query.min_score === undefined || Number.isNaN(parseInt(req.query.min_score))) ? undefined : parseInt(req.query.min_score)
         });
         res.json({ status: 'success', data: result });
     } catch (err) {
@@ -865,7 +889,7 @@ exports.matchUnitsForCustomer = async (req, res) => {
 // @access  Private
 exports.matchCustomersForUnit = async (req, res) => {
     const { unitId } = req.params;
-    const { min_score = 0 } = req.query;
+    const { min_score } = req.query;
     const tenant_id = String(req.user.tenant_id);
     const branch_id = req.branchId || req.user?.branch_id || null;
 
@@ -875,7 +899,7 @@ exports.matchCustomersForUnit = async (req, res) => {
             tenantId: tenant_id,
             branchId: branch_id,
             unitId,
-            minScore: parseInt(min_score) || 0
+            minScore: min_score === undefined || min_score === '' || Number.isNaN(parseInt(min_score)) ? undefined : parseInt(min_score)
         });
         res.json({ status: 'success', data: result });
     } catch (err) {

@@ -56,7 +56,7 @@ router.get('/vouchers/:id', financeController.getVoucherDetails);
 
 // @route   POST api/finance/vouchers/:id/cancel
 // @desc    Cancel a voucher with mandatory reason in body (Requires voucher.cancel permission: admin only)
-router.post('/vouchers/:id/cancel', requirePermission('voucher.cancel'), financeController.deleteVoucher);
+router.post('/vouchers/:id/cancel', require('../middleware/roleGuard')(['admin', 'manager']), requirePermission('voucher.cancel'), financeController.deleteVoucher);
 
 // @route   DELETE api/finance/vouchers/:id
 // @desc    Backward-compatible alias for cancel voucher
