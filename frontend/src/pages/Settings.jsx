@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { getFileUrl } from '../utils/fileUtils';
 
 const TABS = [
   'Branding & Identity',
@@ -475,7 +476,7 @@ const Settings = () => {
                 <div className="card-body">
                   <div className="logo-upload-container">
                     <div className="logo-preview">
-                      {tenant.logo_url ? <img src={`/${tenant.logo_url.replace(/\\/g, '/')}`} alt="Logo" /> : <ImageIcon size={32} color="#94a3b8" />}
+                      {tenant.logo_url ? <img src={getFileUrl(tenant.logo_url)} alt="Logo" /> : <ImageIcon size={32} color="#94a3b8" />}
                     </div>
                     <div>
                       <h4 style={{ fontSize: '13px', fontWeight: '800', margin: '0 0 6px 0', color: '#1e293b' }}>Company Logo</h4>
@@ -658,7 +659,7 @@ const Settings = () => {
               <div className="a4-preview">
                 <div className="preview-header">
                   <div>
-                    {tenant.logo_url ? <img src={`/${tenant.logo_url.replace(/\\/g, '/')}`} className="preview-logo" alt="Logo" /> : <div className="preview-company-name">{tenant.name || 'COMPANY NAME'}</div>}
+                    {tenant.logo_url ? <img src={getFileUrl(tenant.logo_url)} className="preview-logo" alt="Logo" /> : <div className="preview-company-name">{tenant.name || 'COMPANY NAME'}</div>}
                     {previewMode === 'Invoice' ? (
                       tenant.invoice_header_subtitle && (
                         <div style={{ fontSize: '8px', fontWeight: 700, color: '#4b5563', marginTop: '2px' }}>

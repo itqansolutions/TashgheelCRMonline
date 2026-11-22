@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { safeArray } from '../../utils/dataUtils';
+import { getFileUrl } from '../../utils/fileUtils';
 import { useLanguage } from '../../context/LanguageContext';
 
 export const formatN2 = (val) => {
@@ -1565,7 +1566,7 @@ const UnitsRegistry = () => {
                                                     {(() => {
                                                         const activeIdx = Math.min(overviewCarouselIndex, photos.length - 1);
                                                         const activePhoto = photos[activeIdx];
-                                                        const activeImgPath = activePhoto?.file_path ? `/${activePhoto.file_path.replace(/\\/g, '/')}` : '';
+                                                        const activeImgPath = getFileUrl(activePhoto?.file_path || activePhoto?.filename);
 
                                                         const handlePrev = (e) => {
                                                             e.stopPropagation();
@@ -1789,7 +1790,7 @@ const UnitsRegistry = () => {
                                                         >
                                                             {photos.map((photo, pIdx) => {
                                                                 const isCurrent = pIdx === Math.min(overviewCarouselIndex, photos.length - 1);
-                                                                const imgPath = photo.file_path ? `/${photo.file_path.replace(/\\/g, '/')}` : '';
+                                                                const imgPath = getFileUrl(photo.file_path || photo.filename);
                                                                 return (
                                                                     <button
                                                                         key={photo.id || pIdx}
@@ -3108,7 +3109,7 @@ const UnitsRegistry = () => {
                         >
                             <img 
                                 key={lightboxPhotos[lightboxIndex].id || lightboxIndex}
-                                src={lightboxPhotos[lightboxIndex].file_path ? `/${lightboxPhotos[lightboxIndex].file_path.replace(/\\/g, '/')}` : ''}
+                                src={getFileUrl(lightboxPhotos[lightboxIndex]?.file_path || lightboxPhotos[lightboxIndex]?.filename)}
                                 alt={lightboxPhotos[lightboxIndex].original_name || 'Unit Photo'}
                                 style={{
                                     maxWidth: '100%',
@@ -3176,7 +3177,7 @@ const UnitsRegistry = () => {
                         >
                             {lightboxPhotos.map((p, pIdx) => {
                                 const isActive = pIdx === lightboxIndex;
-                                const thumbUrl = p.file_path ? `/${p.file_path.replace(/\\/g, '/')}` : '';
+                                const thumbUrl = getFileUrl(p.file_path || p.filename);
                                 return (
                                     <button
                                         key={p.id || pIdx}

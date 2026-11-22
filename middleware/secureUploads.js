@@ -38,15 +38,44 @@ function secureUploads(uploadsDir) {
       }
 
       // Normalize and resolve path
-      const cleanRelativePath = decodedPath.replace(/^[/\\]+/, '');
-      const filePath = path.resolve(resolvedUploadsDir, cleanRelativePath);
+      let cleanRelativePath = decodedPath.replace(/^[/\\]+/, '');
+      while (cleanRelativePath.toLowerCase().startsWith('uploads/') || cleanRelativePath.toLowerCase().startsWith('uploads\\')) {
+        cleanRelativePath = cleanRelativePath.replace(/^uploads[/\\]+/i, '');
+      }
+
+      let filePath = path.resolve(resolvedUploadsDir, cleanRelativePath);
 
       // Verify the resolved path is strictly within uploadsDir
       if (!filePath.startsWith(resolvedUploadsDir + path.sep) && filePath !== resolvedUploadsDir) {
         return res.status(403).json({ status: 'error', message: 'Access denied: Path traversal detected.' });
       }
 
-      // 2. Check File Existence
+      // 2. Check File Existence (with fallback to database lookup if filename only or moved)
+      let attachmentRecord = null;
+      const requestedFilename = path.basename(filePath);
+
+      if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+        try {
+          const attachLookup = await db.query(
+            'SELECT tenant_id, file_path, linked_type FROM attachments WHERE filename = $1 OR file_path LIKE $2 LIMIT 1',
+            [requestedFilename, `%${requestedFilename}`]
+          );
+          if (attachLookup.rows.length > 0) {
+            attachmentRecord = attachLookup.rows[0];
+            let rawDbPath = String(attachmentRecord.file_path || '').replace(/^[/\\]+/, '');
+            while (rawDbPath.toLowerCase().startsWith('uploads/') || rawDbPath.toLowerCase().startsWith('uploads\\')) {
+              rawDbPath = rawDbPath.replace(/^uploads[/\\]+/i, '');
+            }
+            const candidatePath = path.resolve(resolvedUploadsDir, rawDbPath);
+            if (candidatePath.startsWith(resolvedUploadsDir + path.sep) && fs.existsSync(candidatePath) && !fs.statSync(candidatePath).isDirectory()) {
+              filePath = candidatePath;
+            }
+          }
+        } catch (dbErr) {
+          console.warn('[Uploads Security] Fallback lookup error:', dbErr.message);
+        }
+      }
+
       if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
         return res.status(404).json({ status: 'error', message: 'File not found.' });
       }
@@ -73,18 +102,19 @@ function secureUploads(uploadsDir) {
 
       const filename = path.basename(filePath);
 
-      // Look up attachment record for tenant isolation check
-      let attachmentRecord = null;
-      try {
-        const attachRes = await db.query(
-          'SELECT tenant_id, linked_type FROM attachments WHERE filename = $1 OR file_path LIKE $2 LIMIT 1',
-          [filename, `%${filename}`]
-        );
-        if (attachRes.rows.length > 0) {
-          attachmentRecord = attachRes.rows[0];
+      // Look up attachment record for tenant isolation check if not already loaded
+      if (!attachmentRecord) {
+        try {
+          const attachRes = await db.query(
+            'SELECT tenant_id, linked_type FROM attachments WHERE filename = $1 OR file_path LIKE $2 LIMIT 1',
+            [filename, `%${filename}`]
+          );
+          if (attachRes.rows.length > 0) {
+            attachmentRecord = attachRes.rows[0];
+          }
+        } catch (dbErr) {
+          console.error('[Uploads Security] Database lookup error:', dbErr.message);
         }
-      } catch (dbErr) {
-        console.error('[Uploads Security] Database lookup error:', dbErr.message);
       }
 
       // 4. Authorization & Tenant Isolation Enforcement
