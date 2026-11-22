@@ -159,7 +159,11 @@
     "trialDaysLeft": "{count} يوم متبقي",
     "upgradeAccess": "ترقية الباقة لاستعادة الوصول",
     "trialActiveNow": "فترة تجريبية مفعلة · ترقية الآن",
-    "poweredBy": "POWERED BY ITQAN SOLUTIONS"
+    "poweredBy": "POWERED BY ITQAN SOLUTIONS",
+    "workspace": "مساحة العمل",
+    "switchWorkspace": "تبديل مساحة العمل",
+    "otherWorkspaces": "مساحات العمل الأخرى",
+    "shortcut": "اختصار"
   },
   "upgradePrompt": {
     "notIncludedTitle": "ترقية الباقة مطلوبة",

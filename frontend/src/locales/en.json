@@ -159,7 +159,11 @@
     "trialDaysLeft": "{count} day(s) left",
     "upgradeAccess": "Upgrade to restore access",
     "trialActiveNow": "Free trial active · Upgrade now",
-    "poweredBy": "POWERED BY ITQAN SOLUTIONS"
+    "poweredBy": "POWERED BY ITQAN SOLUTIONS",
+    "workspace": "Workspace",
+    "switchWorkspace": "Switch Workspace",
+    "otherWorkspaces": "Other Workspaces",
+    "shortcut": "Shortcut"
   },
   "upgradePrompt": {
     "notIncludedTitle": "Upgrade Required",

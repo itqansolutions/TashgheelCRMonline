@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BranchProvider } from './context/BranchContext';
+import { WorkspaceProvider } from './context/WorkspaceContext';
 import { DataProvider } from './context/DataContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { Toaster } from 'react-hot-toast';
@@ -121,7 +122,8 @@ function App() {
     <ErrorBoundary>
       <AuthProvider>
         <BranchProvider>
-          <DataProvider>
+          <WorkspaceProvider>
+            <DataProvider>
             <Router>
               <Toaster position="top-right" reverseOrder={false} />
               <Routes>
@@ -447,7 +449,8 @@ function App() {
               </Routes>
             </Router>
           </DataProvider>
-        </BranchProvider>
+        </WorkspaceProvider>
+      </BranchProvider>
       </AuthProvider>
     </ErrorBoundary>
   );
