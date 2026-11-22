@@ -78,6 +78,23 @@ const Customers = () => {
     preferred_rooms: 0
   });
 
+  // Collapsible Form Sections State
+  const [expandedSections, setExpandedSections] = useState({
+    basic: true,
+    lead: true,
+    property: true,
+    additional: false,
+    supervisory: false
+  });
+  const [formErrors, setFormErrors] = useState({});
+
+  const toggleSection = (key) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
   useEffect(() => {
     fetchCustomers();
     if (users.length === 0) fetchUsers();
@@ -130,6 +147,7 @@ const Customers = () => {
   }, [isViewingDetails, editingCustomer, isRealEstate]);
 
   const handleOpenModal = (customer = null) => {
+    setFormErrors({});
     if (customer) {
       setEditingCustomer(customer);
       setFormData({
@@ -152,18 +170,50 @@ const Customers = () => {
         preferred_location: customer.preferred_location || '',
         preferred_rooms: customer.preferred_rooms || 0
       });
+      setExpandedSections({
+        basic: true,
+        lead: true,
+        property: isRealEstate,
+        additional: !!customer.address,
+        supervisory: !!(customer.assigned_to || customer.manager_id)
+      });
     } else {
       setEditingCustomer(null);
       setFormData({
           name: '', company_name: '', email: '', phone: '', address: '', status: 'lead', source_id: '', classification_id: '', area_id: '', manager_id: '', assigned_to: '',
           entity_type: 'customer', budget_min: 0, budget_max: 0, preferred_area_min: 0, preferred_area_max: 0, preferred_location: '', preferred_rooms: 0
       });
+      setExpandedSections({
+        basic: true,
+        lead: true,
+        property: isRealEstate,
+        additional: false,
+        supervisory: false
+      });
     }
     setIsModalOpen(true);
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
+
+    // Required Field Validation: Full Name
+    if (!formData.name || !formData.name.trim()) {
+      setFormErrors({ name: t('customers.nameRequired', 'Customer Full Name is required') });
+      setExpandedSections(prev => ({ ...prev, basic: true }));
+      toast.error(t('customers.nameRequired', 'Customer Full Name is required'));
+      setTimeout(() => {
+        const el = document.getElementById('customer-input-name');
+        if (el) {
+          el.focus();
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
+      return;
+    }
+
+    setFormErrors({});
+
     try {
       const payload = {
         ...formData,
@@ -555,6 +605,73 @@ const Customers = () => {
             background: var(--bg-main);
             min-width: 160px;
         }
+
+        /* Customer Form Collapsible Sections */
+        .customer-form-section {
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          margin-bottom: 12px;
+          background: #ffffff;
+          overflow: hidden;
+          transition: all 0.2s ease;
+        }
+        .customer-form-section.expanded {
+          border-color: #cbd5e1;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+        }
+        .customer-form-section-header {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 16px;
+          background: #f8fafc;
+          border: none;
+          cursor: pointer;
+          font-family: inherit;
+          color: #1e293b;
+          text-align: inherit;
+          transition: background 0.15s;
+        }
+        .customer-form-section-header:hover {
+          background: #f1f5f9;
+        }
+        .customer-form-section-header:focus-visible {
+          outline: 2px solid var(--primary);
+          outline-offset: -2px;
+        }
+        .section-title-wrap {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .section-icon {
+          color: var(--primary);
+        }
+        .section-title {
+          font-size: 13.5px;
+          font-weight: 800;
+          color: #1e293b;
+        }
+        .section-badge {
+          font-size: 10.5px;
+          font-weight: 700;
+          padding: 2px 7px;
+          border-radius: 6px;
+        }
+        .section-badge.required {
+          background: #fef2f2;
+          color: #dc2626;
+        }
+        .section-badge.re-badge {
+          background: #eff6ff;
+          color: #2563eb;
+        }
+        .customer-form-section-content {
+          padding: 16px;
+          border-top: 1px solid var(--border);
+          background: #ffffff;
+        }
       `}</style>
 
       <DataTable
@@ -584,7 +701,7 @@ const Customers = () => {
 
       <Modal
         isOpen={isModalOpen}
-        maxWidth={isViewingDetails ? '1100px' : '550px'}
+        maxWidth={isViewingDetails ? '1100px' : '680px'}
         onClose={() => {
             setIsModalOpen(false);
             setIsViewingDetails(false);
@@ -613,199 +730,304 @@ const Customers = () => {
             }}
           />
         ) : (
-            <form className="form-grid">
-              <div className="form-group">
-                <label>{t('customers.entityType', 'Entity Type')}</label>
-                <select
-                  value={formData.entity_type}
-                  onChange={(e) => setFormData({...formData, entity_type: e.target.value})}
+            <form className="customer-sections-form" onSubmit={handleSubmit}>
+              {/* SECTION 1: BASIC INFORMATION */}
+              <div className={`customer-form-section ${expandedSections.basic ? 'expanded' : 'collapsed'}`}>
+                <button
+                  type="button"
+                  className="customer-form-section-header"
+                  onClick={() => toggleSection('basic')}
+                  aria-expanded={expandedSections.basic}
                 >
-                  <option value="customer">{t('customers.entityCustomer', 'Customer (Buyer)')}</option>
-                  <option value="vendor">{t('customers.entityVendor', 'Vendor (Owner)')}</option>
-                  <option value="broker">{t('customers.entityBroker', 'Broker')}</option>
-                  <option value="partner">{t('customers.entityPartner', 'Partner')}</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>{t('customers.fullName', 'Full Name')}</label>
-                <input
-                  type="text"
-                  placeholder={t('customers.fullNamePlaceholder', 'e.g. Ahmed Ali')}
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>{t('customers.phone', 'Phone Number')}</label>
-                <input
-                  type="text"
-                  placeholder="+20 123 456 789"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                />
-              </div>
-              <div className="form-group">
-                <label>{t('customers.email', 'Email Address')}</label>
-                <input
-                  type="email"
-                  placeholder="johndoe@email.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                />
+                  <div className="section-title-wrap">
+                    <User size={16} className="section-icon" />
+                    <span className="section-title">{t('customers.sections.basicInfo', 'Basic Information')}</span>
+                    <span className="section-badge required">* {t('common.required', 'Required')}</span>
+                  </div>
+                  {expandedSections.basic ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                <div className="customer-form-section-content" style={{ display: expandedSections.basic ? 'block' : 'none' }}>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>{t('customers.entityType', 'Entity Type')}</label>
+                      <select
+                        value={formData.entity_type}
+                        onChange={(e) => setFormData({...formData, entity_type: e.target.value})}
+                      >
+                        <option value="customer">{t('customers.entityCustomer', 'Customer (Buyer)')}</option>
+                        <option value="vendor">{t('customers.entityVendor', 'Vendor (Owner)')}</option>
+                        <option value="broker">{t('customers.entityBroker', 'Broker')}</option>
+                        <option value="partner">{t('customers.entityPartner', 'Partner')}</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>
+                        {t('customers.fullName', 'Full Name')} <span style={{ color: '#ef4444' }}>*</span>
+                      </label>
+                      <input
+                        id="customer-input-name"
+                        name="name"
+                        type="text"
+                        placeholder={t('customers.fullNamePlaceholder', 'e.g. Ahmed Ali')}
+                        value={formData.name}
+                        onChange={(e) => {
+                          setFormData({...formData, name: e.target.value});
+                          if (formErrors.name) setFormErrors(prev => ({ ...prev, name: null }));
+                        }}
+                        style={formErrors.name ? { borderColor: '#ef4444', backgroundColor: '#fef2f2' } : undefined}
+                        required
+                      />
+                      {formErrors.name && (
+                        <span style={{ color: '#ef4444', fontSize: '11px', marginTop: '2px', display: 'block', fontWeight: 600 }}>
+                          {formErrors.name}
+                        </span>
+                      )}
+                    </div>
+                    <div className="form-group">
+                      <label>{t('customers.phone', 'Phone Number')}</label>
+                      <input
+                        type="text"
+                        placeholder="+20 123 456 789"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>{t('customers.email', 'Email Address')}</label>
+                      <input
+                        type="email"
+                        placeholder="johndoe@email.com"
+                        value={formData.email}
+                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {isRealEstate && (
-                  <div className="form-group full specs-section">
-                      <h4>{t('customers.realEstateSpecs', 'Real Estate Specifications')}</h4>
-                      <div className="form-grid">
-                          <div className="form-group">
-                              <label>{t('customers.budgetMinMax', 'Budget (Min - Max) EGP')}</label>
-                              <div style={{ display: 'flex', gap: '8px' }}>
-                                <input type="number" placeholder={t('customers.min', 'Min')} value={formData.budget_min} onChange={(e) => setFormData({...formData, budget_min: e.target.value})} />
-                                <input type="number" placeholder={t('customers.max', 'Max')} value={formData.budget_max} onChange={(e) => setFormData({...formData, budget_max: e.target.value})} />
-                              </div>
-                          </div>
-                          <div className="form-group">
-                              <label>{t('customers.areaMinMax', 'Area (Min - Max) sqm')}</label>
-                              <div style={{ display: 'flex', gap: '8px' }}>
-                                <input type="number" placeholder={t('customers.min', 'Min')} value={formData.preferred_area_min} onChange={(e) => setFormData({...formData, preferred_area_min: e.target.value})} />
-                                <input type="number" placeholder={t('customers.max', 'Max')} value={formData.preferred_area_max} onChange={(e) => setFormData({...formData, preferred_area_max: e.target.value})} />
-                              </div>
-                          </div>
-                          <div className="form-group">
-                              <label>{t('customers.preferredRooms', 'Preferred Rooms')}</label>
-                              <select value={formData.preferred_rooms} onChange={(e) => setFormData({...formData, preferred_rooms: e.target.value})}>
-                                  <option value="0">{t('customers.anyRooms', 'Any')}</option>
-                                  <option value="1">1</option>
-                                  <option value="2">2</option>
-                                  <option value="3">3</option>
-                                  <option value="4">4+</option>
-                              </select>
-                          </div>
-                          <div className="form-group">
-                              <label>{t('customers.preferredLocation', 'Preferred Location')}</label>
-                              <input type="text" placeholder={t('customers.preferredLocationPlaceholder', 'e.g. New Cairo, Sheikh Zayed')} value={formData.preferred_location} onChange={(e) => setFormData({...formData, preferred_location: e.target.value})} />
-                          </div>
-                      </div>
+              {/* SECTION 2: LEAD INFORMATION */}
+              <div className={`customer-form-section ${expandedSections.lead ? 'expanded' : 'collapsed'}`}>
+                <button
+                  type="button"
+                  className="customer-form-section-header"
+                  onClick={() => toggleSection('lead')}
+                  aria-expanded={expandedSections.lead}
+                >
+                  <div className="section-title-wrap">
+                    <Sparkles size={16} className="section-icon" />
+                    <span className="section-title">{t('customers.sections.leadInfo', 'Lead Information')}</span>
                   </div>
+                  {expandedSections.lead ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                <div className="customer-form-section-content" style={{ display: expandedSections.lead ? 'block' : 'none' }}>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>{t('customers.leadStatus', 'Lead Status')}</label>
+                      <select
+                        value={formData.status}
+                        onChange={(e) => setFormData({...formData, status: e.target.value})}
+                      >
+                        <option value="lead">{t('customers.statusLead', 'Lead')}</option>
+                        <option value="active">{t('customers.statusActive', 'Active Client')}</option>
+                        <option value="inactive">{t('customers.statusInactive', 'Inactive')}</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>{t('customers.source', 'Lead Source')}</label>
+                      <select
+                        value={formData.source_id}
+                        onChange={(e) => setFormData({...formData, source_id: e.target.value})}
+                      >
+                        <option value="">{t('customers.noSource', '-- No Source --')}</option>
+                        {(leadSources || []).map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ margin: 0 }}>{t('customers.classification', 'Classification')}</label>
+                        <button
+                          type="button"
+                          onClick={() => setShowQuickClassificationModal(true)}
+                          style={{
+                            background: 'none', border: 'none', color: 'var(--primary)',
+                            fontSize: '12px', fontWeight: '700', cursor: 'pointer', padding: 0,
+                            display: 'flex', alignItems: 'center', gap: '3px'
+                          }}
+                        >
+                          <Plus size={13} /> {t('customers.addClassification', 'Add Classification')}
+                        </button>
+                      </div>
+                      <select
+                        value={formData.classification_id || ''}
+                        onChange={(e) => setFormData({...formData, classification_id: e.target.value})}
+                      >
+                        <option value="">{t('customers.noClassification', '-- No Classification (Optional) --')}</option>
+                        {(customerClassifications || []).map(cc => (
+                          <option key={cc.id} value={cc.id}>{cc.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ margin: 0 }}>{t('customers.area', 'Area')}</label>
+                        <button
+                          type="button"
+                          onClick={() => setShowQuickAreaModal(true)}
+                          style={{
+                            background: 'none', border: 'none', color: 'var(--primary)',
+                            fontSize: '12px', fontWeight: '700', cursor: 'pointer', padding: 0,
+                            display: 'flex', alignItems: 'center', gap: '3px'
+                          }}
+                        >
+                          <Plus size={13} /> {t('customers.addArea', 'Add Area')}
+                        </button>
+                      </div>
+                      <select
+                        value={formData.area_id || ''}
+                        onChange={(e) => setFormData({...formData, area_id: e.target.value})}
+                      >
+                        <option value="">{t('customers.noAreaOpt', '-- No Area / بدون منطقة --')}</option>
+                        {(customerAreas || []).map(ca => (
+                          <option key={ca.id} value={ca.id}>{ca.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: PROPERTY REQUIREMENTS (REAL ESTATE ONLY) */}
+              {isRealEstate && (
+                <div className={`customer-form-section ${expandedSections.property ? 'expanded' : 'collapsed'}`}>
+                  <button
+                    type="button"
+                    className="customer-form-section-header"
+                    onClick={() => toggleSection('property')}
+                    aria-expanded={expandedSections.property}
+                  >
+                    <div className="section-title-wrap">
+                      <Building2 size={16} className="section-icon" />
+                      <span className="section-title">{t('customers.sections.propertySpecs', 'Property Requirements')}</span>
+                      <span className="section-badge re-badge">{t('sidebar.realEstate', 'Real Estate')}</span>
+                    </div>
+                    {expandedSections.property ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
+                  <div className="customer-form-section-content" style={{ display: expandedSections.property ? 'block' : 'none' }}>
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label>{t('customers.budgetMinMax', 'Budget (Min - Max) EGP')}</label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input type="number" placeholder={t('customers.min', 'Min')} value={formData.budget_min} onChange={(e) => setFormData({...formData, budget_min: e.target.value})} />
+                          <input type="number" placeholder={t('customers.max', 'Max')} value={formData.budget_max} onChange={(e) => setFormData({...formData, budget_max: e.target.value})} />
+                        </div>
+                      </div>
+                      <div className="form-group">
+                        <label>{t('customers.areaMinMax', 'Area (Min - Max) sqm')}</label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input type="number" placeholder={t('customers.min', 'Min')} value={formData.preferred_area_min} onChange={(e) => setFormData({...formData, preferred_area_min: e.target.value})} />
+                          <input type="number" placeholder={t('customers.max', 'Max')} value={formData.preferred_area_max} onChange={(e) => setFormData({...formData, preferred_area_max: e.target.value})} />
+                        </div>
+                      </div>
+                      <div className="form-group">
+                        <label>{t('customers.preferredRooms', 'Preferred Rooms')}</label>
+                        <select value={formData.preferred_rooms} onChange={(e) => setFormData({...formData, preferred_rooms: e.target.value})}>
+                          <option value="0">{t('customers.anyRooms', 'Any')}</option>
+                          <option value="1">1</option>
+                          <option value="2">2</option>
+                          <option value="3">3</option>
+                          <option value="4">4+</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>{t('customers.preferredLocation', 'Preferred Location')}</label>
+                        <input type="text" placeholder={t('customers.preferredLocationPlaceholder', 'e.g. New Cairo, Sheikh Zayed')} value={formData.preferred_location} onChange={(e) => setFormData({...formData, preferred_location: e.target.value})} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
 
-              <div className="form-group">
-                <label>{t('customers.assignedEmployee', 'Assigned Employee')}</label>
-                <select
-                  value={formData.assigned_to}
-                  onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
+              {/* SECTION 4: ADDITIONAL INFORMATION & ATTACHMENTS */}
+              <div className={`customer-form-section ${expandedSections.additional ? 'expanded' : 'collapsed'}`}>
+                <button
+                  type="button"
+                  className="customer-form-section-header"
+                  onClick={() => toggleSection('additional')}
+                  aria-expanded={expandedSections.additional}
                 >
-                  <option value="">{t('customers.letSystemDecide', '-- Let System Decide / Me --')}</option>
-                  {(users || []).map(u => (
-                    <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>{t('customers.managerOverride', 'Director/Manager Override')}</label>
-                <select
-                  value={formData.manager_id}
-                  onChange={(e) => setFormData({...formData, manager_id: e.target.value})}
-                >
-                  <option value="">{t('customers.none', '-- None --')}</option>
-                  {(users || []).map(u => (
-                    <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>{t('customers.source', 'Lead Source')}</label>
-                <select
-                  value={formData.source_id}
-                  onChange={(e) => setFormData({...formData, source_id: e.target.value})}
-                >
-                  <option value="">{t('customers.noSource', '-- No Source --')}</option>
-                  {(leadSources || []).map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ margin: 0 }}>{t('customers.classification', 'Classification')}</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickClassificationModal(true)}
-                    style={{
-                      background: 'none', border: 'none', color: 'var(--primary)',
-                      fontSize: '12px', fontWeight: '700', cursor: 'pointer', padding: 0,
-                      display: 'flex', alignItems: 'center', gap: '3px'
-                    }}
-                  >
-                    <Plus size={13} /> {t('customers.addClassification', 'Add Classification')}
-                  </button>
+                  <div className="section-title-wrap">
+                    <MapPin size={16} className="section-icon" />
+                    <span className="section-title">{t('customers.sections.additionalInfo', 'Additional Information')}</span>
+                  </div>
+                  {expandedSections.additional ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                <div className="customer-form-section-content" style={{ display: expandedSections.additional ? 'block' : 'none' }}>
+                  <div className="form-group full" style={{ margin: 0 }}>
+                    <label>{t('customers.address', 'Address')}</label>
+                    <textarea
+                      rows="2"
+                      placeholder={t('customers.addressPlaceholder', 'Notes or physical address')}
+                      value={formData.address}
+                      onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    ></textarea>
+                  </div>
+                  {!isViewingDetails && editingCustomer && (
+                    <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                      <h4 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '10px' }}>
+                        {t('customers.documents', 'Customer Documents')}
+                      </h4>
+                      <FileUploader linkedType="customer" linkedId={editingCustomer.id} />
+                    </div>
+                  )}
                 </div>
-                <select
-                  value={formData.classification_id || ''}
-                  onChange={(e) => setFormData({...formData, classification_id: e.target.value})}
-                >
-                  <option value="">{t('customers.noClassification', '-- No Classification (Optional) --')}</option>
-                  {(customerClassifications || []).map(cc => (
-                    <option key={cc.id} value={cc.id}>{cc.name}</option>
-                  ))}
-                </select>
               </div>
-              <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ margin: 0 }}>{t('customers.area', 'Area')}</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickAreaModal(true)}
-                    style={{
-                      background: 'none', border: 'none', color: 'var(--primary)',
-                      fontSize: '12px', fontWeight: '700', cursor: 'pointer', padding: 0,
-                      display: 'flex', alignItems: 'center', gap: '3px'
-                    }}
-                  >
-                    <Plus size={13} /> {t('customers.addArea', 'Add Area')}
-                  </button>
+
+              {/* SECTION 5: SUPERVISORY CONTROLS */}
+              <div className={`customer-form-section ${expandedSections.supervisory ? 'expanded' : 'collapsed'}`}>
+                <button
+                  type="button"
+                  className="customer-form-section-header"
+                  onClick={() => toggleSection('supervisory')}
+                  aria-expanded={expandedSections.supervisory}
+                >
+                  <div className="section-title-wrap">
+                    <User size={16} className="section-icon" />
+                    <span className="section-title">{t('customers.sections.supervisory', 'Supervisory Controls')}</span>
+                  </div>
+                  {expandedSections.supervisory ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                <div className="customer-form-section-content" style={{ display: expandedSections.supervisory ? 'block' : 'none' }}>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>{t('customers.assignedEmployee', 'Assigned Employee')}</label>
+                      <select
+                        value={formData.assigned_to}
+                        onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
+                      >
+                        <option value="">{t('customers.letSystemDecide', '-- Let System Decide / Me --')}</option>
+                        {(users || []).map(u => (
+                          <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>{t('customers.managerOverride', 'Director/Manager Override')}</label>
+                      <select
+                        value={formData.manager_id}
+                        onChange={(e) => setFormData({...formData, manager_id: e.target.value})}
+                      >
+                        <option value="">{t('customers.none', '-- None --')}</option>
+                        {(users || []).map(u => (
+                          <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <select
-                  value={formData.area_id || ''}
-                  onChange={(e) => setFormData({...formData, area_id: e.target.value})}
-                >
-                  <option value="">{t('customers.noAreaOpt', '-- No Area / بدون منطقة --')}</option>
-                  {(customerAreas || []).map(ca => (
-                    <option key={ca.id} value={ca.id}>{ca.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>{t('customers.leadStatus', 'Lead Status')}</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({...formData, status: e.target.value})}
-                >
-                  <option value="lead">{t('customers.statusLead', 'Lead')}</option>
-                  <option value="active">{t('customers.statusActive', 'Active Client')}</option>
-                  <option value="inactive">{t('customers.statusInactive', 'Inactive')}</option>
-                </select>
-              </div>
-              <div className="form-group full">
-                <label>{t('customers.address', 'Address')}</label>
-                <textarea
-                  rows="2"
-                  placeholder={t('customers.addressPlaceholder', 'Notes or physical address')}
-                  value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
-                ></textarea>
               </div>
             </form>
-        )}
-
-        {/* Document Uploader Fallback for Edit Mode Without Viewing */}
-        {!isViewingDetails && editingCustomer && (
-          <div style={{ marginTop: '24px', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
-            <h4 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '12px' }}>{t('customers.documents', 'Customer Documents')}</h4>
-            <FileUploader linkedType="customer" linkedId={editingCustomer.id} />
-          </div>
         )}
       </Modal>
 

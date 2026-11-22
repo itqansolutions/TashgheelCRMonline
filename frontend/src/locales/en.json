@@ -415,6 +415,14 @@
     "individual": "Individual",
     "mainBranch": "Main Branch",
     "realEstateSpecs": "Real Estate Specifications",
+    "sections": {
+      "basicInfo": "Basic Information",
+      "leadInfo": "Lead Information",
+      "propertySpecs": "Property Requirements",
+      "additionalInfo": "Additional Information",
+      "supervisory": "Supervisory Controls"
+    },
+    "nameRequired": "Customer Full Name is required",
     "budgetMinMax": "Budget (Min - Max) EGP",
     "areaMinMax": "Area (Min - Max) sqm",
     "preferredLocation": "Preferred Location",

@@ -415,6 +415,14 @@
     "individual": "فرد",
     "mainBranch": "الفرع الرئيسي",
     "realEstateSpecs": "المواصفات والاهتمامات العقارية",
+    "sections": {
+      "basicInfo": "المعلومات الأساسية",
+      "leadInfo": "بيانات العميل المحتمل",
+      "propertySpecs": "متطلبات ومواصفات العقار",
+      "additionalInfo": "معلومات إضافية وملاحظات",
+      "supervisory": "ضوابط وتعيينات الإشراف"
+    },
+    "nameRequired": "اسم العميل بالكامل مطلوب",
     "budgetMinMax": "الميزانية (الحد الأدنى - الأقصى) ج.م",
     "areaMinMax": "المساحة (الحد الأدنى - الأقصى) م²",
     "preferredLocation": "المنطقة أو المشروع المفضل",
