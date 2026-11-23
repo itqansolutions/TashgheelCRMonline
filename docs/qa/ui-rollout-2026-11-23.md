@@ -269,3 +269,7 @@ Scoped formerly generic component CSS to attendance dashboard; box sizing/inset 
 
 ### Phase26 approval-center presentation
 Scoped generic badge/action/table CSS to approval center. Header/long employee and reason wrapping; horizontal table retains six columns, dates/days/status and distinct approve/reject controls. Empty table fits phone.16 Arabic/English phone/desktop pending/approved/rejected/empty fixtures pass no writes and containment; all original functions/control attributes exact. Build passes. Actual phone/desktop/empty and1100/336 horizontal scroll pixels inspected, both action controls reached without clicking. HRSubNav stubbed locally; needs live read-only context. Existing untranslated fallback strings retained. No approvals/rejections submitted, no claim of action semantics or all HR acceptance.
+
+
+### Phase27 sales-document index presentation
+Scoped page class, responsive create actions/search/type filter, contained long title/customer, readable numeric amount/status/date and existing view action. Eight Arabic/English phone/desktop populated/empty fixtures pass, all original functions/control attributes exact, build passes. Actual phone/desktop/empty screenshots and real horizontal scroll1280/334 inspected, intermediate amount capture shows full1,234,567.89 and currency, end capture reaches view. SalesSubNav locally stubbed. No create/view/action click; no records changed. Source fetch masks failure as empty, preserved and not proof of no documents. Whole business workflow remains unaccepted.

@@ -58,7 +58,7 @@ const Documents = () => {
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'}>
       <SalesSubNav />
-      <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
+      <div className="sales-documents-page" style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>

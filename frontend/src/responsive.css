@@ -602,3 +602,31 @@
  .approval-center-page .approval-table:has(td[colspan]) thead {display:none;}
  .approval-center-page .approval-table td[colspan] {padding:24px 16px !important;overflow-wrap:anywhere;}
 }
+
+/* Sales document index: preserve search, type filter and navigation actions. */
+.sales-documents-page,.sales-documents-page * {box-sizing:border-box;}
+.sales-documents-page {min-width:0;max-width:1300px;}
+.sales-documents-page > div:first-child {padding-bottom:18px;border-bottom:1px solid var(--glass-border);}
+.sales-documents-page > div:first-child > div {min-width:0;}
+.sales-documents-page h2 {line-height:1.4;}
+.sales-documents-page h2 svg {flex-shrink:0;}
+.sales-documents-page p {line-height:1.7;}
+.sales-documents-page button {min-height:40px;}
+.sales-documents-page > div:nth-child(2) > div {min-width:0 !important;}
+.sales-documents-page input,.sales-documents-page select {min-width:0;max-width:100%;}
+.sales-documents-page .responsive-table-region {max-width:100%;overflow-x:auto;}
+.sales-documents-page table {min-width:1280px;}
+.sales-documents-page td {line-height:1.6;}
+.sales-documents-page td:nth-child(2),.sales-documents-page td:nth-child(4) {min-width:200px;max-width:300px;overflow-wrap:anywhere;}
+.sales-documents-page td:nth-child(3) {min-width:150px;}
+.sales-documents-page td:nth-child(5) {min-width:170px;white-space:nowrap;}
+.sales-documents-page td:nth-child(6),.sales-documents-page td:nth-child(7) {white-space:nowrap;}
+.sales-documents-page td span[style] {display:inline-block;line-height:1.5;}
+@media(max-width:768px) {
+ .sales-documents-page {padding:12px !important;}
+ .sales-documents-page > div:first-child > div {width:100%;}
+ .sales-documents-page > div:first-child button {flex:1 1 150px;justify-content:center;}
+ .sales-documents-page > div:nth-child(2) {padding:14px !important;gap:12px !important;}
+ .sales-documents-page > div:nth-child(2) > div,.sales-documents-page select {width:100%;flex-basis:100% !important;}
+ .sales-documents-page > div:nth-child(3) > div:not(.responsive-table-region) {padding:32px 18px !important;}
+}

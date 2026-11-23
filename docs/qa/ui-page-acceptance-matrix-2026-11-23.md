@@ -46,7 +46,7 @@ Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional
 | GeneralDashboard.jsx |  | not individually accepted | not established in this matrix | no |
 | HR/ActivityBalance.jsx | 2 | selected editor shells only | not established in this matrix | no |
 | HR/ActivityDefinition.jsx | 2 | selected editor shells only | not established in this matrix | no |
-| HR/ApprovalCenter.jsx | 26 | read-only request list/status/action presentation | not established in this matrix | no |
+| HR/ApprovalCenter.jsx | 26 | read-only request list/status/action presentation | live phone empty state/subnav checked | no |
 | HR/Attendance.jsx | 25 | attendance terminal states/history presentation only | live phone empty history/action shown, not pressed | no |
 | HR/AttendanceAdmin.jsx |  | not individually accepted | not established in this matrix | no |
 | HR/AttendanceDevices.jsx | 3 | selected editor shells only | not established in this matrix | no |
@@ -89,7 +89,7 @@ Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional
 | Register.jsx |  | not individually accepted | not established in this matrix | no |
 | Reports.jsx | 21 | whole read-only presentation | not established in this matrix | no |
 | ResetPassword.jsx |  | not individually accepted | not established in this matrix | no |
-| Sales/Documents.jsx |  | not individually accepted | not established in this matrix | no |
+| Sales/Documents.jsx | 27 | document index/filter/action presentation | not established in this matrix | no |
 | Sales/PriceTiers.jsx | 7 | selected editor shells only | not established in this matrix | no |
 | Sales/SalesManagement.jsx |  | not individually accepted | not established in this matrix | no |
 | Sales/SalesOrder.jsx |  | not individually accepted | not established in this matrix | no |
@@ -109,8 +109,8 @@ Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional
 
 ## Totals
 - 102 source page components.
-- 47 components with explicit bounded phase coverage in this matrix.
-- 55 components without individual phase acceptance in this matrix.
+- 48 components with explicit bounded phase coverage in this matrix.
+- 54 components without individual phase acceptance in this matrix.
 - Zero claims of complete end-to-end business acceptance.
 - Earlier phase-specific live evidence remains in the rollout QA log; this matrix conservatively lists only recent explicit captures.
 - No production writes are part of this matrix.
