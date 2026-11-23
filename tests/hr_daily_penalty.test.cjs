@@ -1,0 +1,7 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const {penaltyDays,calculate}=require('../services/payrollPenaltyService');
+const rules=[{from_min:1,to_min:15,deduct_days:0},{from_min:16,to_min:30,deduct_days:0.25},{from_min:31,to_min:60,deduct_days:0.5},{from_min:61,to_min:9999,deduct_days:1}];
+test('configured daily bands include boundaries and explicit zero',()=>{for(const [m,d] of [[0,0],[1,0],[15,0],[16,.25],[30,.25],[31,.5],[60,.5],[61,1]])assert.equal(penaltyDays(m,rules),d);});
+test('late without valid matching policy fails closed',()=>{for(const r of [null,[],[{from_min:1,to_min:5,deduct_days:1}],rules.concat({from_min:60,to_min:90,deduct_days:1}),[{from_min:1,to_min:100,deduct_days:-1}]])assert.throws(()=>penaltyDays(60,r));assert.equal(penaltyDays(0,null),0);});
+test('daily assignment rules sum days not monthly lateness band',async()=>{let params;const c={query:async(q,p)=>{params=p;return {rows:[{id:1,work_date:'2026-12-01',late_minutes:20,work_hours:8,deduction_rules:rules},{id:2,work_date:'2026-12-02',late_minutes:20,work_hours:7,deduction_rules:[{from_min:1,to_min:99,deduct_days:1}]}]}}};assert.deepEqual(await calculate(c,{user:7,tenant:'T',branch:'B',month:12,year:2026,timezone:'Africa/Cairo'}),{days:1.25,hours:15,minutes:40});assert.equal(params[5],'Africa/Cairo');});
+test('ambiguous duplicate attendance blocks calculation',async()=>{await assert.rejects(()=>calculate({query:async()=>({rows:[1,2].map(id=>({id,work_date:'2026-12-01',late_minutes:0}))})},{}),/Multiple/);});

@@ -2838,7 +2838,7 @@
       "kpiCompletedShifts": "Completed Shifts",
       "kpiLateArrivals": "Late Arrivals",
       "kpiTotalHours": "Total Work Hours",
-      "hoursSuffix": "{{hours}} h",
+      "hoursSuffix": "h",
       "loading": "Loading Terminal Data...",
       "noRecords": "No records found for this date.",
       "colEmployee": "Employee",
@@ -2910,6 +2910,7 @@
       "toastActionError": "Failed to {{status}} request."
     },
     "attendanceDevices": {
+      "tabRegisteredDevices": "Registered Devices ({{count}})",
       "title": "Biometric & Attendance Devices",
       "subtitle": "ZkTeco device integration and hardware mapping for automatic time-logging.",
       "tabDevices": "Biometric Devices",
@@ -2964,6 +2965,7 @@
       "toastBadgeUpdateError": "Failed to update badge number"
     },
     "shifts": {
+      "tabConfiguredShifts": "Configured Shifts ({{count}})",
       "title": "Work Shifts & Lateness Rules",
       "subtitle": "Configure working hours, rest days, grace periods, and tier-based lateness penalties.",
       "tabShifts": "Shifts Definition",
@@ -3065,6 +3067,7 @@
       "toastDeleteError": "Failed to delete activity"
     },
     "activityBalance": {
+      "yearOption": "Year {{year}}",
       "title": "Activity & Leave Balance Ledger",
       "subtitle": "Monthly and annual quota balance allocation across staff members.",
       "btnAllocate": "Allocate / Adjust Balance",

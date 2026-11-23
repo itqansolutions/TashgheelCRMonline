@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
+const roleGuard = require('../middleware/roleGuard');
+const manageHR = roleGuard(['admin', 'manager']);
 const {
   getShifts, getShiftById, createShift, updateShift, deleteShift,
   getUserShifts, getUserShiftSummary, assignUserShift, removeUserShift
@@ -13,12 +15,12 @@ router.get('/', getShifts);
 router.get('/user-assignments', getUserShifts);
 router.get('/user-summary', getUserShiftSummary);
 router.get('/:id', getShiftById);
-router.post('/', createShift);
-router.put('/:id', updateShift);
+router.post('/', manageHR, createShift);
+router.put('/:id', manageHR, updateShift);
 router.delete('/:id', deleteShift);
 
 // User Shift Assignments
-router.post('/assign', assignUserShift);
+router.post('/assign', manageHR, assignUserShift);
 router.delete('/assign/:id', removeUserShift);
 
 module.exports = router;

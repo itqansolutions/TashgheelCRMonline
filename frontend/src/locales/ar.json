@@ -2838,7 +2838,7 @@
       "kpiCompletedShifts": "الورديات المكتملة",
       "kpiLateArrivals": "حالات التأخير",
       "kpiTotalHours": "إجمالي ساعات العمل",
-      "hoursSuffix": "{{hours}} ساعة",
+      "hoursSuffix": "ساعة",
       "loading": "جارٍ تحميل بيانات المحطة المركزية...",
       "noRecords": "لا توجد سجلات حضور مسجلة لهذا التاريخ.",
       "colEmployee": "الموظف",
@@ -2910,6 +2910,7 @@
       "toastActionError": "فشل تغيير حالة الطلب إلى {{status}}."
     },
     "attendanceDevices": {
+      "tabRegisteredDevices": "الأجهزة المسجلة ({{count}})",
       "title": "أجهزة البصمة والدوام",
       "subtitle": "إدارة أجهزة ZkTeco وربط بطاقات وأكواد الموظفين البيومترية للتسجيل التلقائي.",
       "tabDevices": "أجهزة البصمة البيومترية",
@@ -2964,6 +2965,7 @@
       "toastBadgeUpdateError": "فشل تحديث كود البصمة"
     },
     "shifts": {
+      "tabConfiguredShifts": "الورديات المعرّفة ({{count}})",
       "title": "ورديات العمل ولائحة التأخير",
       "subtitle": "تهيئة أوقات الدوام، العطلات الأسبوعية، فترات السماح، وشرائح الجزاءات التراكمية.",
       "tabShifts": "تعريف الورديات",
@@ -3065,6 +3067,7 @@
       "toastDeleteError": "فشل حذف النشاط"
     },
     "activityBalance": {
+      "yearOption": "سنة {{year}}",
       "title": "دفتر أرصدة الأنشطة والإجازات",
       "subtitle": "توزيع وإدارة الأرصدة والكوتا الشهرية والسنوية على موظفي المؤسسة.",
       "btnAllocate": "تخصيص / تعديل رصيد",

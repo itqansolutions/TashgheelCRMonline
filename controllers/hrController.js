@@ -272,20 +272,15 @@ exports.generatePayroll = async (req, res) => {
 
         if (existRes.rows.length > 0) throw new Error(`Payroll for ${month}/${year} already exists for this employee.`);
 
-        // 2. Calculate Attendance (Late penalties, Work hours)
-        const attRes = await client.query(`
-            SELECT SUM(work_hours) as total_hours, SUM(late_minutes) as total_late_minutes
-            FROM hr_attendance
-            WHERE user_id = $1 AND EXTRACT(MONTH FROM check_in) = $2 AND EXTRACT(YEAR FROM check_in) = $3 AND tenant_id::text = $4::text AND branch_id::text = $5::text
-        `, [user_id, payrollMonth, payrollYear, tenant_id, branch_id]);
-
-        const total_work_hours = parseFloat(attRes.rows[0].total_hours) || 0;
-        const total_late_minutes = parseInt(attRes.rows[0].total_late_minutes) || 0;
-
-        // Penalty calculations
-        const hourly_rate = base_salary / 160;
-        const minute_rate = hourly_rate / 60;
-        let penalty_amount = parseFloat((total_late_minutes * minute_rate).toFixed(2));
+        // Each attendance date uses its effective shift's configured band.
+        // Policy approved by the owner: sum daily deduction days, not monthly minutes.
+        const timezone = await attendanceService.timezoneFor(client, tenant_id, branch_id);
+        const attendance = await require('../services/payrollPenaltyService').calculate(client, {
+            user:user_id, tenant:tenant_id, branch:branch_id,
+            month:payrollMonth, year:payrollYear, timezone
+        });
+        const total_work_hours = attendance.hours;
+        const penalty_amount = Number((attendance.days * (base_salary / 22)).toFixed(2));
 
         // 3. Unpaid Leaves logic
         const leavesRes = await client.query(`
@@ -316,7 +311,7 @@ exports.generatePayroll = async (req, res) => {
 
         // 6. Insert Payroll Tracing Layout (hr_payroll_items)
         if (penalty_amount > 0) {
-            await client.query(`INSERT INTO hr_payroll_items (payroll_id, type, amount, description) VALUES ($1, 'penalty_late', $2, $3)`, [payroll_id, -penalty_amount, `${total_late_minutes} Mins Late`]);
+            await client.query(`INSERT INTO hr_payroll_items (payroll_id, type, amount, description) VALUES ($1, 'penalty_late', $2, $3)`, [payroll_id, -penalty_amount, `${attendance.days} Deduction Days (${attendance.minutes} Mins Late, daily shift bands)`]);
         }
         if (leave_deduction > 0) {
             await client.query(`INSERT INTO hr_payroll_items (payroll_id, type, amount, description) VALUES ($1, 'leave_unpaid', $2, $3)`, [payroll_id, -leave_deduction, `${unpaid_days} Days Unpaid Leave`]);
