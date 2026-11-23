@@ -31,7 +31,7 @@ const FinancialReports = () => {
   };
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="erp-financial-reports-page" style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -70,10 +70,10 @@ const FinancialReports = () => {
       ) : !reportData ? (
         <div style={{ textAlign: 'center', padding: '40px' }}>Failed to load report data.</div>
       ) : (
-        <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '24px' }}>
+        <div className="erp-report-content" style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '24px' }}>
           {activeTab === 'tb' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '12px 16px', backgroundColor: reportData.is_balanced ? '#f0fdf4' : '#fef2f2', borderRadius: '8px', border: `1px solid ${reportData.is_balanced ? '#bbf7d0' : '#fecaca'}` }}>
+              <div className="erp-trial-summary" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '12px 16px', backgroundColor: reportData.is_balanced ? '#f0fdf4' : '#fef2f2', borderRadius: '8px', border: `1px solid ${reportData.is_balanced ? '#bbf7d0' : '#fecaca'}` }}>
                 <span style={{ fontWeight: '700', color: reportData.is_balanced ? '#166534' : '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <CheckCircle2 size={18} /> {reportData.is_balanced ? 'Trial Balance is BALANCED' : 'Trial Balance is IMBALANCED'}
                 </span>
@@ -110,7 +110,7 @@ const FinancialReports = () => {
 
           {activeTab === 'bs' && (
             <div>
-              <div style={{ marginBottom: '20px', display: 'flex', gap: '20px' }}>
+              <div className="erp-report-summary" style={{ marginBottom: '20px', display: 'flex', gap: '20px' }}>
                 <div style={{ flex: 1, backgroundColor: '#f0fdf4', padding: '16px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
                   <span style={{ fontSize: '12px', color: '#166534', fontWeight: '700' }}>TOTAL ASSETS</span>
                   <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#15803d', marginTop: '4px' }}>{(reportData?.assets?.total ?? 0).toLocaleString()} EGP</h2>
@@ -125,7 +125,7 @@ const FinancialReports = () => {
 
           {activeTab === 'pl' && (
             <div>
-              <div style={{ marginBottom: '20px', display: 'flex', gap: '20px' }}>
+              <div className="erp-report-summary" style={{ marginBottom: '20px', display: 'flex', gap: '20px' }}>
                 <div style={{ flex: 1, backgroundColor: '#f0fdf4', padding: '16px', borderRadius: '8px' }}>
                   <span style={{ fontSize: '12px', color: '#166534', fontWeight: '700' }}>TOTAL REVENUE</span>
                   <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#15803d', marginTop: '4px' }}>{(reportData?.revenue?.total ?? 0).toLocaleString()} EGP</h2>
@@ -144,7 +144,7 @@ const FinancialReports = () => {
 
           {activeTab === 'ar' && (
             <div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '24px' }}>
+              <div className="erp-aging-summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '24px' }}>
                 {Object.entries(reportData.brackets || {}).map(([key, val]) => (
                   <div key={key} style={{ backgroundColor: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
                     <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700' }}>{key.replace('_', ' ').toUpperCase()}</span>

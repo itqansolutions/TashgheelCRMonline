@@ -277,3 +277,7 @@ Scoped page class, responsive create actions/search/type filter, contained long 
 
 ### Phase28 staff attendance overview presentation
 Scoped generic CSS, responsive header/date filter, two-column phone summary, contained long employee/email, proper table numeric cells, empty table fit and read-only history scroll. Eight Arabic/English phone/desktop populated/empty fixtures pass, original functions and date control exact, build passes. Actual phone/desktop and1100/336 scroll pixels inspected, reaches hours/source/action. Local HRSubNav stub. Existing icon-only row action has no handler, preserved for consolidated report. Date filtering uses check-in string prefix and displayed times local browser, unchanged, not certified as Cairo-correct. No staff/business record mutations or punch actions.
+
+
+### Phase29 ERP financial-report presentation
+Added scoped presentation classes only. Four report tabs wrap on phone; balance sheet/P&L summaries stack, aging grid fits two columns, trial summary wraps and six-column table scrolls.20 direction/width/tab/error fixtures pass with actual local tab clicks and no writes; function/control AST exact and build passes. Actual phone BS/P&L/aging and desktop trial, phone real scroll960/302 inspected. Large report amounts readable, no calculations/endpoints changed. English-only report content retained, not Arabic localization or accounting certification. Backend report correctness remains outside this phase.

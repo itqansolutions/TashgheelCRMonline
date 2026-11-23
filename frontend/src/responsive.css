@@ -656,3 +656,33 @@
  .attendance-admin-page .admin-table:has(td[colspan]) thead {display:none;}
  .attendance-admin-page .admin-table td[colspan] {padding:24px 16px !important;line-height:1.7;}
 }
+
+/* Read-only ERP financial statements, calculations and endpoints untouched. */
+.erp-financial-reports-page,.erp-financial-reports-page * {box-sizing:border-box;}
+.erp-financial-reports-page {min-width:0;max-width:1200px;}
+.erp-financial-reports-page h1 {line-height:1.4;}
+.erp-financial-reports-page h1 svg {flex-shrink:0;}
+.erp-financial-reports-page p {line-height:1.7;}
+.erp-financial-reports-page .erp-report-tabs {flex-wrap:wrap;}
+.erp-financial-reports-page .erp-report-tabs button {min-height:44px;}
+.erp-financial-reports-page .erp-report-tabs svg {flex-shrink:0;}
+.erp-financial-reports-page .erp-report-content {min-width:0;}
+.erp-financial-reports-page .erp-trial-summary {flex-wrap:wrap;gap:14px;line-height:1.7;}
+.erp-financial-reports-page .erp-trial-summary > span {min-width:0;overflow-wrap:anywhere;}
+.erp-financial-reports-page .erp-report-summary > div,.erp-financial-reports-page .erp-aging-summary > div {min-width:0;}
+.erp-financial-reports-page .erp-report-summary h2,.erp-financial-reports-page .erp-aging-summary h3 {line-height:1.5;overflow-wrap:anywhere;}
+.erp-financial-reports-page .erp-aging-summary {grid-template-columns:repeat(5,minmax(0,1fr)) !important;}
+.erp-financial-reports-page .responsive-table-region {width:100%;max-width:100%;overflow-x:auto;}
+.erp-financial-reports-page table {min-width:960px;}
+.erp-financial-reports-page td {line-height:1.6;}
+.erp-financial-reports-page td:nth-child(2) {min-width:220px;max-width:300px;overflow-wrap:anywhere;}
+.erp-financial-reports-page td:nth-child(n+4) {white-space:nowrap;min-width:160px;}
+@media(max-width:768px) {
+ .erp-financial-reports-page {padding:12px !important;}
+ .erp-financial-reports-page h1 {font-size:22px !important;align-items:flex-start !important;}
+ .erp-financial-reports-page .erp-report-tabs {gap:8px !important;}
+ .erp-financial-reports-page .erp-report-tabs button {flex:1 1 140px;padding:10px 12px !important;justify-content:center;font-size:12px;}
+ .erp-financial-reports-page .erp-report-content {padding:16px !important;}
+ .erp-financial-reports-page .erp-report-summary {flex-direction:column;gap:12px !important;}
+ .erp-financial-reports-page .erp-aging-summary {grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
+}
