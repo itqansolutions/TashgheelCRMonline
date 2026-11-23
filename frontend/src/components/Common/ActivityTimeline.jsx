@@ -312,8 +312,16 @@ const ActivityTimeline = ({ entityType, entityId, canLog = true, onActivityCreat
 
             {/* ── Log Form ────────────────────────────────────────────────── */}
             {canLog && showForm && (
-                <form
-                    onSubmit={handleSubmitLog}
+                <div
+                    role="form"
+                    aria-label={t('customers.logInteraction', 'Log Interaction')}
+                    onKeyDown={(e) => {
+                        // Do not let Enter in an embedded input submit the deal form.
+                        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }
+                    }}
                     style={{
                         background: '#f8fafc', border: '1.5px dashed #cbd5e1',
                         borderRadius: '12px', padding: '16px', marginBottom: '20px'
@@ -512,7 +520,8 @@ const ActivityTimeline = ({ entityType, entityId, canLog = true, onActivityCreat
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
                         <button
-                            type="submit"
+                            type="button"
+                            onClick={handleSubmitLog}
                             disabled={submitting}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '6px',
@@ -526,7 +535,7 @@ const ActivityTimeline = ({ entityType, entityId, canLog = true, onActivityCreat
                             {submitting ? t('customers.saving', 'Saving…') : t('customers.saveLog', 'Save Log')}
                         </button>
                     </div>
-                </form>
+                </div>
             )}
 
             {/* ── Timeline ────────────────────────────────────────────────── */}
