@@ -293,3 +293,9 @@
 .po-item-field input,.po-item-field select { width:100%; min-width:0; min-height:40px; }
 
 .treasury-account-editor input:not([type=checkbox]) { border:1px solid #dbe3ee!important; background:#f8fafc!important; color:#0f172a!important; min-height:44px; }
+.unit-create-editor .ap-input { border:1px solid #dbe3ee; background:#f8fafc; color:#0f172a; border-radius:10px; padding:12px; min-height:44px; width:100%; }
+.unit-create-editor .ap-label { display:block; margin-bottom:7px; font-size:13px; font-weight:600; }
+@media(max-width:768px) {
+ .unit-create-editor [style*="grid-template-columns"] { grid-template-columns:minmax(0,1fr)!important; gap:18px!important; }
+ .unit-create-editor [style*="grid-column: span 2"] { grid-column:auto!important; }
+}

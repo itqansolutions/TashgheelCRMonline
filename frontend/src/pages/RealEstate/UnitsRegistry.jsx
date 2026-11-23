@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, Users, Handshake, Activity, Filter, Calendar, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink, Image as ImageIcon, Camera, Upload, Eye, ChevronLeft, ChevronRight, MessageCircle, Copy, Check, Send, Share2 } from 'lucide-react';
@@ -1121,30 +1122,14 @@ const UnitsRegistry = () => {
 
 
             {/* Redesigned Add Unit Modal */}
-            {showAddModal && createPortal(
-                <div 
-                    dir={isRTL ? 'rtl' : 'ltr'}
-                    onClick={(e) => {
-                        if (e.target === e.currentTarget) handleCloseAddModal();
-                    }}
-                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
-                >
-                    <div className="ap-card" style={{ width: '100%', maxWidth: '650px', padding: '40px', background: 'white', position: 'relative', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
-                        <button 
-                            type="button"
-                            onClick={handleCloseAddModal}
-                            style={{ position: 'absolute', top: '24px', [isRTL ? 'left' : 'right']: '24px', padding: '8px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
-                            title={t('common.close') || 'Close'}
-                        >
-                            <X size={18}/>
-                        </button>
-
-                        <div style={{ marginBottom: '32px' }}>
-                            <h2 style={{ fontSize: '26px', fontWeight: 900, marginBottom: '8px' }}>{t('realEstate.unitsRegistry.modalAddTitle')}</h2>
-                            <p style={{ color: 'var(--text-muted)' }}>{t('realEstate.unitsRegistry.modalAddSubtitle')}</p>
-                        </div>
-
-                        <form onSubmit={handleAddUnit}>
+            {showAddModal && createPortal(<Modal isOpen={true} closeOnEscape={false} onClose={handleCloseAddModal} variant="form" title={t('realEstate.unitsRegistry.modalAddTitle')} footer={<div className="procurement-editor-footer">
+                                <button type="submit" form="unit-create-editor" disabled={uploadingUnitPhotos} className="btn-primary-premium" style={{ flex: 1, justifyContent: 'center', height: '56px' }}>
+                                    {uploadingUnitPhotos ? (t('common.uploading') || 'Saving Unit & Photos...') : t('realEstate.unitsRegistry.btnConfirmReg')}
+                                </button>
+                                <button type="button" onClick={handleCloseAddModal} style={{ padding: '0 32px', borderRadius: '12px', border: '2px solid var(--border)', fontWeight: 800, color: 'var(--text-muted)' }}>
+                                    {t('realEstate.unitsRegistry.btnDiscard')}
+                                </button>
+                            </div>}><p style={{color:"#64748b",marginBottom:24}}>{t('realEstate.unitsRegistry.modalAddSubtitle')}</p><form id="unit-create-editor" className="unit-create-editor" onSubmit={handleAddUnit}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
                                 {/* Core Identity & Project Hierarchy */}
                                 <div style={{ gridColumn: 'span 2', paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '8px' }}>
@@ -1461,19 +1446,8 @@ const UnitsRegistry = () => {
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', gap: '16px' }}>
-                                <button type="submit" disabled={uploadingUnitPhotos} className="btn-primary-premium" style={{ flex: 1, justifyContent: 'center', height: '56px' }}>
-                                    {uploadingUnitPhotos ? (t('common.uploading') || 'Saving Unit & Photos...') : t('realEstate.unitsRegistry.btnConfirmReg')}
-                                </button>
-                                <button type="button" onClick={handleCloseAddModal} style={{ padding: '0 32px', borderRadius: '12px', border: '2px solid var(--border)', fontWeight: 800, color: 'var(--text-muted)' }}>
-                                    {t('realEstate.unitsRegistry.btnDiscard')}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>,
-                document.body
-            )}
+
+                        </form></Modal>,document.body)}
 
             {/* Read-Only Unit Details Modal */}
             {selectedUnit && createPortal(

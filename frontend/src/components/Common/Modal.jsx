@@ -2,17 +2,17 @@ import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
-const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width, variant = 'dialog', className = '' }) => {
+const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width, variant = 'dialog', className = '', closeOnEscape = true }) => {
   const { t, isRTL } = useLanguage();
 
   // Close on ESC key
   useEffect(() => {
     const handleEsc = (e) => {
-      if (e.keyCode === 27) onClose();
+      if (e.keyCode === 27 && closeOnEscape) onClose();
     };
     if (isOpen) window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, closeOnEscape]);
 
   if (!isOpen) return null;
 
