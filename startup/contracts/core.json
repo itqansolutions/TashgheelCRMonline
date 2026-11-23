@@ -1,0 +1,168 @@
+{
+  "scope": "core",
+  "columns": [
+    {
+      "table_name": "users",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('users_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "users",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": "'00000000-0000-0000-0000-000000000000'::uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "users",
+      "column_name": "is_working",
+      "data_type": "boolean",
+      "column_default": "true",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "role",
+      "data_type": "character varying",
+      "column_default": "'employee'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tenants",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "uuid_generate_v4()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tenants",
+      "column_name": "status",
+      "data_type": "character varying",
+      "column_default": "'active'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tenants",
+      "column_name": "template_name",
+      "data_type": "character varying",
+      "column_default": "'general'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "uuid_generate_v4()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "branches",
+      "column_name": "is_main",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "user_branches",
+      "column_name": "user_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "user_branches",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tenant_overrides",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tenant_overrides",
+      "column_name": "modules",
+      "data_type": "jsonb",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tenant_overrides",
+      "column_name": "limits",
+      "data_type": "jsonb",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tenant_overrides",
+      "column_name": "notes",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tenant_overrides",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    }
+  ],
+  "constraints": [
+    {
+      "table_name": "branches",
+      "conname": "branches_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "tenant_overrides",
+      "conname": "tenant_overrides_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "tenants",
+      "conname": "tenants_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "user_branches",
+      "conname": "user_branches_pkey",
+      "definition": "PRIMARY KEY (user_id, branch_id)"
+    },
+    {
+      "table_name": "users",
+      "conname": "users_pkey",
+      "definition": "PRIMARY KEY (id)"
+    }
+  ],
+  "indexes": [],
+  "functions": [],
+  "limits": "Scoped prerequisite group only, not all app routes. Proposed code contract, no data permission."
+}

@@ -1,0 +1,330 @@
+{
+  "scope": "events",
+  "columns": [
+    {
+      "table_name": "domain_events",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "tenant_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "branch_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "aggregate_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "aggregate_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "event_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "version",
+      "data_type": "character varying",
+      "column_default": "'v1'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "payload",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "actor_id",
+      "data_type": "character varying",
+      "column_default": "'SYSTEM'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "occurred_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "tenant_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "user_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "entity_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "entity_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "action",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "meta",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "tenant_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "branch_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "aggregate_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "aggregate_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "event_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "version",
+      "data_type": "character varying",
+      "column_default": "'v1'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "payload",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "actor_id",
+      "data_type": "character varying",
+      "column_default": "'SYSTEM'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "status",
+      "data_type": "character varying",
+      "column_default": "'pending'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "processed_at",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "retry_count",
+      "data_type": "integer",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('system_notifications_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "user_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "title",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "message",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "link",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "metadata",
+      "data_type": "jsonb",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "is_read",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    }
+  ],
+  "constraints": [
+    {
+      "table_name": "activities",
+      "conname": "activities_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "domain_events",
+      "conname": "domain_events_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "outbox_events",
+      "conname": "outbox_events_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "system_notifications",
+      "conname": "system_notifications_pkey",
+      "definition": "PRIMARY KEY (id)"
+    }
+  ],
+  "indexes": [
+    {
+      "tablename": "activities",
+      "indexname": "idx_activities_due_reminders",
+      "indexdef": "CREATE INDEX idx_activities_due_reminders ON public.activities USING btree (scheduled_at) WHERE ((scheduled_at IS NOT NULL) AND (reminder_sent_at IS NULL) AND (is_reminder_dismissed = false))"
+    }
+  ],
+  "functions": [],
+  "limits": "Scoped prerequisite group only, not all app routes. Proposed code contract, no data permission."
+}

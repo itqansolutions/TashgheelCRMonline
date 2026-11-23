@@ -1,0 +1,2185 @@
+{
+  "scope": "existing-background-workers",
+  "limits": "Conservative table-local worker contract, not all-route readiness. All columns of directly used worker tables retained pending minimal-column review.",
+  "columns": [
+    {
+      "table_name": "activities",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "tenant_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "branch_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "entity_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "entity_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "activity_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "actor_id",
+      "data_type": "character varying",
+      "column_default": "'SYSTEM'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "actor_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "title",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "details",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "visibility",
+      "data_type": "character varying",
+      "column_default": "'internal'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "user_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "action",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "meta",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "scheduled_at",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "reminder_sent_at",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "is_reminder_dismissed",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "activities",
+      "column_name": "reminder_note",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('customers_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "company_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "email",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "phone",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "address",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "source",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "assigned_to",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "status",
+      "data_type": "character varying",
+      "column_default": "'lead'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "source_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "manager_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": "'00000000-0000-0000-0000-000000000000'::uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "entity_type",
+      "data_type": "character varying",
+      "column_default": "'customer'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "budget_min",
+      "data_type": "numeric",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "budget_max",
+      "data_type": "numeric",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "preferred_area_min",
+      "data_type": "numeric",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "preferred_area_max",
+      "data_type": "numeric",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "preferred_location",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "preferred_rooms",
+      "data_type": "integer",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "tax_no",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "reg_no",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "is_active",
+      "data_type": "boolean",
+      "column_default": "true",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "is_blacklisted",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "meta_lead_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "notes",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "meta_form_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "meta_form_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "classification_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "classification_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "area_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "area_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "whatsapp_welcome_sent",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "whatsapp_welcome_sent_at",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "meta_campaign_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "meta_adset_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "customers",
+      "column_name": "meta_ad_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('deals_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "title",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "value",
+      "data_type": "numeric",
+      "column_default": "0.00",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "pipeline_stage",
+      "data_type": "character varying",
+      "column_default": "'discovery'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "client_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "project_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "assigned_to",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "product_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": "'00000000-0000-0000-0000-000000000000'::uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "custom_fields",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "unit_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "probability",
+      "data_type": "integer",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "expected_close_date",
+      "data_type": "date",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "next_action",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "source_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "deals",
+      "column_name": "source_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "tenant_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "branch_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "aggregate_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "aggregate_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "event_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "version",
+      "data_type": "character varying",
+      "column_default": "'v1'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "payload",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "actor_id",
+      "data_type": "character varying",
+      "column_default": "'SYSTEM'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "domain_events",
+      "column_name": "occurred_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "event_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "channel",
+      "data_type": "character varying",
+      "column_default": "'whatsapp'::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "recipient_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "recipient_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "recipient_phone",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "recipient_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "payload",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "deduplication_key",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "status",
+      "data_type": "character varying",
+      "column_default": "'pending'::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "priority",
+      "data_type": "integer",
+      "column_default": "10",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "attempts",
+      "data_type": "integer",
+      "column_default": "0",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "max_attempts",
+      "data_type": "integer",
+      "column_default": "3",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "scheduled_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "processed_at",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "error_message",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "meta_message_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_jobs",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "job_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "channel",
+      "data_type": "character varying",
+      "column_default": "'whatsapp'::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "event_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "recipient_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "recipient_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "recipient_phone",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "recipient_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "message_body",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "template_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "meta_message_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "delivery_status",
+      "data_type": "character varying",
+      "column_default": "'queued'::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "error_code",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "error_message",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "sent_at",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "delivered_at",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "read_at",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "failed_at",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "metadata",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_logs",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('notification_rules_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "event_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "is_enabled",
+      "data_type": "boolean",
+      "column_default": "true",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "channels",
+      "data_type": "jsonb",
+      "column_default": "'[\"whatsapp\"]'::jsonb",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "template_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "template_language",
+      "data_type": "character varying",
+      "column_default": "'ar'::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "recipient_roles",
+      "data_type": "jsonb",
+      "column_default": "'[\"assignee\"]'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "conditions",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "notification_rules",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "tenant_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "branch_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "aggregate_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "aggregate_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "event_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "version",
+      "data_type": "character varying",
+      "column_default": "'v1'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "payload",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "actor_id",
+      "data_type": "character varying",
+      "column_default": "'SYSTEM'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "status",
+      "data_type": "character varying",
+      "column_default": "'pending'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "retry_count",
+      "data_type": "integer",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "processed_at",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "outbox_events",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "contract_number",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "deal_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "customer_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "unit_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "contract_date",
+      "data_type": "date",
+      "column_default": "CURRENT_DATE",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "contract_value",
+      "data_type": "numeric",
+      "column_default": "0.00",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "down_payment",
+      "data_type": "numeric",
+      "column_default": "0.00",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "remaining_amount",
+      "data_type": "numeric",
+      "column_default": "0.00",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "status",
+      "data_type": "character varying",
+      "column_default": "'Draft'::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "notes",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "tenant_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "branch_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "created_by",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "start_date",
+      "data_type": "date",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "end_date",
+      "data_type": "date",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "duration_months",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "expiry_reminder_sent_at",
+      "data_type": "timestamp without time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_contracts",
+      "column_name": "expired_notified_at",
+      "data_type": "timestamp without time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "id",
+      "data_type": "uuid",
+      "column_default": "gen_random_uuid()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "project_name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "unit_number",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "floor",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "area_sqm",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "price",
+      "data_type": "numeric",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "status",
+      "data_type": "character varying",
+      "column_default": "'available'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "tenant_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "branch_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "vendor_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "responsible_person_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "transaction_type",
+      "data_type": "character varying",
+      "column_default": "'sale'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "rooms",
+      "data_type": "integer",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "location",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "updated_at",
+      "data_type": "timestamp without time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "reservation_expires_at",
+      "data_type": "timestamp without time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "assigned_to",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "developer_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "project_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "phase_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "building_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "reservation_extended_at",
+      "data_type": "timestamp without time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "reservation_extended_by",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "re_units",
+      "column_name": "reservation_extension_count",
+      "data_type": "integer",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('system_logs_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "user_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "action",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "entity_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "entity_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "details",
+      "data_type": "jsonb",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": "'00000000-0000-0000-0000-000000000000'::uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "ip_address",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "user_agent",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "level",
+      "data_type": "character varying",
+      "column_default": "'INFO'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_logs",
+      "column_name": "branch_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('system_notifications_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "user_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "title",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "message",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "link",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "is_read",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "metadata",
+      "data_type": "jsonb",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "system_notifications",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "task_statuses",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('task_statuses_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "task_statuses",
+      "column_name": "name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "task_statuses",
+      "column_name": "color",
+      "data_type": "character varying",
+      "column_default": "'#64748b'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "task_statuses",
+      "column_name": "order_index",
+      "data_type": "integer",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "task_statuses",
+      "column_name": "can_make_deal",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "task_statuses",
+      "column_name": "is_final",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "task_statuses",
+      "column_name": "tenant_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "task_statuses",
+      "column_name": "created_at",
+      "data_type": "timestamp without time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('tasks_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "title",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "description",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "priority",
+      "data_type": "character varying",
+      "column_default": "'medium'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "status",
+      "data_type": "character varying",
+      "column_default": "'todo'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "assigned_to",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "parent_type",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "parent_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "due_date",
+      "data_type": "timestamp with time zone",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "director_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "created_by",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": "'00000000-0000-0000-0000-000000000000'::uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "status_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "tasks",
+      "column_name": "can_make_deal",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('users_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "users",
+      "column_name": "name",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "users",
+      "column_name": "email",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "users",
+      "column_name": "password_hash",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "users",
+      "column_name": "role",
+      "data_type": "character varying",
+      "column_default": "'employee'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "department_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "CURRENT_TIMESTAMP",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": "'00000000-0000-0000-0000-000000000000'::uuid",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "national_id",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "insurance_no",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "marital_status",
+      "data_type": "character varying",
+      "column_default": "'single'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "gender",
+      "data_type": "character varying",
+      "column_default": "'male'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "birth_date",
+      "data_type": "date",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "job_title_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "phone",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "address",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "salary",
+      "data_type": "numeric",
+      "column_default": "0",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "hire_date",
+      "data_type": "date",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "badge_number",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "device_code",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "users",
+      "column_name": "is_working",
+      "data_type": "boolean",
+      "column_default": "true",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "phone_number_id",
+      "data_type": "character varying",
+      "column_default": "''::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "access_token",
+      "data_type": "text",
+      "column_default": "''::text",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "template_name",
+      "data_type": "character varying",
+      "column_default": "''::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "template_language_ar",
+      "data_type": "character varying",
+      "column_default": "'ar'::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "template_language_en",
+      "data_type": "character varying",
+      "column_default": "'en_US'::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "send_arabic",
+      "data_type": "boolean",
+      "column_default": "true",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "send_english",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "default_country_code",
+      "data_type": "character varying",
+      "column_default": "'20'::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "is_active",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "now()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "column_default": "now()",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "waba_id",
+      "data_type": "character varying",
+      "column_default": "''::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "meta_app_secret",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "meta_webhook_verify_token",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "auto_greeting_enabled",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "auto_greeting_triggers",
+      "data_type": "ARRAY",
+      "column_default": "ARRAY['meta_lead'::text]",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "auto_greeting_template",
+      "data_type": "character varying",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "auto_greeting_language",
+      "data_type": "character varying",
+      "column_default": "'ar'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "variable_mapping",
+      "data_type": "jsonb",
+      "column_default": "'[]'::jsonb",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "connection_type",
+      "data_type": "character varying",
+      "column_default": "'cloud_api'::character varying",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "coexistence_status",
+      "data_type": "character varying",
+      "column_default": "'unlinked'::character varying",
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "column_name": "coexistence_metadata",
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
+      "is_nullable": "YES"
+    }
+  ],
+  "constraints": [
+    {
+      "table_name": "activities",
+      "conname": "activities_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "customers",
+      "conname": "customers_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "deals",
+      "conname": "deals_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "domain_events",
+      "conname": "domain_events_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "notification_jobs",
+      "conname": "notification_jobs_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "notification_logs",
+      "conname": "notification_logs_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "notification_rules",
+      "conname": "notification_rules_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "outbox_events",
+      "conname": "outbox_events_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "re_contracts",
+      "conname": "re_contracts_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "re_units",
+      "conname": "re_units_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "system_logs",
+      "conname": "system_logs_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "system_notifications",
+      "conname": "system_notifications_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "tasks",
+      "conname": "tasks_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "task_statuses",
+      "conname": "task_statuses_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "users",
+      "conname": "users_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "whatsapp_settings",
+      "conname": "whatsapp_settings_pkey",
+      "definition": "PRIMARY KEY (tenant_id)"
+    }
+  ],
+  "indexes": [
+    {
+      "tablename": "notification_jobs",
+      "indexname": "idx_notif_jobs_dedup",
+      "indexdef": "CREATE UNIQUE INDEX idx_notif_jobs_dedup ON public.notification_jobs USING btree (tenant_id, deduplication_key) WHERE ((deduplication_key IS NOT NULL) AND ((status)::text = ANY ((ARRAY['pending'::character varying, 'processing'::character varying, 'completed'::character varying])::text[])))"
+    }
+  ],
+  "functions": [
+    "pg_catalog.pg_try_advisory_lock(bigint)",
+    "pg_catalog.pg_advisory_unlock(bigint)"
+  ]
+}

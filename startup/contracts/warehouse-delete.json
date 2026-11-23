@@ -1,0 +1,162 @@
+{
+  "scope": "Narrow warehouse delete isolation prerequisite only. NOT whole-app startup readiness. Existing global middleware prerequisites remain separate. No application functions/extensions invoked by handler SQL.",
+  "columns": [
+    {
+      "table_name": "purchase_invoices",
+      "column_name": "warehouse_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "purchase_orders",
+      "column_name": "warehouse_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "purchase_requests",
+      "column_name": "warehouse_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "stock_movements",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('stock_movements_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "stock_movements",
+      "column_name": "from_warehouse_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "stock_movements",
+      "column_name": "to_warehouse_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "warehouse_keepers",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('warehouse_keepers_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "warehouse_keepers",
+      "column_name": "warehouse_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "warehouse_keepers",
+      "column_name": "user_id",
+      "data_type": "integer",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "warehouse_keepers",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "warehouses",
+      "column_name": "id",
+      "data_type": "integer",
+      "column_default": "nextval('warehouses_id_seq'::regclass)",
+      "is_nullable": "NO"
+    },
+    {
+      "table_name": "warehouses",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "warehouses",
+      "column_name": "branch_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES"
+    },
+    {
+      "table_name": "warehouses",
+      "column_name": "is_active",
+      "data_type": "boolean",
+      "column_default": "true",
+      "is_nullable": "YES"
+    }
+  ],
+  "constraints": [
+    {
+      "table_name": "purchase_invoices",
+      "conname": "purchase_invoices_warehouse_id_fkey",
+      "definition": "FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE RESTRICT"
+    },
+    {
+      "table_name": "purchase_orders",
+      "conname": "purchase_orders_warehouse_id_fkey",
+      "definition": "FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE RESTRICT"
+    },
+    {
+      "table_name": "purchase_requests",
+      "conname": "purchase_requests_warehouse_id_fkey",
+      "definition": "FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE SET NULL"
+    },
+    {
+      "table_name": "stock_movements",
+      "conname": "stock_movements_from_warehouse_id_fkey",
+      "definition": "FOREIGN KEY (from_warehouse_id) REFERENCES warehouses(id) ON DELETE RESTRICT"
+    },
+    {
+      "table_name": "stock_movements",
+      "conname": "stock_movements_to_warehouse_id_fkey",
+      "definition": "FOREIGN KEY (to_warehouse_id) REFERENCES warehouses(id) ON DELETE RESTRICT"
+    },
+    {
+      "table_name": "warehouse_keepers",
+      "conname": "warehouse_keepers_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "warehouse_keepers",
+      "conname": "warehouse_keepers_warehouse_id_fkey",
+      "definition": "FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "warehouse_keepers",
+      "conname": "warehouse_keepers_warehouse_id_user_id_key",
+      "definition": "UNIQUE (warehouse_id, user_id)"
+    },
+    {
+      "table_name": "warehouses",
+      "conname": "warehouses_pkey",
+      "definition": "PRIMARY KEY (id)"
+    }
+  ],
+  "indexes": [
+    {
+      "tablename": "warehouse_keepers",
+      "indexname": "warehouse_keepers_warehouse_id_user_id_key",
+      "indexdef": "CREATE UNIQUE INDEX warehouse_keepers_warehouse_id_user_id_key ON public.warehouse_keepers USING btree (warehouse_id, user_id)"
+    },
+    {
+      "tablename": "warehouses",
+      "indexname": "warehouses_pkey",
+      "indexdef": "CREATE UNIQUE INDEX warehouses_pkey ON public.warehouses USING btree (id)"
+    }
+  ]
+}

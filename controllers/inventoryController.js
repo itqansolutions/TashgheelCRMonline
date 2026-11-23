@@ -305,38 +305,56 @@ exports.updateWarehouse = async (req, res) => {
 // @route   DELETE /api/inventory/warehouses/:id
 // @access  Private
 exports.deleteWarehouse = async (req, res) => {
-    const tenant_id = req.user.tenant_id;
+    const tenant_id = req.user?.tenant_id;
+    const branch_id = req.branchId;
     const warehouseId = req.params.id;
-
-    try {
-        await ensureWarehouseSchema();
-
-        // Check if movements reference this warehouse
-        const movesCheck = await db.query(`
-            SELECT id FROM stock_movements 
-            WHERE (from_warehouse_id = $1 OR to_warehouse_id = $1) AND tenant_id::text = $2::text 
-            LIMIT 1
-        `, [warehouseId, tenant_id]);
-
-        if (movesCheck.rows.length > 0) {
-            // Cannot hard-delete if historical movements exist; deactivate instead
-            await db.query(`UPDATE warehouses SET is_active = false WHERE id = $1 AND tenant_id::text = $2::text`, [warehouseId, tenant_id]);
-            return res.json({ status: 'success', message: 'Warehouse has movement history and was deactivated instead of deleted.' });
-        }
-
-        // Delete keepers & warehouse safely
-        await db.query(`DELETE FROM warehouse_keepers WHERE warehouse_id = $1`, [warehouseId]);
-        const delRes = await db.query(`DELETE FROM warehouses WHERE id = $1 AND tenant_id::text = $2::text RETURNING id`, [warehouseId, tenant_id]);
-
-        if (delRes.rows.length === 0) {
-            return res.status(404).json({ status: 'error', message: 'Warehouse not found' });
-        }
-
-        res.json({ status: 'success', message: 'Warehouse deleted successfully' });
-    } catch (err) {
-        console.error('deleteWarehouse error:', err.message);
-        res.status(500).json({ status: 'error', message: err.message || 'Failed to delete warehouse' });
+    if (!tenant_id || !branch_id || !/^[1-9]\d*$/.test(String(warehouseId))) {
+        return res.status(400).json({status:'error', message:'Valid tenant, branch and warehouse required'});
     }
+    let client;
+    try {
+        client = await db.connect();
+        await client.query('BEGIN');
+        await client.query("SET LOCAL lock_timeout='3s'");
+        await client.query("SET LOCAL statement_timeout='8s'");
+        // Ownership is established and locked BEFORE inspecting or mutating children.
+        const owned = await client.query(`SELECT id FROM warehouses WHERE id=$1
+            AND tenant_id::text=$2::text AND (branch_id::text=$3::text OR branch_id IS NULL) FOR UPDATE`,
+            [warehouseId, tenant_id, branch_id]);
+        if (!owned.rowCount) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({status:'error', message:'Warehouse not found'});
+        }
+        const inconsistent = await client.query(`SELECT id FROM warehouse_keepers
+            WHERE warehouse_id=$1 AND tenant_id IS DISTINCT FROM $2::uuid LIMIT 1`,[warehouseId,tenant_id]);
+        if(inconsistent.rowCount){
+            await client.query('ROLLBACK');
+            return res.status(409).json({status:'error',message:'Existing keeper assignment requires review'});
+        }
+        // Any history referencing this verified warehouse prevents hard deletion,
+        // including inconsistent legacy tenant tags. Do not reconcile that history here.
+        const moves = await client.query(`SELECT id FROM stock_movements
+            WHERE from_warehouse_id=$1 OR to_warehouse_id=$1 LIMIT 1`, [warehouseId]);
+        const purchases = await client.query(`SELECT warehouse_id FROM purchase_requests WHERE warehouse_id=$1
+            UNION ALL SELECT warehouse_id FROM purchase_orders WHERE warehouse_id=$1
+            UNION ALL SELECT warehouse_id FROM purchase_invoices WHERE warehouse_id=$1 LIMIT 1`,[warehouseId]);
+        if (moves.rowCount || purchases.rowCount) {
+            await client.query('UPDATE warehouses SET is_active=false WHERE id=$1 AND tenant_id::text=$2::text', [warehouseId,tenant_id]);
+            await client.query('COMMIT');
+            return res.json({status:'success', message:'Warehouse has operational references and was deactivated instead of deleted.'});
+        }
+        await client.query(`DELETE FROM warehouse_keepers wk USING warehouses w
+            WHERE wk.warehouse_id=w.id AND w.id=$1 AND w.tenant_id::text=$2::text
+            AND (w.branch_id::text=$3::text OR w.branch_id IS NULL)`, [warehouseId,tenant_id,branch_id]);
+        await client.query(`DELETE FROM warehouses WHERE id=$1 AND tenant_id::text=$2::text
+            AND (branch_id::text=$3::text OR branch_id IS NULL)`, [warehouseId,tenant_id,branch_id]);
+        await client.query('COMMIT');
+        res.json({status:'success',message:'Warehouse deleted successfully'});
+    } catch(err) {
+        if(client) await client.query('ROLLBACK').catch(()=>{});
+        console.error('deleteWarehouse error:',err.code);
+        res.status(500).json({status:'error',message:'Warehouse deletion could not be confirmed'});
+    } finally { if(client) client.release(); }
 };
 
 // ── WAREHOUSE STOCK BALANCES (PHASE 3) ─────────────────────

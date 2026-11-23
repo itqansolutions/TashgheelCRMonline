@@ -1,0 +1,20 @@
+# Actual-server startup candidate, LOCAL ONLY
+
+Exact base6b0b413. No securityfix/keeperfeature/Settings/leave/daily changes mixed. No live/config/push/deploy. Worker behavior deliberately has NO default, so deploying this candidate without a decision would fail startup. NOT a release recommendation yet.
+
+Serving implementation removes automatic boot maintenance from server path, preserving legacy body as non-executable reference. It validates a READONLY catalog baseline, registers event-store/global/module event wiring, then explicitly either registers existing workers or skips them, then opens listener. Startup failure stops before listener/workers. Legacy maintenance is not exposed as a new operator command, because it is not independently safe or approved.
+
+Tests use actual server.js with all real route/controller/module imports against a schema-only restore in loopbackPostgres. External network denied; SQL guard rejects writes and any unexpected import-timequery. No application credentials or customer rows used. Timers captured, never executed. Both explicit worker modes validate using four read-only SQLcommands and health200 from real HTTP listener. Preserve-existing registers12timers matching old workers/scanners. Paused-maintenance registers0. Missingwarehouses.name on actual server child fails before listener/timers and does not repair. No-worker-decision rejected. In-memory event wiring stays registered in both modes; incomingADMS/webhook/user routes remain mounted, not invoked except health.
+
+Critical limits, not certified:
+- This is controlled actual-boot proof, not timer execution proof. Preserve-existing callbacks include runtimeDDL, businessmutations, notifications/messages. They were CAPTURED, not executed. Existing live workers unchanged.
+- Pausing workers defers notifications/outbox, reminders, reservationexpiry/dealSLA, not ordinary HTTP request permissions. Resumption could process backlog. Explicit owner decision + window/resumption plan required. No silent policy chosen.
+- Inbound routes stay active if serving, can mutate normally. No-side-effect restart is not a no-write liveapplication. Shared GET helpers and branchScope fallback remain separate known exposures.
+- Manifest conservatively pins1955previously verified publiccolumns/types. This is intentionally NOT a minimal app prerequisite contract and excludes subsequently approved optional locationtable. It includes unrelated tables, can block startup unnecessarily, and does NOT yet validate constraints/indexes/functions/triggers/enums. It must be reviewed/versioned against productfeature dependencies before production. No livecatalog read done to update it.
+- No .env/startcommand changed. STARTUP_WORKER_MODE is proposed code input only. Deploying without setting it would intentionally failclosed; changing deployment config needs explicit approval. Alternative reviewed fixedcode decision is possible, also not chosen.
+- Legacyboot failures were previously non-fatal AFTERlisten. New readiness failure is availability-affecting behavior, must be included in decision.
+- Testarchive/client paths are local test inputs. To run elsewhere provide schema-only fixture and compatible pgrestore/localmodules; never fall back toDATABASE_URL.
+
+Decision main can ask after design review: approve separating automatic maintenance from serving, then choose whether ordinary backgroundjobs resume on restart or remain temporarily paused while securityfix is released, understanding deferredeffects/backlog. Do not ask approval to run broad old maintenance. Full no-migration worker resume needs helpers audited/gated separately; preserving workers as-is still allows lazyDDL.
+
+Next safe local stage: independent review of startup architecture and narrowed schema contract incl constraints; audit worker schemahelpers separately; actual boot with guarded manifest failures and runtime-effect simulation. This candidate is ready for internal design review, NOT production. Narrow deletefix independently reviewed remains undeployed until deploymentguard solved.

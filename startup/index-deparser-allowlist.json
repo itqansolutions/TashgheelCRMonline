@@ -1,0 +1,3 @@
+{
+  "idx_notif_jobs_dedup": "CREATE UNIQUE INDEX idx_notif_jobs_dedup ON public.notification_jobs USING btree (tenant_id, deduplication_key) WHERE ((deduplication_key IS NOT NULL) AND ((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('processing'::character varying)::text, ('completed'::character varying)::text])))"
+}

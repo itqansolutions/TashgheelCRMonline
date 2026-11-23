@@ -38,8 +38,9 @@ async function notifyContract(row, kind) {
         mgr.rows.forEach(u => recipients.add(String(u.id)));
     } catch (e) { /* non-fatal */ }
 
+    let confirmed = recipients.size > 0;
     for (const uid of recipients) {
-        await notificationService.notify({
+        const sent = await notificationService.notify({
             type: kind === 'expired' ? 'contract_expired' : 'contract_expiring',
             title, message,
             tenant_id: row.tenant_id,
@@ -47,13 +48,15 @@ async function notifyContract(row, kind) {
             user_id: uid,
             link, metadata
         });
+        if(!sent) confirmed=false;
     }
+    return confirmed;
 }
 
 const scanContractExpiry = async () => {
     try {
-        const { ensureContractColumns } = require('../controllers/reContractsController');
-        await ensureContractColumns();
+        const { validateGroup } = require('../startup/groupPrerequisites');
+        await validateGroup(db,'contract-expiry');
 
         const baseSelect = `
             SELECT rc.id, rc.contract_number, rc.deal_id, rc.tenant_id, rc.branch_id,
@@ -71,7 +74,7 @@ const scanContractExpiry = async () => {
               AND rc.end_date <= CURRENT_DATE + ${EXPIRY_WARNING_DAYS}
               AND rc.expiry_reminder_sent_at IS NULL`);
         for (const row of expiring.rows) {
-            await notifyContract(row, 'expiring');
+            if(!await notifyContract(row, 'expiring')) continue;
             await db.query(`UPDATE re_contracts SET expiry_reminder_sent_at = CURRENT_TIMESTAMP WHERE id = $1 AND tenant_id::text = $2::text`, [row.id, row.tenant_id]);
         }
 
@@ -79,7 +82,7 @@ const scanContractExpiry = async () => {
               AND rc.end_date < CURRENT_DATE
               AND rc.expired_notified_at IS NULL`);
         for (const row of expired.rows) {
-            await notifyContract(row, 'expired');
+            if(!await notifyContract(row, 'expired')) continue;
             await db.query(`UPDATE re_contracts SET expired_notified_at = CURRENT_TIMESTAMP WHERE id = $1 AND tenant_id::text = $2::text`, [row.id, row.tenant_id]);
         }
 

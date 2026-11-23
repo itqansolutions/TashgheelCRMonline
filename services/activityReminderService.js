@@ -1,6 +1,6 @@
 const db = require('../config/db');
 const notificationDispatcher = require('../src/domains/shared/services/notificationDispatcher');
-const { ensureActivitiesTable } = require('../controllers/activityController');
+const { validateGroup } = require('../startup/groupPrerequisites');
 
 /**
  * ⏰ Activity Follow-Up & Reminder Background Service
@@ -19,7 +19,7 @@ async function scanAndSendReminders() {
         const lock = await scanClient.query('SELECT pg_try_advisory_lock(824190311) AS locked');
         scanLocked = lock.rows[0]?.locked === true;
         if (!scanLocked) return 0;
-        await ensureActivitiesTable();
+        await validateGroup(db,'activity-reminders');
 
         const query = `
             SELECT a.id, a.tenant_id, a.user_id, a.entity_type, a.entity_id, a.action, 
