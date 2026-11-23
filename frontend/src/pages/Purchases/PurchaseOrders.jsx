@@ -1,8 +1,9 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { 
-  FileText, Plus, Search, Trash2, Calendar, Building, 
+import {
+  FileText, Plus, Search, Trash2, Calendar, Building,
   CheckCircle2, XCircle, AlertCircle, Clock, ChevronRight, X,
   ShieldCheck, User, Filter, ArrowUpRight, DollarSign,
   Package, Edit3, Send, Truck, Printer, Eye, Award, ExternalLink, ClipboardList
@@ -964,35 +965,55 @@ const PurchaseOrders = () => {
       </div>
 
       {/* CREATE PO MODAL */}
-      {showCreateModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px'
-        }}>
-          <div style={{
-            background: 'white', borderRadius: '16px', maxWidth: '840px', width: '100%',
-            maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
-            padding: '24px'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
-                  Create Purchase Order / إنشاء أمر شراء
-                </h2>
-                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#64748b' }}>
-                  Select route: generate directly from an approved purchase request or direct entry.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                style={{ background: '#f1f5f9', border: 'none', padding: '6px', borderRadius: '8px', cursor: 'pointer' }}
-              >
-                <X size={20} color="#64748b" />
-              </button>
-            </div>
-
-            {/* Route Selection Tabs */}
+      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} variant="form" title="Create Purchase Order / إنشاء أمر شراء" footer={createRoute === 'pr' ? (<div className="procurement-editor-footer">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    style={{
+                      padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1',
+                      background: 'white', color: '#64748b', fontWeight: 600, cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit" form="po-create-0"
+                    disabled={submittingAction || !fromPrForm.purchase_request_id || !fromPrForm.vendor_id}
+                    style={{
+                      padding: '10px 22px', borderRadius: '8px', border: 'none',
+                      background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
+                      color: 'white', fontWeight: 700, cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(14,165,233,0.3)'
+                    }}
+                  >
+                    {submittingAction ? 'Creating...' : 'Generate Purchase Order from PR'}
+                  </button>
+                </div>) : (<div className="procurement-editor-footer">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    style={{
+                      padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1',
+                      background: 'white', color: '#64748b', fontWeight: 600, cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit" form="po-create-1"
+                    disabled={submittingAction}
+                    style={{
+                      padding: '10px 22px', borderRadius: '8px', border: 'none',
+                      background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
+                      color: 'white', fontWeight: 700, cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(14,165,233,0.3)'
+                    }}
+                  >
+                    {submittingAction ? 'Creating...' : 'Create Direct PO (Draft)'}
+                  </button>
+                </div>)}>
+<p style={{color:"#64748b",fontSize:13,marginBottom:20}}>Select route: generate directly from an approved purchase request or direct entry.</p>
+<div className="procurement-editor po-create-editor">{/* Route Selection Tabs */}
             <div style={{
               display: 'flex', gap: '8px', marginBottom: '20px', padding: '4px',
               background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0'
@@ -1029,7 +1050,7 @@ const PurchaseOrders = () => {
 
             {/* ROUTE 1 FORM (FROM PR) */}
             {createRoute === 'pr' && (
-              <form onSubmit={handleCreateFromPr}>
+              <form id="po-create-0" onSubmit={handleCreateFromPr}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '16px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
@@ -1150,36 +1171,13 @@ const PurchaseOrders = () => {
                   />
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    style={{
-                      padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1',
-                      background: 'white', color: '#64748b', fontWeight: 600, cursor: 'pointer'
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submittingAction || !fromPrForm.purchase_request_id || !fromPrForm.vendor_id}
-                    style={{
-                      padding: '10px 22px', borderRadius: '8px', border: 'none',
-                      background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
-                      color: 'white', fontWeight: 700, cursor: 'pointer',
-                      boxShadow: '0 4px 12px rgba(14,165,233,0.3)'
-                    }}
-                  >
-                    {submittingAction ? 'Creating...' : 'Generate Purchase Order from PR'}
-                  </button>
-                </div>
+
               </form>
             )}
 
             {/* ROUTE B FORM (DIRECT PO) */}
             {createRoute === 'direct' && (
-              <form onSubmit={handleCreateRouteB}>
+              <form id="po-create-1" onSubmit={handleCreateRouteB}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
@@ -1328,7 +1326,7 @@ const PurchaseOrders = () => {
                         display: 'grid', gridTemplateColumns: '3fr 1fr 1.5fr 1fr 1fr 40px',
                         gap: '8px', alignItems: 'center', marginBottom: idx < directForm.items.length - 1 ? '8px' : 0
                       }}>
-                        <select
+                        <label className="po-item-field"><span>Product * / الصنف</span><select
                           value={it.product_id}
                           onChange={(e) => handleDirectItemChange(idx, 'product_id', e.target.value)}
                           required
@@ -1338,9 +1336,9 @@ const PurchaseOrders = () => {
                           {products.map(p => (
                             <option key={p.id} value={p.id}>{p.name} ({p.sku || p.unit || 'Item'})</option>
                           ))}
-                        </select>
+                        </select></label>
 
-                        <input
+                        <label className="po-item-field"><span>Quantity / الكمية</span><input
                           type="number"
                           step="0.001"
                           min="0.001"
@@ -1349,9 +1347,9 @@ const PurchaseOrders = () => {
                           onChange={(e) => handleDirectItemChange(idx, 'quantity', e.target.value)}
                           required
                           style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                        />
+                        /></label>
 
-                        <input
+                        <label className="po-item-field"><span>Unit price / سعر الوحدة</span><input
                           type="number"
                           step="0.01"
                           min="0"
@@ -1360,9 +1358,9 @@ const PurchaseOrders = () => {
                           onChange={(e) => handleDirectItemChange(idx, 'unit_price', e.target.value)}
                           required
                           style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                        />
+                        /></label>
 
-                        <input
+                        <label className="po-item-field"><span>Discount % / الخصم</span><input
                           type="number"
                           step="0.01"
                           min="0"
@@ -1371,9 +1369,9 @@ const PurchaseOrders = () => {
                           value={it.discount_pct}
                           onChange={(e) => handleDirectItemChange(idx, 'discount_pct', e.target.value)}
                           style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                        />
+                        /></label>
 
-                        <input
+                        <label className="po-item-field"><span>Tax % / الضريبة</span><input
                           type="number"
                           step="0.01"
                           min="0"
@@ -1381,9 +1379,9 @@ const PurchaseOrders = () => {
                           value={it.tax_pct}
                           onChange={(e) => handleDirectItemChange(idx, 'tax_pct', e.target.value)}
                           style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px' }}
-                        />
+                        /></label>
 
-                        <button
+                        <label className="po-item-field"><span>Remove / حذف</span><button
                           type="button"
                           onClick={() => handleRemoveDirectItem(idx)}
                           style={{
@@ -1392,7 +1390,7 @@ const PurchaseOrders = () => {
                           }}
                         >
                           <Trash2 size={14} />
-                        </button>
+                        </button></label>
                       </div>
                     ))}
                   </div>
@@ -1428,35 +1426,10 @@ const PurchaseOrders = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    style={{
-                      padding: '10px 18px', borderRadius: '8px', border: '1px solid #cbd5e1',
-                      background: 'white', color: '#64748b', fontWeight: 600, cursor: 'pointer'
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submittingAction}
-                    style={{
-                      padding: '10px 22px', borderRadius: '8px', border: 'none',
-                      background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
-                      color: 'white', fontWeight: 700, cursor: 'pointer',
-                      boxShadow: '0 4px 12px rgba(14,165,233,0.3)'
-                    }}
-                  >
-                    {submittingAction ? 'Creating...' : 'Create Direct PO (Draft)'}
-                  </button>
-                </div>
+
               </form>
-            )}
-          </div>
-        </div>
-      )}
+            )}</div>
+</Modal>
 
       {/* DETAIL DRAWER */}
       {showDetailDrawer && selectedOrder && (
