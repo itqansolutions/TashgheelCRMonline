@@ -258,3 +258,6 @@ Scoped full-width/box sizing, phone selector sizing, long product-name wrapping,
 
 ### Phase24: Personal activity balances and payroll read views
 Scoped payroll badge/button/trace selectors, fitted phone page roots, month/year selectors and summary cards, corrected numeric table-cell display, preserved horizontally readable ledgers and wrapping deduction descriptions. Original two balance selectors and all noncomponent function ASTs exact; payroll has no inputs. Twenty language/width/empty-populated/list-detail fixtures and build pass; actual phone/desktop and salary-breakdown pixels inspected. Actual horizontal balance-table scroll reaches remaining/notes (820px table/334px region). No HR record, payroll computation, finalize, payment or rule changes. Existing mixed payroll locale text remains; layout does not certify salary/leave arithmetic or policy.
+
+#### Phase24 empty-state follow-up
+Live phone inspection caught empty messages horizontally outside the initial viewport. Empty/loading tables now fit width; unused column headers hidden on empty phone tables only. Populated columns untouched. Twenty fixtures/build/invariants pass; corrected empty phone pixels inspected. Original locale gaps retained.

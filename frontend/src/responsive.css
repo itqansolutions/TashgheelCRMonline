@@ -547,3 +547,10 @@
  .payroll-breakdown-read .trace-row { flex-wrap:wrap; }
 }
 .my-payroll-page > div:nth-of-type(2) > div > div.num-en { display:block; }
+/* Empty-state messages must fit without a horizontal swipe. */
+.my-activity-balance-page table:has(td[colspan]),.my-payroll-page .mp-table:has(td[colspan]) { min-width:0; table-layout:fixed; }
+.my-activity-balance-page table:has(td[colspan]) th,.my-payroll-page .mp-table:has(td[colspan]) th { padding:10px 4px; overflow-wrap:anywhere; font-size:10px; }
+.my-activity-balance-page table:has(td[colspan]) td,.my-payroll-page .mp-table:has(td[colspan]) td { padding:28px 14px!important; }
+@media(max-width:768px) {
+ .my-activity-balance-page table:has(td[colspan]) thead,.my-payroll-page .mp-table:has(td[colspan]) thead { display:none; }
+}
