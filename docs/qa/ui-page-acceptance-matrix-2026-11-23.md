@@ -48,7 +48,7 @@ Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional
 | HR/ActivityDefinition.jsx | 2 | selected editor shells only | not established in this matrix | no |
 | HR/ApprovalCenter.jsx | 26 | read-only request list/status/action presentation | live phone empty state/subnav checked | no |
 | HR/Attendance.jsx | 25 | attendance terminal states/history presentation only | live phone empty history/action shown, not pressed | no |
-| HR/AttendanceAdmin.jsx |  | not individually accepted | not established in this matrix | no |
+| HR/AttendanceAdmin.jsx | 28 | staff attendance summary/filter/list presentation | not established in this matrix | no |
 | HR/AttendanceDevices.jsx | 3 | selected editor shells only | not established in this matrix | no |
 | HR/MyActivityBalance.jsx | 24 | personal balance read-only presentation | live phone empty state checked | no |
 | HR/MyPayroll.jsx | 24 | personal payroll list/detail presentation | live phone empty state checked | no |
@@ -109,8 +109,8 @@ Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional
 
 ## Totals
 - 102 source page components.
-- 48 components with explicit bounded phase coverage in this matrix.
-- 54 components without individual phase acceptance in this matrix.
+- 49 components with explicit bounded phase coverage in this matrix.
+- 53 components without individual phase acceptance in this matrix.
 - Zero claims of complete end-to-end business acceptance.
 - Earlier phase-specific live evidence remains in the rollout QA log; this matrix conservatively lists only recent explicit captures.
 - No production writes are part of this matrix.

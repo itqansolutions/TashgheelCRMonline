@@ -630,3 +630,29 @@
  .sales-documents-page > div:nth-child(2) > div,.sales-documents-page select {width:100%;flex-basis:100% !important;}
  .sales-documents-page > div:nth-child(3) > div:not(.responsive-table-region) {padding:32px 18px !important;}
 }
+
+/* HR attendance overview, presentation only. */
+.attendance-admin-page,.attendance-admin-page * {box-sizing:border-box;}
+.attendance-admin-page {min-width:0;max-width:100%;}
+.attendance-admin-page .admin-header {flex-wrap:wrap;gap:18px;padding-bottom:18px;border-bottom:1px solid var(--glass-border);}
+.attendance-admin-page .admin-header h2 {line-height:1.4;overflow-wrap:anywhere;}
+.attendance-admin-page .admin-header p {line-height:1.7;}
+.attendance-admin-page .kpi-row {grid-template-columns:repeat(4,minmax(0,1fr));}
+.attendance-admin-page .kpi-val {display:block;overflow-wrap:anywhere;}
+.attendance-admin-page .kpi-label {line-height:1.6;}
+.attendance-admin-page .responsive-table-region {max-width:100%;overflow-x:auto;border-radius:14px;}
+.attendance-admin-page .admin-table {min-width:1100px;}
+.attendance-admin-page .admin-table td.num-en {display:table-cell;white-space:nowrap;}
+.attendance-admin-page .admin-table td:first-child {min-width:220px;max-width:280px;overflow-wrap:anywhere;line-height:1.7;}
+.attendance-admin-page .admin-table td:first-child .num-en {display:block;overflow-wrap:anywhere;}
+.attendance-admin-page .admin-table td:last-child button {min-width:40px;min-height:40px;}
+.attendance-admin-page .admin-table:has(td[colspan]) {min-width:0;table-layout:fixed;}
+@media(max-width:768px) {
+ .attendance-admin-page {padding:0 12px 24px !important;}
+ .attendance-admin-page.attendance-admin-page .kpi-row {grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+ .attendance-admin-page .hr-kpi {padding:16px;}
+ .attendance-admin-page .admin-header > div {min-width:0;width:100%;}
+ .attendance-admin-page .date-picker {min-width:0;flex:1;max-width:100%;}
+ .attendance-admin-page .admin-table:has(td[colspan]) thead {display:none;}
+ .attendance-admin-page .admin-table td[colspan] {padding:24px 16px !important;line-height:1.7;}
+}

@@ -273,3 +273,7 @@ Scoped generic badge/action/table CSS to approval center. Header/long employee a
 
 ### Phase27 sales-document index presentation
 Scoped page class, responsive create actions/search/type filter, contained long title/customer, readable numeric amount/status/date and existing view action. Eight Arabic/English phone/desktop populated/empty fixtures pass, all original functions/control attributes exact, build passes. Actual phone/desktop/empty screenshots and real horizontal scroll1280/334 inspected, intermediate amount capture shows full1,234,567.89 and currency, end capture reaches view. SalesSubNav locally stubbed. No create/view/action click; no records changed. Source fetch masks failure as empty, preserved and not proof of no documents. Whole business workflow remains unaccepted.
+
+
+### Phase28 staff attendance overview presentation
+Scoped generic CSS, responsive header/date filter, two-column phone summary, contained long employee/email, proper table numeric cells, empty table fit and read-only history scroll. Eight Arabic/English phone/desktop populated/empty fixtures pass, original functions and date control exact, build passes. Actual phone/desktop and1100/336 scroll pixels inspected, reaches hours/source/action. Local HRSubNav stub. Existing icon-only row action has no handler, preserved for consolidated report. Date filtering uses check-in string prefix and displayed times local browser, unchanged, not certified as Cairo-correct. No staff/business record mutations or punch actions.

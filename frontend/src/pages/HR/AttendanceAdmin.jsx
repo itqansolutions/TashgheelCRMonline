@@ -49,19 +49,19 @@ const AttendanceAdmin = () => {
       <HRSubNav />
       <div className="attendance-admin-page" style={{ padding: '0 24px 24px' }}>
             <style>{`
-                .admin-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; }
-                .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-                .hr-kpi { background: var(--bg-card); padding: 20px; border-radius: 12px; border: 1px solid var(--glass-border); display: flex; flex-direction: column; text-align: ${isRTL ? 'right' : 'left'}; }
-                .kpi-val { font-size: 28px; font-weight: 800; color: var(--text-main); margin-top: 8px;}
-                .kpi-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;}
+                .attendance-admin-page .admin-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; }
+                .attendance-admin-page .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+                .attendance-admin-page .hr-kpi { background: var(--bg-card); padding: 20px; border-radius: 12px; border: 1px solid var(--glass-border); display: flex; flex-direction: column; text-align: ${isRTL ? 'right' : 'left'}; }
+                .attendance-admin-page .kpi-val { font-size: 28px; font-weight: 800; color: var(--text-main); margin-top: 8px;}
+                .attendance-admin-page .kpi-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;}
                 
-                .admin-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); }
-                .admin-table th, .admin-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border); }
-                .admin-table th { background: rgba(0,0,0,0.02); font-weight: 600; color: var(--text-muted); font-size: 13px; text-transform: uppercase; }
-                .admin-table tr:hover { background: rgba(255,255,255,0.02); }
+                .attendance-admin-page .admin-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); }
+                .attendance-admin-page .admin-table th, .attendance-admin-page .admin-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border); }
+                .attendance-admin-page .admin-table th { background: rgba(0,0,0,0.02); font-weight: 600; color: var(--text-muted); font-size: 13px; text-transform: uppercase; }
+                .attendance-admin-page .admin-table tr:hover { background: rgba(255,255,255,0.02); }
                 
-                .date-picker { background: rgba(255,255,255,0.05); color: var(--text-main); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px 16px; font-size: 14px; outline: none; }
-                .date-picker::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+                .attendance-admin-page .date-picker { background: rgba(255,255,255,0.05); color: var(--text-main); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px 16px; font-size: 14px; outline: none; }
+                .attendance-admin-page .date-picker::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
             `}</style>
 
             <div className="admin-header">
