@@ -56,6 +56,8 @@ const WhatsAppSettings = () => {
   const [coexistenceEnabled, setCoexistenceEnabled] = useState(false);
   const [isConnectingCoexistence, setIsConnectingCoexistence] = useState(false);
   const [coexistenceSession, setCoexistenceSession] = useState({ phoneNumberId: '', wabaId: '' });
+  const [syncContactsOptIn, setSyncContactsOptIn] = useState(false);
+  const [syncHistoryOptIn, setSyncHistoryOptIn] = useState(false);
 
   // -------------------------------------------------------------------
   // Load settings & accounts on mount
@@ -109,7 +111,10 @@ const WhatsAppSettings = () => {
       try {
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
         if (data && data.type === 'WA_EMBEDDED_SIGNUP') {
-          if (data.event === 'FINISH' || data.data?.phone_number_id) {
+          // The WhatsApp Business app (Coexistence) flow finishes with
+          // FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING; completion payloads carry
+          // phone_number_id and waba_id per Meta's Embedded Signup docs.
+          if (data.event === 'FINISH' || data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING' || data.data?.phone_number_id) {
             setCoexistenceSession(prev => ({
               ...prev,
               phoneNumberId: data.data?.phone_number_id || prev.phoneNumberId,
@@ -389,9 +394,15 @@ const WhatsAppSettings = () => {
         config_id: embeddedSignupConfigId,
         response_type: 'code',
         override_default_response_type: true,
+        // Meta serves Embedded Signup v4 when no version is requested (v2/v3 were
+        // deprecated on 2026-10-15 and versionless requests are served as v4).
+        // On v4 the WhatsApp Business app onboarding flow is enabled via
+        // featureType; the legacy session-info version field was a v2-era input
+        // and session info is now returned for all flows.
+        // Ref: developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/versions
         extras: {
           setup: {},
-          sessionInfoVersion: '2'
+          featureType: 'whatsapp_business_app_onboarding'
         }
       });
     } catch (err) {
@@ -402,19 +413,24 @@ const WhatsAppSettings = () => {
 
   const completeCoexistenceOnboarding = async (code, accessToken = null) => {
     try {
+      if (!coexistenceSession?.phoneNumberId) {
+        throw new Error('لم تصل بيانات الرقم من Meta. أكمل نافذة الربط حتى النهاية ثم أعد المحاولة.');
+      }
       toast.loading('جاري التحقق من الحساب وتسجيل Coexistence...', { id: 'coex-onboard' });
       const payload = {
         code,
         access_token: accessToken,
         phone_number_id: coexistenceSession?.phoneNumberId,
-        waba_id: coexistenceSession?.wabaId
+        waba_id: coexistenceSession?.wabaId,
+        sync_contacts: syncContactsOptIn,
+        sync_history: syncHistoryOptIn
       };
       const res = await api.post('/whatsapp/coexistence/onboard', payload);
       toast.success(res.data?.message || 'تم ربط رقم WhatsApp Business بنجاح في وضع Coexistence!', { id: 'coex-onboard' });
       fetchAccounts();
       fetchSettings();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'فشل إتمام ربط Coexistence مع Meta', { id: 'coex-onboard', duration: 8000 });
+      toast.error(err.response?.data?.message || err.message || 'فشل إتمام ربط Coexistence مع Meta', { id: 'coex-onboard', duration: 8000 });
     } finally {
       setIsConnectingCoexistence(false);
     }
@@ -576,7 +592,7 @@ const WhatsAppSettings = () => {
                   <tr key={acc.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '12px 14px', fontWeight: 700, color: '#0f172a' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <span>{acc.display_phone_number || acc.phone_number_id}</span>
+                        <span dir="ltr" style={{ unicodeBidi: 'isolate' }}>{acc.display_phone_number || acc.phone_number_id}</span>
                         {acc.is_default && (
                           <span style={{
                             background: '#dbeafe', color: '#1d4ed8', fontSize: 11,
@@ -602,6 +618,14 @@ const WhatsAppSettings = () => {
                             ☁️ Cloud API
                           </span>
                         )}
+                        {acc.connection_type === 'coexistence' && acc.coexistence_status === 'disconnected' && (
+                          <span style={{
+                            background: '#fef2f2', color: '#b91c1c', fontSize: 11,
+                            padding: '1px 7px', borderRadius: 12, fontWeight: 700
+                          }}>
+                            ⛔ الربط مفصول
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td style={{ padding: '12px 14px', color: '#475569' }}>
@@ -613,10 +637,12 @@ const WhatsAppSettings = () => {
                     <td style={{ padding: '12px 14px' }}>
                       <span style={{
                         padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                        background: acc.is_active ? '#ecfdf5' : '#fef2f2',
-                        color: acc.is_active ? '#15803d' : '#b91c1c'
+                        background: (acc.connection_type === 'coexistence' && acc.coexistence_status === 'disconnected') ? '#fef2f2' : (acc.is_active ? '#ecfdf5' : '#fef2f2'),
+                        color: (acc.connection_type === 'coexistence' && acc.coexistence_status === 'disconnected') ? '#b91c1c' : (acc.is_active ? '#15803d' : '#b91c1c')
                       }}>
-                        {acc.is_active ? 'Active' : 'Disabled'}
+                        {acc.connection_type === 'coexistence' && acc.coexistence_status === 'disconnected'
+                          ? 'الربط مفصول (Disconnected)'
+                          : (acc.is_active ? 'Active' : 'Disabled')}
                       </span>
                     </td>
                     <td style={{ padding: '12px 14px', textAlign: 'right' }}>
@@ -624,10 +650,14 @@ const WhatsAppSettings = () => {
                         {!acc.is_default && (
                           <button
                             type="button"
+                            disabled={acc.connection_type === 'coexistence' && acc.coexistence_status === 'disconnected'}
+                            title={acc.connection_type === 'coexistence' && acc.coexistence_status === 'disconnected' ? 'أعد ربط الرقم من تطبيق WhatsApp أولاً' : ''}
                             onClick={() => handleSetDefaultAccount(acc.id)}
                             style={{
                               background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155',
-                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer'
+                              padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                              cursor: (acc.connection_type === 'coexistence' && acc.coexistence_status === 'disconnected') ? 'not-allowed' : 'pointer',
+                              opacity: (acc.connection_type === 'coexistence' && acc.coexistence_status === 'disconnected') ? 0.5 : 1
                             }}
                           >
                             Set as Default
@@ -679,17 +709,9 @@ const WhatsAppSettings = () => {
             position: 'relative',
             boxShadow: '0 4px 12px rgba(37,211,102,0.08)'
           }}>
-            <div style={{
-              position: 'absolute', top: 12, right: 12,
-              background: '#ecfdf5', color: '#15803d',
-              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-              display: 'flex', alignItems: 'center', gap: 4
-            }}>
-              <Sparkles size={12} /> ميزة جديدة (Hybrid)
-            </div>
-
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
                   width: 40, height: 40, borderRadius: 10,
                   background: 'linear-gradient(135deg, #25D366, #128C7E)',
@@ -702,6 +724,14 @@ const WhatsAppSettings = () => {
                     ربط واتساب بيزنس بالموبايل (Coexistence)
                   </h4>
                   <span style={{ fontSize: 12, color: '#64748b' }}>WhatsApp Business Mobile App + Cloud API</span>
+                </div>
+                </div>
+                <div style={{
+                  background: '#ecfdf5', color: '#15803d',
+                  padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                  display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap'
+                }}>
+                  <Sparkles size={12} /> ميزة جديدة (Hybrid)
                 </div>
               </div>
 
@@ -728,6 +758,33 @@ const WhatsAppSettings = () => {
                   </li>
                 </ul>
               </div>
+            </div>
+
+            <div style={{
+              background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
+              padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#475569'
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>خيارات المزامنة بعد الربط (اختيارية):</div>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={syncContactsOptIn}
+                  onChange={(e) => setSyncContactsOptIn(e.target.checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>مزامنة جهات الاتصال من تطبيق WhatsApp Business إلى الـ CRM.</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={syncHistoryOptIn}
+                  onChange={(e) => setSyncHistoryOptIn(e.target.checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>
+                  طلب استيراد سجل المحادثات القديمة. لا يصل أي سجل إلا إذا وافق صاحب الرقم على مشاركته من داخل تطبيق WhatsApp أثناء الربط. يمكن طلبه مرة واحدة فقط وخلال 24 ساعة من الربط.
+                </span>
+              </label>
             </div>
 
             <div>
@@ -773,17 +830,9 @@ const WhatsAppSettings = () => {
             justifyContent: 'space-between',
             position: 'relative'
           }}>
-            <div style={{
-              position: 'absolute', top: 12, right: 12,
-              background: '#eff6ff', color: '#1d4ed8',
-              padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-              display: 'flex', alignItems: 'center', gap: 4
-            }}>
-              <ShieldCheck size={12} /> الحالي — يُحافظ عليه
-            </div>
-
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
                   width: 40, height: 40, borderRadius: 10,
                   background: '#f1f5f9',
@@ -796,6 +845,14 @@ const WhatsAppSettings = () => {
                     الربط التقليدي — Cloud API
                   </h4>
                   <span style={{ fontSize: 12, color: '#64748b' }}>Meta Cloud API Direct Credentials</span>
+                </div>
+                </div>
+                <div style={{
+                  background: '#eff6ff', color: '#1d4ed8',
+                  padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                  display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap'
+                }}>
+                  <ShieldCheck size={12} /> الحالي — يُحافظ عليه
                 </div>
               </div>
 
@@ -893,7 +950,7 @@ const WhatsAppSettings = () => {
                     {discoveredNumbers.map(item => (
                       <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', background: 'white', border: '1px solid #dcfce7', borderRadius: 6 }}>
                         <div>
-                          <strong>{item.display_phone_number}</strong> {item.verified_name ? `(${item.verified_name})` : ''} — <span style={{ fontSize: 12, color: '#64748b' }}>ID: <code>{item.id}</code></span>
+                          <strong dir="ltr" style={{ unicodeBidi: 'isolate' }}>{item.display_phone_number}</strong> {item.verified_name ? `(${item.verified_name})` : ''} — <span style={{ fontSize: 12, color: '#64748b' }}>ID: <code>{item.id}</code></span>
                         </div>
                         <button
                           type="button"

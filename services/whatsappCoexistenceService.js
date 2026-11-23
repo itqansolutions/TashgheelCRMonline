@@ -163,6 +163,48 @@ async function subscribeWabaWebhooks({ wabaId, accessToken }) {
   }
 }
 
+
+/**
+ * Initiate SMB App Data synchronization (contacts state and/or messaging history)
+ * POST /{phone-number-id}/smb_app_data. Per Meta this can be requested ONCE per
+ * sync type per onboarding; history is only delivered if the business chose to
+ * share it inside the WhatsApp Business app (otherwise Meta sends a history
+ * webhook with error code 2593109). Only call on the tenant admin's explicit request.
+ *
+ * @param {object} params
+ * @param {string} params.phoneNumberId
+ * @param {string} params.accessToken
+ * @param {string} params.syncType - 'smb_app_state_sync' (contacts) or 'history'
+ * @returns {Promise<{ success: boolean, requestId: string|null }>}
+ */
+async function initiateCoexistenceDataSync({ phoneNumberId, accessToken, syncType }) {
+  const allowedTypes = ['smb_app_state_sync', 'history'];
+  if (!allowedTypes.includes(syncType)) {
+    throw new Error(`Unsupported coexistence sync_type: ${syncType}`);
+  }
+  if (!phoneNumberId || !accessToken) {
+    throw new Error('phoneNumberId and accessToken are required to initiate coexistence data sync.');
+  }
+
+  try {
+    const res = await axios.post(
+      `${WA_BASE_URL}/${String(phoneNumberId).trim()}/smb_app_data`,
+      { messaging_product: 'whatsapp', sync_type: syncType },
+      {
+        headers: {
+          Authorization: `Bearer ${String(accessToken).trim()}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 15000
+      }
+    );
+    return { success: true, requestId: res.data?.request_id || null };
+  } catch (err) {
+    const metaError = err.response?.data?.error?.message || err.message;
+    throw new Error(`Coexistence ${syncType} initiation failed: ${metaError}`);
+  }
+}
+
 /**
  * Process Meta Embedded Signup Authorization & Onboard Coexistence Account
  * Complete flow: validates feature flag, exchanges code if needed, verifies ownership on Meta,
@@ -189,6 +231,8 @@ async function processEmbeddedSignupAuthorization({
   wabaId = null,
   label = 'Coexistence Number',
   metadata = {},
+  syncContacts = false,
+  syncHistory = false,
   skipMetaVerification = false
 }) {
   if (!isCoexistenceEnabled()) {
@@ -315,7 +359,61 @@ async function processEmbeddedSignupAuthorization({
     JSON.stringify(coexistenceMeta)
   ]);
 
-  return result.rows[0];
+  const account = result.rows[0];
+
+  // 5. Optional, explicitly requested data synchronization.
+  // Each sync type can be requested only once per onboarding (Meta constraint),
+  // and history is only delivered when the business opted in inside the WhatsApp
+  // Business app. We additionally require the tenant admin's explicit request:
+  // no opt-in flag, no sync call.
+  if (!skipMetaVerification && finalToken && (syncContacts || syncHistory)) {
+    const syncRequests = {};
+    const requestedTypes = [];
+    if (syncContacts) requestedTypes.push('smb_app_state_sync');
+    if (syncHistory) requestedTypes.push('history');
+
+    for (const syncType of requestedTypes) {
+      const existingRequestId = account.coexistence_metadata?.sync_requests?.[syncType]?.request_id;
+      if (existingRequestId) {
+        syncRequests[syncType] = {
+          skipped: true,
+          reason: 'already_requested',
+          request_id: existingRequestId
+        };
+        continue;
+      }
+      try {
+        const syncResult = await initiateCoexistenceDataSync({
+          phoneNumberId: cleanPhoneId,
+          accessToken: finalToken,
+          syncType
+        });
+        syncRequests[syncType] = {
+          request_id: syncResult.requestId,
+          requested_at: new Date().toISOString()
+        };
+      } catch (syncErr) {
+        syncRequests[syncType] = { error: syncErr.message };
+        console.warn(`[WhatsApp Coexistence] ${syncType} initiation warning:`, syncErr.message);
+      }
+    }
+
+    const mergedMeta = {
+      ...(account.coexistence_metadata || {}),
+      sync_requests: {
+        ...(account.coexistence_metadata?.sync_requests || {}),
+        ...syncRequests
+      }
+    };
+    await db.query(`
+      UPDATE whatsapp_accounts
+      SET coexistence_metadata = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [JSON.stringify(mergedMeta), account.id]);
+    account.coexistence_metadata = mergedMeta;
+  }
+
+  return account;
 }
 
 /**
@@ -592,6 +690,80 @@ async function recordCoexistenceAppStateSync({ tenantId, account, stateSyncData 
 }
 
 /**
+ * Record that the business declined messaging-history sharing.
+ * Meta signals this with a history webhook carrying error code 2593109.
+ *
+ * @param {object} params
+ * @param {string} params.tenantId
+ * @param {object} params.account
+ * @param {string|number} params.errorCode
+ * @returns {Promise<boolean>}
+ */
+async function recordCoexistenceHistoryDeclined({ tenantId, account, errorCode }) {
+  try {
+    const updatedMeta = {
+      ...(account.coexistence_metadata || {}),
+      history_sharing: {
+        status: 'declined_by_business',
+        error_code: String(errorCode || '2593109'),
+        recorded_at: new Date().toISOString()
+      }
+    };
+    await db.query(`
+      UPDATE whatsapp_accounts
+      SET coexistence_metadata = $1, updated_at = NOW()
+      WHERE id = $2 AND tenant_id::text = $3::text
+    `, [JSON.stringify(updatedMeta), account.id, tenantId]);
+    console.log('[WhatsApp Coexistence] History sharing declined by business for account #' + account.id);
+    return true;
+  } catch (err) {
+    console.warn('[WhatsApp Coexistence History Declined Record Error]', err.message);
+    return false;
+  }
+}
+
+/**
+ * Handle account_update webhooks (lifecycle changes for the shared WhatsApp account
+ * and converted Messaging account). A PARTNER_REMOVED event means the business
+ * disconnected the number from Cloud API inside the WhatsApp Business app
+ * (Settings > Account > Business Platform > Disconnect), so the coexistence link
+ * is marked disconnected. Other events are recorded in metadata only.
+ *
+ * @param {object} params
+ * @param {string} params.tenantId
+ * @param {object} params.account
+ * @param {object} params.accountUpdateData
+ * @returns {Promise<boolean>}
+ */
+async function recordCoexistenceAccountUpdate({ tenantId, account, accountUpdateData = {} }) {
+  const event = accountUpdateData.event || null;
+  try {
+    const updatedMeta = {
+      ...(account.coexistence_metadata || {}),
+      last_account_update: {
+        event,
+        recorded_at: new Date().toISOString()
+      }
+    };
+    const newStatus = event === 'PARTNER_REMOVED'
+      ? 'disconnected'
+      : (account.coexistence_status || 'linked');
+
+    await db.query(`
+      UPDATE whatsapp_accounts
+      SET coexistence_metadata = $1, coexistence_status = $2, updated_at = NOW()
+      WHERE id = $3 AND tenant_id::text = $4::text
+    `, [JSON.stringify(updatedMeta), newStatus, account.id, tenantId]);
+
+    console.log('[WhatsApp Coexistence] account_update recorded for account #' + account.id + ': ' + (event || 'unknown event'));
+    return true;
+  } catch (err) {
+    console.warn('[WhatsApp Coexistence Account Update Error]', err.message);
+    return false;
+  }
+}
+
+/**
  * Get Coexistence status for an account
  * @param {string} tenantId
  * @param {number|string} accountId
@@ -614,11 +786,14 @@ module.exports = {
   exchangeEmbeddedSignupCode,
   verifyMetaAccountOwnership,
   subscribeWabaWebhooks,
+  initiateCoexistenceDataSync,
   processEmbeddedSignupAuthorization,
   onboardCoexistenceAccount,
   isCoexistenceAppEcho,
   recordCoexistenceAppEcho,
   recordCoexistenceHistoryBatch,
+  recordCoexistenceHistoryDeclined,
   recordCoexistenceAppStateSync,
+  recordCoexistenceAccountUpdate,
   getCoexistenceAccountStatus
 };

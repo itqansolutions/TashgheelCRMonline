@@ -214,6 +214,8 @@ test('WhatsApp Cloud API & Coexistence Regression Test Suite', async (t) => {
     assert.match(controllerContent, /'smb_app_state_sync'/, 'Controller must explicitly support smb_app_state_sync');
     assert.match(controllerContent, /recordCoexistenceHistoryBatch/, 'Controller must invoke recordCoexistenceHistoryBatch');
     assert.match(controllerContent, /recordCoexistenceAppStateSync/, 'Controller must invoke recordCoexistenceAppStateSync');
+    assert.match(controllerContent, /'account_update'/, 'Controller must explicitly support account_update');
+    assert.match(controllerContent, /recordCoexistenceAccountUpdate/, 'Controller must invoke recordCoexistenceAccountUpdate');
   });
 
   // -------------------------------------------------------------------------
@@ -224,5 +226,80 @@ test('WhatsApp Cloud API & Coexistence Regression Test Suite', async (t) => {
     assert.equal(typeof coexistenceService.recordCoexistenceAppStateSync, 'function', 'recordCoexistenceAppStateSync must be exported');
     assert.equal(typeof coexistenceService.processEmbeddedSignupAuthorization, 'function', 'processEmbeddedSignupAuthorization must be exported');
     assert.equal(typeof coexistenceService.verifyMetaAccountOwnership, 'function', 'verifyMetaAccountOwnership must be exported');
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 14: Embedded Signup launch matches Meta's current supported flow (v4)
+  // -------------------------------------------------------------------------
+  await t.test('14. Frontend launches Embedded Signup with the v4 WhatsApp Business app onboarding flow', () => {
+    const settingsContent = fs.readFileSync(path.join(__dirname, '../frontend/src/pages/Integrations/WhatsAppSettings.jsx'), 'utf8');
+
+    assert.match(settingsContent, /featureType:\s*'whatsapp_business_app_onboarding'/, 'FB.login extras must enable the Business app onboarding flow via featureType');
+    assert.ok(!/sessionInfoVersion/.test(settingsContent), 'sessionInfoVersion is a v2-era input and must not be sent on the current flow');
+    assert.match(settingsContent, /FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING/, 'Coexistence finish event must be captured by the session listener');
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 15: contacts/history sync is explicit opt-in and once-only
+  // -------------------------------------------------------------------------
+  await t.test('15. Data sync initiation is exported, opt-in gated, and once-only guarded', async () => {
+    assert.equal(typeof coexistenceService.initiateCoexistenceDataSync, 'function', 'initiateCoexistenceDataSync must be exported');
+
+    const serviceContent = fs.readFileSync(path.join(__dirname, '../services/whatsappCoexistenceService.js'), 'utf8');
+    assert.match(serviceContent, /syncContacts = false/, 'syncContacts must default to false (no implicit contacts sync)');
+    assert.match(serviceContent, /syncHistory = false/, 'syncHistory must default to false (no implicit history sync)');
+    assert.match(serviceContent, /already_requested/, 'Repeat sync initiation must be skipped via the once-only guard');
+
+    await assert.rejects(
+      async () => {
+        await coexistenceService.initiateCoexistenceDataSync({ phoneNumberId: '123', accessToken: 'x', syncType: 'everything' });
+      },
+      /Unsupported coexistence sync_type/i,
+      'Only smb_app_state_sync and history sync types are permitted'
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 16: declined history sharing and disconnect lifecycle are handled
+  // -------------------------------------------------------------------------
+  await t.test('16. History decline (error 2593109) and PARTNER_REMOVED disconnection are handled safely', () => {
+    assert.equal(typeof coexistenceService.recordCoexistenceHistoryDeclined, 'function', 'recordCoexistenceHistoryDeclined must be exported');
+    assert.equal(typeof coexistenceService.recordCoexistenceAccountUpdate, 'function', 'recordCoexistenceAccountUpdate must be exported');
+
+    const controllerContent = fs.readFileSync(path.join(__dirname, '../controllers/whatsappController.js'), 'utf8');
+    assert.match(controllerContent, /2593109/, 'Controller must recognize the history-declined error code');
+
+    const serviceContent = fs.readFileSync(path.join(__dirname, '../services/whatsappCoexistenceService.js'), 'utf8');
+    assert.match(serviceContent, /PARTNER_REMOVED/, 'PARTNER_REMOVED must mark the coexistence link disconnected');
+    assert.match(serviceContent, /declined_by_business/, 'Declined history sharing must be recorded without ingesting messages');
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 17: disconnected coexistence numbers are never treated as send-ready
+  // -------------------------------------------------------------------------
+  await t.test('17. Disconnected coexistence accounts are blocked from all agent send paths', () => {
+    const controllerContent = fs.readFileSync(path.join(__dirname, '../controllers/whatsappController.js'), 'utf8');
+
+    const guards = controllerContent.match(/COEXISTENCE_ACCOUNT_DISCONNECTED/g) || [];
+    assert.ok(guards.length >= 2, 'Both sendMessage and startNewChat must reject disconnected coexistence accounts');
+    assert.match(controllerContent, /coexistence_status = 'disconnected'\)/, 'Default sender selection must exclude disconnected coexistence accounts');
+
+    const settingsContent = fs.readFileSync(path.join(__dirname, '../frontend/src/pages/Integrations/WhatsAppSettings.jsx'), 'utf8');
+    assert.match(settingsContent, /coexistence_status === 'disconnected'/, 'Settings UI must surface the disconnected state on the account');
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 18: disconnected numbers cannot become default; card header has no overlap-prone badge
+  // -------------------------------------------------------------------------
+  await t.test('18. Default-sender selection is defended and the Hybrid badge cannot overlap the title', () => {
+    const controllerContent = fs.readFileSync(path.join(__dirname, '../controllers/whatsappController.js'), 'utf8');
+    const guards = controllerContent.match(/COEXISTENCE_ACCOUNT_DISCONNECTED/g) || [];
+    assert.ok(guards.length >= 3, 'sendMessage, startNewChat, and setDefaultWhatsAppAccount must all reject disconnected coexistence accounts');
+    assert.match(controllerContent, /cannot be set as the default sender/, 'setDefaultWhatsAppAccount must carry the explicit default-sender guard');
+
+    const settingsContent = fs.readFileSync(path.join(__dirname, '../frontend/src/pages/Integrations/WhatsAppSettings.jsx'), 'utf8');
+    assert.doesNotMatch(settingsContent, /position: 'absolute', top: 12/, 'Hybrid badge must not be absolutely positioned over the card title');
+    assert.match(settingsContent, /الربط مفصول \(Disconnected\)/, 'Status column must render the disconnected state instead of Active');
+    assert.match(settingsContent, /⛔ الربط مفصول/, 'Disconnected badge must use neutral separation wording (event semantics pending)');
   });
 });

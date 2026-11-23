@@ -975,6 +975,21 @@ exports.setDefaultWhatsAppAccount = async (req, res) => {
   await ensureWhatsAppTable();
 
   try {
+    // Guard: a disconnected coexistence number cannot serve as the default sender
+    const accRes = await db.query(`
+      SELECT COALESCE(connection_type, 'cloud_api') AS connection_type, coexistence_status
+      FROM whatsapp_accounts
+      WHERE id::text = $1::text AND tenant_id::text = $2::text
+    `, [accountId, tenantId]);
+    const accRow = accRes.rows[0];
+    if (accRow && accRow.connection_type === 'coexistence' && accRow.coexistence_status === 'disconnected') {
+      return res.status(400).json({
+        status: 'error',
+        code: 'COEXISTENCE_ACCOUNT_DISCONNECTED',
+        message: 'A disconnected WhatsApp Business app number cannot be set as the default sender. Reconnect it from the app first.'
+      });
+    }
+
     await db.query('BEGIN');
     await db.query(`
       UPDATE whatsapp_accounts 
@@ -1169,6 +1184,8 @@ exports.sendMessage = async (req, res) => {
       SELECT 
         c.*,
         a.phone_number_id AS account_phone_number_id,
+        a.connection_type AS account_connection_type,
+        a.coexistence_status AS account_coexistence_status,
         COALESCE(a.access_token, s.access_token) AS access_token,
         s.phone_number_id AS default_phone_id
       FROM whatsapp_conversations c
@@ -1187,6 +1204,16 @@ exports.sendMessage = async (req, res) => {
 
     if (!phoneNumberId || !accessToken) {
       return res.status(400).json({ status: 'error', message: 'WhatsApp sender number or credentials not configured' });
+    }
+
+    // A disconnected coexistence number can no longer use the Cloud API; fail
+    // clearly instead of letting the send die at Meta with an opaque error.
+    if (conv.account_connection_type === 'coexistence' && conv.account_coexistence_status === 'disconnected') {
+      return res.status(400).json({
+        status: 'error',
+        code: 'COEXISTENCE_ACCOUNT_DISCONNECTED',
+        message: 'This WhatsApp number was disconnected from the Cloud API inside the WhatsApp Business app. Reconnect it from the app or choose another sender number.'
+      });
     }
 
     let sendResult = null;
@@ -1316,9 +1343,27 @@ exports.startNewChat = async (req, res) => {
       const aRes = await db.query(`
         SELECT id FROM whatsapp_accounts
         WHERE tenant_id::text = $1::text AND is_active = TRUE
+          AND NOT (COALESCE(connection_type, 'cloud_api') = 'coexistence' AND coexistence_status = 'disconnected')
         ORDER BY is_default DESC, id ASC LIMIT 1
       `, [tenantId]);
       if (aRes.rows.length > 0) resolvedAccountId = aRes.rows[0].id;
+    }
+
+    // Guard: never route a new chat through a disconnected coexistence number
+    if (resolvedAccountId) {
+      const stRes = await db.query(`
+        SELECT COALESCE(connection_type, 'cloud_api') AS connection_type, coexistence_status
+        FROM whatsapp_accounts
+        WHERE id = $1 AND tenant_id::text = $2::text
+      `, [resolvedAccountId, tenantId]);
+      const stRow = stRes.rows[0];
+      if (stRow && stRow.connection_type === 'coexistence' && stRow.coexistence_status === 'disconnected') {
+        return res.status(400).json({
+          status: 'error',
+          code: 'COEXISTENCE_ACCOUNT_DISCONNECTED',
+          message: 'This WhatsApp number was disconnected from the Cloud API inside the WhatsApp Business app. Reconnect it from the app or choose another sender number.'
+        });
+      }
     }
 
     // 2. Resolve Customer Info if matching customer exists
@@ -1564,7 +1609,7 @@ exports.handleWebhookEvent = async (req, res) => {
     for (const entry of body.entry) {
       const changes = entry.changes || [];
       for (const change of changes) {
-        const SUPPORTED_FIELDS = ['messages', 'smb_message_echoes', 'history', 'smb_app_state_sync'];
+        const SUPPORTED_FIELDS = ['messages', 'smb_message_echoes', 'history', 'smb_app_state_sync', 'account_update'];
         if (!SUPPORTED_FIELDS.includes(change.field)) continue;
         const value = change.value || {};
         const metadata = value.metadata || {};
@@ -1615,6 +1660,8 @@ exports.handleWebhookEvent = async (req, res) => {
         }
 
         const { account_id, tenant_id, branch_id, access_token, meta_app_secret, connection_type } = tenantRow;
+        // Camel-case alias used by the coexistence ingestion branches below.
+        const tenantId = tenant_id;
 
         // 2. Defensive HMAC Signature verification if secret configured
         if (meta_app_secret && String(meta_app_secret).trim()) {
@@ -1631,12 +1678,29 @@ exports.handleWebhookEvent = async (req, res) => {
         if (change.field === 'history') {
           try {
             const historyMessages = value.history || value.messages || [];
-            const { recordCoexistenceHistoryBatch } = require('../services/whatsappCoexistenceService');
-            await recordCoexistenceHistoryBatch({
-              tenantId,
-              account: tenantRow,
-              historyMessages
-            });
+            const { recordCoexistenceHistoryBatch, recordCoexistenceHistoryDeclined } = require('../services/whatsappCoexistenceService');
+            if (historyMessages.length > 0) {
+              await recordCoexistenceHistoryBatch({
+                tenantId,
+                account: tenantRow,
+                historyMessages
+              });
+            } else {
+              // Business declined history sharing: Meta signals this with error code 2593109.
+              const declineCode = value?.errors?.[0]?.code
+                || value?.error?.code
+                || value?.statuses?.[0]?.errors?.[0]?.code
+                || null;
+              if (String(declineCode) === '2593109') {
+                await recordCoexistenceHistoryDeclined({
+                  tenantId,
+                  account: tenantRow,
+                  errorCode: declineCode
+                });
+              } else {
+                console.log('[WhatsApp Coexistence History] Empty history payload received; nothing to ingest.');
+              }
+            }
           } catch (histErr) {
             console.warn('[WhatsApp Coexistence History Error]', histErr.message);
           }
@@ -1654,6 +1718,21 @@ exports.handleWebhookEvent = async (req, res) => {
             });
           } catch (syncErr) {
             console.warn('[WhatsApp Coexistence State Sync Error]', syncErr.message);
+          }
+          continue;
+        }
+
+        // 2.2b Coexistence Account Lifecycle Updates (account_update)
+        if (change.field === 'account_update') {
+          try {
+            const { recordCoexistenceAccountUpdate } = require('../services/whatsappCoexistenceService');
+            await recordCoexistenceAccountUpdate({
+              tenantId,
+              account: tenantRow,
+              accountUpdateData: value
+            });
+          } catch (auErr) {
+            console.warn('[WhatsApp Coexistence Account Update Error]', auErr.message);
           }
           continue;
         }
@@ -1997,6 +2076,8 @@ exports.onboardCoexistenceAccount = async (req, res) => {
     label,
     branch_id,
     metadata,
+    sync_contacts = false,
+    sync_history = false,
     skip_meta_verification = false
   } = req.body;
 
@@ -2019,6 +2100,8 @@ exports.onboardCoexistenceAccount = async (req, res) => {
       wabaId: waba_id,
       label: label || 'Coexistence WhatsApp',
       metadata,
+      syncContacts: sync_contacts === true,
+      syncHistory: sync_history === true,
       skipMetaVerification: skip_meta_verification
     });
 
