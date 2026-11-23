@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -74,7 +75,7 @@ const VendorStatementModal = ({ vendor, onClose }) => {
             <div id="vendor-statement-content">
               <h1 style={{ fontSize: '22px', fontWeight: 900, color: '#1e293b', marginBottom: '4px' }}>{t('vendors.statementHeader')}</h1>
               <p style={{ color: '#64748b', marginBottom: '20px', fontSize: '14px' }}>
-                {t('vendors.supplierLabel')} <strong>{data.vendor?.name}</strong> &nbsp;|&nbsp; 
+                {t('vendors.supplierLabel')} <strong>{data.vendor?.name}</strong> &nbsp;|&nbsp;
                 {t('vendors.phoneLabel')} <strong className="num-en">{data.vendor?.phone || '—'}</strong> &nbsp;|&nbsp;
                 {t('vendors.printDateLabel')} <strong className="num-en">{new Date().toLocaleDateString('en-US')}</strong>
               </p>
@@ -426,14 +427,11 @@ const ContactsVendors = () => {
       </div>
 
       {/* Modal: Add / Edit Vendor */}
-      {isModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} dir={isRTL ? 'rtl' : 'ltr'}>
-          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', borderRadius: '20px 20px 0 0' }}>
-              <h3 style={{ margin: 0, color: 'white', fontWeight: 800 }}>{editing ? t('vendors.modalEdit') : t('vendors.modalAdd')}</h3>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <form onSubmit={handleSave} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} variant="form" title={editing ? t('vendors.modalEdit') : t('vendors.modalAdd')} footer={<><button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>{t('vendors.btnCancel')}</button>
+                <button type="submit" form="vendor-profile-editor" disabled={saving} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                  {saving ? t('vendors.saving') : editing ? t('vendors.btnSave') : t('vendors.btnAdd')}
+                </button></>}>
+<form id="vendor-profile-editor" onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>{t('vendors.lblName')}</label>
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={t('vendors.placeholderName')} style={inputStyle} required />
@@ -456,16 +454,9 @@ const ContactsVendors = () => {
                   <input value={form.reg_no} onChange={e => setForm(f => ({ ...f, reg_no: e.target.value }))} placeholder="987654321" style={inputStyle} className="num-en" />
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '8px' }}>
-                <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>{t('vendors.btnCancel')}</button>
-                <button type="submit" disabled={saving} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-                  {saving ? t('vendors.saving') : editing ? t('vendors.btnSave') : t('vendors.btnAdd')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
+</form>
+</Modal>
 
       {/* Modal: Supplier Account Statement */}
       {statementVendor && (

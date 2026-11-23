@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -868,21 +869,28 @@ const Target = () => {
       )}
 
       {/* Set / Edit Target Modal */}
-      {showModal && (
-        <div style={modalStyle}>
-          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '520px', overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
-            <div style={{ padding: '18px 24px', background: isRealEstate ? 'linear-gradient(135deg, #0284c7, #0369a1)' : 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
-              <h3 style={{ margin: 0, fontWeight: 800, fontSize: '16px' }}>
-                {editingTarget
-                  ? t('sales.targets.editTarget')
-                  : (isRealEstate ? t('sales.targets.setTargetRealEstate') : t('sales.targets.newTarget'))}
-              </h3>
-              <button onClick={() => setShowModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px', cursor: 'pointer' }}>
-                <X size={16} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} variant="form" title={editingTarget ? t('sales.targets.editTarget') : (isRealEstate ? t('sales.targets.setTargetRealEstate') : t('sales.targets.newTarget'))} footer={<><button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  {t('sales.targets.cancel')}
+                </button>
+                <button
+                  type="submit" form="sales-target-editor"
+                  disabled={saving}
+                  style={{
+                    padding: '10px 22px',
+                    background: isRealEstate
+                      ? 'linear-gradient(135deg, #0284c7, #0369a1)'
+                      : 'linear-gradient(135deg, #10b981, #059669)',
+                    color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800,
+                    cursor: saving ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {saving ? t('sales.targets.saving') : editingTarget ? t('sales.targets.update') : t('sales.targets.save')}
+                </button></>}>
+<form id="sales-target-editor" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <label style={labelStyle}>{t('sales.targets.salesRep')}</label>
                 <select
@@ -967,33 +975,9 @@ const Target = () => {
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  {t('sales.targets.cancel')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  style={{
-                    padding: '10px 22px',
-                    background: isRealEstate
-                      ? 'linear-gradient(135deg, #0284c7, #0369a1)'
-                      : 'linear-gradient(135deg, #10b981, #059669)',
-                    color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800,
-                    cursor: saving ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {saving ? t('sales.targets.saving') : editingTarget ? t('sales.targets.update') : t('sales.targets.save')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
+</form>
+</Modal>
     </div>
   );
 };

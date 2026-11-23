@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -94,12 +95,6 @@ const PriceTiers = () => {
     } catch (err) {
       toast.error(t('sales.priceTiers.deleteError'));
     }
-  };
-
-  const modalStyle = {
-    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-    background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px'
   };
 
   const inputStyle = {
@@ -204,19 +199,21 @@ const PriceTiers = () => {
         )}
 
         {/* Modal */}
-        {showModal && (
-          <div style={modalStyle} dir={isRTL ? 'rtl' : 'ltr'}>
-            <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-              <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  {editingId ? t('sales.priceTiers.editTier') : t('sales.priceTiers.newTier')}
-                </h3>
-                <button onClick={() => setShowModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}>
-                  <X size={18} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <Modal isOpen={showModal} onClose={() => setShowModal(false)} variant="form" title={editingId ? t('sales.priceTiers.editTier') : t('sales.priceTiers.newTier')} footer={<><button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    type="submit" form="price-tier-editor"
+                    disabled={saving}
+                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer' }}
+                  >
+                    {saving ? t('sales.priceTiers.saving') : editingId ? t('sales.priceTiers.update') : t('sales.priceTiers.save')}
+                  </button></>}>
+<form id="price-tier-editor" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('sales.priceTiers.tierName')}</label>
                   <input
@@ -279,26 +276,9 @@ const PriceTiers = () => {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {t('common.cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer' }}
-                  >
-                    {saving ? t('sales.priceTiers.saving') : editingId ? t('sales.priceTiers.update') : t('sales.priceTiers.save')}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+
+</form>
+</Modal>
       </div>
     </div>
   );

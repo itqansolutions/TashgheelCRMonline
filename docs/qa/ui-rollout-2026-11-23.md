@@ -162,3 +162,10 @@ Finance/accounting; purchasing; inventory beyond Products; remaining HR; real es
 - All control opening ASTs and every noncomponent function body exact against Phase5. Fields remain4/7/3/7/5; commission percentage/fixed branches tested locally. No change to payloads, permission checks, calculation or schedule logic.
 -20AR/EN360/1440 synthetic actual-editor variants pass and phone/desktop pixels inspected. Leave application references existing matching locale keys and receives visible field boundaries; original values and handler localization left unchanged.
 - No leave submission, contract edit, handover, commission, installment generation, collection or payout performed on live data. Shared form changes are not functional acceptance of these workflows or all remaining pages.
+
+
+## Phase 7 candidate
+- Vendor profile add/edit, price-tier editor and general/RE target entry share the opt-in panel and external linked-submit footer. Original fields retained5/5/5general or6RE, with all original control ASTs and noncomponent function bodies exact against Phase6.
+- Vendor statement/printing/payment, target performance drilldown and price-tier/target calculations unchanged. No supplier, target or pricing record submitted or modified.
+-24general/RE AR/EN360/1440 actual-component fixture variants, prior stock/RE/HR regression and build pass. Actual Arabic phone and English desktop pixels inspected; no overflow/fixed footer clipping.
+- Source-backed existing target default uses2026-Q3 regardless current date. Preserved in this layout-only change, not represented as a current-quarter default or corrected silently.
