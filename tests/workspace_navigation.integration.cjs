@@ -11,6 +11,9 @@ const frontendRequire = createRequire(path.join(frontend, 'package.json'));
 const esbuild = frontendRequire('esbuild');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'workspace-navigation-'));
 const cases = [
+  { name:'CRM remains accessible without sales entitlement',role:'admin',pages:[],modules:{crm:true,sales:false},workspace:'admin',link:'/deals',admin:true,absent:['/sales/orders','/sales/documents','/sales/salesmen'] },
+  { name:'explicit sales access preserved',role:'admin',pages:[],modules:{crm:false,sales:true},workspace:'admin',link:'/sales/orders',admin:true,absent:['/deals','/sales/management'] },
+  { name:'CRM management preserved without sales',role:'admin',pages:[],modules:{crm:true,sales:false},workspace:'admin',link:'/sales/management',admin:true },
   { name: 'vendors-only manager', role: 'manager', pages: ['/contacts/vendors'], modules: { purchasing: true }, workspace: 'contacts', link: '/contacts/vendors' },
   { name: 'payroll-only HR manager', role: 'manager', pages: ['/hr/payroll'], modules: { hr: true }, workspace: 'hr', link: '/hr/payroll' },
   { name: 'warehouses-only user', role: 'user', pages: ['/inventory/warehouses'], modules: { inventory: true }, workspace: 'inventory', link: '/inventory/warehouses' },
@@ -36,6 +39,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {StaticRouter} from 'react-router-dom/server';
 import {WorkspaceProvider,useWorkspace} from ${JSON.stringify(path.join(frontend, 'src/context/WorkspaceContext.jsx'))};
 import Sidebar from ${JSON.stringify(path.join(frontend, 'src/components/Layout/Sidebar.jsx'))};
+import SalesSubNav from ${JSON.stringify(path.join(frontend, 'src/components/Sales/SalesSubNav.jsx'))};
 import ProtectedRoute from ${JSON.stringify(path.join(frontend, 'src/components/ProtectedRoute.jsx'))};
 let context;
 function Probe(){context=useWorkspace();return null;}
@@ -51,6 +55,11 @@ for(const c of ${JSON.stringify(cases)}){
   assert.equal(context.activeWorkspace,c.workspace,c.name+': workspace compatibility');
   assert(!html.includes('class="workspace-trigger'),c.name+': legacy selector visible');
   assert.equal(links.length,new Set(links).size,c.name+': duplicated destination');
+  if(c.name.startsWith('CRM ') || c.name==='explicit sales access preserved'){
+    const subnav=renderToStaticMarkup(<StaticRouter location={c.link}><SalesSubNav/></StaticRouter>);
+    if(c.modules.sales===false){const denied=renderToStaticMarkup(<StaticRouter location='/sales/orders'><ProtectedRoute><b>denied-marker</b></ProtectedRoute></StaticRouter>);assert(!denied.includes('denied-marker'));assert(!subnav.includes('href="/sales/orders"'));assert(subnav.includes('href="/deals"'));}
+    if(c.modules.sales===true)assert(subnav.includes('href="/sales/orders"'));
+  }
   if(c.link){
     assert(links.includes(c.link),c.name+': permitted link missing');
     const guarded=renderToStaticMarkup(<StaticRouter location={c.link}><ProtectedRoute><b>allowed-marker</b></ProtectedRoute></StaticRouter>);

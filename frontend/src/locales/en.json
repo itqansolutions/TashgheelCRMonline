@@ -1752,6 +1752,8 @@
       "distribution": "Lead Distribution"
     },
     "orders": {
+        "accessDenied": "Sales orders are not available with this account access.",
+        "loadFailed": "Sales orders could not be loaded. Please retry.",
       "remaining": "remaining",
       "confirmRetry": "Delivery draft saved. Retry to confirm this same draft.",
       "title": "Sales Orders & Fulfillment Cycle",

@@ -122,11 +122,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'My Payroll',       labelKey: 'sidebar.myPayroll',       icon: <DollarSign size={16} />,   path: '/my-payroll' },
       { name: 'Activity Balance', labelKey: 'sidebar.activityBalance', icon: <Wallet size={16} />,       path: '/activity-balance' },
     ] : []),
-    ...(!hasSales && hasCrm ? [
-      { name: 'Deals',            labelKey: 'sidebar.deals',            icon: <Handshake size={16} />,    path: '/deals', isShortcut: true },
-      { name: 'Tasks',            labelKey: 'sidebar.tasks',            icon: <CheckSquare size={16} />,  path: '/tasks', isShortcut: true },
-      { name: 'Customers',        labelKey: 'sidebar.customers',        icon: <Users size={16} />,        path: '/customers', isShortcut: true },
-    ] : [])
+
   ];
 
   const profileItems = rawProfileItems.filter(item => {
@@ -191,7 +187,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       roleGuard: ['admin', 'manager', 'supervisor']
     },
     { name: 'Quotations',     labelKey: 'sidebar.quotations',    icon: <FileText size={18} />,     path: '/finance?tab=Quotations' },
-    ...(!isRealEstate ? [
+    ...(!isRealEstate && hasSales ? [
       { name: 'Sales Orders',   labelKey: 'sidebar.salesOrders',   icon: <ShoppingCart size={18} />, path: '/sales/orders' },
       { name: 'Documents Hub',  labelKey: 'sidebar.documentsHub',  icon: <FileCheck size={18} />,    path: '/sales/documents' },
       { name: 'Price Tiers',    labelKey: 'sidebar.priceTiers',    icon: <DollarSign size={18} />,   path: '/sales/price-tiers' },
@@ -203,7 +199,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Handover',     labelKey: 'sidebar.handover',      icon: <Key size={18} />,          path: '/handover' }
     ] : [])
   ];
-  const salesItems = hasSales ? filterByAllowed(rawSalesItems) : [];
+  const salesItems = filterByAllowed(rawSalesItems).filter(item => {
+    if(item.roleGuard && !item.roleGuard.includes(user?.role))return false;
+    if (['/customers','/deals','/tasks','/sales/management','/finance?tab=Quotations'].includes(item.path)) return hasCrm;
+    if (['/commissions','/handover','/units-registry'].includes(item.path)) return hasRealEstate;
+    return hasSales;
+  });
   const dailyPaths = ['/customers', '/deals', '/tasks', '/units-registry'];
   const managementPaths = ['/sales/management', '/sales/salesmen', '/sales/target'];
   const dailySalesItems = salesItems.filter(item => dailyPaths.includes(item.path));

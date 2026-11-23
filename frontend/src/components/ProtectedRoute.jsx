@@ -68,7 +68,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     }
   }
   if (checkPath.startsWith('/sales') || checkPath.startsWith('/erp/sales')) {
-    const hasSales = can('sales') !== false && (can('sales') === true || can('crm') === true);
+    const hasSales = checkPath.startsWith('/sales/management') ? can('crm') : can('sales');
     if (!hasSales) {
       return <Navigate to={safeFallback} replace />;
     }

@@ -44,23 +44,13 @@ exports.getMySubscription = async (req, res) => {
             WHERE s.tenant_id::text = $1::text
         `, [tenant_id]);
 
-        // Load per-tenant override (if any)
-        const overrideRes = await db.query(
-            `SELECT modules, limits FROM tenant_overrides WHERE tenant_id::text = $1::text`, [tenant_id]
-        );
-        const override = overrideRes.rows[0] || null;
-        const overrideModules = override?.modules
-            ? (typeof override.modules === 'string' ? JSON.parse(override.modules) : override.modules)
-            : {};
-        const overrideLimits = override?.limits
-            ? (typeof override.limits === 'string' ? JSON.parse(override.limits) : override.limits)
-            : {};
+        // The access guard has already resolved manual technical entitlements.
+        // Commercial plan metadata must never grant technical module access.
+        const effectiveModules = req.modules && typeof req.modules === 'object' ? req.modules : {};
+        const effectiveLimits = req.planLimits || {};
 
         if (result.rows.length === 0) {
             // Fallback for tenants without subscription (legacy)
-            const defaultModules = { crm: true, finance: true, hr: false, inventory: false, automation: false, reports: true };
-            const effectiveModules = { ...defaultModules, ...overrideModules };
-
             return res.json({
                 status: 'success',
                 data: {
@@ -68,8 +58,8 @@ exports.getMySubscription = async (req, res) => {
                     display_name: 'Basic',
                     status: 'active',
                     modules: effectiveModules,
-                    max_users: overrideLimits.max_users ?? 10,
-                    max_branches: overrideLimits.max_branches ?? 1,
+                    max_users: effectiveLimits.max_users ?? 10,
+                    max_branches: effectiveLimits.max_branches ?? 1,
                     trial_days_left: null,
                     is_expired: false
                 }
@@ -84,22 +74,9 @@ exports.getMySubscription = async (req, res) => {
             sub.status = 'expired';
         }
 
-        // Merge plan modules with tenant overrides (overrides take precedence)
-        const rawPlanModules = typeof sub.modules === 'string'
-            ? JSON.parse(sub.modules)
-            : (sub.modules || {});
-        const planModules = {
-            reports: true,
-            sales: true,
-            purchasing: rawPlanModules.purchasing ?? rawPlanModules.inventory ?? false,
-            marketing: rawPlanModules.marketing ?? rawPlanModules.crm ?? true,
-            real_estate: rawPlanModules.real_estate ?? true,
-            ...rawPlanModules
-        };
-
-        sub.modules = { ...planModules, ...overrideModules };
-        if (overrideLimits.max_users !== undefined && overrideLimits.max_users !== null) sub.max_users = overrideLimits.max_users;
-        if (overrideLimits.max_branches !== undefined && overrideLimits.max_branches !== null) sub.max_branches = overrideLimits.max_branches;
+        sub.modules = { ...effectiveModules };
+        if (effectiveLimits.max_users !== undefined) sub.max_users = effectiveLimits.max_users;
+        if (effectiveLimits.max_branches !== undefined) sub.max_branches = effectiveLimits.max_branches;
 
         res.json({ status: 'success', data: sub });
     } catch (err) {

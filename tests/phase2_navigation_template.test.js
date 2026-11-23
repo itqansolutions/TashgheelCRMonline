@@ -113,7 +113,7 @@ test('Phase 2: Tenant Module Entitlement & Navigation Architecture', async (t) =
     assert.doesNotMatch(serverContent, /app\.use\('\/api\/products',\s*templateGuard\('general'\)/);
   });
 
-  await t.test('Sidebar.jsx includes all 8 shared Finance tabs for both templates', () => {
+  await t.test('Sidebar.jsx uses canonical finance entry and entitlement-filtered sections', () => {
     const sidebarContent = fs.readFileSync(path.join(__dirname, '../frontend/src/components/Layout/Sidebar.jsx'), 'utf8');
 
     // All 8 operational tabs must be present
@@ -131,8 +131,8 @@ test('Phase 2: Tenant Module Entitlement & Navigation Architecture', async (t) =
     assert.doesNotMatch(sidebarContent, /\/finance\?tab=Collections/);
 
     // Inventory and Purchasing must be governed by module entitlement, NOT !isRealEstate
-    assert.match(sidebarContent, /hasInventory && inventoryItems\.length > 0/);
-    assert.match(sidebarContent, /hasPurchasing && purchasingItems\.length > 0/);
+    assert.match(sidebarContent, /const inventoryItems = hasInventory \?/);
+    assert.match(sidebarContent, /const purchasesItems = hasPurchasing \?/);
     assert.doesNotMatch(sidebarContent, /!isRealEstate && inventoryItems/);
     assert.doesNotMatch(sidebarContent, /!isRealEstate && purchasingItems/);
   });
@@ -145,39 +145,10 @@ test('Phase 2: Tenant Module Entitlement & Navigation Architecture', async (t) =
     assert.doesNotMatch(protectedContent, /isGeneralOnly = \[\s*['"]\/inventory/);
   });
 
-  await t.test('Runtime Module Resolution: Tenant plan modules merged with tenant_overrides (precedence & disables)', () => {
-    const planModules = { hr: false, crm: true, finance: true, inventory: false, automation: false };
-    
-    // Case 1: Override enables inventory & purchasing
-    const overrideA = { inventory: true, purchasing: true };
-    const effectiveA = { ...planModules, ...overrideA };
-    assert.equal(effectiveA.inventory, true, 'Override must enable inventory');
-    assert.equal(effectiveA.purchasing, true, 'Override must enable purchasing');
-    assert.equal(effectiveA.finance, true, 'Plan module preserved');
-
-    // Case 2: Override explicitly disables a module enabled in plan
-    const overrideB = { finance: false, inventory: true };
-    const effectiveB = { ...planModules, ...overrideB };
-    assert.equal(effectiveB.finance, false, 'Override must disable finance');
-    assert.equal(effectiveB.inventory, true, 'Override must enable inventory');
-    assert.equal(effectiveB.crm, true, 'Plan module preserved');
-
-    // Case 3: moduleGuard evaluates effective modules map at runtime
-    let allowed = false;
-    moduleGuard('inventory')({ modules: effectiveA }, {}, () => { allowed = true; });
-    assert.equal(allowed, true, 'moduleGuard allows when override enabled module');
-
-    let blocked = false;
-    let blockStatus = null;
-    let blockBody = null;
-    const mockRes = {
-      status: (c) => { blockStatus = c; return { json: (b) => { blockBody = b; } }; }
-    };
-    moduleGuard('finance')({ modules: effectiveB }, mockRes, () => { blocked = true; });
-    assert.equal(blocked, false, 'moduleGuard must block when override disabled module');
-    assert.equal(blockStatus, 403);
-    assert.equal(blockBody.status, 'module_locked');
-    assert.equal(blockBody.module, 'finance');
+  await t.test('Runtime Module Resolution: manual canonical flags, not commercial defaults', () => {
+    const service=require('../services/tenantEntitlementService');
+    const modules=service.validateModules({crm:true,finance:true,hr:true});
+    assert.equal(modules.sales,false);assert.equal(modules.crm,true);assert.equal(modules.hr,true);
   });
 });
 

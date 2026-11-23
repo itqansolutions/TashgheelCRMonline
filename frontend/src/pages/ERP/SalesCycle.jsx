@@ -16,6 +16,7 @@ const SalesCycle = () => {
   const [deals, setDeals] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError,setLoadError]=useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showDeliverModal, setShowDeliverModal] = useState(false);
@@ -54,7 +55,9 @@ const SalesCycle = () => {
     try {
       const res = await api.get('/erp/sales/orders');
       setOrders(res.data.data || []);
+      setLoadError(null);
     } catch (err) {
+      setLoadError(err.response?.status===403 ? 'denied' : 'failed');
       toast.error(t('sales.orders.toasts.loadOrdersError'));
     } finally {
       setLoading(false);
@@ -356,7 +359,7 @@ const SalesCycle = () => {
           </p>
         </div>
 
-        <button
+        {!loadError && !loading && <button
           onClick={handleOpenCreate}
           style={{
             display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
@@ -366,13 +369,15 @@ const SalesCycle = () => {
           }}
         >
           <Plus size={18} /> {t('sales.orders.createOrder')}
-        </button>
+        </button>}
       </div>
 
       {/* Orders Table */}
       <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>{t('sales.orders.loading')}</div>
+        ) : loadError ? (
+          <div role="alert" style={{padding:'32px'}}>{t(loadError==='denied'?'sales.orders.accessDenied':'sales.orders.loadFailed')} <button type="button" onClick={fetchOrders}>{t('common.retry','Retry')}</button></div>
         ) : orders.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px' }}>
             <ShoppingBag size={48} style={{ color: '#cbd5e1', marginBottom: '16px' }} />

@@ -68,7 +68,12 @@ const SalesSubNav = () => {
   };
 
   const renderNavGroup = (title, items) => {
-    if (!items || items.length === 0) return null;
+    items = (items || []).filter(item => {
+      if (['/customers','/deals','/tasks','/sales/management','/finance?tab=Quotations'].includes(item.path)) return can('crm');
+      if (['/units-registry','/commissions','/handover'].includes(item.path)) return can('real_estate');
+      return can('sales');
+    });
+    if (!items.length) return null;
     return (
       <div className="subnav-cluster">
         {title && <span className="subnav-cluster-label">{title}</span>}
