@@ -178,30 +178,30 @@ const RuleBuilder = () => {
     return (
         <div className="rule-builder-page">
             <style>{`
-                .rb-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 28px; }
-                .btn-primary { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
-                .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(79,70,229,0.3); }
+                .rule-builder-page .rb-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 28px; }
+                .rule-builder-page .btn-primary { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
+                .rule-builder-page .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(79,70,229,0.3); }
 
-                .builder-card { background: var(--bg-card); border: 1.5px solid var(--primary); border-radius: 16px; padding: 28px; margin-bottom: 28px; }
-                .builder-section { margin-bottom: 24px; }
-                .builder-section h4 { font-size: 13px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
-                .builder-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-                .builder-select, .builder-input { padding: 9px 12px; border: 1px solid var(--glass-border); border-radius: 8px; background: var(--bg-main); color: var(--text-main); font-size: 14px; font-weight: 500; outline: none; }
-                .builder-select:focus, .builder-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
-                .btn-icon { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 6px; color: var(--text-muted); }
-                .btn-icon:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
-                .btn-add { background: rgba(79,70,229,0.08); color: var(--primary); border: 1px dashed rgba(79,70,229,0.3); padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
-                .btn-add:hover { background: rgba(79,70,229,0.15); }
+                .rule-builder-page .builder-card { background: var(--bg-card); border: 1.5px solid var(--primary); border-radius: 16px; padding: 28px; margin-bottom: 28px; }
+                .rule-builder-page .builder-section { margin-bottom: 24px; }
+                .rule-builder-page .builder-section h4 { font-size: 13px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+                .rule-builder-page .builder-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+                .rule-builder-page .builder-select, .rule-builder-page .builder-input { padding: 9px 12px; border: 1px solid var(--glass-border); border-radius: 8px; background: var(--bg-main); color: var(--text-main); font-size: 14px; font-weight: 500; outline: none; }
+                .rule-builder-page .builder-select:focus, .rule-builder-page .builder-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.1); }
+                .rule-builder-page .btn-icon { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 6px; color: var(--text-muted); }
+                .rule-builder-page .btn-icon:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
+                .rule-builder-page .btn-add { background: rgba(79,70,229,0.08); color: var(--primary); border: 1px dashed rgba(79,70,229,0.3); padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+                .rule-builder-page .btn-add:hover { background: rgba(79,70,229,0.15); }
 
-                .preview-box { background: rgba(79,70,229,0.05); border: 1px solid rgba(79,70,229,0.2); border-radius: 10px; padding: 14px; font-size: 13px; color: var(--primary); font-weight: 600; margin-top: 20px; }
+                .rule-builder-page .preview-box { background: rgba(79,70,229,0.05); border: 1px solid rgba(79,70,229,0.2); border-radius: 10px; padding: 14px; font-size: 13px; color: var(--primary); font-weight: 600; margin-top: 20px; }
                 
-                .rule-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); }
-                .rule-table th, .rule-table td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--glass-border); }
-                .rule-table th { background: rgba(0,0,0,0.02); font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+                .rule-builder-page .rule-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); }
+                .rule-builder-page .rule-table th, .rule-builder-page .rule-table td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--glass-border); }
+                .rule-builder-page .rule-table th { background: rgba(0,0,0,0.02); font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
 
-                .sim-panel { background: var(--bg-card); border-radius: 12px; padding: 20px; margin-top: 16px; border: 1px solid var(--glass-border); }
-                .sim-result-pass { background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.3); border-radius: 8px; padding: 12px; color: #10b981; font-weight: 700; }
-                .sim-result-fail { background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; padding: 12px; color: #ef4444; font-weight: 700; }
+                .rule-builder-page .sim-panel { background: var(--bg-card); border-radius: 12px; padding: 20px; margin-top: 16px; border: 1px solid var(--glass-border); }
+                .rule-builder-page .sim-result-pass { background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.3); border-radius: 8px; padding: 12px; color: #10b981; font-weight: 700; }
+                .rule-builder-page .sim-result-fail { background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; padding: 12px; color: #ef4444; font-weight: 700; }
             `}</style>
 
             <div className="rb-header">

@@ -784,3 +784,38 @@
  .billing-page .bill-card > div:first-child > button {width:100%;justify-content:center;}
  .billing-page .btn-upgrade {padding:12px;font-size:14px;}
 }
+
+/* Workflow builder layout only, form fields and execution unchanged. */
+.rule-builder-page,.rule-builder-page * {box-sizing:border-box;}
+.rule-builder-page {min-width:0;}
+.rule-builder-page .rb-header {gap:16px;flex-wrap:wrap;}
+.rule-builder-page .rb-header > div {min-width:0;}
+.rule-builder-page .rb-header h2 {line-height:1.4;}
+.rule-builder-page .rb-header p {line-height:1.7;}
+.rule-builder-page .rb-header svg,.rule-builder-page button svg {flex-shrink:0;}
+.rule-builder-page button {min-height:40px;}
+.rule-builder-page .btn-icon {min-width:40px;}
+.rule-builder-page .builder-input,.rule-builder-page .builder-select {min-width:0;max-width:100%;min-height:44px;}
+.rule-builder-page .preview-box {line-height:1.7;overflow-wrap:anywhere;}
+.rule-builder-page .responsive-table-region {max-width:100%;overflow-x:auto;}
+.rule-builder-page .rule-table {min-width:1120px;}
+.rule-builder-page .rule-table td {line-height:1.7;}
+.rule-builder-page .rule-table td:first-child {min-width:240px;max-width:320px;overflow-wrap:anywhere;}
+.rule-builder-page .rule-table td:nth-child(2),.rule-builder-page .rule-table td:nth-child(3) {min-width:240px;max-width:300px;overflow-wrap:anywhere;}
+.rule-builder-page .rule-table td:last-child > div {white-space:nowrap;}
+.rule-builder-page .sim-panel {white-space:normal;overflow-wrap:anywhere;}
+.rule-builder-page .sim-panel textarea {direction:ltr;text-align:left;}
+@media(max-width:768px) {
+ .rule-builder-page {padding:12px;}
+ .rule-builder-page .rb-header h2 {font-size:22px !important;align-items:flex-start !important;}
+ .rule-builder-page .rb-header > button {width:100%;justify-content:center;}
+ .rule-builder-page .builder-card {padding:16px;}
+ .rule-builder-page .builder-row {gap:8px;}
+ .rule-builder-page .builder-row .builder-select {width:100%;}
+ .rule-builder-page .builder-row .builder-input {flex:1;}
+ .rule-builder-page .builder-section h4 {line-height:1.6;}
+ .rule-builder-page .builder-section > div[style] {flex-wrap:wrap;}
+ .rule-builder-page .builder-card > div:last-child {flex-wrap:wrap;}
+ .rule-builder-page .builder-card > div:last-child button {flex:1;justify-content:center;}
+ .rule-builder-page > div:last-child:not(.responsive-table-region):not(.builder-card) {padding:24px 16px !important;line-height:1.7;}
+}
