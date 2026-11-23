@@ -1,6 +1,6 @@
 # All-page UI acceptance matrix
 
-Snapshot: 2026-11-23 17:00 Africa/Cairo. This is an evidence map, not functional certification. Source page components include containers, public pages and platform-owner components; counts are not unique user workflows. Every page still needs final acceptance across applicable roles, tenants and widths. Selected-editor evidence does not accept all details, approvals, previews or other actions on that page. Source/runtime module gates stay unchanged.
+Snapshot: 2026-11-23 17:05 Africa/Cairo. This is an evidence map, not functional certification. Source page components include containers, public pages and platform-owner components; counts are not unique user workflows. Every page still needs final acceptance across applicable roles, tenants and widths. Selected-editor evidence does not accept all details, approvals, previews or other actions on that page. Source/runtime module gates stay unchanged.
 
 | Source page | Bounded phase | Local scope | Live evidence recorded here | Whole page accepted |
 |---|---:|---|---|---|
@@ -34,7 +34,7 @@ Snapshot: 2026-11-23 17:00 Africa/Cairo. This is an evidence map, not functional
 | ERP/SalesCycle.jsx | 12 | selected editor shells only | not established in this matrix | no |
 | Employees.jsx |  | not individually accepted | not established in this matrix | no |
 | Files.jsx | 21 | whole read-only presentation | live phone empty state checked | no |
-| Finance/CustomerAccounts.jsx |  | not individually accepted | not established in this matrix | no |
+| Finance/CustomerAccounts.jsx | 38 | receivable list/statement drawer/aging read presentation | not established in this matrix | no |
 | Finance/InvoicePreview.jsx |  | not individually accepted | not established in this matrix | no |
 | Finance/Invoices.jsx | 4 | selected editor shells only | not established in this matrix | no |
 | Finance/QuotationPreview.jsx |  | not individually accepted | not established in this matrix | no |
@@ -55,7 +55,7 @@ Snapshot: 2026-11-23 17:00 Africa/Cairo. This is an evidence map, not functional
 | HR/MyRequests.jsx | 6 | selected editor shells only | not established in this matrix | no |
 | HR/PayrollEngine.jsx | 35 | generator/list and read-only salary breakdown presentation | live phone generator/empty ledger checked; no action | no |
 | HR/Shifts.jsx | 2 | selected editor shells only | not established in this matrix | no |
-| Integrations/EInvoice.jsx | 37 | queue and settings shell presentation only | not established in this matrix | no |
+| Integrations/EInvoice.jsx | 37 | queue and settings shell presentation only | live phone empty queue checked; no actions | no |
 | Integrations/MetaForms.jsx |  | not individually accepted | not established in this matrix | no |
 | Integrations/PropertyFinderSettings.jsx |  | not individually accepted | not established in this matrix | no |
 | Integrations/WhatsAppSettings.jsx |  | not individually accepted | not established in this matrix | no |
@@ -109,8 +109,8 @@ Snapshot: 2026-11-23 17:00 Africa/Cairo. This is an evidence map, not functional
 
 ## Totals
 - 102 source page components.
-- 60 components with explicit bounded phase coverage in this matrix.
-- 42 components without individual phase acceptance in this matrix.
+- 61 components with explicit bounded phase coverage in this matrix.
+- 41 components without individual phase acceptance in this matrix.
 - Zero claims of complete end-to-end business acceptance.
 - Earlier phase-specific live evidence remains in the rollout QA log; this matrix conservatively lists only recent explicit captures.
 - No production writes are part of this matrix.

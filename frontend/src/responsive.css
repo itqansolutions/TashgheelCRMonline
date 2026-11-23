@@ -925,3 +925,46 @@
  .einvoice-config-overlay > div > div { padding:18px!important; }
  .einvoice-config-overlay > div > div:last-child > div:last-child button { flex:1; min-height:44px; }
 }
+
+/* Phase38: customer receivables and read-only statement drawer presentation. */
+.customer-accounts-page { min-width:0; }
+.customer-accounts-page > div { min-width:0; }
+.customer-accounts-toolbar > div { min-width:0!important; }
+.customer-accounts-toolbar > div:last-child { flex-wrap:wrap; }
+.customer-accounts-toolbar input { box-sizing:border-box; min-height:44px; }
+.customer-accounts-toolbar button { min-height:40px; }
+.customer-accounts-page > div > .responsive-table-region > table { min-width:1510px; table-layout:fixed; }
+.customer-accounts-page > div > .responsive-table-region > table th:first-child { width:300px; }
+.customer-accounts-page > div > .responsive-table-region > table th:nth-child(n+2):nth-child(-n+5) { width:190px; }
+.customer-accounts-page > div > .responsive-table-region > table th:nth-child(6) { width:190px; }
+.customer-accounts-page > div > .responsive-table-region > table th:nth-child(7) { width:180px; }
+.customer-accounts-page > div > .responsive-table-region > table th:last-child { width:80px; }
+.customer-accounts-page table td { overflow-wrap:anywhere; vertical-align:top; }
+.customer-accounts-page table .num-en { white-space:nowrap; }
+.customer-statement-drawer { box-sizing:border-box; min-width:0; }
+.customer-statement-drawer > div { min-width:0; }
+.customer-statement-drawer > div:first-child > div { min-width:0; }
+.customer-statement-drawer h2 { overflow-wrap:anywhere; }
+.customer-statement-drawer button { min-height:40px; flex-shrink:0; }
+.customer-statement-drawer .statement-summary > div { min-width:0; }
+.customer-statement-drawer .statement-summary .num-en { white-space:nowrap; font-size:clamp(14px,4.3vw,18px); }
+.customer-statement-drawer .statement-filters > div { min-width:0; flex-basis:180px!important; }
+.customer-statement-drawer .statement-filters input { min-width:0; width:100%; min-height:44px; box-sizing:border-box; }
+.customer-statement-drawer table { min-width:1010px; table-layout:fixed; }
+.customer-statement-drawer table th:nth-child(1) { width:170px; }
+.customer-statement-drawer table th:nth-child(2) { width:130px; }
+.customer-statement-drawer table th:nth-child(3) { width:200px; }
+.customer-statement-drawer table th:nth-child(4),.customer-statement-drawer table th:nth-child(5) { width:160px; }
+.customer-statement-drawer table th:nth-child(6) { width:190px; }
+.customer-statement-drawer table td:nth-child(n+4),.customer-statement-drawer table .num-en { white-space:nowrap; }
+@media(max-width:768px) {
+ .customer-accounts-toolbar > div { flex-basis:100%!important; max-width:none!important; }
+ .customer-accounts-toolbar > div:last-child { display:grid!important; grid-template-columns:1fr 1fr; }
+ .customer-statement-drawer { width:100vw!important; padding:20px 16px!important; }
+ .customer-statement-drawer .statement-summary { grid-template-columns:1fr!important; }
+ .customer-statement-drawer .statement-filters > div { flex-basis:100%!important; }
+ .customer-statement-drawer .statement-filters > button { flex:1; }
+ .customer-statement-drawer > div:last-child > div:last-child > div { gap:12px; flex-wrap:wrap; }
+}
+
+.customer-statement-drawer { background:var(--bg-main)!important; }

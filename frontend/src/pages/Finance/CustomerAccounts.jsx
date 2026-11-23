@@ -139,7 +139,7 @@ const StatementDrawer = ({ customerId, onClose }) => {
   };
 
   if (loading) return (
-    <div style={currentDrawerStyle}>
+    <div className="customer-statement-drawer" style={currentDrawerStyle}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '12px' }}>
         <RefreshCw size={28} style={{ color: 'var(--primary)', animation: 'spin 1s linear infinite' }} />
         <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('finance.customerAccounts.drawer.loading')}</span>
@@ -150,7 +150,7 @@ const StatementDrawer = ({ customerId, onClose }) => {
   const { customer, summary, statement } = data || {};
 
   return (
-    <div style={currentDrawerStyle}>
+    <div className="customer-statement-drawer" style={currentDrawerStyle}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
@@ -170,7 +170,7 @@ const StatementDrawer = ({ customerId, onClose }) => {
       </div>
 
       {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+      <div className="statement-summary" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
         {[
           { label: t('finance.customerAccounts.drawer.totalInvoiced'), value: summary?.total_invoiced, color: '#6366f1' },
           { label: t('finance.customerAccounts.drawer.totalPaid'),     value: summary?.total_paid,     color: '#10b981' },
@@ -206,7 +206,7 @@ const StatementDrawer = ({ customerId, onClose }) => {
       {view === 'statement' && (
         <>
           {/* Filters */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
+          <div className="statement-filters" style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
               <Calendar size={14} style={{ color: 'var(--text-muted)' }} />
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
@@ -355,7 +355,7 @@ const CustomerAccounts = () => {
   });
 
   return (
-    <>
+    <div className="customer-accounts-page" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Overlay */}
       {selectedCustomerId && (
         <>
@@ -401,7 +401,7 @@ const CustomerAccounts = () => {
       )}
 
       {/* Toolbar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+      <div className="customer-accounts-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
         {/* Search */}
         <div style={{ position: 'relative', flex: '1', minWidth: '220px', maxWidth: '340px' }}>
           <Search size={14} style={{ position: 'absolute', ...(isRTL ? { right: '10px' } : { left: '10px' }), top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -525,7 +525,7 @@ const CustomerAccounts = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 
