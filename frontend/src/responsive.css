@@ -819,3 +819,39 @@
  .rule-builder-page .builder-card > div:last-child button {flex:1;justify-content:center;}
  .rule-builder-page > div:last-child:not(.responsive-table-region):not(.builder-card) {padding:24px 16px !important;line-height:1.7;}
 }
+
+/* Phase35: payroll manager read presentation, no generation or finalization changes. */
+.payroll-engine-page { min-width:0; }
+.payroll-engine-page .pe-header > div { min-width:0; }
+.payroll-engine-page .pe-header h2,.payroll-engine-page .pe-header p { overflow-wrap:anywhere; }
+.payroll-engine-page .gen-box { flex-wrap:wrap; }
+.payroll-engine-page .form-group-p { min-width:150px; }
+.payroll-engine-page .form-group-p select,.payroll-engine-page .form-group-p input { width:100%; min-width:0; box-sizing:border-box; min-height:44px; }
+.payroll-engine-page .pr-table { min-width:1180px; table-layout:fixed; }
+.payroll-engine-page .pr-table th:nth-child(1) { width:130px; }
+.payroll-engine-page .pr-table th:nth-child(2) { width:240px; }
+.payroll-engine-page .pr-table th:nth-child(3),.payroll-engine-page .pr-table th:nth-child(4) { width:210px; }
+.payroll-engine-page .pr-table th:nth-child(5) { width:150px; }
+.payroll-engine-page .pr-table th:nth-child(6) { width:240px; }
+.payroll-engine-page .pr-table td { overflow-wrap:anywhere; vertical-align:top; }
+.payroll-engine-page .pr-table .num-en { white-space:nowrap; }
+.payroll-engine-page .pr-table .btn-action { min-height:40px; margin-block:3px; }
+.payroll-engine-page .pr-table td[colspan] { white-space:normal; }
+.payroll-engine-page .responsive-table-region:has(td[colspan]) .pr-table { min-width:100%; table-layout:auto; }
+.payroll-engine-page .responsive-table-region:has(td[colspan]) th { width:auto; }
+.payroll-detail-dialog .trace-row { gap:16px; align-items:start; }
+.payroll-detail-dialog .trace-row > span:first-child { min-width:0; overflow-wrap:anywhere; }
+.payroll-detail-dialog .trace-row > .num-en { flex-shrink:0; white-space:nowrap; }
+.payroll-detail-dialog .modal-footer .btn-generate { background:var(--primary); color:white; border:0; padding:12px 24px; border-radius:8px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; }
+@media(max-width:768px) {
+ .payroll-engine-page { padding-inline:12px!important; }
+ .payroll-engine-page .pe-header { margin-bottom:18px; }
+ .payroll-engine-page .pe-header h2 { font-size:24px!important; }
+ .payroll-engine-page .gen-box { padding:16px; gap:14px; }
+ .payroll-engine-page .gen-box .btn-generate { width:100%; justify-content:center; white-space:normal; min-height:44px; }
+ .payroll-engine-page .responsive-table-region:has(td[colspan]) th { white-space:normal; padding:10px 5px; font-size:10px; }
+ .payroll-detail-dialog .trace-row { flex-wrap:wrap; }
+ .payroll-detail-dialog .trace-row.grand { font-size:18px; }
+ .payroll-detail-dialog .modal-footer button { flex:1; min-height:44px; }
+}
+.payroll-engine-page .pr-table td.num-en { display:table-cell; }

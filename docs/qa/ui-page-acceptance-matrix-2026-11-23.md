@@ -1,13 +1,13 @@
 # All-page UI acceptance matrix
 
-Snapshot: 2026-11-23 16:45 Africa/Cairo. This is an evidence map, not functional certification. Source page components include containers, public pages and platform-owner components; counts are not unique user workflows. Every page still needs final acceptance across applicable roles, tenants and widths. Selected-editor evidence does not accept all details, approvals, previews or other actions on that page. Source/runtime module gates stay unchanged.
+Snapshot: 2026-11-23 16:53 Africa/Cairo. This is an evidence map, not functional certification. Source page components include containers, public pages and platform-owner components; counts are not unique user workflows. Every page still needs final acceptance across applicable roles, tenants and widths. Selected-editor evidence does not accept all details, approvals, previews or other actions on that page. Source/runtime module gates stay unchanged.
 
 | Source page | Bounded phase | Local scope | Live evidence recorded here | Whole page accepted |
 |---|---:|---|---|---|
 | Admin/AdminPlans.jsx |  | not individually accepted | not established in this matrix | no |
 | Admin/AdminUpgradeRequests.jsx |  | not individually accepted | not established in this matrix | no |
 | Automation/AutomationControl.jsx | 32 | rule cards and audit-log presentation only | live phone three rule cards checked; no settings action | no |
-| Automation/RuleBuilder.jsx | 34 | rules list/new/edit/simulator shell presentation only | not established in this matrix | no |
+| Automation/RuleBuilder.jsx | 34 | rules list/new/edit/simulator shell presentation only | live phone empty state checked; no actions | no |
 | Billing/Billing.jsx | 33 | subscription/plan/request card presentation only | live phone plan/cards checked; no account change | no |
 | Contacts/ContactsCustomers.jsx | 11 | selected editor shells only | live blank editor checked | no |
 | Contacts/ContactsEmployees.jsx | 1 | selected editor shells only | not established in this matrix | no |
@@ -53,7 +53,7 @@ Snapshot: 2026-11-23 16:45 Africa/Cairo. This is an evidence map, not functional
 | HR/MyActivityBalance.jsx | 24 | personal balance read-only presentation | live phone empty state checked | no |
 | HR/MyPayroll.jsx | 24 | personal payroll list/detail presentation | live phone empty state checked | no |
 | HR/MyRequests.jsx | 6 | selected editor shells only | not established in this matrix | no |
-| HR/PayrollEngine.jsx |  | not individually accepted | not established in this matrix | no |
+| HR/PayrollEngine.jsx | 35 | generator/list and read-only salary breakdown presentation | not established in this matrix | no |
 | HR/Shifts.jsx | 2 | selected editor shells only | not established in this matrix | no |
 | Integrations/EInvoice.jsx |  | not individually accepted | not established in this matrix | no |
 | Integrations/MetaForms.jsx |  | not individually accepted | not established in this matrix | no |
@@ -109,8 +109,8 @@ Snapshot: 2026-11-23 16:45 Africa/Cairo. This is an evidence map, not functional
 
 ## Totals
 - 102 source page components.
-- 57 components with explicit bounded phase coverage in this matrix.
-- 45 components without individual phase acceptance in this matrix.
+- 58 components with explicit bounded phase coverage in this matrix.
+- 44 components without individual phase acceptance in this matrix.
 - Zero claims of complete end-to-end business acceptance.
 - Earlier phase-specific live evidence remains in the rollout QA log; this matrix conservatively lists only recent explicit captures.
 - No production writes are part of this matrix.

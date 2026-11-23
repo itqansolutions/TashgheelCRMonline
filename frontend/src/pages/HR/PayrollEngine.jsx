@@ -95,30 +95,30 @@ const PayrollEngine = () => {
             <HRSubNav />
             <div className="payroll-engine-page" style={{ padding: '0 24px 24px' }}>
                 <style>{`
-                    .pe-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; text-align: ${isRTL ? 'right' : 'left'}; }
-                    .gen-box { background: var(--bg-card); padding: 24px; border-radius: 12px; border: 1px solid var(--primary); box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.1); margin-bottom: 32px; display: flex; gap: 16px; align-items: flex-end;}
-                    .form-group-p { display: flex; flex-direction: column; gap: 6px; flex: 1; text-align: ${isRTL ? 'right' : 'left'}; }
-                    .form-group-p label { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;}
-                    .form-group-p select, .form-group-p input { padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: var(--bg-main); color: var(--text-main); outline: none; }
+                    .payroll-engine-page .pe-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; text-align: ${isRTL ? 'right' : 'left'}; }
+                    .payroll-engine-page .gen-box { background: var(--bg-card); padding: 24px; border-radius: 12px; border: 1px solid var(--primary); box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.1); margin-bottom: 32px; display: flex; gap: 16px; align-items: flex-end;}
+                    .payroll-engine-page .form-group-p { display: flex; flex-direction: column; gap: 6px; flex: 1; text-align: ${isRTL ? 'right' : 'left'}; }
+                    .payroll-engine-page .form-group-p label { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;}
+                    .payroll-engine-page .form-group-p select, .payroll-engine-page .form-group-p input { padding: 12px; border-radius: 8px; border: 1px solid var(--glass-border); background: var(--bg-main); color: var(--text-main); outline: none; }
                     
-                    .btn-generate { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; white-space: nowrap;}
-                    .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+                    .payroll-engine-page .btn-generate { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; white-space: nowrap;}
+                    .payroll-engine-page .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
 
-                    .pr-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); }
-                    .pr-table th, .pr-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border); }
-                    .pr-table th { background: rgba(0,0,0,0.02); font-weight: 600; color: var(--text-muted); font-size: 13px; text-transform: uppercase; }
+                    .payroll-engine-page .pr-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); }
+                    .payroll-engine-page .pr-table th, .payroll-engine-page .pr-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border); }
+                    .payroll-engine-page .pr-table th { background: rgba(0,0,0,0.02); font-weight: 600; color: var(--text-muted); font-size: 13px; text-transform: uppercase; }
                     
-                    .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; text-transform: capitalize;}
-                    .badge-warning { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-                    .badge-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+                    .payroll-engine-page .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; text-transform: capitalize;}
+                    .payroll-engine-page .badge-warning { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+                    .payroll-engine-page .badge-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 
-                    .btn-action { background: transparent; border: 1px solid var(--glass-border); padding: 6px 12px; border-radius: 6px; cursor: pointer; color: var(--text-main); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; ${isRTL ? 'margin-left: 8px;' : 'margin-right: 8px;'} }
-                    .btn-action:hover { background: rgba(0,0,0,0.05); }
+                    .payroll-engine-page .btn-action { background: transparent; border: 1px solid var(--glass-border); padding: 6px 12px; border-radius: 6px; cursor: pointer; color: var(--text-main); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; ${isRTL ? 'margin-left: 8px;' : 'margin-right: 8px;'} }
+                    .payroll-engine-page .btn-action:hover { background: rgba(0,0,0,0.05); }
 
-                    .trace-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb; font-size: 14px;}
-                    .trace-row.negative { color: #ef4444; }
-                    .trace-row.positive { color: #10b981; }
-                    .trace-row.grand { border-top: 2px solid #000; font-size: 20px; font-weight: 900; margin-top: 12px; border-bottom: none; }
+                    .payroll-engine-page .trace-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e5e7eb; font-size: 14px;}
+                    .payroll-engine-page .trace-row.negative { color: #ef4444; }
+                    .payroll-engine-page .trace-row.positive { color: #10b981; }
+                    .payroll-engine-page .trace-row.grand { border-top: 2px solid #000; font-size: 20px; font-weight: 900; margin-top: 12px; border-bottom: none; }
                 `}</style>
                 
                 <div className="pe-header">
@@ -204,6 +204,7 @@ const PayrollEngine = () => {
                 {/* Details Visualizer Modal */}
                 {isDetailsOpen && selectedPayroll && (
                     <Modal 
+                        className="payroll-detail-dialog"
                         isOpen={isDetailsOpen} 
                         onClose={() => setIsDetailsOpen(false)}
                         title={t('hr.payrollEngine.salaryBreakdownTitle', { name: selectedPayroll.employee_name, defaultValue: `Salary Breakdown: ${selectedPayroll.employee_name}` })}
