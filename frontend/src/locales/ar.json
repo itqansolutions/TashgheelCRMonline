@@ -2962,7 +2962,9 @@
       "toastDeviceDeleted": "تم حذف الجهاز بنجاح",
       "toastDeleteDeviceError": "فشل حذف الجهاز",
       "toastBadgeUpdated": "تم تحديث كود البصمة للموظف بنجاح",
-      "toastBadgeUpdateError": "فشل تحديث كود البصمة"
+      "toastBadgeUpdateError": "فشل تحديث كود البصمة",
+      "fieldIpAddress": "عنوان IP المحلي (اختياري)",
+      "placeholderSerialNumber": "مثال: ABC123456، أو اتركه فارغًا للربط التلقائي"
     },
     "shifts": {
       "tabConfiguredShifts": "الورديات المعرّفة ({{count}})",

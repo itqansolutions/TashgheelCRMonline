@@ -2962,7 +2962,9 @@
       "toastDeviceDeleted": "Device deleted successfully",
       "toastDeleteDeviceError": "Failed to delete device",
       "toastBadgeUpdated": "Badge number updated successfully",
-      "toastBadgeUpdateError": "Failed to update badge number"
+      "toastBadgeUpdateError": "Failed to update badge number",
+      "fieldIpAddress": "Local IP Address (Optional)",
+      "placeholderSerialNumber": "e.g. ABC123456 (or leave empty for auto-linking)"
     },
     "shifts": {
       "tabConfiguredShifts": "Configured Shifts ({{count}})",

@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -124,11 +125,6 @@ const AttendanceDevices = () => {
     }
   };
 
-  const modalStyle = {
-    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-    background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px'
-  };
 
   const inputStyle = {
     width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px',
@@ -360,19 +356,28 @@ const AttendanceDevices = () => {
         )}
 
         {/* Device Create/Edit Modal */}
-        {showDeviceModal && (
-          <div style={modalStyle}>
-            <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-              <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  {editingDeviceId ? t('hr.attendanceDevices.editModalTitle', 'Edit Biometric Device') : t('hr.attendanceDevices.addModalTitle', 'Add New Device')}
-                </h3>
-                <button onClick={() => setShowDeviceModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>✕</button>
-              </div>
+        <Modal isOpen={showDeviceModal} onClose={() => setShowDeviceModal(false)} variant="form"
+          title={editingDeviceId ? t('hr.attendanceDevices.modalEditDevice', 'Edit Biometric Device') : t('hr.attendanceDevices.modalAddDevice', 'Add New Device')}
+          footer={<>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeviceModal(false)}
+                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    {t('hr.attendanceDevices.btnCancel', 'Cancel')}
+                  </button>
+                  <button
+                    type="submit" form="device-editor-form"
+                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    {editingDeviceId ? t('hr.attendanceDevices.btnSave', 'Update') : t('hr.attendanceDevices.btnSave', 'Add')}
+                  </button>
+                </>}
+        >
+          <form id="device-editor-form" onSubmit={handleSaveDevice} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-              <form onSubmit={handleSaveDevice} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', textAlign: isRTL ? 'right' : 'left' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.attendanceDevices.fieldName', 'Device Name')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.attendanceDevices.lblName', 'Device Name')}</label>
                   <input
                     type="text"
                     placeholder={t('hr.attendanceDevices.placeholderName', 'e.g. Reception Terminal - HQ')}
@@ -384,7 +389,7 @@ const AttendanceDevices = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.attendanceDevices.fieldSerialNumber', 'Serial Number')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.attendanceDevices.lblSerial', 'Serial Number')}</label>
                   <input
                     type="text"
                     placeholder={t('hr.attendanceDevices.placeholderSerialNumber', 'e.g. ABC123456 (or leave empty for auto-linking)')}
@@ -408,7 +413,7 @@ const AttendanceDevices = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.attendanceDevices.fieldLocation', 'Location / Description')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.attendanceDevices.lblLocation', 'Location / Description')}</label>
                   <input
                     type="text"
                     placeholder={t('hr.attendanceDevices.placeholderLocation', 'e.g. Ground Floor - Entrance')}
@@ -417,26 +422,8 @@ const AttendanceDevices = () => {
                     style={inputStyle}
                   />
                 </div>
-
-                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowDeviceModal(false)}
-                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {t('hr.attendanceDevices.btnCancel', 'Cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
-                  >
-                    {editingDeviceId ? t('hr.attendanceDevices.btnUpdate', 'Update') : t('hr.attendanceDevices.btnAdd', 'Add')}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+          </form>
+        </Modal>
       </div>
     </div>
   );

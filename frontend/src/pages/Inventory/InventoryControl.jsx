@@ -32,7 +32,7 @@ const InventoryControl = () => {
             const [movRes, stockRes, prodRes, whRes] = await Promise.all([
                 api.get('/inventory/movements'),
                 api.get('/inventory/stock'),
-                api.get('/products'), 
+                api.get('/products'),
                 api.get('/inventory/warehouses')
             ]);
             setMovements(movRes.data.data || []);
@@ -101,22 +101,22 @@ const InventoryControl = () => {
 
                 .stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 16px; margin-bottom: 32px; }
                 .stock-card { background: var(--bg-card); padding: 16px; border-radius: 12px; border: 1px solid var(--glass-border); display: flex; flex-direction: column; }
-                
+
                 .inv-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); text-align: ${isRTL ? 'right' : 'left'}; }
                 .inv-table th, .inv-table td { padding: 16px; border-bottom: 1px solid var(--glass-border); }
                 .inv-table th { background: rgba(0,0,0,0.02); font-weight: 600; color: var(--text-muted); font-size: 13px; text-transform: uppercase; }
-                
+
                 .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; text-transform: uppercase;}
                 .badge-in { background: rgba(16, 185, 129, 0.1); color: #10b981; }
                 .badge-out { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
                 .badge-transfer { background: rgba(56, 189, 248, 0.1); color: #38bdf8; }
                 .badge-adjustment { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-                
+
                 .form-group { margin-bottom: 16px; }
                 .form-group label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--text-muted); }
                 .form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 1px solid var(--glass-border); border-radius: 8px; background: transparent; color: var(--text-main); font-size: 14px; outline: none; }
             `}</style>
-            
+
             <div className="inv-container">
                 <div className="inv-header">
                     <div>
@@ -204,7 +204,7 @@ const InventoryControl = () => {
                                     {mov.status === 'approved' ? (
                                         <span style={{ color: '#10b981', fontWeight: 800, fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                             <CheckCircle size={12}/> {t('inventory.control.statuses.applied')}
-                                        </span> 
+                                        </span>
                                     ) : (
                                         <span style={{ color: '#f59e0b', fontWeight: 800, fontSize: '12px' }}>
                                             {t('inventory.control.statuses.pending')}
@@ -224,8 +224,15 @@ const InventoryControl = () => {
                 </table></div>
 
                 {/* CREATE MOVEMENT MODAL */}
-                <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('inventory.control.modalTitle')}>
-                    <form onSubmit={handleSubmit} style={{ color: 'black' }} dir={isRTL ? 'rtl' : 'ltr'}>
+                <Modal variant="form" isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('inventory.control.modalTitle')} footer={<>
+                            <button type="button" onClick={() => setIsModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                                {t('common.cancel')}
+                            </button>
+                            <button type="submit" form="movement-editor-form" className="btn-primary" disabled={isSubmitting}>
+                                {isSubmitting ? t('inventory.control.processing') : t('inventory.control.queueMovement')}
+                            </button>
+                        </>}>
+<form className="movement-editor-form" id="movement-editor-form" onSubmit={handleSubmit} style={{ color: 'black' }} dir={isRTL ? 'rtl' : 'ltr'}>
                         <div className="form-group">
                             <label>{t('inventory.control.movementType')}</label>
                             <select value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value})} style={{ fontWeight: 700 }}>
@@ -269,16 +276,8 @@ const InventoryControl = () => {
                             </div>
                         )}
 
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
-                            <button type="button" onClick={() => setIsModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
-                                {t('common.cancel')}
-                            </button>
-                            <button type="submit" className="btn-primary" disabled={isSubmitting}>
-                                {isSubmitting ? t('inventory.control.processing') : t('inventory.control.queueMovement')}
-                            </button>
-                        </div>
-                    </form>
-                </Modal>
+                        </form>
+</Modal>
             </div>
         </div>
     );

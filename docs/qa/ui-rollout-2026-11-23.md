@@ -132,3 +132,12 @@ Finance/accounting; purchasing; inventory beyond Products; remaining HR; real es
 - Existing locale keys wired for matching visible labels, no new policy text. Employee phone form tabs now three visible compact labels with full accessible names/titles.
 -12 AR/EN360/1440 actual HR-editor variants, actual-language HR page controls, prior16CRM-editor and8employee variants, navigation and build passed locally. Screenshots inspected after corrections. No live HR save or business write.
 - Remaining HR pages and other families are not completed by these three editor conversions. Original Phase1 coverage limits still apply.
+
+## Phase 3 candidate
+- Warehouse, warehouse-keeper, inventory-movement and attendance-device editors use the same opt-in panel, internal body scroll and external linked-submit footer. All original field attributes and handle* function ASTs match Phase2 exactly. Original routes, payloads, conditional fields and list actions unchanged.
+- 16 actual editor AR/EN360/1440 variants, including fixture keeper checkbox and all four movement type branches, pass without submissions or network writes. Arabic phone and desktop pixels inspected. Movement control boundaries clarified. Existing device locale keys matched without making optional IP required.
+- Source-backed existing limitation: `frontend/src/pages/Inventory/WarehouseKeepers.jsx`, `handleSubmit` and `handleDelete`, only set local React state. The initial list maps `/users`; there is no create/update/delete API in those handlers. Users may see a success toast but lose a keeper edit on reload. UI layout work preserves, does not fix or certify, that behavior. No live-write reproduction performed.
+- StockBalances transfer/stock-take dialogs, inventory reports and all other remaining page families still await their own review. No daily backup activation.
+
+### Fixture selector correction
+- Phase3 regression exposed that the prior HR fixture's add-button matcher did not include the actual English `Allocate / Adjust Balance` label. Corrected the fixture only, no application change needed; all12HRvariants pass after correction. Earlier broad12-pass wording should be read with this correction, not as new product failure.

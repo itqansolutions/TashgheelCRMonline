@@ -210,3 +210,12 @@
  .employee-form-tab-label,.employee-form-tab-hint { display:none!important; }
  .employee-form-tabs .employee-form-tab-short { display:inline!important; font-size:10px!important; }
 }
+
+/* Movement editor: clear control boundaries, same fields and stock actions. */
+.workspace-form-panel .movement-editor-form input,
+.workspace-form-panel .movement-editor-form select {
+  width: 100%; min-height: 44px; padding: 10px 12px;
+  background: #f8fafc; border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px; color: var(--text-main, #1e293b);
+}
+.workspace-form-panel .movement-editor-form .form-group { margin-bottom: 18px; }

@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -117,17 +118,12 @@ const Warehouses = () => {
     }
   };
 
-  const filtered = warehouses.filter(w => 
+  const filtered = warehouses.filter(w =>
     (w.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (w.code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (w.location || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const modalStyle = {
-    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-    background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px'
-  };
 
   const inputStyle = {
     width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px',
@@ -243,19 +239,19 @@ const Warehouses = () => {
         )}
 
         {/* Modal */}
-        {showModal && (
-          <div style={modalStyle} dir={isRTL ? 'rtl' : 'ltr'}>
-            <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '540px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)' }}>
-                <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px' }}>
-                  {editingId ? t('inventory.warehouses.editWarehouse') : t('inventory.warehouses.newWarehouse')}
-                </h3>
-                <button onClick={() => setShowModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>
-                  <X size={18} />
-                </button>
-              </div>
+        <Modal isOpen={showModal} onClose={() => setShowModal(false)} variant="form"
+          title={editingId ? t('inventory.warehouses.editWarehouse') : t('inventory.warehouses.newWarehouse')}
+          footer={<>
+                  <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
+                    {t('common.cancel')}
+                  </button>
+                  <button type="submit" form="warehouse-editor-form" disabled={submitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
+                    {submitting ? t('inventory.warehouses.saving') : editingId ? t('inventory.warehouses.update') : t('inventory.warehouses.create')}
+                  </button>
+                </>}
+        >
+          <form id="warehouse-editor-form" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-              <form onSubmit={handleSubmit} style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
                     {t('inventory.warehouses.nameRequired')}
@@ -340,19 +336,8 @@ const Warehouses = () => {
                     )}
                   </div>
                 </div>
-
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
-                  <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
-                    {t('common.cancel')}
-                  </button>
-                  <button type="submit" disabled={submitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
-                    {submitting ? t('inventory.warehouses.saving') : editingId ? t('inventory.warehouses.update') : t('inventory.warehouses.create')}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+          </form>
+        </Modal>
       </div>
     </div>
   );
