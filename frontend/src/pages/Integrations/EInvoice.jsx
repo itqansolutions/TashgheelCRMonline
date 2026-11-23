@@ -92,11 +92,11 @@ const EInvoice = () => {
   };
 
   return (
-    <div>
+    <div className="einvoice-read-page">
       <IntegrationsSubNav />
-      <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
+      <div className="einvoice-content" style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div className="einvoice-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <FileCheck size={24} style={{ color: '#0ea5e9' }} /> ETA E-Invoicing Integration
@@ -119,7 +119,7 @@ const EInvoice = () => {
         </div>
 
         {/* ETA Portal Connection Card */}
-        <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '16px', padding: '20px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+        <div className="einvoice-connection" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '16px', padding: '20px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <ShieldCheck size={26} />
@@ -146,7 +146,7 @@ const EInvoice = () => {
         </div>
 
         {/* Search & Filter Bar */}
-        <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #e2e8f0', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="einvoice-filters" style={{ background: 'white', borderRadius: '14px', border: '1px solid #e2e8f0', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
             <Search size={18} style={{ color: '#94a3b8' }} />
             <input
@@ -171,7 +171,7 @@ const EInvoice = () => {
         </div>
 
         {/* Invoices Table */}
-        <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+        <div className="einvoice-queue" style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
           {loading ? (
             <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>Loading submission queue...</div>
           ) : filtered.length === 0 ? (
@@ -250,7 +250,7 @@ const EInvoice = () => {
 
         {/* ETA Config Modal */}
         {showConfigModal && (
-          <div style={modalStyle}>
+          <div className="einvoice-config-overlay" style={modalStyle}>
             <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
               <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>

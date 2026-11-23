@@ -879,3 +879,49 @@
  .purchasing-read-page .purchasing-card > div:not(.responsive-table-region) { padding:28px 18px!important; }
  .purchasing-read-page .purchasing-card h3,.purchasing-read-page .purchasing-card p { overflow-wrap:anywhere; }
 }
+
+/* Phase37: e-invoice queue presentation, no integration or credential behavior changed. */
+.einvoice-read-page,.einvoice-content { min-width:0; }
+.einvoice-header { gap:16px; flex-wrap:wrap; }
+.einvoice-header > div { min-width:0; flex:1 1 400px; }
+.einvoice-header h2 { overflow-wrap:anywhere; align-items:flex-start!important; }
+.einvoice-header h2 svg,.einvoice-filters svg { flex-shrink:0; }
+.einvoice-read-page button { min-height:40px; }
+.einvoice-connection > div { min-width:0; }
+.einvoice-connection > div > div:last-child { min-width:0; }
+.einvoice-connection > div > div:last-child > div { flex-wrap:wrap; }
+.einvoice-connection h4,.einvoice-connection p { overflow-wrap:anywhere; }
+.einvoice-filters > div { min-width:0!important; }
+.einvoice-filters input { min-width:0; min-height:44px; }
+.einvoice-filters select { max-width:100%; min-height:44px; }
+.einvoice-queue table { min-width:1340px; table-layout:fixed; }
+.einvoice-queue th:nth-child(1) { width:200px; }
+.einvoice-queue th:nth-child(2) { width:260px; }
+.einvoice-queue th:nth-child(3) { width:200px; }
+.einvoice-queue th:nth-child(4) { width:200px; }
+.einvoice-queue th:nth-child(5) { width:280px; }
+.einvoice-queue th:nth-child(6) { width:200px; }
+.einvoice-queue td { overflow-wrap:anywhere; vertical-align:top; }
+.einvoice-queue td:nth-child(3) { white-space:nowrap; direction:ltr; unicode-bidi:isolate; }
+.einvoice-queue td span svg { flex-shrink:0; }
+.einvoice-config-overlay { box-sizing:border-box; }
+.einvoice-config-overlay > div { max-height:calc(100dvh - 32px); overflow-y:auto!important; }
+.einvoice-config-overlay > div > div:first-child { gap:12px; }
+.einvoice-config-overlay h3 { min-width:0; overflow-wrap:anywhere; }
+.einvoice-config-overlay input,.einvoice-config-overlay select { min-width:0; min-height:44px; }
+.einvoice-config-overlay > div > div:last-child > div:last-child { flex-wrap:wrap; }
+@media(max-width:768px) {
+ .einvoice-content { padding:12px!important; }
+ .einvoice-header { align-items:stretch!important; }
+ .einvoice-header > button { width:100%; justify-content:center; min-height:44px; }
+ .einvoice-connection { padding:16px!important; }
+ .einvoice-connection > div { gap:10px!important; align-items:flex-start!important; }
+ .einvoice-connection > button { width:100%; justify-content:center; min-height:44px; }
+ .einvoice-filters { padding:12px!important; gap:10px!important; }
+ .einvoice-filters > div,.einvoice-filters select { flex-basis:100%; width:100%; }
+ .einvoice-queue > div:not(.responsive-table-region) { padding:32px 18px!important; }
+ .einvoice-config-overlay { padding:12px!important; }
+ .einvoice-config-overlay > div { max-height:calc(100dvh - 24px); }
+ .einvoice-config-overlay > div > div { padding:18px!important; }
+ .einvoice-config-overlay > div > div:last-child > div:last-child button { flex:1; min-height:44px; }
+}
