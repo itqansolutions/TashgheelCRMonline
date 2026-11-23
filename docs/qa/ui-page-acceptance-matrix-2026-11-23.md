@@ -1,6 +1,6 @@
 # All-page UI acceptance matrix
 
-Snapshot: 2026-11-23 17:11 Africa/Cairo. This is an evidence map, not functional certification. Source page components include containers, public pages and platform-owner components; counts are not unique user workflows. Every page still needs final acceptance across applicable roles, tenants and widths. Selected-editor evidence does not accept all details, approvals, previews or other actions on that page. Source/runtime module gates stay unchanged.
+Snapshot: 2026-11-23 17:15 Africa/Cairo. This is an evidence map, not functional certification. Source page components include containers, public pages and platform-owner components; counts are not unique user workflows. Every page still needs final acceptance across applicable roles, tenants and widths. Selected-editor evidence does not accept all details, approvals, previews or other actions on that page. Source/runtime module gates stay unchanged.
 
 | Source page | Bounded phase | Local scope | Live evidence recorded here | Whole page accepted |
 |---|---:|---|---|---|
@@ -42,7 +42,7 @@ Snapshot: 2026-11-23 17:11 Africa/Cairo. This is an evidence map, not functional
 | Finance/Treasury.jsx | 12 | selected editor shells only | not established in this matrix | no |
 | Finance/VendorAccounts.jsx | 15 | vendor payment editor shell only | not established in this matrix | no |
 | Finance/VoucherPreviewModal.jsx |  | not individually accepted | not established in this matrix | no |
-| ForgotPassword.jsx | 39 | recovery initial form presentation only | pending release | no |
+| ForgotPassword.jsx | 39 | recovery initial form presentation only | live phone initial form checked, no submit | no |
 | GeneralDashboard.jsx |  | not individually accepted | not established in this matrix | no |
 | HR/ActivityBalance.jsx | 2 | selected editor shells only | not established in this matrix | no |
 | HR/ActivityDefinition.jsx | 2 | selected editor shells only | not established in this matrix | no |
@@ -66,7 +66,7 @@ Snapshot: 2026-11-23 17:11 Africa/Cairo. This is an evidence map, not functional
 | Inventory/WarehouseKeepers.jsx | 3 | selected editor shells only | not established in this matrix | no |
 | Inventory/Warehouses.jsx | 3 | selected editor shells only | not established in this matrix | no |
 | Invoices.jsx |  | not individually accepted | not established in this matrix | no |
-| Login.jsx |  | not individually accepted | not established in this matrix | no |
+| Login.jsx | 40 | initial sign-in form presentation only | pending release | no |
 | Logs.jsx | 22 | read-only list/filter/detail presentation | not established in this matrix | no |
 | Marketing/WhatsAppCampaigns.jsx |  | not individually accepted | not established in this matrix | no |
 | Marketing/WhatsAppChat.jsx | 17 | selected editor shells only | not established in this matrix | no |
@@ -86,9 +86,9 @@ Snapshot: 2026-11-23 17:11 Africa/Cairo. This is an evidence map, not functional
 | RealEstate/Reservations.jsx |  | not individually accepted | not established in this matrix | no |
 | RealEstate/UnitsRegistry.jsx | 13 | selected editor shells only | not established in this matrix | no |
 | RealEstateDashboard.jsx |  | not individually accepted | not established in this matrix | no |
-| Register.jsx |  | not individually accepted | not established in this matrix | no |
+| Register.jsx | 40 | initial signup request form presentation only | pending release | no |
 | Reports.jsx | 21 | whole read-only presentation | not established in this matrix | no |
-| ResetPassword.jsx | 39 | missing/synthetic-token form shell presentation only | pending release | no |
+| ResetPassword.jsx | 39 | missing/synthetic-token form shell presentation only | live phone missing-token shell checked, no submit | no |
 | Sales/Documents.jsx | 27 | document index/filter/action presentation | not established in this matrix | no |
 | Sales/PriceTiers.jsx | 7 | selected editor shells only | not established in this matrix | no |
 | Sales/SalesManagement.jsx |  | not individually accepted | not established in this matrix | no |
@@ -109,8 +109,8 @@ Snapshot: 2026-11-23 17:11 Africa/Cairo. This is an evidence map, not functional
 
 ## Totals
 - 102 source page components.
-- 63 components with explicit bounded phase coverage in this matrix.
-- 39 components without individual phase acceptance in this matrix.
+- 65 components with explicit bounded phase coverage in this matrix.
+- 37 components without individual phase acceptance in this matrix.
 - Zero claims of complete end-to-end business acceptance.
 - Earlier phase-specific live evidence remains in the rollout QA log; this matrix conservatively lists only recent explicit captures.
 - No production writes are part of this matrix.

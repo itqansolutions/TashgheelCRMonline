@@ -38,9 +38,9 @@ const Login = () => {
   };
 
   return (
-    <div className="login-container" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="login-container auth-entry-page auth-login-page" dir={isRTL ? 'rtl' : 'ltr'}>
       <style>{`
-        .login-container {
+        .auth-entry-page.login-container {
           display: flex;
           justify-content: center;
           align-items: center;
@@ -51,7 +51,7 @@ const Login = () => {
           overflow: hidden;
           font-family: inherit;
         }
-        .login-container::before {
+        .auth-entry-page.login-container::before {
           content: "";
           position: absolute;
           width: 500px;
@@ -62,7 +62,7 @@ const Login = () => {
           left: -100px;
           border-radius: 50%;
         }
-        .login-card {
+        .auth-entry-page .login-card {
           background: rgba(255, 255, 255, 0.05);
           backdrop-filter: blur(20px);
           -webkit-backdrop-filter: blur(20px);
@@ -79,23 +79,23 @@ const Login = () => {
           from { opacity: 0; transform: translateY(30px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        .login-header {
+        .auth-entry-page .login-header {
           text-align: center;
           margin-bottom: 30px;
         }
-        .login-header h1 {
+        .auth-entry-page .login-header h1 {
           color: white;
           font-size: 30px;
           font-weight: 800;
           letter-spacing: -0.04em;
           margin-bottom: 8px;
         }
-        .login-header p {
+        .auth-entry-page .login-header p {
           color: rgba(255, 255, 255, 0.6);
           font-size: 14px;
           font-weight: 500;
         }
-        .lang-toggle-btn {
+        .auth-entry-page .lang-toggle-btn {
           position: absolute;
           top: 20px;
           ${isRTL ? 'left: 20px;' : 'right: 20px;'}
@@ -112,14 +112,14 @@ const Login = () => {
           cursor: pointer;
           transition: all 0.2s;
         }
-        .lang-toggle-btn:hover {
+        .auth-entry-page .lang-toggle-btn:hover {
           background: rgba(255, 255, 255, 0.2);
         }
-        .form-group {
+        .auth-entry-page .form-group {
           margin-bottom: 20px;
           position: relative;
         }
-        .form-group label {
+        .auth-entry-page .form-group label {
           display: block;
           margin-bottom: 8px;
           font-size: 13px;
@@ -127,10 +127,10 @@ const Login = () => {
           color: rgba(255, 255, 255, 0.9);
           letter-spacing: 0.02em;
         }
-        .input-wrapper {
+        .auth-entry-page .input-wrapper {
           position: relative;
         }
-        .input-wrapper svg {
+        .auth-entry-page .input-wrapper svg {
           position: absolute;
           ${isRTL ? 'right: 16px;' : 'left: 16px;'}
           top: 50%;
@@ -139,7 +139,7 @@ const Login = () => {
           width: 18px;
           transition: all 0.3s;
         }
-        .form-group input {
+        .auth-entry-page .form-group input {
           width: 100%;
           ${isRTL ? 'padding: 14px 48px 14px 14px;' : 'padding: 14px 14px 14px 48px;'}
           border: 1px solid rgba(255, 255, 255, 0.1);
@@ -151,13 +151,13 @@ const Login = () => {
           color: white;
           box-sizing: border-box;
         }
-        .form-group input:focus {
+        .auth-entry-page .form-group input:focus {
           background: rgba(255, 255, 255, 0.1);
           border-color: #6366f1;
           box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
           outline: none;
         }
-        .btn-login {
+        .auth-entry-page .btn-login {
           width: 100%;
           padding: 14px;
           background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
@@ -175,11 +175,11 @@ const Login = () => {
           margin-top: 16px;
           box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.4);
         }
-        .btn-login:hover {
+        .auth-entry-page .btn-login:hover {
           transform: translateY(-2px);
           box-shadow: 0 15px 30px -5px rgba(79, 70, 229, 0.6);
         }
-        .error-message {
+        .auth-entry-page .error-message {
           background-color: #fee2e2;
           color: #dc2626;
           padding: 10px;
@@ -189,21 +189,21 @@ const Login = () => {
           text-align: center;
           border: 1px solid #fecaca;
         }
-        .forgot-password {
+        .auth-entry-page .forgot-password {
           text-align: ${isRTL ? 'left' : 'right'};
           margin-top: 12px;
         }
-        .forgot-password a {
+        .auth-entry-page .forgot-password a {
           font-size: 13px;
           color: rgba(255, 255, 255, 0.6);
           font-weight: 600;
           text-decoration: none;
           transition: color 0.2s;
         }
-        .forgot-password a:hover {
+        .auth-entry-page .forgot-password a:hover {
           color: white;
         }
-        .register-link {
+        .auth-entry-page .register-link {
           margin-top: 24px;
           padding-top: 24px;
           border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -211,13 +211,13 @@ const Login = () => {
           font-size: 14px;
           color: rgba(255, 255, 255, 0.6);
         }
-        .register-link a {
+        .auth-entry-page .register-link a {
           color: white;
           font-weight: 700;
           text-decoration: none;
           margin-left: 4px;
         }
-        .register-link a:hover {
+        .auth-entry-page .register-link a:hover {
           text-decoration: underline;
         }
       `}</style>

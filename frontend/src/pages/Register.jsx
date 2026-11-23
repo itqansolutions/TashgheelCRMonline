@@ -53,27 +53,27 @@ const Register = () => {
     };
 
     return (
-        <div dir={isRTL ? 'rtl' : 'ltr'} style={{ minHeight: '100vh', background: 'radial-gradient(circle at top right, #4f46e5 0%, #1e1b4b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
+        <div className="auth-entry-page auth-register-page" dir={isRTL ? 'rtl' : 'ltr'} style={{ minHeight: '100vh', background: 'radial-gradient(circle at top right, #4f46e5 0%, #1e1b4b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
             <style>{`
                 @keyframes slideUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
                 @keyframes fadeIn  { from { opacity:0; } to { opacity:1; } }
                 @keyframes pulseCheck { 0%,100% { transform:scale(1); } 50% { transform:scale(1.1); } }
                 @keyframes spin { to { transform: rotate(360deg); } }
-                .reg-card { background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); padding: 40px; border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); width: 100%; max-width: 520px; border: 1px solid rgba(255,255,255,0.1); animation: slideUp 0.5s cubic-bezier(0.4,0,0.2,1); }
-                .reg-input { width: 100%; ${isRTL ? 'padding: 12px 42px 12px 12px;' : 'padding: 12px 12px 12px 42px;'} border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; font-size: 14px; font-weight: 500; background: rgba(255,255,255,0.06); color: white; transition: all 0.3s; box-sizing: border-box; }
-                .reg-input:focus { border-color: #6366f1; background: rgba(255,255,255,0.1); box-shadow: 0 0 0 4px rgba(99,102,241,0.2); outline: none; }
-                .reg-input::placeholder { color: rgba(255,255,255,0.35); }
-                .reg-label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); letter-spacing: 0.02em; }
-                .reg-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; border: none; border-radius: 12px; font-weight: 700; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; transition: all 0.3s; margin-top: 8px; }
-                .reg-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(79,70,229,0.5); }
-                .reg-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-                .err-box { background: rgba(239,68,68,0.12); color: #f87171; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; border: 1px solid rgba(239,68,68,0.25); text-align: center; }
-                .step-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; transition: all 0.3s; }
-                .step-dot.done { background: #10b981; color: white; }
-                .step-dot.active { background: #4f46e5; color: white; }
-                .step-dot.pending { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); }
-                .step-line { flex: 1; height: 2px; background: rgba(255,255,255,0.1); border-radius: 1px; }
-                .step-line.done { background: #10b981; }
+                .auth-entry-page .reg-card { background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); padding: 40px; border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); width: 100%; max-width: 520px; border: 1px solid rgba(255,255,255,0.1); animation: slideUp 0.5s cubic-bezier(0.4,0,0.2,1); }
+                .auth-entry-page .reg-input { width: 100%; ${isRTL ? 'padding: 12px 42px 12px 12px;' : 'padding: 12px 12px 12px 42px;'} border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; font-size: 14px; font-weight: 500; background: rgba(255,255,255,0.06); color: white; transition: all 0.3s; box-sizing: border-box; }
+                .auth-entry-page .reg-input:focus { border-color: #6366f1; background: rgba(255,255,255,0.1); box-shadow: 0 0 0 4px rgba(99,102,241,0.2); outline: none; }
+                .auth-entry-page .reg-input::placeholder { color: rgba(255,255,255,0.35); }
+                .auth-entry-page .reg-label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); letter-spacing: 0.02em; }
+                .auth-entry-page .reg-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; border: none; border-radius: 12px; font-weight: 700; font-size: 16px; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; transition: all 0.3s; margin-top: 8px; }
+                .auth-entry-page .reg-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(79,70,229,0.5); }
+                .auth-entry-page .reg-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+                .auth-entry-page .err-box { background: rgba(239,68,68,0.12); color: #f87171; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 20px; border: 1px solid rgba(239,68,68,0.25); text-align: center; }
+                .auth-entry-page .step-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; transition: all 0.3s; }
+                .auth-entry-page .step-dot.done { background: #10b981; color: white; }
+                .auth-entry-page .step-dot.active { background: #4f46e5; color: white; }
+                .auth-entry-page .step-dot.pending { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); }
+                .auth-entry-page .step-line { flex: 1; height: 2px; background: rgba(255,255,255,0.1); border-radius: 1px; }
+                .auth-entry-page .step-line.done { background: #10b981; }
             `}</style>
 
             <div style={{ position: 'absolute', width: 400, height: 400, background: 'rgba(99,102,241,0.15)', filter: 'blur(80px)', top: '-100px', left: '-100px', borderRadius: '50%', pointerEvents: 'none' }}/>

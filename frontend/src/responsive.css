@@ -995,3 +995,23 @@
 .auth-recovery-page input::placeholder { color:#dedff6!important; opacity:1; }
 .auth-recovery-page .back-to-login:hover { color:#fff!important; }
 .auth-recovery-page .error-box { color:#fff!important; background:#812f58!important; border-color:#eeacc6!important; }
+
+/* Public sign-in/request shells. No authentication or registration behavior changes. */
+.auth-entry-page { box-sizing:border-box; min-height:100svh!important; }
+.auth-entry-page .login-card,.auth-entry-page .reg-card { min-width:0; box-sizing:border-box; }
+.auth-entry-page .login-header { padding-top:20px; }
+.auth-entry-page p,.auth-entry-page .forgot-password a,.auth-entry-page .register-link { color:#e4e4ff!important; }
+.auth-entry-page input::placeholder { color:#dedff6!important; opacity:1; }
+.auth-entry-page .input-wrapper svg { color:#e4e4ff!important; }
+.auth-entry-page .reg-card span,.auth-entry-page .reg-card [style*="color: rgba(255"] { color:#e4e4ff!important; }
+.auth-entry-page .err-box { color:#fff!important; background:#812f58!important; border-color:#eeacc6!important; overflow-wrap:anywhere; }
+.auth-entry-page input { min-height:48px; }
+.auth-entry-page button { min-height:44px; }
+.auth-entry-page h1,.auth-entry-page p,.auth-entry-page .error-message { overflow-wrap:anywhere; }
+@media(max-width:768px) {
+ .auth-entry-page { padding:20px 12px!important; }
+ .auth-entry-page .login-card,.auth-entry-page .reg-card { padding:28px 20px!important; }
+ .auth-entry-page h1 { font-size:25px!important; }
+ .auth-entry-page .lang-toggle-btn { position:static!important; margin-inline-start:auto; margin-bottom:8px; }
+ .auth-entry-page .login-header { padding-top:0; }
+}
