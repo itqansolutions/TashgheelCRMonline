@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -150,7 +151,7 @@ const StockBalances = () => {
     }
   };
 
-  const filtered = stockItems.filter(item => 
+  const filtered = stockItems.filter(item =>
     (item.product_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (item.sku || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -161,11 +162,6 @@ const StockBalances = () => {
   const selectedWhObj = warehouses.find(w => String(w.id) === String(selectedWarehouseId));
   const currencyLabel = t('common.currency', 'EGP');
 
-  const modalStyle = {
-    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-    background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px'
-  };
 
   const inputStyle = {
     width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px',
@@ -384,19 +380,18 @@ const StockBalances = () => {
         )}
 
         {/* ── TRANSFER MODAL ── */}
-        {showTransferModal && (
-          <div style={modalStyle} dir={isRTL ? 'rtl' : 'ltr'}>
-            <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '500px', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #10b981, #059669)' }}>
-                <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ArrowRightLeft size={20} /> {t('inventory.balances.transferModal.title')}
-                </h3>
-                <button onClick={() => setShowTransferModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>
-                  <X size={18} />
-                </button>
-              </div>
+        <Modal isOpen={showTransferModal} onClose={() => setShowTransferModal(false)} variant="form"
+          title={t('inventory.balances.transferModal.title')} footer={<>
+                  <button type="button" onClick={() => setShowTransferModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
+                    {t('common.cancel')}
+                  </button>
+                  <button type="submit" form="stock-transfer-editor" disabled={transferSubmitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: transferSubmitting ? 'not-allowed' : 'pointer', opacity: transferSubmitting ? 0.7 : 1 }}>
+                    {transferSubmitting ? t('inventory.balances.transferModal.transferring') : t('inventory.balances.transferModal.confirmTransfer')}
+                  </button>
+                </>}>
 
-              <form onSubmit={handleTransferSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <form id="stock-transfer-editor" onSubmit={handleTransferSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
                 <div>
                   <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
                     {t('inventory.balances.transferModal.fromWarehouse')}
@@ -481,39 +476,23 @@ const StockBalances = () => {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
-                  <button type="button" onClick={() => setShowTransferModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
-                    {t('common.cancel')}
-                  </button>
-                  <button type="submit" disabled={transferSubmitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: transferSubmitting ? 'not-allowed' : 'pointer', opacity: transferSubmitting ? 0.7 : 1 }}>
-                    {transferSubmitting ? t('inventory.balances.transferModal.transferring') : t('inventory.balances.transferModal.confirmTransfer')}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+          </form>
+        </Modal>
 
         {/* ── STOCK TAKING / ADJUSTMENT MODAL ── */}
-        {showStockTakeModal && (
-          <div style={modalStyle} dir={isRTL ? 'rtl' : 'ltr'}>
-            <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '750px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}>
-                <div>
-                  <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <ClipboardCheck size={20} /> {t('inventory.balances.stockTakeModal.title')}
-                  </h3>
-                  <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>
-                    {t('inventory.balances.stockTakeModal.warehouseSubtitle', { warehouse: selectedWhObj?.name || '' })}
-                  </p>
-                </div>
-                <button onClick={() => setShowStockTakeModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>
-                  <X size={18} />
-                </button>
-              </div>
+        <Modal isOpen={showStockTakeModal} onClose={() => setShowStockTakeModal(false)} variant="form"
+          title={t('inventory.balances.stockTakeModal.title')} footer={<>
+                  <button type="button" onClick={() => setShowStockTakeModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
+                    {t('common.cancel')}
+                  </button>
+                  <button type="submit" form="stock-take-editor" disabled={stockTakeSubmitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #7c3aed, #6d28d9)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: stockTakeSubmitting ? 'not-allowed' : 'pointer', opacity: stockTakeSubmitting ? 0.7 : 1 }}>
+                    {stockTakeSubmitting ? t('inventory.balances.stockTakeModal.applying') : t('inventory.balances.stockTakeModal.applyAdjustments')}
+                  </button>
+                </>}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: '0 0 16px' }}>{t('inventory.balances.stockTakeModal.warehouseSubtitle', { warehouse: selectedWhObj?.name || '' })}</p>
+          <form id="stock-take-editor" onSubmit={handleStockTakeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-              <form onSubmit={handleStockTakeSubmit} style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: isRTL ? 'right' : 'left' }}>
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="stock-take-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: isRTL ? 'right' : 'left' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                       <th style={{ padding: '10px' }}>{t('inventory.balances.stockTakeModal.productCol')}</th>
@@ -528,16 +507,16 @@ const StockBalances = () => {
                       const diff = actual - item.quantity;
                       return (
                         <tr key={item.product_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '10px', fontWeight: 700 }}>
+                          <td data-label={t('inventory.balances.stockTakeModal.productCol')} style={{ padding: '10px', fontWeight: 700 }}>
                             {item.product_name}
                             <span className="num-en" style={{ display: 'block', fontSize: '11px', color: '#94a3b8' }}>
                               {item.sku || t('inventory.balances.stockTakeModal.noSku')}
                             </span>
                           </td>
-                          <td style={{ padding: '10px', fontWeight: 700, color: '#64748b' }}>
+                          <td data-label={t('inventory.balances.stockTakeModal.systemQtyCol')} style={{ padding: '10px', fontWeight: 700, color: '#64748b' }}>
                             <span className="num-en">{item.quantity}</span> {item.unit || t('inventory.products.piece')}
                           </td>
-                          <td style={{ padding: '10px', width: '150px' }}>
+                          <td data-label={t('inventory.balances.stockTakeModal.actualQtyCol')} style={{ padding: '10px', width: '150px' }}>
                             <input
                               type="number"
                               step="any"
@@ -550,7 +529,7 @@ const StockBalances = () => {
                               style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontWeight: 800, fontSize: '14px', outline: 'none' }}
                             />
                           </td>
-                          <td style={{ padding: '10px', fontWeight: 800, color: diff > 0 ? '#10b981' : diff < 0 ? '#ef4444' : '#94a3b8' }}>
+                          <td data-label={t('inventory.balances.stockTakeModal.diffCol')} style={{ padding: '10px', fontWeight: 800, color: diff > 0 ? '#10b981' : diff < 0 ? '#ef4444' : '#94a3b8' }}>
                             <span className="num-en">
                               {diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : '0'}
                             </span>
@@ -561,18 +540,8 @@ const StockBalances = () => {
                   </tbody>
                 </table></div>
 
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
-                  <button type="button" onClick={() => setShowStockTakeModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
-                    {t('common.cancel')}
-                  </button>
-                  <button type="submit" disabled={stockTakeSubmitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #7c3aed, #6d28d9)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: stockTakeSubmitting ? 'not-allowed' : 'pointer', opacity: stockTakeSubmitting ? 0.7 : 1 }}>
-                    {stockTakeSubmitting ? t('inventory.balances.stockTakeModal.applying') : t('inventory.balances.stockTakeModal.applyAdjustments')}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+          </form>
+        </Modal>
       </div>
     </div>
   );

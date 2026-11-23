@@ -148,3 +148,10 @@ Finance/accounting; purchasing; inventory beyond Products; remaining HR; real es
 - Added visible labels and phone item cards for original product/type/description/quantity/price controls, clear boundaries for finance fields. All fields retained; no transaction submitted during layout tests.
 -40 synthetic actual-editor combinations cover5modes,2templates,AR/EN and360/1440. Includes invoice/quotation local item addition/removal and voucher party branches, no network writes. Existing isolated finance collection/default-account and finance-unification regression tests pass. Build passes with pre-existing chunk-size warning.
 - Other finance screens, previews, accounting and all remaining families are still not completed or functionally certified by this form-only batch.
+
+
+## Phase 5 candidate
+- StockBalances direct transfer and stock-take forms share the same opt-in form panel, internal scroll and linked external submit. Original 5 transfer controls and each stock-row input retain every original field attribute and all handle* bodies.
+- Stock-take desktop table becomes labelled cards on phone with the same product, system quantity, counted quantity and difference content. Original warehouse subtitle, source/destination/product choices and save/loading/disable logic preserved.
+- Eight AR/EN360/1440 synthetic variants, 24 stock rows, fixed footer and internal long-body scroll pass with no API writes. Actual Arabic phone and English desktop pixels inspected. No transfer or stock adjustment submitted. No ledger or inventory correctness certification.
+- Other remaining page families, dialogs and permissions still require their own bounded review. No database, schema, backup, configuration or role changes.

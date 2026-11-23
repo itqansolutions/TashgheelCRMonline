@@ -236,3 +236,12 @@
 }
 
 @media(max-width:768px) { .finance-quick-editor .finance-customer-unit { flex-direction: column; } }
+
+@media(max-width:768px) {
+  .stock-take-table thead { display: none; }
+  .stock-take-table, .stock-take-table tbody, .stock-take-table tr, .stock-take-table td { display: block; width: 100%!important; }
+  .stock-take-table tr { padding: 12px; margin-bottom: 14px; border: 1px solid #e2e8f0!important; border-radius: 12px; }
+  .stock-take-table td { padding: 8px 0!important; }
+  .stock-take-table td::before { content: attr(data-label); display: block; margin-bottom: 5px; color: #64748b; font-size: 12px; font-weight: 600; }
+  .stock-take-table td input { min-height: 44px; }
+}
