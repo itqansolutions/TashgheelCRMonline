@@ -594,8 +594,8 @@ const recordPaymentInternal = async ({
     await ensureVouchersTable();
 
     // 1. Amount validation
-    const payAmount = parseFloat(amount);
-    if (!Number.isFinite(Number(amount)) || payAmount <= 0) {
+    const payAmount = Number(amount);
+    if (!['number', 'string'].includes(typeof amount) || !Number.isFinite(Number(amount)) || payAmount <= 0) {
         const err = new Error('Payment amount must be greater than zero');
         err.status = 400;
         throw err;
@@ -1224,7 +1224,7 @@ exports.createVoucher = async (req, res) => {
         voucher_date
     } = req.body;
 
-    if (!['receipt', 'payment'].includes(voucher_type) || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+    if (!['receipt', 'payment'].includes(voucher_type) || !['number', 'string'].includes(typeof amount) || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
         return res.status(400).json({ status: 'error', message: 'Voucher type and valid amount are required.' });
     }
 
@@ -1270,7 +1270,7 @@ exports.createVoucher = async (req, res) => {
             customer_id ? String(customer_id) : null,
             vendor_id ? String(vendor_id) : null,
             invoice_id || null,
-            parseFloat(amount),
+            Number(amount),
             payment_method || 'cash',
             treasury.name,
             resolvedTreasuryId,
@@ -1297,7 +1297,7 @@ exports.createVoucher = async (req, res) => {
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
                 `, [
                     effectivePartyName ? `سند صرف ${voucherNumber} - ${effectivePartyName}` : `سند صرف ${voucherNumber}`,
-                    parseFloat(amount),
+                    Number(amount),
                     notes || 'Payment Voucher / سند صرف',
                     voucher_date || new Date().toISOString().split('T')[0],
                     req.user.id,
@@ -1635,7 +1635,7 @@ exports.createExpense = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     const branch_id = req.branchId || req.user?.branch_id || null;
     const { title, amount, category, expense_date, payment_method, treasury_account_id } = req.body;
-    if (!String(title || '').trim() || !Number.isFinite(Number(amount)) || Number(amount) <= 0) return res.status(400).json({ status: 'error', message: 'Expense title and positive finite amount are required' });
+    if (!String(title || '').trim() || !['number', 'string'].includes(typeof amount) || !Number.isFinite(Number(amount)) || Number(amount) <= 0) return res.status(400).json({ status: 'error', message: 'Expense title and positive finite amount are required' });
     await ensureInvoicesTable();
     const client = await db.pool.connect();
     try {

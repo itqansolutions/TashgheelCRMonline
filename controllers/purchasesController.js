@@ -385,8 +385,8 @@ exports.recordVendorPayment = async (req, res) => {
     const vendorId = req.params.id;
     const { amount, payment_method, purchase_invoice_id, notes, voucher_date, treasury_account_id } = req.body;
 
-    const paymentAmount = parseFloat(amount);
-    if (!Number.isFinite(Number(amount)) || !paymentAmount || paymentAmount <= 0) {
+    const paymentAmount = Number(amount);
+    if (!['number', 'string'].includes(typeof amount) || !Number.isFinite(Number(amount)) || !paymentAmount || paymentAmount <= 0) {
         return res.status(400).json({ status: 'error', message: 'Payment amount must be greater than 0' });
     }
 

@@ -169,7 +169,7 @@ const RecordPaymentModal = ({ vendor, onClose, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitLock.current) return;
-    const payVal = parseFloat(amount);
+    const payVal = Number(amount);
     if (!payVal || payVal <= 0) return toast.error(t('vendors.toastValidAmount'));
 
     if (!Number.isFinite(Number(amount)) || !treasuryId) return toast.error(t('finance.paymentModal.treasuryRequired', 'Select a treasury account'));

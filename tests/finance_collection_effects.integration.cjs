@@ -106,13 +106,13 @@ const res=()=>({code:200,status(n){this.code=n;return this},json(b){this.body=b;
 
  const counts=async()=>({expenses:Number((await pool.query('SELECT COUNT(*) FROM expenses')).rows[0].count),vouchers:Number((await pool.query('SELECT COUNT(*) FROM finance_vouchers')).rows[0].count)});
  const initial=await counts();
- for(const body of [{title:'bad',amount:-10},{title:'bad',amount:'Infinity'},{title:'bad',amount:'1bad'},{title:'bad',amount:0},{title:'bad',amount:10},{title:'bad',amount:10,treasury_account_id:999},{title:'bad',amount:10,payment_method:'bank_transfer',treasury_account_id:4}]){
+ for(const body of [{title:'bad',amount:true},{title:'bad',amount:[1]},{title:'bad',amount:-10},{title:'bad',amount:'Infinity'},{title:'bad',amount:'1bad'},{title:'bad',amount:0},{title:'bad',amount:10},{title:'bad',amount:10,treasury_account_id:999},{title:'bad',amount:10,payment_method:'bank_transfer',treasury_account_id:4}]){
   r=res();await fin.createExpense(req({body}),r);assert.equal(r.code,400,JSON.stringify(r.body));assert.deepEqual(await counts(),initial);
  }
  r=res();await fin.createExpense(req({body:{title:'Synthetic expense',amount:25,treasury_account_id:4}}),r);assert.equal(r.code,201,JSON.stringify(r.body));assert.equal(r.body.data.treasury_account_id,4);
  r=res();await fin.getSummary(req(),r);assert.equal(r.body.data.totalExpenses,25);r=res();await fin.getTreasuryAccounts(req(),r);assert.equal(r.body.totals.total_balance,775);console.log('PASS expense invalid/no-default/treasury cases reject with zero writes; valid25 deducts treasury and summary once');
  const afterExpense=await counts();
- for(const body of [{voucher_type:'receipt',amount:12},{voucher_type:'payment',amount:8,treasury_account_id:999},{voucher_type:'other',amount:1,treasury_account_id:4},{voucher_type:'receipt',amount:'Infinity',treasury_account_id:4},{voucher_type:'receipt',amount:3,treasury_account_id:4,customer_id:999}]){
+ for(const body of [{voucher_type:'receipt',amount:true,treasury_account_id:4},{voucher_type:'receipt',amount:[1],treasury_account_id:4},{voucher_type:'receipt',amount:12},{voucher_type:'payment',amount:8,treasury_account_id:999},{voucher_type:'other',amount:1,treasury_account_id:4},{voucher_type:'receipt',amount:'Infinity',treasury_account_id:4},{voucher_type:'receipt',amount:3,treasury_account_id:4,customer_id:999}]){
   r=res();await fin.createVoucher(req({body}),r);assert.equal(r.code,400,JSON.stringify(r.body));assert.deepEqual(await counts(),afterExpense);
  }
  r=res();await fin.createVoucher(req({body:{voucher_type:'receipt',party_type:'other',party_name:'Synthetic receipt',amount:12,treasury_account_id:4}}),r);assert.equal(r.code,201,JSON.stringify(r.body));assert.equal(r.body.data.treasury_account,'Synthetic cash');
@@ -121,7 +121,7 @@ const res=()=>({code:200,status(n){this.code=n;return this},json(b){this.body=b;
  await pool.query('CREATE TABLE vendors(id int primary key,name text,tenant_id uuid,branch_id text);CREATE TABLE purchase_invoices(id int primary key,vendor_id int,total_amount numeric,paid_amount numeric,status text,tenant_id uuid,branch_id text,updated_at timestamptz)');
  await pool.query('INSERT INTO vendors VALUES(10,$1,$2,$3),(11,$4,$2,$3)',['Synthetic Vendor A',TA,BA,'Synthetic Vendor B']);await pool.query('INSERT INTO purchase_invoices VALUES(20,11,100,0,$1,$2,$3,NOW()),(21,10,100,0,$1,$2,$3,NOW())',['unpaid',TA,BA]);const pc=require(root+'/controllers/purchasesController');
  const beforeSupplier=await counts();
- for(const body of [{amount:150,purchase_invoice_id:20,treasury_account_id:4},{amount:150,purchase_invoice_id:21,treasury_account_id:4},{amount:10,purchase_invoice_id:21,treasury_account_id:999},{amount:10,purchase_invoice_id:21},{amount:'Infinity',purchase_invoice_id:21,treasury_account_id:4}]){
+ for(const body of [{amount:true,treasury_account_id:4},{amount:[1],treasury_account_id:4},{amount:150,purchase_invoice_id:20,treasury_account_id:4},{amount:150,purchase_invoice_id:21,treasury_account_id:4},{amount:10,purchase_invoice_id:21,treasury_account_id:999},{amount:10,purchase_invoice_id:21},{amount:'Infinity',purchase_invoice_id:21,treasury_account_id:4}]){
   r=res();await pc.recordVendorPayment(req({params:{id:10},body}),r);assert.equal(r.code,400,JSON.stringify(r.body));assert.deepEqual(await counts(),beforeSupplier);
  }
  const concurrent=[res(),res()];await Promise.all(concurrent.map(x=>pc.recordVendorPayment(req({params:{id:10},body:{amount:60,purchase_invoice_id:21,treasury_account_id:4}}),x)));assert.deepEqual(concurrent.map(x=>x.code).sort(),[201,400]);assert.equal(Number((await pool.query('SELECT paid_amount FROM purchase_invoices WHERE id=21')).rows[0].paid_amount),60);assert.equal(Number((await pool.query('SELECT paid_amount FROM purchase_invoices WHERE id=20')).rows[0].paid_amount),0);
