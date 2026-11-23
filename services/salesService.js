@@ -170,7 +170,7 @@ exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id, clientOverr
     );
 
     if (existingInvRes.rows.length > 0) {
-      await client.query('COMMIT');
+      if (!isExternalClient) await client.query('COMMIT');
       return {
         ...existingInvRes.rows[0],
         _alreadyExists: true

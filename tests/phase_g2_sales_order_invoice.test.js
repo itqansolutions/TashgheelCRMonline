@@ -90,6 +90,19 @@ test('Phase G-2: Sales Order -> Invoice Integrity Suite', async (t) => {
     assert.equal(insertCalled, false, 'Must NOT perform INSERT INTO invoices when invoice exists');
   });
 
+  await t.test('Existing invoice lookup preserves caller-owned transaction', async () => {
+    const commands = [];
+    const client = { query: async (sql) => {
+      commands.push(sql);
+      if (sql.includes('FROM sales_orders')) return { rows: [{ id: 101, tenant_id: 'tenant-abc' }] };
+      if (sql.includes('FROM invoices')) return { rows: [{ id: 999, sales_order_id: '101' }] };
+      return { rows: [] };
+    }};
+    const result = await salesService.convertSalesOrderToInvoice(101, 'tenant-abc', client);
+    assert.equal(result._alreadyExists, true);
+    assert.equal(commands.some(sql => /^(BEGIN|COMMIT|ROLLBACK)$/.test(sql)), false);
+  });
+
   // 2. Line items copied to invoice_items and progressive quantity_invoiced updated
   await t.test('Line items are copied to invoice_items and progressive quantity_invoiced is updated', async () => {
     let insertedInvoice = null;
