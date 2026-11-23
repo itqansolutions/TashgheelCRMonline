@@ -1,3 +1,4 @@
+const { collectionSource } = require('../services/collectionSource');
 const db = require('../config/db');
 const { logCreate, logUpdate, logDelete, logAction, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 const notificationQueueService = require('../services/notificationQueueService');
@@ -1758,18 +1759,20 @@ exports.getIncome = async (req, res) => {
 
     try {
         await ensureInvoicesTable();
+        await ensureVouchersTable();
         const result = await db.query(`
             SELECT 
-                p.id,
+                p.id, p.source_type, p.voucher_number,
                 p.amount,
                 p.payment_method,
                 p.payment_date,
                 p.notes,
                 i.invoice_number,
                 c.name as customer_name
-            FROM payments p
-            JOIN invoices i ON p.invoice_id::text = i.id::text
+            FROM ${collectionSource} p
+            LEFT JOIN invoices i ON p.invoice_id::text = i.id::text AND i.tenant_id::text = p.tenant_id::text
             LEFT JOIN customers c ON (
+                (p.customer_id = c.id::text AND c.tenant_id::text = p.tenant_id::text) OR
                 (NULLIF(i.client_id::text, '') IS NOT NULL AND i.client_id::text = c.id::text) OR 
                 (NULLIF(i.customer_id::text, '') IS NOT NULL AND i.customer_id::text = c.id::text)
             )
@@ -1794,10 +1797,11 @@ exports.getSummary = async (req, res) => {
 
     try {
         await ensureInvoicesTable();
+        await ensureVouchersTable();
 
         const incomeRes = await db.query(
             `SELECT COALESCE(SUM(amount), 0) as total_income 
-             FROM payments 
+             FROM ${collectionSource} collections
              WHERE tenant_id::text = $1::text 
                AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
                AND (COALESCE(status, 'active') != 'cancelled')`,
@@ -2735,6 +2739,7 @@ exports.getFinancialReports = async (req, res) => {
     if (rangeError) return res.status(400).json({ status: 'error', message: rangeError });
 
     await ensureInvoicesTable();
+    await ensureVouchersTable();
 
     try {
         const queryParams = [tenant_id, branch_id ? String(branch_id) : null];
@@ -2804,7 +2809,7 @@ exports.getFinancialReports = async (req, res) => {
             SELECT
                 COUNT(p.id)::int                   AS total_collections_count,
                 COALESCE(SUM(p.amount), 0)         AS total_collected
-            FROM payments p
+            FROM ${collectionSource} p
             WHERE p.tenant_id::text = $1::text
               AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
               AND (COALESCE(p.status, 'active') != 'cancelled')
@@ -2819,7 +2824,7 @@ exports.getFinancialReports = async (req, res) => {
                 COALESCE(p.payment_method, 'cash') AS method,
                 COUNT(*)::int                      AS count,
                 COALESCE(SUM(p.amount), 0)         AS total_amount
-            FROM payments p
+            FROM ${collectionSource} p
             WHERE p.tenant_id::text = $1::text
               AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
               AND (COALESCE(p.status, 'active') != 'cancelled')
@@ -2834,7 +2839,7 @@ exports.getFinancialReports = async (req, res) => {
                 TO_CHAR(p.payment_date, 'YYYY-MM') AS period,
                 COUNT(*)::int                      AS count,
                 COALESCE(SUM(p.amount), 0)         AS total_amount
-            FROM payments p
+            FROM ${collectionSource} p
             WHERE p.tenant_id::text = $1::text
               AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
               AND (COALESCE(p.status, 'active') != 'cancelled')
@@ -3016,13 +3021,13 @@ exports.getFinancialReports = async (req, res) => {
         try {
             let voucherFilterForTreasury = '';
             if (date_from) voucherFilterForTreasury += ` AND fv.voucher_date >= $3::date`;
-            if (date_to)   voucherFilterForTreasury += ` AND fv.voucher_date <= $4::date`;
+            if (date_to)   voucherFilterForTreasury += ` AND fv.voucher_date <= $${date_from ? 4 : 3}::date`;
 
             const taRes = await db.query(`
                 SELECT
                     ta.id, ta.name, ta.type, ta.bank_name,
                     COALESCE((
-                        SELECT SUM(p.amount) FROM payments p
+                        SELECT SUM(p.amount) FROM ${collectionSource} p
                         WHERE p.treasury_account_id = ta.id
                           AND p.tenant_id::text = ta.tenant_id::text
                           AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)

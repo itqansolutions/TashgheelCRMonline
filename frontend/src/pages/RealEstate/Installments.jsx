@@ -35,8 +35,10 @@ const Installments = () => {
   const [plan, setPlan] = useState({ contract_id: '', down_payment: 0, number_of_installments: 4, frequency: 'quarterly', start_date: new Date().toISOString().split('T')[0] });
 
   const [payFor, setPayFor] = useState(null);
-  const [payForm, setPayForm] = useState({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_method: 'cash', notes: '' });
+  const [payForm, setPayForm] = useState({ amount: '', payment_date: new Date().toISOString().split('T')[0], payment_method: 'cash', treasury_account_id: '', notes: '' });
 
+  const [treasuryAccounts, setTreasuryAccounts] = useState([]);
+  const [paySaving, setPaySaving] = useState(false);
   const [historyFor, setHistoryFor] = useState(null);
   const [history, setHistory] = useState([]);
 
@@ -103,17 +105,24 @@ const Installments = () => {
     }
   };
 
-  const openPay = (inst) => {
+  const openPay = async (inst) => {
+    try {
+      const res = await api.get('/finance/treasury/accounts');
+      setTreasuryAccounts((res.data.data || []).filter(a => a.is_active));
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to load treasury accounts'); return; }
     setPayFor(inst);
-    setPayForm({ amount: Math.max(0, Number(inst.amount) - Number(inst.paid_amount)).toFixed(2), payment_date: new Date().toISOString().split('T')[0], payment_method: 'cash', notes: '' });
+    setPayForm({ amount: Math.max(0, Number(inst.amount) - Number(inst.paid_amount)).toFixed(2), payment_date: new Date().toISOString().split('T')[0], payment_method: 'cash', treasury_account_id: '', notes: '' });
   };
 
   const submitPay = async () => {
+    if (paySaving) return;
+    setPaySaving(true);
     try {
       const res = await api.post(`/re-installments/${payFor.id}/pay`, {
         amount: parseFloat(payForm.amount),
         payment_date: payForm.payment_date,
         payment_method: payForm.payment_method,
+        treasury_account_id: payForm.treasury_account_id || undefined,
         notes: payForm.notes || undefined
       });
       toast.success(res.data.message || t('realEstate.installments.toastPaySuccess'));
@@ -121,7 +130,7 @@ const Installments = () => {
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || t('realEstate.installments.toastPayError'));
-    }
+    } finally { setPaySaving(false); }
   };
 
   const openHistory = async (inst) => {
@@ -319,7 +328,7 @@ const Installments = () => {
           <button onClick={() => setPayFor(null)} style={{ background: '#f1f5f9', padding: '10px 20px', borderRadius: '8px', fontWeight: 600 }}>
             {t('realEstate.common.cancel')}
           </button>
-          <button onClick={submitPay} style={{ background: '#16a34a', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 600 }}>
+          <button disabled={paySaving} onClick={submitPay} style={{ background: '#16a34a', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 600 }}>
             {t('realEstate.installments.btnRecordReceipt')}
           </button>
         </>}
@@ -336,11 +345,18 @@ const Installments = () => {
             </div>
             <div>
               <label style={labelStyle}>{t('realEstate.installments.lblMethod')}</label>
-              <select style={fieldStyle} value={payForm.payment_method} onChange={e => setPayForm({ ...payForm, payment_method: e.target.value })}>
+              <select style={fieldStyle} value={payForm.payment_method} onChange={e => setPayForm({ ...payForm, payment_method: e.target.value, treasury_account_id: '' })}>
                 <option value="cash">{t('realEstate.installments.methodCash')}</option>
                 <option value="bank_transfer">{t('realEstate.installments.methodBankTransfer')}</option>
                 <option value="cheque">{t('realEstate.installments.methodCheque')}</option>
                 <option value="card">{t('realEstate.installments.methodCard')}</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>{isRTL ? 'الخزنة / حساب التسوية' : 'Treasury / settlement account'}</label>
+              <select style={fieldStyle} value={payForm.treasury_account_id} onChange={e => setPayForm({ ...payForm, treasury_account_id: e.target.value })}>
+                <option value="">{isRTL ? 'الافتراضي للنقد / التحويل فقط' : 'Default for cash / bank transfer only'}</option>
+                {treasuryAccounts.filter(a => a.type === (payForm.payment_method === 'cash' ? 'cash' : 'bank')).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
             </div>
             <div>

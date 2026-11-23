@@ -16,7 +16,7 @@ const fmt = (n) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionD
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 // ─── Account Card ─────────────────────────────────────────────────────────────
-const AccountCard = ({ account, selected, onClick }) => {
+const AccountCard = ({ account, selected, onClick, onSetDefault }) => {
   const { t, isRTL } = useLanguage();
   const isBank = account.type === 'bank';
   const bal = account.current_balance;
@@ -56,6 +56,11 @@ const AccountCard = ({ account, selected, onClick }) => {
         </div>
       </div>
 
+      {!account.is_default && onSetDefault && <button type="button"
+        onClick={e => { e.stopPropagation(); onSetDefault(account); }}
+        style={{ marginBottom: 12, padding: '7px 12px', cursor: 'pointer' }}>
+        {isRTL ? 'تعيين كافتراضي' : 'Set as default'}
+      </button>}
       {/* Balance */}
       <div style={{ marginBottom: '14px' }}>
         <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>
@@ -294,6 +299,15 @@ const Treasury = () => {
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
   useEffect(() => { if (selected) fetchTransactions(selected.id); }, [selected?.id, fetchTransactions]);
 
+  const setDefaultAccount = async (account) => {
+    if (!window.confirm(isRTL ? `تعيين ${account.name} كخزنة افتراضية لهذا النوع؟` : `Set ${account.name} as the default for this account type?`)) return;
+    try {
+      await api.put(`/finance/treasury/accounts/${account.id}`, { is_default: true });
+      await fetchAccounts();
+      setSelected(prev => prev?.id === account.id ? { ...prev, is_default: true } : prev);
+    } catch (err) { toast.error(err.response?.data?.message || (isRTL ? 'تعذر تعيين الخزنة الافتراضية' : 'Failed to set default account')); }
+  };
+
   const handleSelectAccount = (acc) => {
     setSelected(acc);
     setDateFrom('');
@@ -368,6 +382,7 @@ const Treasury = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {accounts.map(acc => (
                 <AccountCard
+                  onSetDefault={hasFinancialPermission?.('payment.create') ? setDefaultAccount : undefined}
                   key={acc.id}
                   account={acc}
                   selected={selected?.id === acc.id}

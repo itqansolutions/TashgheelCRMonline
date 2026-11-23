@@ -1,3 +1,4 @@
+const { resolveCollectionTreasury } = require('../services/resolveCollectionTreasury');
 /**
  * reInstallmentsController.js
  * Controller for Phase 2.3: Real Estate Payment Plans & Installment Schedules.
@@ -550,14 +551,20 @@ exports.recordPayment = async (req, res) => {
         const voucherNumber = await generateVoucherNumber(tenant_id, req.branchId || null, 'receipt', client);
         const pDate = payment_date ? new Date(payment_date) : new Date();
 
+        const treasury = await resolveCollectionTreasury(client, {
+            tenant_id, branch_id: instBranch || branch_id,
+            treasury_account_id: req.body.treasury_account_id,
+            payment_method: req.body.payment_method
+        });
+
         // 2. Authoritative Finance Receipt Voucher creation (money movement single source of truth)
         const voucherRes = await client.query(`
             INSERT INTO finance_vouchers (
                 voucher_number, voucher_type, party_type, party_name,
                 customer_id, deal_id, contract_id, installment_id,
                 amount, payment_method, notes, voucher_date,
-                created_by, tenant_id, branch_id
-            ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                created_by, tenant_id, branch_id, treasury_account_id, treasury_account
+            ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING id, voucher_number
         `, [
             voucherNumber,
@@ -572,7 +579,8 @@ exports.recordPayment = async (req, res) => {
             pDate,
             req.user?.id || null,
             tenant_id,
-            req.branchId || null
+            instBranch || branch_id || null,
+            treasury.id, treasury.name
         ]);
 
         const voucher = voucherRes.rows[0];
@@ -629,7 +637,7 @@ exports.recordPayment = async (req, res) => {
     } catch (err) {
         await client.query('ROLLBACK');
         console.error('[Record Installment Payment Error]:', err.message);
-        res.status(500).json({ status: 'error', message: 'Failed to record installment payment. Please try again or contact support.' });
+        res.status(err.status || 500).json({ status: 'error', message: err.status === 400 ? err.message : 'Failed to record installment payment. Please try again or contact support.' });
     } finally {
         client.release();
     }
