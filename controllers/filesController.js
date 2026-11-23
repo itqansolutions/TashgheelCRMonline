@@ -2,6 +2,22 @@ const db = require('../config/db');
 const path = require('path');
 const fs = require('fs');
 
+// Deal files follow the existing deal view permission and assigned-record scope.
+// Other entity policies are intentionally unchanged.
+async function dealFileReadPredicate(user, paramIndex) {
+  const { checkDealPermission } = require('../middleware/dealPermission');
+  if (!(await checkDealPermission(user.id, user.tenant_id, 'deal.view', user.role))) {
+    return { allowed: false, sql: "LOWER(COALESCE(linked_type, '')) <> 'deal'", params: [] };
+  }
+  const scope = await require('../services/accessScopeService').buildScopePredicate({user,tableAlias:'deals',assigneeCol:'assigned_to',paramIndex});
+  const extra = scope.sql && scope.sql !== '1=1' ? ` AND ${scope.sql}` : '';
+  return {
+    allowed: true,
+    sql: `(LOWER(COALESCE(linked_type, '')) <> 'deal' OR EXISTS (SELECT 1 FROM deals WHERE deals.id::text = attachments.linked_id::text AND deals.tenant_id::text = attachments.tenant_id::text${extra}))`,
+    params: extra ? scope.params : []
+  };
+}
+
 // @desc    Upload a file and link to entity
 // @route   POST /api/files/upload
 // @access  Private
@@ -223,14 +239,19 @@ exports.getAttachments = async (req, res) => {
   const isUnit = entityType === 'unit' || entityType === 're_unit';
 
   try {
+    const dealScope = String(entityType).toLowerCase() === 'deal' ? await dealFileReadPredicate(req.user, 5) : {allowed:true,sql:'TRUE',params:[]};
+    if (String(entityType).toLowerCase() === 'deal' && !dealScope.allowed) {
+      return res.status(403).json({status:'error',code:'PERMISSION_DENIED',required_permission:'deal.view',message:'Permission denied.'});
+    }
     const result = await db.query(
       `SELECT * FROM attachments 
        WHERE (${isUnit ? "(linked_type = $1 OR linked_type IN ('unit', 're_unit'))" : "linked_type = $1"})
          AND linked_id = $2 
          AND tenant_id::text = $3::text 
          AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) 
+         AND ${dealScope.sql}
        ORDER BY created_at DESC`,
-      [entityType, entityId, tenant_id, branch_id || null]
+      [entityType, entityId, tenant_id, branch_id || null, ...dealScope.params]
     );
     const normalizedRows = (result.rows || []).map(r => ({
       ...r,
@@ -309,9 +330,10 @@ exports.getFiles = async (req, res) => {
   }
 
   try {
+    const dealScope = await dealFileReadPredicate(req.user, 3);
     const result = await db.query(
-      'SELECT * FROM attachments WHERE tenant_id::text = $1::text AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL) ORDER BY created_at DESC',
-      [tenant_id, branch_id || null]
+      `SELECT * FROM attachments WHERE tenant_id::text = $1::text AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL) AND ${dealScope.sql} ORDER BY created_at DESC`,
+      [tenant_id, branch_id || null, ...dealScope.params]
     );
     res.json({ status: 'success', data: result.rows });
   } catch (err) {

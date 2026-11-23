@@ -54,6 +54,34 @@ function secureUploads(uploadsDir) {
       let attachmentRecord = null;
       const requestedFilename = path.basename(filePath);
 
+      // Check deal access before any disk reconstruction, inline fallback or image exception.
+      const earlyLookup = await db.query(
+        'SELECT tenant_id, file_path, linked_type, linked_id, mime_type, file_data FROM attachments WHERE filename = $1 OR file_path LIKE $2 LIMIT 1',
+        [requestedFilename, `%${requestedFilename}`]
+      );
+      attachmentRecord = earlyLookup.rows[0] || null;
+      if (String(attachmentRecord?.linked_type || '').toLowerCase() === 'deal') {
+        const header = req.headers['authorization'];
+        const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : req.query?.token;
+        if (!token) return res.status(401).json({status:'error',message:'Authentication required to access this file.'});
+        let user;
+        try { const decoded = jwt.verify(String(token), process.env.JWT_SECRET); user = decoded.user || decoded; }
+        catch (_) { return res.status(401).json({status:'error',message:'Invalid or expired authorization token.'}); }
+        if (!user.tenant_id || String(user.tenant_id).toLowerCase() !== String(attachmentRecord.tenant_id).toLowerCase()) {
+          return res.status(403).json({status:'error',message:'Access denied.'});
+        }
+        const {checkDealPermission} = require('./dealPermission');
+        if (!(await checkDealPermission(user.id,user.tenant_id,'deal.view',user.role))) {
+          return res.status(403).json({status:'error',code:'PERMISSION_DENIED',message:'Access denied.'});
+        }
+        const scope = await require('../services/accessScopeService').buildScopePredicate({user,tableAlias:'deals',assigneeCol:'assigned_to',paramIndex:3});
+        const params = [attachmentRecord.linked_id,user.tenant_id];
+        let where = 'id::text = $1::text AND tenant_id::text = $2::text';
+        if (scope.sql && scope.sql !== '1=1') { where += ` AND ${scope.sql}`; params.push(...scope.params); }
+        const deal = await db.query(`SELECT id FROM deals WHERE ${where}`,params);
+        if (!deal.rows.length) return res.status(404).json({status:'error',message:'File not found.'});
+      }
+
       if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
         try {
           const attachLookup = await db.query(

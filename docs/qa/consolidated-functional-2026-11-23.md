@@ -67,3 +67,10 @@ Durable tests/acceptance_reminder_concurrency.integration.cjs verifies simultane
 ## Notification worker claim follow-up, 07:07 Cairo
 
 Two isolated concurrent dry-run worker calls both processed the same single pending job because the previous SELECT FOR UPDATE lock ended at its standalone autocommit query. Replaced selection plus later processing update with one UPDATE of locked pending candidates RETURNING claimed rows. No schema or channel change. Actual SQL concurrent regression now records one processed/succeeded job and one empty worker, final job completed/log sent. Stubbed send failure verifies future backoff, no early execution, then terminal failure at max attempts. No real sends, settings or credentials accessed. Crash recovery for jobs left processing, send-success/log-failure replay risk and external delivery receipt transitions remain outside acceptance. Full notification readiness is not claimed.
+
+
+## Deal attachment read boundary, 07:10 Cairo
+
+Isolated existing deal.view-denied employee could read deal-linked file bytes via entity and global lists. Synthetic local static image also served without authentication. Bounded fix applies existing deal permission and assigned-record scope to both list surfaces and static deal file delivery before reconstruction/base64/image exceptions. Explicit tenant branding remains readable. Nondeal image access policy, upload/delete policies and legacy unlinked assets intentionally unchanged pending grounding, so this is not all-file confidentiality acceptance.
+
+Actual SQL/temp-file regression tests/acceptance_attachment_scope.integration.cjs passes denied403, unassigned hidden, assigned allowed, tenant/branch filtering, unit aliases, static unauthenticated401/other tenant403/denied403/unassigned404/assigned200 and explicit tenant branding. No real file/gateway/live data accessed. Existing workflow8/8 passes. Added isolated queue SQL test verifies rules/channels, dedup/concurrency, tenant key isolation and audit insert rollback on existing migration schema, never applied to live DB.
