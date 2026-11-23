@@ -281,3 +281,8 @@ Scoped generic CSS, responsive header/date filter, two-column phone summary, con
 
 ### Phase29 ERP financial-report presentation
 Added scoped presentation classes only. Four report tabs wrap on phone; balance sheet/P&L summaries stack, aging grid fits two columns, trial summary wraps and six-column table scrolls.20 direction/width/tab/error fixtures pass with actual local tab clicks and no writes; function/control AST exact and build passes. Actual phone BS/P&L/aging and desktop trial, phone real scroll960/302 inspected. Large report amounts readable, no calculations/endpoints changed. English-only report content retained, not Arabic localization or accounting certification. Backend report correctness remains outside this phase.
+
+Phase29 released f7c62de0ecba10e21c46ca76c9fd2a006f53b7cf, deployment3b1c436d-e76f-4c89-b15b-c0b74bd749e7 SUCCESS. Live360px report header/tabs/error fits, asset index-2e435a6a.js. Report load fails so populated live acceptance not established.
+
+### Phase30 accounting and ERP journal list presentation
+Two distinct journal sources retained, with search and reverse control unchanged. Scoped classes/CSS for title, long description/creator, full numeric cells and horizontally scrollable ledgers1180/1400px.24 synthetic fixtures ar/en360/1440 populated/empty/failure, exact function and field AST, production build pass. Actual phone/desktop/empty and real scroll1400/334 to full amount and separately reverse control inspected. No reverse, posting, creation or financial write executed. Error handling can present empty on both pages; dollar labels in accounting list remain as source, not currency validation. FinanceSubNav stubbed locally, live context pending.

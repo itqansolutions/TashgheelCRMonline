@@ -42,7 +42,7 @@ const Entries = () => {
   );
 
   return (
-    <div>
+    <div className="accounting-entries-page">
       <FinanceSubNav />
       <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}

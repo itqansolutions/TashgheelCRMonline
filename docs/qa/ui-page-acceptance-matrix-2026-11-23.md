@@ -1,6 +1,6 @@
 # All-page UI acceptance matrix
 
-Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional certification. Source page components include containers, public pages and platform-owner components; counts are not unique user workflows. Every page still needs final acceptance across applicable roles, tenants and widths. Selected-editor evidence does not accept all details, approvals, previews or other actions on that page. Source/runtime module gates stay unchanged.
+Snapshot: 2026-11-23 16:31 Africa/Cairo. This is an evidence map, not functional certification. Source page components include containers, public pages and platform-owner components; counts are not unique user workflows. Every page still needs final acceptance across applicable roles, tenants and widths. Selected-editor evidence does not accept all details, approvals, previews or other actions on that page. Source/runtime module gates stay unchanged.
 
 | Source page | Bounded phase | Local scope | Live evidence recorded here | Whole page accepted |
 |---|---:|---|---|---|
@@ -26,9 +26,9 @@ Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional
 | Deals.jsx | 1 | selected editor shells only | not established in this matrix | no |
 | ERP/BankReconciliation.jsx |  | not individually accepted | not established in this matrix | no |
 | ERP/ChartOfAccounts.jsx | 8 | selected editor shells only | live phone/desktop blank editor; load error remains | no |
-| ERP/Entries.jsx |  | not individually accepted | not established in this matrix | no |
-| ERP/FinancialReports.jsx | 29 | four read-only report tab presentations | not established in this matrix | no |
-| ERP/JournalEntries.jsx |  | not individually accepted | not established in this matrix | no |
+| ERP/Entries.jsx | 30 | accounting voucher list presentation | not established in this matrix | no |
+| ERP/FinancialReports.jsx | 29 | four read-only report tab presentations | live phone tabs/error checked; report load fails | no |
+| ERP/JournalEntries.jsx | 30 | ERP journal list/reverse-control presentation only | not established in this matrix | no |
 | ERP/PeriodClosing.jsx |  | not individually accepted | not established in this matrix | no |
 | ERP/PurchasingCycle.jsx |  | not individually accepted | not established in this matrix | no |
 | ERP/SalesCycle.jsx | 12 | selected editor shells only | not established in this matrix | no |
@@ -109,8 +109,8 @@ Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional
 
 ## Totals
 - 102 source page components.
-- 50 components with explicit bounded phase coverage in this matrix.
-- 52 components without individual phase acceptance in this matrix.
+- 52 components with explicit bounded phase coverage in this matrix.
+- 50 components without individual phase acceptance in this matrix.
 - Zero claims of complete end-to-end business acceptance.
 - Earlier phase-specific live evidence remains in the rollout QA log; this matrix conservatively lists only recent explicit captures.
 - No production writes are part of this matrix.

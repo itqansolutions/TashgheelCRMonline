@@ -686,3 +686,24 @@
  .erp-financial-reports-page .erp-report-summary {flex-direction:column;gap:12px !important;}
  .erp-financial-reports-page .erp-aging-summary {grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
 }
+
+/* Accounting and ERP journal ledgers: distinct records/actions preserved. */
+.accounting-entries-page,.erp-journals-page,.accounting-entries-page *,.erp-journals-page * {box-sizing:border-box;}
+.accounting-entries-page,.erp-journals-page {min-width:0;}
+.accounting-entries-page h2,.erp-journals-page h1 {line-height:1.4;}
+.accounting-entries-page h2 svg,.erp-journals-page h1 svg {flex-shrink:0;}
+.accounting-entries-page p,.erp-journals-page p {line-height:1.7;overflow-wrap:anywhere;}
+.accounting-entries-page input {min-width:0;min-height:40px;}
+.accounting-entries-page .responsive-table-region,.erp-journals-page .responsive-table-region {max-width:100%;width:100%;overflow-x:auto;}
+.accounting-entries-page table {min-width:1180px;}
+.erp-journals-page table {min-width:1400px;}
+.accounting-entries-page td,.erp-journals-page td {line-height:1.65;}
+.accounting-entries-page td:nth-child(3),.erp-journals-page td:nth-child(4),.erp-journals-page td:nth-child(5) {min-width:220px;max-width:300px;overflow-wrap:anywhere;}
+.accounting-entries-page td:nth-child(1),.accounting-entries-page td:nth-child(2),.accounting-entries-page td:nth-child(4),.accounting-entries-page td:nth-child(5),.erp-journals-page td:nth-child(1),.erp-journals-page td:nth-child(2),.erp-journals-page td:nth-child(6) {white-space:nowrap;}
+.accounting-entries-page td:last-child {min-width:160px;max-width:230px;overflow-wrap:anywhere;}
+.erp-journals-page td button {min-height:40px;white-space:nowrap;}
+@media(max-width:768px) {
+ .accounting-entries-page > div:last-child,.erp-journals-page {padding:12px !important;}
+ .accounting-entries-page h2,.erp-journals-page h1 {font-size:22px !important;align-items:flex-start !important;}
+ .accounting-entries-page > div:last-child > div:last-child > div:not(.responsive-table-region),.erp-journals-page > div:last-child:has(>h3) {padding:24px 16px !important;}
+}
