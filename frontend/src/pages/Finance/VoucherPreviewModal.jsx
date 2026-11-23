@@ -193,7 +193,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
     const amountWords = isRTL ? amountWordsArabic : amountWordsEnglish;
 
     return (
-        <div style={{
+        <div className="voucher-preview-overlay" style={{
             position: 'fixed',
             inset: 0,
             background: 'rgba(0,0,0,0.75)',
@@ -219,7 +219,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                 overflow: 'hidden'
             }}>
                 {/* Modal Toolbar */}
-                <div style={{
+                <div className="voucher-preview-toolbar" style={{
                     padding: '16px 24px',
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -278,9 +278,10 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                 </div>
 
                 {/* Printable Document Container */}
-                <div style={{ overflowY: 'auto', padding: '24px', flex: 1, background: '#f1f5f9' }}>
+                <div className="voucher-preview-scroll" style={{ overflowY: 'auto', padding: '24px', flex: 1, background: '#f1f5f9' }}>
                     <div
                         ref={printRef}
+                        className="voucher-document"
                         style={{
                             background: '#ffffff',
                             color: '#0f172a',
@@ -294,7 +295,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                         }}
                     >
                         {/* Print Header */}
-                        <div style={{
+                        <div className="voucher-document-header" style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
@@ -342,7 +343,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                         </div>
 
                         {/* Title Bar with Voucher Number & Date */}
-                        <div style={{
+                        <div className="voucher-document-title" style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
@@ -378,7 +379,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                         </div>
 
                         {/* Amount Highlight Box */}
-                        <div style={{
+                        <div className="voucher-document-amount" style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
@@ -401,7 +402,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                         </div>
 
                         {/* Voucher Body Details */}
-                        <div style={{
+                        <div className="voucher-document-details" style={{
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '14px',
@@ -454,7 +455,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                         </div>
 
                         {/* Signatures Footer */}
-                        <div style={{
+                        <div className="voucher-document-signatures" style={{
                             display: 'grid',
                             gridTemplateColumns: '1fr 1fr 1fr',
                             gap: '20px',

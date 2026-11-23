@@ -55,3 +55,11 @@ cd frontend && npm run build
 ```
 
 The PostgreSQL suites create isolated temporary databases. Never point them at application data. Fixtures and audit captures are written under `/downloads/mobile-campaign`; do not deploy the fixtures.
+
+## Live acceptance and receipt preview follow-up
+
+Production e5b3ebf activated 2026-11-23 05:43:55 Cairo. Read-only live pixel inspection confirmed Arabic partial badge, selected cashbox in RV-0003 preview, populated Units Registry at360px, and mobile menu open/backdrop-close. No financial records changed.
+
+Live360px voucher preview exposed cramped print-style interior spacing. Follow-up adds screen-only phone padding and stacked detail/amount/signature sections, wrapping toolbar, while print and desktop retain original layout. Synthetic populated receipt fixture now exercises this exact preview. Arabic/English checks pass360/390/430/1440, including all document children horizontally contained and unchanged44px print padding. Actual screenshot review covers phone top/bottom and desktop. This local follow-up still needs exact production activation verification.
+
+Whole-project readiness remains PARTIAL: fixture geometry is not proof of all populated production states, roles, permission variants or physical devices. Pre-existing ChartOfAccounts Add Account has no rendered modal and remains a separate functional defect. No blanket100% claim.

@@ -118,3 +118,19 @@
  .responsive-form-overlay [style*="overflow-y: auto"]{min-height:0}
  .responsive-form-overlay>div{overflow-y:auto}
 }
+
+@media screen and (max-width:768px){
+ .voucher-preview-overlay{padding:10px!important}
+ .voucher-preview-overlay>div{max-height:calc(100dvh - 20px)!important}
+ .voucher-preview-toolbar{padding:10px!important;gap:8px;flex-wrap:wrap;flex-shrink:0}
+ .voucher-preview-toolbar>div{flex-wrap:wrap;min-width:0;gap:6px!important}
+ .voucher-preview-toolbar button{min-height:42px}
+ .voucher-preview-scroll{min-height:0;padding:10px!important}
+ .voucher-document{padding:16px!important;overflow-wrap:anywhere}
+ .voucher-document-header,.voucher-document-title,.voucher-document-amount{flex-wrap:wrap;gap:14px;padding:12px!important}
+ .voucher-document-header h1{font-size:19px!important}
+ .voucher-document-amount>div{width:100%;max-width:100%!important;text-align:start!important}
+ .voucher-document-details>div{flex-direction:column;gap:4px}
+ .voucher-document-details>div>span{width:100%!important;min-width:0}
+ .voucher-document-signatures{grid-template-columns:minmax(0,1fr)!important;gap:28px!important}
+}
