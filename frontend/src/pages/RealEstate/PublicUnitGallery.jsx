@@ -931,7 +931,7 @@ export default function PublicUnitGallery() {
                 </div>
             )}
 
-            {/* Clean Footer (No links) */}
+            {/* Product attribution requested for shared public galleries. */}
             <footer style={{
                 textAlign: 'center',
                 padding: '24px 20px',
@@ -939,7 +939,11 @@ export default function PublicUnitGallery() {
                 fontSize: '12px',
                 color: '#64748b'
             }}>
-                <div>جميع الحقوق محفوظة © {company.name || 'الشركة'} {new Date().getFullYear()}</div>
+                <div dir="ltr" style={{display:'flex',justifyContent:'center',alignItems:'center',flexWrap:'wrap',gap:'0.3em',lineHeight:1.8}}>
+                    <span>Tashgheel CRM Powered by </span>
+                    <a href="https://itqansolutions.org" target="_blank" rel="noopener noreferrer" style={{color:'inherit',textDecoration:'underline',textUnderlineOffset:'3px'}}>itqansolutions</a>
+                    <span> ©</span>
+                </div>
             </footer>
         </div>
     );
