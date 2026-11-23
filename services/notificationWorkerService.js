@@ -29,11 +29,16 @@ class NotificationWorkerService {
         let jobs = [];
         try {
             const res = await db.query(`
-                SELECT * FROM notification_jobs 
-                WHERE status = 'pending' AND scheduled_at <= NOW()
-                ORDER BY priority DESC, created_at ASC 
-                LIMIT $1
-                FOR UPDATE SKIP LOCKED
+                UPDATE notification_jobs AS jobs
+                SET status = 'processing', updated_at = NOW()
+                WHERE jobs.id IN (
+                    SELECT id FROM notification_jobs
+                    WHERE status = 'pending' AND scheduled_at <= NOW()
+                    ORDER BY priority DESC, created_at ASC
+                    LIMIT $1
+                    FOR UPDATE SKIP LOCKED
+                ) AND jobs.status = 'pending'
+                RETURNING jobs.*
             `, [batchSize]);
             jobs = res.rows;
         } catch (err) {
@@ -53,13 +58,7 @@ class NotificationWorkerService {
 
         for (const job of jobs) {
             try {
-                // 1. Mark job as processing
-                await db.query(`
-                    UPDATE notification_jobs 
-                    SET status = 'processing', updated_at = NOW() 
-                    WHERE id = $1
-                `, [job.id]);
-
+                // Job was atomically claimed as processing by the selection statement.
                 // 2. Dry-Run Mode (Safe testing & simulated environments)
                 if (isDryRun) {
                     const mockWamid = `wamid.mock.${job.id}`;

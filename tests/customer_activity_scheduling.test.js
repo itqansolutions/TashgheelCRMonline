@@ -15,10 +15,12 @@ const notificationService = require('../services/notificationService');
 test('Customer Activity Scheduling & Follow-up Notifications', async (t) => {
   const TENANT_ID = '33333333-3333-3333-3333-333333333333';
   const originalQuery = db.query;
+  const originalConnect = db.connect;
   const originalNotify = notificationService.notify;
 
   t.afterEach(() => {
     db.query = originalQuery;
+    db.connect = originalConnect;
     notificationService.notify = originalNotify;
   });
 
@@ -198,6 +200,7 @@ test('Customer Activity Scheduling & Follow-up Notifications', async (t) => {
   });
 
   await t.test('4. activityReminderService scans due reminders and sends notifications', async () => {
+    db.connect = async () => ({query:async (sql,params) => sql.includes('pg_try_advisory_lock') ? {rows:[{locked:true}]} : db.query(sql,params),release() {}});
     const notificationsSent = [];
     notificationService.notify = async (payload) => {
       notificationsSent.push(payload);

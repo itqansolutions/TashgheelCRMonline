@@ -10,7 +10,15 @@ const { ensureActivitiesTable } = require('../controllers/activityController');
  */
 
 async function scanAndSendReminders() {
+    let scanClient;
+    let scanLocked = false;
     try {
+        // Session lock spans selection, dispatch and sent marking across server instances.
+        // A dedicated connection is required: pooled query calls cannot own session locks safely.
+        scanClient = await db.connect();
+        const lock = await scanClient.query('SELECT pg_try_advisory_lock(824190311) AS locked');
+        scanLocked = lock.rows[0]?.locked === true;
+        if (!scanLocked) return 0;
         await ensureActivitiesTable();
 
         const query = `
@@ -31,7 +39,7 @@ async function scanAndSendReminders() {
             LIMIT 50
         `;
 
-        const res = await db.query(query);
+        const res = await scanClient.query(query);
         if (!res || !res.rows || res.rows.length === 0) return 0;
 
         let sentCount = 0;
@@ -109,6 +117,15 @@ async function scanAndSendReminders() {
     } catch (err) {
         console.error('[ActivityReminder] Scanner error:', err.message);
         return 0;
+    } finally {
+        if (scanClient) {
+            let releaseError;
+            if (scanLocked) {
+                try { await scanClient.query('SELECT pg_advisory_unlock(824190311)'); }
+                catch (err) { releaseError = err; console.error('[ActivityReminder] Scanner unlock error:', err.message); }
+            }
+            scanClient.release(releaseError);
+        }
     }
 }
 
