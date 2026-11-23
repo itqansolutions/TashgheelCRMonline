@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -739,42 +740,60 @@ const PurchaseRequests = () => {
       </div>
 
       {/* CREATE / EDIT MODAL */}
-      {showCreateModal && (
-        <div className="responsive-form-overlay" style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center',
-          alignItems: 'center', zIndex: 1100, padding: '20px'
-        }}>
-          <div style={{
-            background: 'white', width: '100%', maxWidth: '850px', maxHeight: '90vh',
-            borderRadius: '16px', display: 'flex', flexDirection: 'column',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
-            overflow: 'hidden'
-          }}>
-            {/* Modal Header */}
-            <div style={{
-              padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex',
-              justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc'
-            }}>
-              <div>
-                <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                  {isEditing ? 'Edit Purchase Request' : 'Create Purchase Request'}
-                </h2>
-                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
-                  Specify needed materials and estimated budget requirements.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
+      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} variant="form" title={isEditing ? 'Edit Purchase Request' : 'Create Purchase Request'} footer={<><div style={{
+                padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', color: '#64748b' }}>Estimated Budget:</span>
+                  <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                    {totalEstimatedForm.toLocaleString()} EGP
+                  </span>
+                </div>
 
-            {/* Modal Body */}
-            <form onSubmit={(e) => handleSubmitForm(e, false)} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-              <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    style={{
+                      padding: '9px 16px', borderRadius: '8px', border: '1px solid #cbd5e1',
+                      background: 'white', color: '#475569', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit" form="purchase-request-editor"
+                    disabled={submittingAction}
+                    style={{
+                      padding: '9px 18px', borderRadius: '8px', border: '1px solid #0284c7',
+                      background: 'white', color: '#0284c7', fontWeight: 700, fontSize: '13px', cursor: 'pointer'
+                    }}
+                  >
+                    Save as Draft
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={submittingAction}
+                    onClick={(e) => handleSubmitForm(e, true)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      padding: '9px 20px', borderRadius: '8px', border: 'none',
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      color: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)'
+                    }}
+                  >
+                    <Send size={14} />
+                    Save & Submit for Approval
+                  </button>
+                </div>
+              </div></>}>
+<p style={{ color: '#64748b', marginBottom: '18px', fontSize: '13px' }}>Specify needed materials and estimated budget requirements.</p>
+<form id="purchase-request-editor" onSubmit={(e) => handleSubmitForm(e, false)} className="purchase-request-editor">
+              <div>
                 {/* Header Information */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
                   <div>
@@ -885,7 +904,7 @@ const PurchaseRequests = () => {
                   </div>
 
                   <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-                    <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <div className="responsive-table-region" role="region" tabIndex={0}><table className="purchase-request-items" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                       <thead>
                         <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
                           <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700 }}>Product *</th>
@@ -899,7 +918,7 @@ const PurchaseRequests = () => {
                       <tbody>
                         {form.items.map((item, idx) => (
                           <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '8px 14px' }}>
+                            <td data-label="Product *" style={{ padding: '8px 14px' }}>
                               <select
                                 value={item.product_id}
                                 onChange={(e) => handleItemChange(idx, 'product_id', e.target.value)}
@@ -917,7 +936,7 @@ const PurchaseRequests = () => {
                                 ))}
                               </select>
                             </td>
-                            <td style={{ padding: '8px 14px' }}>
+                            <td data-label="Quantity" style={{ padding: '8px 14px' }}>
                               <input
                                 type="number"
                                 min="0.01"
@@ -930,7 +949,7 @@ const PurchaseRequests = () => {
                                 }}
                               />
                             </td>
-                            <td style={{ padding: '8px 14px' }}>
+                            <td data-label="Unit" style={{ padding: '8px 14px' }}>
                               <input
                                 type="text"
                                 value={item.unit}
@@ -941,7 +960,7 @@ const PurchaseRequests = () => {
                                 }}
                               />
                             </td>
-                            <td style={{ padding: '8px 14px' }}>
+                            <td data-label="Est. Unit Price" style={{ padding: '8px 14px' }}>
                               <input
                                 type="number"
                                 min="0"
@@ -954,10 +973,10 @@ const PurchaseRequests = () => {
                                 }}
                               />
                             </td>
-                            <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>
+                            <td data-label="Est. Subtotal" style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>
                               {(parseFloat(item.subtotal) || 0).toLocaleString()} EGP
                             </td>
-                            <td style={{ padding: '8px 14px', textAlign: 'center' }}>
+                            <td data-label="Remove item" style={{ padding: '8px 14px', textAlign: 'center' }}>
                               <button
                                 type="button"
                                 onClick={() => handleRemoveItem(idx)}
@@ -975,64 +994,8 @@ const PurchaseRequests = () => {
                     </table></div>
                   </div>
                 </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div style={{
-                padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '13px', color: '#64748b' }}>Estimated Budget:</span>
-                  <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
-                    {totalEstimatedForm.toLocaleString()} EGP
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    style={{
-                      padding: '9px 16px', borderRadius: '8px', border: '1px solid #cbd5e1',
-                      background: 'white', color: '#475569', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
-                    }}
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    disabled={submittingAction}
-                    style={{
-                      padding: '9px 18px', borderRadius: '8px', border: '1px solid #0284c7',
-                      background: 'white', color: '#0284c7', fontWeight: 700, fontSize: '13px', cursor: 'pointer'
-                    }}
-                  >
-                    Save as Draft
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={submittingAction}
-                    onClick={(e) => handleSubmitForm(e, true)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                      padding: '9px 20px', borderRadius: '8px', border: 'none',
-                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                      color: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer',
-                      boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)'
-                    }}
-                  >
-                    <Send size={14} />
-                    Save & Submit for Approval
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+              </div></form>
+</Modal>
 
       {/* DETAIL / APPROVAL DRAWER */}
       {showDetailDrawer && selectedRequest && (

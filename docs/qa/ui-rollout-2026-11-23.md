@@ -169,3 +169,10 @@ Finance/accounting; purchasing; inventory beyond Products; remaining HR; real es
 - Vendor statement/printing/payment, target performance drilldown and price-tier/target calculations unchanged. No supplier, target or pricing record submitted or modified.
 -24general/RE AR/EN360/1440 actual-component fixture variants, prior stock/RE/HR regression and build pass. Actual Arabic phone and English desktop pixels inspected; no overflow/fixed footer clipping.
 - Source-backed existing target default uses2026-Q3 regardless current date. Preserved in this layout-only change, not represented as a current-quarter default or corrected silently.
+
+
+## Phase 8 candidate
+- Chart-of-accounts create and purchase-request create/edit shells converted to shared opt-in panel, internal scroll and original external linked-submit.7COA controls and9initial purchase-request controls retained, each additional item adds the original4controls. Phone item table becomes labelled cards; desktop table retained.
+- All control ASTs and noncomponent function bodies exact against Phase7. No seed, accounting create, purchase draft, approval submission, rejection or lifecycle action executed. Separate Save as Draft and Save & Submit for Approval remain separate, preserving original mechanics and calculations.
+- Eight AR/EN360/1440 actual-component variants plus top/bottom captures, local add/remove item checks, prior editor regressions and build pass. Actual desktop/phone pixels inspected. Original purchase-request text is English in both languages and is preserved, not claimed translated.
+- All-page rollout remains partial; long RFQ/PO/unit forms, marketing, remaining contacts/finance, dashboards and other pages await coverage.

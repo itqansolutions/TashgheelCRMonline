@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
@@ -160,11 +161,11 @@ const ChartOfAccounts = () => {
           </table></div>
         </div>
       )}
-      {showModal && (
-        <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div role="dialog" aria-modal="true" aria-labelledby="coa-create-title" style={{ background: 'white', color: '#1e293b', borderRadius: 16, width: '100%', maxWidth: 520, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', padding: 24 }}>
-            <h2 id="coa-create-title" style={{ marginTop: 0 }}>{label('Add Account', 'إضافة حساب')}</h2>
-            <form onSubmit={handleCreate} style={{ display: 'grid', gap: 14 }}>
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} variant="form" title={label('Add Account', 'إضافة حساب')} footer={<>
+                <button type="button" disabled={saving} onClick={() => setShowModal(false)} style={{ padding: '10px 18px' }}>{label('Cancel', 'إلغاء')}</button>
+                <button type="submit" form="coa-editor" disabled={saving} style={{ padding: '10px 18px', background: '#4f46e5', color: 'white', border: 0, borderRadius: 8 }}>{saving ? label('Saving...', 'جار الحفظ...') : label('Create Account', 'إنشاء الحساب')}</button>
+              </>}>
+<form id="coa-editor" onSubmit={handleCreate} className="coa-editor" style={{ display: 'grid', gap: 18 }}>
               <label>{label('Code', 'الكود')}<input id="coa-code" required value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} style={{ width: '100%', padding: 10, boxSizing: 'border-box' }} /></label>
               <label>{label('Name', 'الاسم')}<input id="coa-name" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} style={{ width: '100%', padding: 10, boxSizing: 'border-box' }} /></label>
               <label>{label('Type', 'النوع')}<select id="coa-type" value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value, parent_id: '', sub_type: '' })} style={{ width: '100%', padding: 10 }}>
@@ -176,14 +177,8 @@ const ChartOfAccounts = () => {
               <label>{label('Sub-Type (optional)', 'النوع الفرعي (اختياري)')}<input id="coa-subtype" value={formData.sub_type} onChange={e => setFormData({ ...formData, sub_type: e.target.value })} style={{ width: '100%', padding: 10, boxSizing: 'border-box' }} /></label>
               <label>{label('Currency', 'العملة')}<input id="coa-currency" required maxLength={3} value={formData.currency} onChange={e => setFormData({ ...formData, currency: e.target.value.toUpperCase() })} style={{ width: '100%', padding: 10, boxSizing: 'border-box' }} /></label>
               <label><input id="coa-group" type="checkbox" checked={formData.is_group} onChange={e => setFormData({ ...formData, is_group: e.target.checked })} /> {label('Group Account', 'حساب تجميعي')}</label>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                <button type="button" disabled={saving} onClick={() => setShowModal(false)} style={{ padding: '10px 18px' }}>{label('Cancel', 'إلغاء')}</button>
-                <button type="submit" disabled={saving} style={{ padding: '10px 18px', background: '#4f46e5', color: 'white', border: 0, borderRadius: 8 }}>{saving ? label('Saving...', 'جار الحفظ...') : label('Create Account', 'إنشاء الحساب')}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+              </form>
+</Modal>
     </div>
   );
 };
