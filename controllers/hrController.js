@@ -361,29 +361,38 @@ exports.generatePayroll = async (req, res) => {
     const branch_id = req.branchId;
     const { month, year, user_id } = req.body;
 
+    const payrollMonth = Number(month), payrollYear = Number(year);
+    if (!['string','number'].includes(typeof month) || !['string','number'].includes(typeof year) || !Number.isInteger(payrollMonth) || payrollMonth < 1 || payrollMonth > 12 || !Number.isInteger(payrollYear) || payrollYear < 1900 || payrollYear > 9999 || !user_id) {
+        return res.status(400).json({status:'error', message:'Valid employee, month (1-12) and year are required.'});
+    }
+    let client;
     try {
-        await db.query('BEGIN');
+        client = await db.pool.connect();
+        await client.query('BEGIN');
+        const employee = await client.query(`SELECT id FROM users WHERE id = $1 AND tenant_id::text = $2::text
+            AND branch_id::text = $3::text FOR UPDATE`, [user_id, tenant_id, branch_id]);
+        if (!employee.rows.length) throw new Error('Employee not found in this tenant and branch.');
 
         // 1. Fetch Employee Profile
-        const profileRes = await db.query(`SELECT * FROM hr_profiles WHERE user_id = $1 AND tenant_id::text = $2::text`, [user_id, tenant_id]);
+        const profileRes = await client.query(`SELECT * FROM hr_profiles WHERE user_id = $1 AND tenant_id::text = $2::text`, [user_id, tenant_id]);
         if (profileRes.rows.length === 0) throw new Error('Employee profile not found or unauthorized.');
         
         const profile = profileRes.rows[0];
         const base_salary = parseFloat(profile.salary) || 0;
 
         // Ensure payroll for this month doesn't already exist
-        const existRes = await db.query(`
-            SELECT id FROM hr_payroll WHERE user_id = $1 AND payroll_month = $2 AND payroll_year = $3
-        `, [user_id, month, year]);
+        const existRes = await client.query(`
+            SELECT id FROM hr_payroll WHERE user_id = $1 AND payroll_month = $2 AND payroll_year = $3 AND tenant_id::text = $4::text
+        `, [user_id, payrollMonth, payrollYear, tenant_id]);
         
         if (existRes.rows.length > 0) throw new Error(`Payroll for ${month}/${year} already exists for this employee.`);
 
         // 2. Calculate Attendance (Late penalties, Work hours)
-        const attRes = await db.query(`
+        const attRes = await client.query(`
             SELECT SUM(work_hours) as total_hours, SUM(late_minutes) as total_late_minutes
             FROM hr_attendance
-            WHERE user_id = $1 AND EXTRACT(MONTH FROM check_in) = $2 AND EXTRACT(YEAR FROM check_in) = $3
-        `, [user_id, month, year]);
+            WHERE user_id = $1 AND EXTRACT(MONTH FROM check_in) = $2 AND EXTRACT(YEAR FROM check_in) = $3 AND tenant_id::text = $4::text AND branch_id::text = $5::text
+        `, [user_id, payrollMonth, payrollYear, tenant_id, branch_id]);
 
         const total_work_hours = parseFloat(attRes.rows[0].total_hours) || 0;
         const total_late_minutes = parseInt(attRes.rows[0].total_late_minutes) || 0;
@@ -394,12 +403,14 @@ exports.generatePayroll = async (req, res) => {
         let penalty_amount = parseFloat((total_late_minutes * minute_rate).toFixed(2));
 
         // 3. Unpaid Leaves logic
-        const leavesRes = await db.query(`
-            SELECT SUM(days) as unpaid_days
-            FROM hr_leaves 
-            WHERE user_id = $1 AND type = 'unpaid' AND status = 'approved'
-            AND EXTRACT(MONTH FROM start_date) = $2 AND EXTRACT(YEAR FROM start_date) = $3
-        `, [user_id, month, year]);
+        const leavesRes = await client.query(`
+            SELECT COALESCE(SUM(LEAST(end_date, (make_date($3::int,$2::int,1) + INTERVAL '1 month - 1 day')::date)
+                - GREATEST(start_date, make_date($3::int,$2::int,1)) + 1),0) as unpaid_days
+            FROM hr_leaves WHERE user_id = $1 AND type = 'unpaid' AND status = 'approved'
+              AND tenant_id::text = $4::text AND branch_id::text = $5::text
+              AND start_date < make_date($3::int,$2::int,1) + INTERVAL '1 month'
+              AND end_date >= make_date($3::int,$2::int,1)
+        `, [user_id, payrollMonth, payrollYear, tenant_id, branch_id]);
 
         const unpaid_days = parseInt(leavesRes.rows[0].unpaid_days) || 0;
         const daily_rate = base_salary / 22; 
@@ -411,29 +422,31 @@ exports.generatePayroll = async (req, res) => {
         const net_salary = base_salary - total_deductions;
 
         // 5. Insert Core Payroll
-        const payRes = await db.query(`
+        const payRes = await client.query(`
             INSERT INTO hr_payroll (user_id, tenant_id, branch_id, payroll_month, payroll_year, base_salary, total_work_hours, deduction_amount, net_salary, status)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft') RETURNING *
-        `, [user_id, tenant_id, branch_id, month, year, base_salary, total_work_hours, total_deductions, net_salary]);
+        `, [user_id, tenant_id, branch_id, payrollMonth, payrollYear, base_salary, total_work_hours, total_deductions, net_salary]);
 
         const payroll_id = payRes.rows[0].id;
 
         // 6. Insert Payroll Tracing Layout (hr_payroll_items)
         if (penalty_amount > 0) {
-            await db.query(`INSERT INTO hr_payroll_items (payroll_id, type, amount, description) VALUES ($1, 'penalty_late', $2, $3)`, [payroll_id, -penalty_amount, `${total_late_minutes} Mins Late`]);
+            await client.query(`INSERT INTO hr_payroll_items (payroll_id, type, amount, description) VALUES ($1, 'penalty_late', $2, $3)`, [payroll_id, -penalty_amount, `${total_late_minutes} Mins Late`]);
         }
         if (leave_deduction > 0) {
-            await db.query(`INSERT INTO hr_payroll_items (payroll_id, type, amount, description) VALUES ($1, 'leave_unpaid', $2, $3)`, [payroll_id, -leave_deduction, `${unpaid_days} Days Unpaid Leave`]);
+            await client.query(`INSERT INTO hr_payroll_items (payroll_id, type, amount, description) VALUES ($1, 'leave_unpaid', $2, $3)`, [payroll_id, -leave_deduction, `${unpaid_days} Days Unpaid Leave`]);
         }
 
-        await db.query('COMMIT');
+        await client.query('COMMIT');
 
         res.status(201).json({ status: 'success', message: 'Payroll Engine computed successfully (Draft).', data: payRes.rows[0] });
 
     } catch (err) {
-        await db.query('ROLLBACK');
+        if (client) await client.query('ROLLBACK');
         console.error('generatePayroll Error:', err.message);
         res.status(400).json({ status: 'error', message: err.message });
+    } finally {
+        if (client) client.release();
     }
 };
 
@@ -468,9 +481,9 @@ exports.finalizePayroll = async (req, res) => {
     try {
         const result = await db.query(`
             UPDATE hr_payroll SET status = 'finalized'
-            WHERE id = $1 AND tenant_id::text = $2::text AND status = 'draft'
+            WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text AND status = 'draft'
             RETURNING *
-        `, [payroll_id, tenant_id]);
+        `, [payroll_id, tenant_id, req.branchId]);
 
         if (result.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Payroll not found or it is already locked.' });
         res.json({ status: 'success', message: 'Payroll has been finalized and Locked.', data: result.rows[0] });
