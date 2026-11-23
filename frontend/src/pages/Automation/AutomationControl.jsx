@@ -65,7 +65,7 @@ const AutomationControl = () => {
     };
 
     return (
-        <div className="automation-page">
+        <div className="automation-page automation-control-page">
             <style>{`
                 .ac-header { margin-bottom: 32px; }
                 .ac-tabs { display: flex; gap: 4px; background: rgba(0,0,0,0.04); padding: 4px; border-radius: 10px; width: fit-content; margin-bottom: 28px; }

@@ -728,3 +728,37 @@
  .erp-closing-page h3 {line-height:1.5;}
  .erp-closing-page > div:last-child > div:not(.responsive-table-region) {padding:24px 8px !important;}
 }
+
+/* Workflow control presentation only; enabling/cooldown handlers untouched. */
+.automation-control-page,.automation-control-page * {box-sizing:border-box;}
+.automation-control-page {min-width:0;}
+.automation-control-page .ac-header h2 {line-height:1.4;}
+.automation-control-page .ac-header svg {flex-shrink:0;}
+.automation-control-page .ac-header p {line-height:1.7;}
+.automation-control-page .rule-body {min-width:0;}
+.automation-control-page .rule-label,.automation-control-page .rule-desc {overflow-wrap:anywhere;line-height:1.65;}
+.automation-control-page .rule-meta {flex-wrap:wrap;line-height:1.7;}
+.automation-control-page .btn-toggle {min-width:44px;min-height:44px;}
+.automation-control-page .btn-cooldown {min-height:40px;}
+.automation-control-page .responsive-table-region {max-width:100%;overflow-x:auto;}
+.automation-control-page .log-table {min-width:1050px;}
+.automation-control-page .log-table td:first-child {min-width:200px;max-width:300px;overflow-wrap:anywhere;}
+.automation-control-page .log-table td:nth-child(n+2):not([colspan]) {white-space:nowrap;}
+.automation-control-page .log-status {white-space:nowrap;}
+.automation-control-page .log-meta {white-space:normal;overflow-wrap:anywhere;}
+.automation-control-page .log-meta pre {white-space:pre-wrap;overflow-wrap:anywhere;direction:ltr;text-align:left;}
+.automation-control-page .log-table:has(td[colspan]):not(:has(.row-expandable)) {min-width:0;table-layout:fixed;}
+@media(max-width:768px) {
+ .automation-control-page .ac-header h2 {font-size:22px !important;align-items:flex-start !important;}
+ .automation-control-page .ac-tabs {width:100%;}
+ .automation-control-page .ac-tab {flex:1;min-height:44px;padding:10px 8px;}
+ .automation-control-page .rule-card {padding:16px;gap:12px;flex-wrap:wrap;align-items:flex-start;}
+ .automation-control-page .rule-icon {width:44px;height:44px;font-size:24px;}
+ .automation-control-page .rule-body {flex:1 1 210px;}
+ .automation-control-page .rule-controls {width:100%;flex-direction:row;justify-content:space-between;align-items:center;}
+ .automation-control-page .log-table:has(td[colspan]):not(:has(.row-expandable)) thead {display:none;}
+}
+@media(max-width:768px) {
+ .automation-control-page {padding:12px;}
+ .automation-control-page .ac-header p {overflow-wrap:anywhere;}
+}
