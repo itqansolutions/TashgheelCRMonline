@@ -286,3 +286,8 @@ Phase29 released f7c62de0ecba10e21c46ca76c9fd2a006f53b7cf, deployment3b1c436d-e7
 
 ### Phase30 accounting and ERP journal list presentation
 Two distinct journal sources retained, with search and reverse control unchanged. Scoped classes/CSS for title, long description/creator, full numeric cells and horizontally scrollable ledgers1180/1400px.24 synthetic fixtures ar/en360/1440 populated/empty/failure, exact function and field AST, production build pass. Actual phone/desktop/empty and real scroll1400/334 to full amount and separately reverse control inspected. No reverse, posting, creation or financial write executed. Error handling can present empty on both pages; dollar labels in accounting list remain as source, not currency validation. FinanceSubNav stubbed locally, live context pending.
+
+Phase30 released ffc0e09bfaebc0f398acf43bd16b5729b0a51878, deployment4abc2fc8-f59b-41c3-9f65-9cf1b81b5839 SUCCESS. Live phone both distinct journal pages empty states and accounting subnav/search inspected; asset index-fca7cf06.js. No reversal/post.
+
+### Phase31 banking/fixed-assets list presentation
+Scoped classes only, phone headings/empty cards and six-column scrolling ledgers with long account/asset names and nonbreaking numeric cells.24 synthetic ar/en360/1440 populated/empty/error fixtures, function/control AST exact, build pass. Actual phone/desktop/empty and fixed-asset real scroll1160/302 inspected through NBV and posting control. No posting, depreciation, account edit or reconciliation operation. Existing load-error-as-empty behavior preserved; NBV zero fallback and immediate depreciation-post handler remain uncertified, not changed by presentation work. Page title claims broader capabilities than the visible directory; preserved, not certified.

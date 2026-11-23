@@ -707,3 +707,24 @@
  .accounting-entries-page h2,.erp-journals-page h1 {font-size:22px !important;align-items:flex-start !important;}
  .accounting-entries-page > div:last-child > div:last-child > div:not(.responsive-table-region),.erp-journals-page > div:last-child:has(>h3) {padding:24px 16px !important;}
 }
+
+/* Banking directory and fixed-asset list, no matching/posting changes. */
+.erp-banking-page,.erp-closing-page,.erp-banking-page *,.erp-closing-page * {box-sizing:border-box;}
+.erp-banking-page,.erp-closing-page {min-width:0;}
+.erp-banking-page h1,.erp-closing-page h1 {line-height:1.4;}
+.erp-banking-page h1 svg,.erp-closing-page h1 svg {flex-shrink:0;}
+.erp-banking-page p,.erp-closing-page p {line-height:1.7;overflow-wrap:anywhere;}
+.erp-banking-page .responsive-table-region,.erp-closing-page .responsive-table-region {max-width:100%;width:100%;overflow-x:auto;}
+.erp-banking-page table,.erp-closing-page table {min-width:1160px;}
+.erp-banking-page td,.erp-closing-page td {line-height:1.65;}
+.erp-banking-page td:nth-child(1),.erp-banking-page td:nth-child(2),.erp-banking-page td:nth-child(4),.erp-closing-page td:nth-child(2) {min-width:200px;max-width:280px;overflow-wrap:anywhere;}
+.erp-banking-page td:nth-child(3),.erp-banking-page td:nth-child(5),.erp-banking-page td:nth-child(6),.erp-closing-page td:not(:nth-child(2)) {white-space:nowrap;}
+.erp-closing-page td button {min-height:40px;white-space:nowrap;}
+@media(max-width:768px) {
+ .erp-banking-page,.erp-closing-page {padding:12px !important;}
+ .erp-banking-page h1,.erp-closing-page h1 {font-size:22px !important;align-items:flex-start !important;}
+ .erp-banking-page > div:last-child:has(>h3) {padding:24px 16px !important;}
+ .erp-closing-page > div:last-child {padding:16px !important;}
+ .erp-closing-page h3 {line-height:1.5;}
+ .erp-closing-page > div:last-child > div:not(.responsive-table-region) {padding:24px 8px !important;}
+}
