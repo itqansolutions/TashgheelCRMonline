@@ -132,9 +132,9 @@ const Logs = () => {
   };
 
   return (
-        <div className="p-4 md:p-8 animate-in fade-in duration-500">
+        <div className="logs-page p-4 md:p-8 animate-in fade-in duration-500">
             <style>{`
-                .platform-table th {
+                .logs-page .platform-table th {
                     padding: 16px 24px;
                     font-size: 11px;
                     font-weight: 800;
@@ -143,11 +143,11 @@ const Logs = () => {
                     color: var(--text-muted);
                     border-bottom: 1px solid var(--border);
                 }
-                .platform-table td {
+                .logs-page .platform-table td {
                     padding: 20px 24px;
                     border-bottom: 1px solid var(--border);
                 }
-                .log-level-badge {
+                .logs-page .log-level-badge {
                     display: inline-flex;
                     align-items: center;
                     gap: 6px;
@@ -158,9 +158,9 @@ const Logs = () => {
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
                 }
-                .diff-row {
+                .logs-page .diff-row {
                     display: grid;
-                    grid-template-cols: 140px 1fr 20px 1fr;
+                    grid-template-columns: 140px minmax(0,1fr) 20px minmax(0,1fr);
                     gap: 16px;
                     padding: 12px 16px;
                     border-radius: 12px;
@@ -171,7 +171,7 @@ const Logs = () => {
                 }
             `}</style>
 
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+            <div className="logs-header flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                 <div className="flex items-center gap-4">
                     {location.pathname.startsWith('/itqan-crm-hud') && (
                         <button 
@@ -197,7 +197,7 @@ const Logs = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div className="logs-summary grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
                 <div className="ap-card p-6 flex items-center gap-5 border-[var(--primary)] shadow-lg shadow-indigo-600/5">
                     <div className="w-14 h-14 bg-indigo-600/10 text-indigo-600 rounded-2xl flex items-center justify-center">
                         <Activity size={26}/>
@@ -227,7 +227,7 @@ const Logs = () => {
                 </div>
             </div>
 
-            <div className="ap-card p-8 mb-10 border-indigo-100 dark:border-indigo-900/20">
+            <div className="logs-filters ap-card p-8 mb-10 border-indigo-100 dark:border-indigo-900/20">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
                     <div className="space-y-2 lg:col-span-1">
                         <label className="ap-label">Operator Node</label>
@@ -264,7 +264,7 @@ const Logs = () => {
                 </div>
             </div>
 
-            <div className="ap-card overflow-hidden">
+            <div className="logs-table-card ap-card overflow-hidden">
                 <div className="responsive-table-region" role="region" tabIndex={0}><table className="w-full text-left platform-table">
                     <thead>
                         <tr>
@@ -321,7 +321,7 @@ const Logs = () => {
                                     <td className="text-right">
                                        <button 
                                         onClick={() => { setSelectedLog(log); setIsModalOpen(true); }}
-                                        className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-500 hover:text-indigo-600 transition-all opacity-0 group-hover:opacity-100"
+                                        className="log-inspect-action p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-500 hover:text-indigo-600 transition-all opacity-0 group-hover:opacity-100"
                                        >
                                            <Eye size={18} />
                                        </button>
@@ -336,8 +336,8 @@ const Logs = () => {
             {/* DEEP SCAN MODAL (CUSTOM STYLING FOR LOGS) */}
             {isModalOpen && selectedLog && (
                 <>
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[250] animate-in fade-in" onClick={() => setIsModalOpen(false)} />
-                <div className="fixed inset-y-0 right-0 w-full max-w-[800px] bg-white dark:bg-slate-950 shadow-2xl z-[300] p-10 overflow-y-auto animate-in slide-in-from-right duration-500">
+                <div className="logs-detail-backdrop fixed inset-0 bg-black/40 backdrop-blur-sm z-[250] animate-in fade-in" onClick={() => setIsModalOpen(false)} />
+                <div className="logs-detail-panel fixed inset-y-0 right-0 w-full max-w-[800px] bg-white dark:bg-slate-950 shadow-2xl z-[300] p-10 overflow-y-auto animate-in slide-in-from-right duration-500">
                     <div className="flex items-center justify-between mb-12">
                         <div className="flex items-center gap-5">
                             <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-600/30">
