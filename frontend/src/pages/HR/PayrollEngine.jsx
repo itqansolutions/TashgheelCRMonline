@@ -163,7 +163,7 @@ const PayrollEngine = () => {
                     </button>
                 </form>
 
-                <table className="pr-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="pr-table">
                     <thead>
                         <tr>
                             <th>{t('hr.payrollEngine.colCycle', 'Cycle')}</th>
@@ -199,7 +199,7 @@ const PayrollEngine = () => {
                             </tr>
                         ))}
                     </tbody>
-                </table>
+                </table></div>
 
                 {/* Details Visualizer Modal */}
                 {isDetailsOpen && selectedPayroll && (

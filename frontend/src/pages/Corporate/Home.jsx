@@ -921,7 +921,7 @@ const CorporateHome = () => {
 
           {/* Comparison Matrix Table */}
           <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-md">
-            <table className="w-full text-start border-collapse">
+            <div className="responsive-table-region" role="region" tabIndex={0}><table className="w-full text-start border-collapse">
               <thead>
                 <tr className="bg-slate-100/90 text-slate-900 border-b border-slate-200">
                   <th className="py-4 px-6 text-sm font-extrabold text-start">{t.comparison.colFeature}</th>
@@ -962,7 +962,7 @@ const CorporateHome = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
       </section>

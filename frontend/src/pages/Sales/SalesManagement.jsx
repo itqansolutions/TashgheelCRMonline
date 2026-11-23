@@ -641,7 +641,7 @@ const SalesManagement = () => {
         {activeTab === 'performance' && (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className={`w-full text-xs ${isRTL ? 'text-right' : 'text-left'}`}>
+              <div className="responsive-table-region" role="region" tabIndex={0}><table className={`w-full text-xs ${isRTL ? 'text-right' : 'text-left'}`}>
                 <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
                   <tr>
                     <th className="py-3.5 px-4">{t('salesManagement.team.rep', 'Representative')}</th>
@@ -707,7 +707,7 @@ const SalesManagement = () => {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           </div>
         )}
@@ -1080,7 +1080,7 @@ const SalesManagement = () => {
 
             {/* Unassigned Leads Table */}
             <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className={`w-full text-xs ${isRTL ? 'text-right' : 'text-left'}`}>
+              <div className="responsive-table-region" role="region" tabIndex={0}><table className={`w-full text-xs ${isRTL ? 'text-right' : 'text-left'}`}>
                 <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
                   <tr>
                     <th className="py-3 px-4 w-10">
@@ -1188,7 +1188,7 @@ const SalesManagement = () => {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           </div>
         )}

@@ -685,7 +685,7 @@ const Settings = () => {
                   </div>
                 </div>
                 
-                <table className="preview-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="preview-table">
                   <thead>
                     <tr>
                       <th>Description</th>
@@ -700,7 +700,7 @@ const Settings = () => {
                       <td style={{ textAlign: 'right' }}>1,500.00 {tenant.currency || 'EGP'}</td>
                     </tr>
                   </tbody>
-                </table>
+                </table></div>
 
                 <div className="preview-footer">
                   <div style={{ fontWeight: '800' }}>TERMS & CONDITIONS:</div>
@@ -720,7 +720,7 @@ const Settings = () => {
       {/* Tab 2: CRM & Leads */}
       {activeTab === 'CRM & Leads' && (
         <div className="settings-layout full-width">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 400px), 1fr))', gap: '24px' }}>
             {/* Lead Sources */}
             <div className="settings-card">
               <div className="card-header">
@@ -875,7 +875,7 @@ const Settings = () => {
       {/* Tab 3: Sales & Pipeline */}
       {activeTab === 'Sales & Pipeline' && (
         <div className="settings-layout full-width">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: '24px' }}>
             {/* Task & Deal Pipeline Stages */}
             <div className="settings-card">
               <div className="card-header">
@@ -1192,7 +1192,7 @@ const Settings = () => {
               </div>
               <div className="card-body">
                 {/* Summary KPIs */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 110px), 1fr))', gap: '10px', marginBottom: '16px' }}>
                   <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
                     <div style={{ fontSize: '11px', color: '#64748b' }}>الإجمالي</div>
                     <div style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>{deliverySummary.total || 0}</div>
@@ -1261,7 +1261,7 @@ const Settings = () => {
                   </div>
                 ) : (
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                       <thead>
                         <tr style={{ background: '#f1f5f9', color: '#334155', textAlign: 'right' }}>
                           <th style={{ padding: '10px' }}>الحدث</th>
@@ -1316,7 +1316,7 @@ const Settings = () => {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </table></div>
                   </div>
                 )}
               </div>

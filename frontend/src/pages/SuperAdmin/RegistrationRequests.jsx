@@ -195,7 +195,7 @@ const RegistrationRequests = () => {
                     </div>
                 ) : (
                     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-                        <table className="w-full text-sm">
+                        <div className="responsive-table-region" role="region" tabIndex={0}><table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-slate-100 text-left">
                                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Company</th>
@@ -262,7 +262,7 @@ const RegistrationRequests = () => {
                                     );
                                 })}
                             </tbody>
-                        </table>
+                        </table></div>
                     </div>
                 )}
             </main>

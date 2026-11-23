@@ -56,7 +56,7 @@ const ProductRetail = () => {
       </div>
 
       {/* Pain-Solution Blocks */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '40px', marginBottom: '100px' }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '40px', marginBottom: '100px' }}>
         <div style={{ background: '#fef2f2', padding: '40px', borderRadius: '32px', border: '1px solid #fee2e2' }} className="wow-reveal delay-2">
           <h2 style={{ color: 'var(--danger)', fontSize: '32px', fontWeight: '800', marginBottom: '32px' }}>{t.painSection.title}</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>

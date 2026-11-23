@@ -390,7 +390,7 @@ const WhatsAppChatbots = () => {
       </div>
 
       {/* Summary KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 16, marginBottom: 24 }}>
         <div style={{ background: 'white', padding: '18px 20px', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Bots</div>
           <div style={{ fontSize: 28, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>{chatbots.length}</div>
@@ -417,7 +417,7 @@ const WhatsAppChatbots = () => {
 
       {/* Action Bar (Search, Department Filter) */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 12, flex: 1, maxWidth: 640 }}>
+        <div className="chatbot-filters" style={{ display: 'flex', gap: 12, flex: 1, maxWidth: 640 }}>
           <input
             type="text"
             placeholder="Search chatbots by name, description or department..."
@@ -462,7 +462,7 @@ const WhatsAppChatbots = () => {
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 380px), 1fr))', gap: 16 }}>
           {filteredBots.map(bot => {
             const keywords = Array.isArray(bot.trigger_keywords) ? bot.trigger_keywords : [];
             const nodesCount = Array.isArray(bot.scenario_nodes) ? bot.scenario_nodes.length : 0;

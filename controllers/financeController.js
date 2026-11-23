@@ -715,8 +715,8 @@ const recordPaymentInternal = async ({
             const vRes = await client.query(`
                 INSERT INTO finance_vouchers (
                     voucher_number, voucher_type, party_type, party_name, customer_id, invoice_id,
-                    amount, payment_method, treasury_account_id, notes, voucher_date, created_by, tenant_id, branch_id, status
-                ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, $8, CURRENT_DATE, $9, $10, $11, 'active')
+                    amount, payment_method, treasury_account_id, notes, voucher_date, created_by, tenant_id, branch_id, status, treasury_account
+                ) VALUES ($1, 'receipt', 'customer', $2, $3, $4, $5, $6, $7, $8, CURRENT_DATE, $9, $10, $11, 'active', $12)
                 RETURNING *
             `, [
                 voucherNumber,
@@ -729,7 +729,8 @@ const recordPaymentInternal = async ({
                 notes ? `${notes} (سداد فاتورة ${invoice.invoice_number})` : `سداد فاتورة رقم ${invoice.invoice_number}`,
                 user_id || null,
                 tenant_id,
-                invBranchId ? String(invBranchId) : null
+                invBranchId ? String(invBranchId) : null,
+                treasury.name
             ]);
             voucherData = vRes.rows[0];
 
@@ -1164,8 +1165,10 @@ exports.getVouchers = async (req, res) => {
             SELECT 
                 v.*,
                 u.name as created_by_name,
-                i.invoice_number as linked_invoice_number
+                i.invoice_number as linked_invoice_number,
+                COALESCE(ta.name, v.treasury_account) AS treasury_account
             FROM finance_vouchers v
+            LEFT JOIN treasury_accounts ta ON ta.id = v.treasury_account_id AND ta.tenant_id::text = v.tenant_id::text
             LEFT JOIN users u ON v.created_by = u.id
             LEFT JOIN invoices i ON v.invoice_id = i.id
             WHERE v.tenant_id::text = $1::text 
@@ -1354,11 +1357,13 @@ exports.getVoucherDetails = async (req, res) => {
                 i.invoice_number as linked_invoice_number,
                 i.total_amount as linked_invoice_total,
                 t.name as tenant_name, t.logo_url, t.tax_no, t.reg_no, t.phone as tenant_phone, t.address as tenant_address, t.currency,
-                b.name as branch_name, b.phone as branch_phone, b.address as branch_address
+                b.name as branch_name, b.phone as branch_phone, b.address as branch_address,
+                COALESCE(ta.name, v.treasury_account) AS treasury_account
             FROM finance_vouchers v
+            LEFT JOIN treasury_accounts ta ON ta.id = v.treasury_account_id AND ta.tenant_id::text = v.tenant_id::text
             LEFT JOIN users u ON v.created_by = u.id
             LEFT JOIN invoices i ON v.invoice_id = i.id
-            LEFT JOIN tenants t ON v.tenant_id = t.id
+            LEFT JOIN tenants t ON v.tenant_id::text = t.id::text
             LEFT JOIN branches b ON v.branch_id::text = b.id::text
             WHERE v.id = $1 AND v.tenant_id::text = $2::text AND ($3::text IS NULL OR v.branch_id::text = $3::text OR v.branch_id IS NULL)
         `, [voucher_id, tenant_id, branch_id ? String(branch_id) : null]);

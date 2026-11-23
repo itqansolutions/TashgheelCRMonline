@@ -314,7 +314,7 @@ const Tasks = () => {
       </div>
 
       {/* Stats Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '16px', marginBottom: '28px' }}>
         {[
           { label: t('tasks.filterAll'), value: stats.total, color: '#6366f1', bg: '#eef2ff' },
           { label: t('tasks.statuses.todo'), value: stats.todo, color: '#64748b', bg: '#f1f5f9' },
@@ -393,7 +393,7 @@ const Tasks = () => {
       ) : (
         /* LIST VIEW */
         <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                 {[
@@ -458,7 +458,7 @@ const Tasks = () => {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 

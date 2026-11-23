@@ -232,7 +232,7 @@ const Employees = () => {
   return (
     <div className="employees-page">
       <style>{`
-        .perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 16px; }
+        .perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 12px; margin-top: 16px; }
         .perm-item { display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: 0.2s; }
         .perm-item:hover { border-color: var(--primary); background: #f8fafc; }
         .perm-item.active { border-color: var(--primary); background: #eff6ff; color: var(--primary); }

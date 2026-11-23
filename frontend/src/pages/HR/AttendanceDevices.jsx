@@ -176,7 +176,7 @@ const AttendanceDevices = () => {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '12px', borderBottom: '2px solid #e2e8f0', marginBottom: '24px' }}>
+        <div className="hr-management-tabs" style={{ display: 'flex', gap: '12px', borderBottom: '2px solid #e2e8f0', marginBottom: '24px' }}>
           <button
             onClick={() => setActiveTab('devices')}
             style={{
@@ -213,7 +213,7 @@ const AttendanceDevices = () => {
                 <p style={{ fontSize: '13px', color: '#cbd5e1' }}>{t('hr.attendanceDevices.noDevicesDesc', 'Devices auto-register upon first ADMS connection or can be added manually')}</p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))', gap: '20px' }}>
                 {devices.map((d) => {
                   const isOnline = d.connection_status === 'online';
                   return (
@@ -283,7 +283,7 @@ const AttendanceDevices = () => {
             ) : badgeUsers.length === 0 ? (
               <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>{t('hr.attendanceDevices.noEmployeesInBranch', 'No employees in this branch')}</div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
+              <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                     <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.attendanceDevices.colEmployee', 'Employee')}</th>
@@ -354,7 +354,7 @@ const AttendanceDevices = () => {
                     );
                   })}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
         )}

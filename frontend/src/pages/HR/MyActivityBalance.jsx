@@ -85,7 +85,7 @@ const MyActivityBalance = () => {
       </div>
 
       <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '14px', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+        <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
           <thead>
             <tr style={{ background: '#f8fafc', textAlign: isRTL ? 'right' : 'left', color: '#475569' }}>
               <th style={{ padding: '12px 16px', fontWeight: 800, fontSize: '12px' }}>{t('hr.myActivityBalance.colActivity', 'Activity')}</th>
@@ -112,7 +112,7 @@ const MyActivityBalance = () => {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   );

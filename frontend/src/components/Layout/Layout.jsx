@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 
 const Layout = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => !window.matchMedia('(max-width: 768px)').matches);
+  const location = useLocation();
+  useEffect(() => { if (window.matchMedia('(max-width: 768px)').matches) setIsSidebarOpen(false); }, [location.pathname, location.search]);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 768px)');
+    const onChange = e => setIsSidebarOpen(!e.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -75,10 +83,11 @@ const Layout = () => {
         }
       `}</style>
 
+      {isSidebarOpen && <button className="mobile-sidebar-backdrop" aria-label="Close navigation" onClick={() => setIsSidebarOpen(false)} />}
       <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
 
       <div className="main-container">
-        <Header toggleSidebar={toggleSidebar} />
+        <Header toggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
         
         <main className="content-area">
           <Outlet />

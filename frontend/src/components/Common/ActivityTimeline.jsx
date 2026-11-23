@@ -463,7 +463,7 @@ const ActivityTimeline = ({ entityType, entityId, canLog = true, onActivityCreat
                                 </div>
 
                                 {/* Date time picker + reminder note */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '10px' }}>
                                     <div>
                                         <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#475569', marginBottom: '4px' }}>
                                             📅 {t('customers.scheduleTime', 'Follow-up Date & Time')} *

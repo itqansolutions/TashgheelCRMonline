@@ -112,7 +112,7 @@ const VendorStatementModal = ({ vendor, onClose }) => {
                   {t('vendors.noTransactions')}
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                   <thead>
                     <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
                       <th style={{ padding: '10px 12px', textAlign: isRTL ? 'right' : 'left' }}>{t('vendors.colDate')}</th>
@@ -141,7 +141,7 @@ const VendorStatementModal = ({ vendor, onClose }) => {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               )}
             </div>
           )}
@@ -336,7 +336,7 @@ const ContactsVendors = () => {
             <p style={{ fontWeight: 700, margin: 0 }}>{t('vendors.noVendors')}</p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                 {[
@@ -404,7 +404,7 @@ const ContactsVendors = () => {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 

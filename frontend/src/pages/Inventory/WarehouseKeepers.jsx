@@ -142,7 +142,7 @@ const WarehouseKeepers = () => {
           {loading ? (
             <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>{t('inventory.keepers.loading')}</div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('inventory.keepers.name')}</th>
@@ -192,7 +192,7 @@ const WarehouseKeepers = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
 

@@ -114,7 +114,7 @@ const MyProfile = () => {
       {/* Profile Details Grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
         gap: '24px',
         marginBottom: '40px'
       }}>
@@ -212,7 +212,7 @@ const MyProfile = () => {
 
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))',
           gap: '16px'
         }}>
           {quickNavItems.map(item => (

@@ -253,7 +253,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         <div className="card-body">
           {expiringReservations.length > 0 ? (
             <div className="table-responsive">
-              <table className="compact-table">
+              <div className="responsive-table-region" role="region" tabIndex={0}><table className="compact-table">
                 <thead>
                   <tr>
                     <th>{t('dashboard.unit')}</th>
@@ -299,7 +299,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           ) : (
             <EmptyState message={t('dashboard.noExpiringReservations')} compact={true} />
@@ -494,7 +494,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         }
         .dashboard-grid-4 {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
           gap: 14px;
         }
         .dashboard-row-split {

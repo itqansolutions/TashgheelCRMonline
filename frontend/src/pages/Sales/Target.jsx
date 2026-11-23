@@ -350,7 +350,7 @@ const Target = () => {
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 380px), 1fr))', gap: '20px' }}>
           {targets.map((trg) => {
             const targetAmount = parseFloat(trg.target_amount) || 1;
             const achievedVal = isRealEstate ? (parseFloat(trg.achieved_contracts_value) || 0) : (parseFloat(trg.achieved_amount) || 0);
@@ -537,7 +537,7 @@ const Target = () => {
                   )}
 
                   {/* Summary Metric Cards */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '12px', marginBottom: '20px' }}>
                     <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                       <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>
                         {t('sales.targets.netContractValue')}
@@ -651,7 +651,7 @@ const Target = () => {
                         </div>
                       ) : (
                         <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                          <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                             <thead>
                               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', textAlign: isRTL ? 'right' : 'left' }}>
                                 <th style={{ padding: '10px' }}>{t('sales.targets.columns.contractNo')}</th>
@@ -686,7 +686,7 @@ const Target = () => {
                                 </tr>
                               ))}
                             </tbody>
-                          </table>
+                          </table></div>
                         </div>
                       )}
                     </div>
@@ -701,7 +701,7 @@ const Target = () => {
                         </div>
                       ) : (
                         <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                          <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                             <thead>
                               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', textAlign: isRTL ? 'right' : 'left' }}>
                                 <th style={{ padding: '10px' }}>{t('sales.targets.columns.paymentDate')}</th>
@@ -748,7 +748,7 @@ const Target = () => {
                                 </tr>
                               ))}
                             </tbody>
-                          </table>
+                          </table></div>
                         </div>
                       )}
                     </div>
@@ -763,7 +763,7 @@ const Target = () => {
                         </div>
                       ) : (
                         <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                          <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                             <thead>
                               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', textAlign: isRTL ? 'right' : 'left' }}>
                                 <th style={{ padding: '10px' }}>{t('sales.targets.columns.unitNo')}</th>
@@ -788,7 +788,7 @@ const Target = () => {
                                 </tr>
                               ))}
                             </tbody>
-                          </table>
+                          </table></div>
                         </div>
                       )}
                     </div>
@@ -803,7 +803,7 @@ const Target = () => {
                         </div>
                       ) : (
                         <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                          <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                             <thead>
                               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', textAlign: isRTL ? 'right' : 'left' }}>
                                 <th style={{ padding: '10px' }}>{t('sales.targets.columns.cancellationDate')}</th>
@@ -846,7 +846,7 @@ const Target = () => {
                                 </tr>
                               ))}
                             </tbody>
-                          </table>
+                          </table></div>
                         </div>
                       )}
                     </div>

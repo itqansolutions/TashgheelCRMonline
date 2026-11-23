@@ -1,0 +1,120 @@
+/* Responsive foundation. Data remains reachable; wide documents and ledgers scroll locally. */
+.mobile-menu-toggle,.mobile-sidebar-backdrop { display:none; }
+@media (max-width:768px) {
+  .mobile-menu-toggle { display:inline-flex; align-items:center; justify-content:center; min-width:44px; min-height:44px; background:var(--bg-main); color:var(--text-main); border-radius:8px; flex-shrink:0; }
+  .mobile-sidebar-backdrop { display:block; position:fixed; inset:0; border:0; background:rgba(15,23,42,.4); z-index:1001; }
+  .sidebar { z-index:1002!important; max-height:100dvh; }
+  .header .search-bar { min-width:0; flex:1; }
+  .header .header-left { min-width:0; }
+  .content-area { min-width:0; }
+  .content-area > * { max-width:100%; min-width:0; }
+  .page-header { gap:12px; flex-wrap:wrap; align-items:flex-start!important; }
+  .page-header > div { min-width:0; max-width:100%; flex-wrap:wrap; }
+  .page-header h1,.page-header h2 { overflow-wrap:anywhere; }
+  .form-grid,.lc-grid { grid-template-columns:minmax(0,1fr)!important; }
+  .form-grid > .full,.form-group.full { grid-column:auto!important; }
+  .table-search { width:100%!important; max-width:100%; min-width:0; }
+  .pagination { gap:12px; flex-wrap:wrap; }
+  .action-btns { flex-wrap:wrap; }
+  .responsive-data-table table,.responsive-data-table tbody,.responsive-data-table tr,.responsive-data-table td { display:block; width:100%; box-sizing:border-box; }
+  .responsive-data-table thead { display:none; }
+  .responsive-data-table tr { padding:12px 16px; border-bottom:1px solid var(--border); }
+  .responsive-data-table td { padding:8px 0!important; text-align:start!important; border:0!important; overflow-wrap:anywhere; }
+  .responsive-data-table td[data-label]::before { content:attr(data-label); display:block; font-size:11px; color:var(--text-muted); font-weight:700; margin-bottom:4px; }
+  .responsive-data-table .btn-icon { min-width:40px; min-height:40px; }
+  .modal-overlay { padding:12px!important; }
+  .modal-content { max-height:calc(100dvh - 24px)!important; min-width:0; }
+  .modal-header,.modal-body,.modal-footer { padding:14px!important; }
+  .modal-footer button { min-height:42px; white-space:normal; }
+  .modal-body input,.modal-body select,.modal-body textarea { max-width:100%; min-width:0; font-size:16px; }
+  .modal-body [style*="grid-template-columns: 1fr 1fr"],
+  .modal-body [style*="grid-template-columns: repeat(2"],
+  .modal-body [style*="grid-template-columns: repeat(3"] { grid-template-columns:minmax(0,1fr)!important; }
+  .modal-body [style*="grid-column: span 2"] { grid-column:auto!important; }
+  .customers-page .filters-row,.customers-page .filters-container { flex-wrap:wrap!important; }
+  .customers-page select { min-width:0!important; max-width:100%; }
+  .settings-layout { grid-template-columns:minmax(0,1fr)!important; }
+  .preview-pane,.preview-box { min-width:0; max-width:100%; overflow:auto; }
+  .whatsapp-chat-page { padding:8px!important; height:auto!important; min-height:calc(100dvh - 160px); }
+  .whatsapp-chat-page > div { min-width:0; max-width:100%; flex-wrap:wrap; }
+  .whatsapp-chat-page > div > div { min-width:0; max-width:100%; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .sidebar,.main-container,.modal-content { transition:none!important; animation:none!important; }
+}
+.responsive-table-region { width:100%; max-width:100%; min-width:0; overflow-x:auto; overscroll-behavior-inline:contain; }
+.chat-mobile-back { display:none; }
+@media(max-width:768px) {
+  .customers-page .filter-bar { flex-wrap:wrap; }
+  .customers-page .filter-bar .search-box { flex-basis:100%; min-width:0; }
+  .customers-page .filter-bar select { flex:1 1 140px; min-height:42px; }
+  .units-registry-page { padding:12px!important; }
+  .units-registry-header,.units-registry-actions { flex-wrap:wrap; gap:12px!important; max-width:100%; }
+  .units-registry-header > div { min-width:0; max-width:100%; }
+  .units-registry-header h1 { font-size:24px!important; }
+  .units-registry-actions { width:100%; }
+  .units-registry-actions > div { flex-wrap:wrap; }
+  .whatsapp-chat-page > div > div { flex-wrap:wrap; }
+  .chat-workspace { display:block!important; min-height:60dvh!important; }
+  .chat-workspace .chat-conversation-list { width:100%!important; min-width:0!important; }
+  .chat-workspace:not(.has-active-chat) .chat-message-pane { display:none!important; }
+  .chat-workspace.has-active-chat .chat-conversation-list { display:none!important; }
+  .chat-workspace .chat-message-pane { min-height:65dvh; }
+  .chat-mobile-back { display:flex; align-items:center; gap:8px; min-height:44px; padding:10px; background:white; }
+}
+@media print { .responsive-table-region { overflow:visible; } }
+
+@media(max-width:768px){.reports-page .chart-card{min-width:0;padding:16px}.reports-page .chart-card h3{min-width:0;flex-wrap:wrap;overflow-wrap:anywhere}.reports-page .reports-grid{min-width:0}}
+@media(max-width:768px) {
+ .contacts-employees-page{padding:12px!important}
+ .employee-tabs,.erp-report-tabs,.purchase-request-filters{flex-wrap:wrap;max-width:100%;width:100%!important}
+ .purchase-request-filters input{min-width:0;max-width:100%}
+ .whatsapp-settings-page{padding:12px!important}
+ .whatsapp-settings-page select,.whatsapp-settings-page input{min-width:0;max-width:100%}
+ .whatsapp-settings-page [style*="display: flex"]{flex-wrap:wrap}
+ .attendance-admin-page .kpi-row{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ .attendance-admin-page .hr-kpi{min-width:0;padding:12px}
+ .payroll-engine-page .gen-box{flex-wrap:wrap;padding:14px}
+ .payroll-engine-page .form-group-p{min-width:0;flex-basis:100%}
+ .payroll-engine-page .form-group-p input,.payroll-engine-page .form-group-p select{min-width:0;max-width:100%}
+ .print-container{padding:16px!important;min-width:0}
+ .print-container .invoice-header,.print-container .signature-area{flex-wrap:wrap;gap:20px}
+ .print-container .meta-grid{grid-template-columns:minmax(0,1fr)}
+ .print-container .totals-box,.print-container .sig-box{max-width:100%;width:100%;float:none}
+}
+
+@media(max-width:768px){.whatsapp-settings-page .whatsapp-variable-row{display:grid!important;grid-template-columns:minmax(0,1fr);width:100%;min-width:0}.whatsapp-variable-row>*{max-width:100%!important;min-width:0!important}}
+
+@media(max-width:768px){
+ .contacts-customers-page{padding:12px!important}
+ .contacts-customers-page>div:first-child,.contacts-customers-page>div:first-child>div:last-child,.coa-actions,.chatbot-filters,.hr-management-tabs{flex-wrap:wrap;min-width:0;gap:10px!important}
+ .chatbot-filters input,.chatbot-filters select{min-width:0;max-width:100%;flex-basis:100%}
+ .quotation-preview-page{padding:12px!important}
+ .quotation-title-block{max-width:100%;min-width:0}
+ .quotation-title-block h1{font-size:24px!important;overflow-wrap:anywhere}
+}
+@media(max-width:768px){
+ .chat-workspace .chat-message-pane{width:100%;max-width:100%;min-width:0}
+ .chat-message-pane>div,.chat-message-pane form{min-width:0;max-width:100%;flex-wrap:wrap;gap:8px}
+ .chat-message-pane>div>div{min-width:0;max-width:100%;flex-wrap:wrap;overflow-wrap:anywhere}
+ .chat-message-pane textarea,.chat-message-pane input{min-width:0;max-width:100%}
+ .quotation-box{padding:16px!important}
+ .quotation-preview-container .header-section{flex-wrap:wrap;gap:20px}
+ .quotation-preview-container .billing-info{grid-template-columns:minmax(0,1fr);gap:16px}
+}
+
+@media(max-width:768px){
+ .responsive-form-overlay>div{max-height:calc(100dvh - 24px)!important;min-width:0;max-width:calc(100vw - 24px)!important}
+ .responsive-form-overlay [style*="display: grid"]{grid-template-columns:minmax(0,1fr)!important}
+ .responsive-form-overlay [style*="grid-column"]{grid-column:auto!important}
+ .responsive-form-overlay input,.responsive-form-overlay select,.responsive-form-overlay textarea{min-width:0;max-width:100%;font-size:16px!important}
+ .responsive-form-overlay [style*="display: flex"]{min-width:0;flex-wrap:wrap}
+ .responsive-form-overlay>div>div:first-child,.responsive-form-overlay>div>div:last-child{flex-shrink:0}
+ .responsive-form-overlay>div>div:last-child{gap:8px!important}
+ .responsive-form-overlay>div>div:last-child button{min-height:42px;white-space:normal;flex-shrink:0}
+}
+@media(max-width:768px){
+ .responsive-form-overlay [style*="flex-direction: column"]{flex-wrap:nowrap!important}
+ .responsive-form-overlay [style*="overflow-y: auto"]{min-height:0}
+ .responsive-form-overlay>div{overflow-y:auto}
+}

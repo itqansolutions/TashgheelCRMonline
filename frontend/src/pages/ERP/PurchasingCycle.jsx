@@ -80,7 +80,7 @@ const PurchasingCycle = () => {
               <p style={{ color: '#64748b' }}>Purchase orders committed with suppliers will appear here.</p>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
                   <th style={{ padding: '12px 16px' }}>PO Number</th>
@@ -107,7 +107,7 @@ const PurchasingCycle = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )
         ) : (
           suppliers.length === 0 ? (
@@ -116,7 +116,7 @@ const PurchasingCycle = () => {
               <h3>No Suppliers Registered</h3>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
                   <th style={{ padding: '12px 16px' }}>Supplier Code</th>
@@ -137,7 +137,7 @@ const PurchasingCycle = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )
         )}
       </div>

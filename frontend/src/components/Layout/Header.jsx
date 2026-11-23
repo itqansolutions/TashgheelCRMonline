@@ -8,7 +8,7 @@ import api from '../../services/api';
 import BranchSelector from './BranchSelector';
 import { safeArray } from '../../utils/dataUtils';
 
-const Header = ({ toggleSidebar }) => {
+const Header = ({ toggleSidebar, isSidebarOpen }) => {
   const { user, logout } = useAuth();
   const { lang, toggleLanguage, t, isRTL } = useLanguage();
   const navigate = useNavigate();
@@ -113,7 +113,7 @@ const Header = ({ toggleSidebar }) => {
         .header-right { display: flex; align-items: center; gap: 12px; }
         .icon-btn { position: relative; color: var(--text-muted); transition: color 0.2s; background: none; border: none; cursor: pointer; padding: 6px; border-radius: 6px; }
         .icon-btn:hover { color: var(--primary); background: rgba(79, 70, 229, 0.05); }
-        .badge { position: absolute; top: 0px; right: 0px; background-color: var(--danger); color: white; font-size: 9px; width: 15px; height: 15px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg-card); font-weight: 700; }
+        .notification-count-badge { position: absolute; top: 0px; right: 0px; background-color: var(--danger); color: white; font-size: 9px; width: 15px; height: 15px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg-card); font-weight: 700; }
         
         .notification-dropdown { position: absolute; top: 100%; right: 100px; width: 300px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); margin-top: 8px; overflow: hidden; animation: slideIn 0.2s ease-out; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
@@ -174,7 +174,7 @@ const Header = ({ toggleSidebar }) => {
         [dir='rtl'] .header-left { gap: 12px; }
         [dir='rtl'] .user-dropdown { right: auto; left: 0; }
         [dir='rtl'] .notification-dropdown { right: auto; left: 0px; }
-        [dir='rtl'] .badge { right: auto; left: 0px; }
+        [dir='rtl'] .notification-count-badge { right: auto; left: 0px; }
         @media(max-width:600px) {
           .header { height:auto; min-height:56px; padding:8px 12px; gap:8px; flex-wrap:wrap; }
           .header-left { width:100%; min-width:0; }
@@ -188,6 +188,7 @@ const Header = ({ toggleSidebar }) => {
       `}</style>
 
       <div className="header-left" onClick={() => { setIsDropdownOpen(false); setIsNotificationsOpen(false); }}>
+        <button type="button" className="mobile-menu-toggle" aria-label={isRTL ? 'فتح قائمة التنقل' : 'Open navigation'} aria-expanded={!!isSidebarOpen} onClick={toggleSidebar}><Menu size={22} /></button>
         <div className="search-bar">
           <Search size={18} color="var(--text-muted)" />
           <input 
@@ -243,7 +244,7 @@ const Header = ({ toggleSidebar }) => {
             onClick={() => { setIsNotificationsOpen(!isNotificationsOpen); setIsDropdownOpen(false); }}
           >
             <Bell size={20} />
-            {unreadCount > 0 && <span className="badge">{unreadCount}</span>}
+            {unreadCount > 0 && <span className="notification-count-badge">{unreadCount}</span>}
           </button>
 
           {isNotificationsOpen && (

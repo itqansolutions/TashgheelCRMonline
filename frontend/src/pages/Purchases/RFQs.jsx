@@ -529,7 +529,7 @@ const RFQs = () => {
 
         {/* KPI Cards */}
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
           gap: '16px', marginBottom: '24px'
         }}>
           <div style={{
@@ -688,7 +688,7 @@ const RFQs = () => {
               </button>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
                   <th style={{ padding: '14px 18px', fontWeight: 700 }}>RFQ #</th>
@@ -816,7 +816,7 @@ const RFQs = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       </div>
@@ -981,7 +981,7 @@ const RFQs = () => {
                     </div>
 
                     <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                         <thead>
                           <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
                             <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700 }}>Product *</th>
@@ -1037,7 +1037,7 @@ const RFQs = () => {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                      </table></div>
                     </div>
                   </div>
                 )}
@@ -1048,7 +1048,7 @@ const RFQs = () => {
                     Invite Vendors for Bidding
                   </h3>
                   <div style={{
-                    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))',
                     gap: '10px', maxHeight: '180px', overflowY: 'auto', border: '1px solid #e2e8f0',
                     borderRadius: '10px', padding: '12px'
                   }}>
@@ -1234,7 +1234,7 @@ const RFQs = () => {
                   Requested Line Items ({selectedRfq.items?.length || 0})
                 </h3>
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
                         <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700 }}>Product</th>
@@ -1258,7 +1258,7 @@ const RFQs = () => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
               </div>
 
@@ -1295,7 +1295,7 @@ const RFQs = () => {
                 </div>
 
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
                         <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700 }}>Vendor</th>
@@ -1361,7 +1361,7 @@ const RFQs = () => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
               </div>
 
@@ -1647,7 +1647,7 @@ const RFQs = () => {
                     Quoted Line Prices
                   </h3>
                   <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                       <thead>
                         <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
                           <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700 }}>Product</th>
@@ -1714,7 +1714,7 @@ const RFQs = () => {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </table></div>
                   </div>
                 </div>
 
@@ -1839,7 +1839,7 @@ const RFQs = () => {
                 </div>
               ) : (
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '2px solid #cbd5e1' }}>
                         <th style={{ padding: '14px 16px', textAlign: 'left', minWidth: '220px', fontWeight: 800, color: '#334155' }}>
@@ -2020,7 +2020,7 @@ const RFQs = () => {
                         </tr>
                       )}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
               )}
             </div>

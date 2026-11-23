@@ -218,7 +218,7 @@ const QuotationPreview = ({ quotation }) => {
         </div>
 
         {/* Line Items Table */}
-        <table className="quotation-table">
+        <div className="responsive-table-region" role="region" tabIndex={0}><table className="quotation-table">
           <thead>
             <tr>
               <th style={{ textAlign: isRTL ? 'right' : 'left' }}>{t('finance.quotationPreview.itemService')}</th>
@@ -258,7 +258,7 @@ const QuotationPreview = ({ quotation }) => {
               <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>{parseFloat(quotation.total_amount).toLocaleString('en-US')} {t('common.currency')}</td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
 
         {/* Footer */}
         <div className="quotation-footer">

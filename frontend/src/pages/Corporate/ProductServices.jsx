@@ -56,7 +56,7 @@ const ProductServices = () => {
       </div>
 
       {/* Pain-Solution Blocks */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '40px', marginBottom: '100px' }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '40px', marginBottom: '100px' }}>
         <div style={{ background: '#eff6ff', padding: '40px', borderRadius: '32px', border: '1px solid #dbeafe' }}>
           <h2 style={{ color: '#2563eb', fontSize: '32px', fontWeight: '800', marginBottom: '32px' }}>{t.painSection.title}</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>

@@ -82,7 +82,7 @@ const ApprovalCenter = () => {
                     <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>{t('hr.approvalCenter.subtitle', 'Manage branch-wide leave and operational requests.')}</p>
                 </div>
 
-                <table className="approval-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="approval-table">
                     <thead>
                         <tr>
                             <th>{t('hr.approvalCenter.colEmployee', 'Employee')}</th>
@@ -144,7 +144,7 @@ const ApprovalCenter = () => {
                             </tr>
                         ))}
                     </tbody>
-                </table>
+                </table></div>
             </div>
         </div>
     );

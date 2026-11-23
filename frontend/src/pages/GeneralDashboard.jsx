@@ -411,7 +411,7 @@ const GeneralDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
         }
         .dashboard-grid-4 {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
           gap: 14px;
         }
         .dashboard-row-split {

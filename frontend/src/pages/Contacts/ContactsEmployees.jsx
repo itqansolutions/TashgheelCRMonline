@@ -50,7 +50,7 @@ const DeptModal = ({ dept, departments = [], users, onClose, onSave }) => {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} dir={isRTL ? 'rtl' : 'ltr'}>
       <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '440px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
         <div style={{ padding: '18px 22px', background: 'linear-gradient(135deg, #0f172a, #1e293b)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: 'white', fontWeight: 800 }}>{dept ? t('hr.contactsEmployees.modalDeptEdit') : t('hr.contactsEmployees.modalDeptAdd')}</h3>
@@ -114,7 +114,7 @@ const JobTitleModal = ({ jt, onClose, onSave }) => {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} dir={isRTL ? 'rtl' : 'ltr'}>
       <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '380px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
         <div style={{ padding: '18px 22px', background: 'linear-gradient(135deg, #7c3aed, #a855f7)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: 'white', fontWeight: 800 }}>{jt ? t('hr.contactsEmployees.modalJobEdit') : t('hr.contactsEmployees.modalJobAdd')}</h3>
@@ -402,7 +402,7 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
   ];
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} dir={isRTL ? 'rtl' : 'ltr'}>
       <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '750px', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
         {/* Header */}
         <div style={{ padding: '18px 24px', background: 'linear-gradient(135deg, #4f46e5, #06b6d4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -674,7 +674,7 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
                           </div>
 
                           {!isCollapsed && (
-                            <div style={{ padding: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '8px', background: '#fafbfc' }}>
+                            <div style={{ padding: '12px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))', gap: '8px', background: '#fafbfc' }}>
                               {matchedPages.map(page => {
                                 const isChecked = allowedPages.includes(page.id);
                                 return (
@@ -806,7 +806,7 @@ const ContactsEmployees = () => {
   ];
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="contacts-employees-page" style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }} dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
         <div>
@@ -835,7 +835,7 @@ const ContactsEmployees = () => {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', borderRadius: '14px', padding: '5px', marginBottom: '24px', width: 'fit-content' }}>
+      <div className="employee-tabs" style={{ display: 'flex', gap: '6px', background: '#f1f5f9', borderRadius: '14px', padding: '5px', marginBottom: '24px', width: 'fit-content' }}>
         {TABS.map(tTab => (
           <button key={tTab.id} onClick={() => setActiveTab(tTab.id)} style={{
             padding: '9px 20px', border: 'none', borderRadius: '10px',
@@ -856,7 +856,7 @@ const ContactsEmployees = () => {
         <>
           {/* ── Departments Tab ── */}
           {activeTab === 'departments' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))', gap: '16px' }}>
               {departments.length === 0 ? (
                 <div style={{ gridColumn: '1/-1', padding: '60px', textAlign: 'center', color: '#94a3b8', background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                   <Building size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
@@ -902,7 +902,7 @@ const ContactsEmployees = () => {
                   <p style={{ fontWeight: 700, margin: 0 }}>{t('hr.contactsEmployees.noJobTitles')}</p>
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                       <th style={{ padding: '14px 16px', textAlign: isRTL ? 'right' : 'left', fontSize: '11px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('hr.contactsEmployees.colJobTitle')}</th>
@@ -933,7 +933,7 @@ const ContactsEmployees = () => {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               )}
             </div>
           )}
@@ -952,7 +952,7 @@ const ContactsEmployees = () => {
                     <p style={{ fontWeight: 700, margin: 0 }}>{t('hr.contactsEmployees.noEmployees')}</p>
                   </div>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                         {[
@@ -1001,7 +1001,7 @@ const ContactsEmployees = () => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 )}
               </div>
             </>

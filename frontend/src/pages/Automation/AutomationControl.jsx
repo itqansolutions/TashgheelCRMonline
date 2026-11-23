@@ -145,7 +145,7 @@ const AutomationControl = () => {
                     })}
                 </div>
             ) : (
-                <table className="log-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="log-table">
                     <thead>
                         <tr>
                             <th>Rule</th>
@@ -186,7 +186,7 @@ const AutomationControl = () => {
                             );
                         })}
                     </tbody>
-                </table>
+                </table></div>
             )}
         </div>
     );

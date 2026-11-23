@@ -838,7 +838,7 @@ const SecretPortalHUD = () => {
 
                     {/* Table View */}
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
+                        <div className="responsive-table-region" role="region" tabIndex={0}><table className="w-full text-left border-collapse text-xs">
                             <thead>
                                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
                                     <th className="py-3.5 px-5">Company / Workspace</th>
@@ -1020,7 +1020,7 @@ const SecretPortalHUD = () => {
                                     })
                                 )}
                             </tbody>
-                        </table>
+                        </table></div>
                     </div>
 
                     {/* Table Footer */}

@@ -1,0 +1,838 @@
+{
+  "generatedFrom": "frontend/src/App.jsx",
+  "routes": [
+    {
+      "path": "/login",
+      "component": "Login",
+      "source": "./pages/Login",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "/register",
+      "component": "Register",
+      "source": "./pages/Register",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "/forgot-password",
+      "component": "ForgotPassword",
+      "source": "./pages/ForgotPassword",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "/reset-password",
+      "component": "ResetPassword",
+      "source": "./pages/ResetPassword",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "/pricing",
+      "component": "Pricing",
+      "source": "./pages/Pricing/Pricing",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "/public/units/:unitId/gallery",
+      "component": "PublicUnitGallery",
+      "source": "./pages/RealEstate/PublicUnitGallery",
+      "redirect": false,
+      "dynamic": true
+    },
+    {
+      "path": "/gallery/unit/:unitId",
+      "component": "PublicUnitGallery",
+      "source": "./pages/RealEstate/PublicUnitGallery",
+      "redirect": false,
+      "dynamic": true
+    },
+    {
+      "path": "/",
+      "component": "CorporateLayout",
+      "source": "./pages/Corporate/CorporateLayout",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "(index)",
+      "component": "CorporateHome",
+      "source": "./pages/Corporate/Home",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "retail",
+      "component": "ProductRetail",
+      "source": "./pages/Corporate/ProductRetail",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "restaurants",
+      "component": "ProductRestaurant",
+      "source": "./pages/Corporate/ProductRestaurant",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "services",
+      "component": "BusinessServices",
+      "source": "./pages/Corporate/ProductServices",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "solutions",
+      "component": "Placeholder",
+      "source": null,
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "about",
+      "component": "Placeholder",
+      "source": null,
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "portfolio",
+      "component": "Placeholder",
+      "source": null,
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "contact",
+      "component": "Placeholder",
+      "source": null,
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "demo",
+      "component": "DemoAccess",
+      "source": "./pages/Corporate/DemoAccess",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "/",
+      "component": "Layout",
+      "source": "./components/Layout/Layout",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "(index)",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "dashboard",
+      "component": "Dashboard",
+      "source": "./pages/Dashboard",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "my-profile",
+      "component": "MyProfile",
+      "source": "./pages/MyProfile",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "inventory",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "pricing",
+      "component": "Pricing",
+      "source": "./pages/Pricing/Pricing",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "billing",
+      "component": "Billing",
+      "source": "./pages/Billing/Billing",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "customers",
+      "component": "Customers",
+      "source": "./pages/Customers",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "contacts/customers",
+      "component": "ContactsCustomers",
+      "source": "./pages/Contacts/ContactsCustomers",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "contacts/vendors",
+      "component": "ContactsVendors",
+      "source": "./pages/Contacts/ContactsVendors",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "contacts/employees",
+      "component": "ContactsEmployees",
+      "source": "./pages/Contacts/ContactsEmployees",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "products",
+      "component": "Products",
+      "source": "./pages/Products",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "deals",
+      "component": "Deals",
+      "source": "./pages/Deals",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "deals/:id",
+      "component": "Deals",
+      "source": "./pages/Deals",
+      "redirect": false,
+      "dynamic": true
+    },
+    {
+      "path": "tasks",
+      "component": "Tasks",
+      "source": "./pages/Tasks",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "activities",
+      "component": "Tasks",
+      "source": "./pages/Tasks",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "units-registry",
+      "component": "UnitsRegistry",
+      "source": "./pages/RealEstate/UnitsRegistry",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "re-units",
+      "component": "UnitsRegistry",
+      "source": "./pages/RealEstate/UnitsRegistry",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "reservations",
+      "component": "Reservations",
+      "source": "./pages/RealEstate/Reservations",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "contracts",
+      "component": "Contracts",
+      "source": "./pages/RealEstate/Contracts",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "installments",
+      "component": "Installments",
+      "source": "./pages/RealEstate/Installments",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "commissions",
+      "component": "Commissions",
+      "source": "./pages/RealEstate/Commissions",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "handover",
+      "component": "Handover",
+      "source": "./pages/RealEstate/Handover",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "finance",
+      "component": "Invoices",
+      "source": "./pages/Finance/Invoices",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "quotations",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "lead-sources",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "finance/invoice-preview/:id",
+      "component": "InvoicePreview",
+      "source": "./pages/Finance/InvoicePreview",
+      "redirect": false,
+      "dynamic": true
+    },
+    {
+      "path": "finance/quotation-preview/:id",
+      "component": "QuotationPreview",
+      "source": "./pages/Finance/QuotationPreview",
+      "redirect": false,
+      "dynamic": true
+    },
+    {
+      "path": "erp/accounts",
+      "component": "ChartOfAccounts",
+      "source": "./pages/ERP/ChartOfAccounts",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "erp/journals",
+      "component": "JournalEntries",
+      "source": "./pages/ERP/JournalEntries",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "erp/sales",
+      "component": "SalesCycle",
+      "source": "./pages/ERP/SalesCycle",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "erp/purchasing",
+      "component": "PurchasingCycle",
+      "source": "./pages/ERP/PurchasingCycle",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "erp/reports",
+      "component": "FinancialReports",
+      "source": "./pages/ERP/FinancialReports",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "erp/banking",
+      "component": "BankReconciliation",
+      "source": "./pages/ERP/BankReconciliation",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "erp/closing",
+      "component": "PeriodClosing",
+      "source": "./pages/ERP/PeriodClosing",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "erp/entries",
+      "component": "Entries",
+      "source": "./pages/ERP/Entries",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "accounting",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "purchases/requests",
+      "component": "PurchaseRequests",
+      "source": "./pages/Purchases/PurchaseRequests",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "purchases/rfqs",
+      "component": "RFQs",
+      "source": "./pages/Purchases/RFQs",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "purchases/orders",
+      "component": "PurchaseOrders",
+      "source": "./pages/Purchases/PurchaseOrders",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "purchases",
+      "component": "Purchases",
+      "source": "./pages/Purchases/Purchases",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "inventory/warehouses",
+      "component": "Warehouses",
+      "source": "./pages/Inventory/Warehouses",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "inventory/keepers",
+      "component": "WarehouseKeepers",
+      "source": "./pages/Inventory/WarehouseKeepers",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "inventory/transaction-impact",
+      "component": "TransactionImpact",
+      "source": "./pages/Inventory/TransactionImpact",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "inventory/balances",
+      "component": "StockBalances",
+      "source": "./pages/Inventory/StockBalances",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "inventory/item-card",
+      "component": "ItemCard",
+      "source": "./pages/Inventory/ItemCard",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "sales",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "sales/management",
+      "component": "SalesManagement",
+      "source": "./pages/Sales/SalesManagement",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "sales/salesmen",
+      "component": "Salesmen",
+      "source": "./pages/Sales/Salesmen",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "sales/target",
+      "component": "Target",
+      "source": "./pages/Sales/Target",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "sales/orders",
+      "component": "SalesOrder",
+      "source": "./pages/Sales/SalesOrder",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "sales/documents",
+      "component": "Documents",
+      "source": "./pages/Sales/Documents",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "sales/price-tiers",
+      "component": "PriceTiers",
+      "source": "./pages/Sales/PriceTiers",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "integrations",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "integrations/einvoice",
+      "component": "EInvoice",
+      "source": "./pages/Integrations/EInvoice",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "integrations/meta-forms",
+      "component": "MetaForms",
+      "source": "./pages/Integrations/MetaForms",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "integrations/whatsapp",
+      "component": "WhatsAppSettings",
+      "source": "./pages/Integrations/WhatsAppSettings",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "integrations/property-finder",
+      "component": "PropertyFinderSettings",
+      "source": "./pages/Integrations/PropertyFinderSettings",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "settings/integrations/property-finder",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "whatsapp-chat",
+      "component": "WhatsAppChat",
+      "source": "./pages/Marketing/WhatsAppChat",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "marketing/whatsapp-chat",
+      "component": "WhatsAppChat",
+      "source": "./pages/Marketing/WhatsAppChat",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "integrations/whatsapp-campaigns",
+      "component": "WhatsAppCampaigns",
+      "source": "./pages/Marketing/WhatsAppCampaigns",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "marketing/whatsapp-campaigns",
+      "component": "WhatsAppCampaigns",
+      "source": "./pages/Marketing/WhatsAppCampaigns",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "marketing/whatsapp-chatbots",
+      "component": "WhatsAppChatbots",
+      "source": "./pages/Marketing/WhatsAppChatbots",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "integrations/whatsapp-chatbots",
+      "component": "WhatsAppChatbots",
+      "source": "./pages/Marketing/WhatsAppChatbots",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "my-attendance",
+      "component": "Attendance",
+      "source": "./pages/HR/Attendance",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "my-requests",
+      "component": "MyRequests",
+      "source": "./pages/HR/MyRequests",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "approvals",
+      "component": "ApprovalCenter",
+      "source": "./pages/HR/ApprovalCenter",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "my-payroll",
+      "component": "MyPayroll",
+      "source": "./pages/HR/MyPayroll",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "activity-balance",
+      "component": "MyActivityBalance",
+      "source": "./pages/HR/MyActivityBalance",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "my-deals",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "my-tasks",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "my-customers",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "my-units",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "employees",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "attendance",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "hr/my-attendance",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "hr",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "hr/my-requests",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "hr/dashboard",
+      "component": "AttendanceAdmin",
+      "source": "./pages/HR/AttendanceAdmin",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "hr/approvals",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    },
+    {
+      "path": "hr/payroll",
+      "component": "PayrollEngine",
+      "source": "./pages/HR/PayrollEngine",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "hr/activity-definition",
+      "component": "ActivityDefinition",
+      "source": "./pages/HR/ActivityDefinition",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "hr/activity-balance",
+      "component": "ActivityBalance",
+      "source": "./pages/HR/ActivityBalance",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "hr/shifts",
+      "component": "Shifts",
+      "source": "./pages/HR/Shifts",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "hr/devices",
+      "component": "AttendanceDevices",
+      "source": "./pages/HR/AttendanceDevices",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "inventory/movements",
+      "component": "InventoryControl",
+      "source": "./pages/Inventory/InventoryControl",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "automation",
+      "component": "AutomationControl",
+      "source": "./pages/Automation/AutomationControl",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "automation/rules",
+      "component": "RuleBuilder",
+      "source": "./pages/Automation/RuleBuilder",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "files",
+      "component": "Files",
+      "source": "./pages/Files",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "reports",
+      "component": "Reports",
+      "source": "./pages/Reports",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "logs",
+      "component": "Logs",
+      "source": "./pages/Logs",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "settings",
+      "component": "Settings",
+      "source": "./pages/Settings",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "settings/company",
+      "component": "CompanySettings",
+      "source": "./pages/Settings/CompanySettings",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "itqan-crm-hud",
+      "component": "PlatformWrapper",
+      "source": "./pages/SuperAdmin/PlatformWrapper",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "(index)",
+      "component": "SecretPortalHUD",
+      "source": "./pages/SuperAdmin/SecretPortalHUD",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "hub",
+      "component": "SuperAdmin",
+      "source": "./pages/SuperAdmin",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "pricing",
+      "component": "AdminPlans",
+      "source": "./pages/Admin/AdminPlans",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "upgrades",
+      "component": "AdminUpgradeRequests",
+      "source": "./pages/Admin/AdminUpgradeRequests",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "registrations",
+      "component": "RegistrationRequests",
+      "source": "./pages/SuperAdmin/RegistrationRequests",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "audit",
+      "component": "Logs",
+      "source": "./pages/Logs",
+      "redirect": false,
+      "dynamic": false
+    },
+    {
+      "path": "*",
+      "component": "Navigate",
+      "source": null,
+      "redirect": true,
+      "dynamic": false
+    }
+  ]
+}

@@ -99,7 +99,7 @@ const InventoryControl = () => {
                 .btn-primary { background: var(--primary); color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;}
                 .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
 
-                .stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+                .stock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 16px; margin-bottom: 32px; }
                 .stock-card { background: var(--bg-card); padding: 16px; border-radius: 12px; border: 1px solid var(--glass-border); display: flex; flex-direction: column; }
                 
                 .inv-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); text-align: ${isRTL ? 'right' : 'left'}; }
@@ -146,7 +146,7 @@ const InventoryControl = () => {
                 <h3 style={{ fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                     <ArrowRightLeft size={18}/> {t('inventory.control.movementLedger')}
                 </h3>
-                <table className="inv-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="inv-table">
                     <thead>
                         <tr>
                             <th>{t('inventory.control.columns.id')}</th>
@@ -221,7 +221,7 @@ const InventoryControl = () => {
                             </tr>
                         ))}
                     </tbody>
-                </table>
+                </table></div>
 
                 {/* CREATE MOVEMENT MODAL */}
                 <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('inventory.control.modalTitle')}>

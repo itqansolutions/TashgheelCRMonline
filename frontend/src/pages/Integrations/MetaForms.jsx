@@ -440,7 +440,7 @@ const MetaForms = () => {
               </button>
             </div>
           ) : (
-            <table style={{ width: '100%', minWidth: '1050px', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', minWidth: '1050px', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>Form Name & ID</th>
@@ -607,7 +607,7 @@ const MetaForms = () => {
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
 
@@ -1215,7 +1215,7 @@ const MetaForms = () => {
                     </p>
                   </div>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginTop: '12px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginTop: '12px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                         <th style={{ padding: '12px 14px', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Name</th>
@@ -1270,7 +1270,7 @@ const MetaForms = () => {
                           </tr>
                         ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 )}
 
                 {/* Lead Form Responses Viewer Drawer / Modal */}

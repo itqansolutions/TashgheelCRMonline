@@ -37,6 +37,8 @@ const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) =>
         .modal-content {
           background: white;
           width: 100%;
+          max-height: calc(100dvh - 32px);
+          display: flex; flex-direction: column;
           max-width: ${maxWidth || width || '500px'};
           border-radius: 12px;
           box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
@@ -44,6 +46,7 @@ const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) =>
           overflow: hidden;
         }
         .modal-header {
+          flex-shrink: 0; gap: 12px;
           padding: 16px 20px;
           display: flex;
           justify-content: space-between;
@@ -51,6 +54,7 @@ const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) =>
           border-bottom: 1px solid var(--border);
         }
         .modal-header h3 {
+          min-width: 0; overflow-wrap: anywhere;
           font-size: 18px;
           font-weight: 700;
           color: var(--text-main);
@@ -67,11 +71,14 @@ const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) =>
           color: var(--danger);
         }
         .modal-body {
+          min-height: 0;
+          flex: 1 1 auto;
           padding: 20px;
           max-height: 70vh;
           overflow-y: auto;
         }
         .modal-footer {
+          flex-shrink: 0; flex-wrap: wrap;
           padding: 16px 20px;
           background-color: #f8fafc;
           border-top: 1px solid var(--border);
@@ -90,10 +97,10 @@ const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) =>
         }
       `}</style>
       
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>
-          <button label="close modal" title={t('common.close')} className="close-btn" onClick={onClose}>
+          <button aria-label={t('common.close')} title={t('common.close')} className="close-btn" onClick={onClose}>
             <X size={20} />
           </button>
         </div>

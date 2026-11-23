@@ -306,7 +306,7 @@ const RuleBuilder = () => {
                     No automation rules yet. Click "New Rule" to build your first one.
                 </div>
             ) : (
-                <table className="rule-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="rule-table">
                     <thead>
                         <tr>
                             <th>Rule</th>
@@ -382,7 +382,7 @@ const RuleBuilder = () => {
                             </React.Fragment>
                         ))}
                     </tbody>
-                </table>
+                </table></div>
             )}
         </div>
     );

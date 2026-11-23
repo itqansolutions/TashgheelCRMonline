@@ -265,7 +265,7 @@ const Logs = () => {
             </div>
 
             <div className="ap-card overflow-hidden">
-                <table className="w-full text-left platform-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="w-full text-left platform-table">
                     <thead>
                         <tr>
                             <th>Event Horizon</th>
@@ -330,7 +330,7 @@ const Logs = () => {
                             )
                         })}
                     </tbody>
-                </table>
+                </table></div>
             </div>
 
             {/* DEEP SCAN MODAL (CUSTOM STYLING FOR LOGS) */}

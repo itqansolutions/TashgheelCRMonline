@@ -299,7 +299,7 @@ const StockBalances = () => {
             </div>
 
             {/* KPI Summary */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '16px', marginBottom: '24px' }}>
               <div style={{ background: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '4px' }}>{t('inventory.balances.activeWarehouse')}</span>
                 <span style={{ fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>{selectedWhObj?.name || '…'}</span>
@@ -331,7 +331,7 @@ const StockBalances = () => {
                   <p style={{ fontWeight: 700, margin: 0 }}>{t('inventory.balances.noProducts')}</p>
                 </div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
+                <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                       <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('inventory.balances.columns.productName')}</th>
@@ -377,7 +377,7 @@ const StockBalances = () => {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               )}
             </div>
           </>
@@ -513,7 +513,7 @@ const StockBalances = () => {
               </div>
 
               <form onSubmit={handleStockTakeSubmit} style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: isRTL ? 'right' : 'left' }}>
+                <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: isRTL ? 'right' : 'left' }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                       <th style={{ padding: '10px' }}>{t('inventory.balances.stockTakeModal.productCol')}</th>
@@ -559,7 +559,7 @@ const StockBalances = () => {
                       );
                     })}
                   </tbody>
-                </table>
+                </table></div>
 
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
                   <button type="button" onClick={() => setShowStockTakeModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>

@@ -269,7 +269,7 @@ const Reports = ({ onSelectCustomer }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
               {/* 6 Strategic Executive KPI Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: '14px' }}>
                 {[
                   {
                     label: t('finance.reports.overview.kpi.totalSales'),
@@ -342,7 +342,7 @@ const Reports = ({ onSelectCustomer }) => {
               </div>
 
               {/* Visual Breakdown Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '20px' }}>
                 
                 {/* 1. Cash In vs Cash Out Progress */}
                 <div style={cardBoxStyle}>
@@ -494,7 +494,7 @@ const Reports = ({ onSelectCustomer }) => {
                   {t('finance.reports.salesReport.title')}
                 </h3>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '14px', marginBottom: '24px' }}>
                   {(sales?.by_status || []).map(st => (
                     <div key={st.status} style={{ border: '1px solid var(--glass-border)', padding: '14px', borderRadius: '10px' }}>
                       <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)' }}>
@@ -536,7 +536,7 @@ const Reports = ({ onSelectCustomer }) => {
              ═══════════════════════════════════════════════════════════════════ */}
           {activeReportTab === 'collections' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
                 
                 {/* By Payment Method */}
                 <div style={cardBoxStyle}>
@@ -600,7 +600,7 @@ const Reports = ({ onSelectCustomer }) => {
              ═══════════════════════════════════════════════════════════════════ */}
           {activeReportTab === 'expenses' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
                 
                 {/* By Category */}
                 <div style={cardBoxStyle}>
@@ -666,7 +666,7 @@ const Reports = ({ onSelectCustomer }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
               {/* Aging 5 Buckets Strip */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 160px), 1fr))', gap: '12px' }}>
                 {[
                   { label: t('finance.reports.agingReport.currentNotDue'), value: receivables_aging?.buckets?.current, color: AGING_COLORS.current },
                   { label: t('finance.reports.agingReport.days_1_30'),     value: receivables_aging?.buckets?.days_1_30, color: AGING_COLORS.days_1_30 },
@@ -700,7 +700,7 @@ const Reports = ({ onSelectCustomer }) => {
                 </div>
 
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
                         {[
@@ -758,7 +758,7 @@ const Reports = ({ onSelectCustomer }) => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
               </div>
 
@@ -772,7 +772,7 @@ const Reports = ({ onSelectCustomer }) => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               
               {/* Cashflow Summary Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '14px' }}>
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px', padding: '18px' }}>
                   <div style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>
                     {t('finance.reports.cashflowReport.inflow')}
@@ -806,7 +806,7 @@ const Reports = ({ onSelectCustomer }) => {
                 </h3>
                 
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
                         {[
@@ -861,7 +861,7 @@ const Reports = ({ onSelectCustomer }) => {
                         </tr>
                       )}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
               </div>
 

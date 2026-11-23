@@ -344,7 +344,7 @@ const InvoicePreview = () => {
                     </div>
                 </div>
 
-                <table className="inv-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="inv-table">
                     <thead>
                         <tr>
                             <th style={{ textAlign: isRTL ? 'right' : 'left' }}>{t('finance.invoicePreview.itemDescription')}</th>
@@ -374,7 +374,7 @@ const InvoicePreview = () => {
                             <tr><td colSpan="4" style={{ textAlign: 'center', color: '#9ca3af' }}>{t('finance.invoices.noInvoices')}</td></tr>
                         )}
                     </tbody>
-                </table>
+                </table></div>
 
                 <div className="clearfix">
                     <div className="totals-box">

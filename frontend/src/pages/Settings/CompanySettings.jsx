@@ -395,7 +395,7 @@ const CompanySettings = () => {
               </div>
             </div>
 
-            <table className="preview-table">
+            <div className="responsive-table-region" role="region" tabIndex={0}><table className="preview-table">
               <thead>
                 <tr>
                   <th style={{ textAlign: isRTL ? 'right' : 'left' }}>{t('companySettings.previewItem')}</th>
@@ -412,7 +412,7 @@ const CompanySettings = () => {
                   <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>1,000.00</td>
                 </tr>
               </tbody>
-            </table>
+            </table></div>
 
             <div className="preview-totals" style={{ [isRTL ? 'marginRight' : 'marginLeft']: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>

@@ -46,7 +46,7 @@ const AgingBar = ({ aging }) => {
           return <div key={b.key} style={{ width: `${pct}%`, background: b.color }} title={`${b.label}: ${fmt(b.amount)} ${t('common.currency', 'EGP')}`} />;
         })}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '8px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 100px), 1fr))', gap: '8px' }}>
         {buckets.map(b => (
           <div key={b.key} style={{ textAlign: 'center', background: 'rgba(0,0,0,0.02)', padding: '6px', borderRadius: '8px' }}>
             <div style={{ fontSize: '10px', fontWeight: 700, color: b.color }}>{b.label}</div>
@@ -336,7 +336,7 @@ const VendorStatementDrawer = ({ vendorId, onClose, onPaymentRecorded }) => {
         {/* Content */}
         <div style={{ padding: '16px 24px', overflowY: 'auto', flex: 1 }}>
           {view === 'statement' ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
                 <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
                   {[
@@ -397,7 +397,7 @@ const VendorStatementDrawer = ({ vendorId, onClose, onPaymentRecorded }) => {
                   </tr>
                 )}
               </tbody>
-            </table>
+            </table></div>
           ) : (
             <AgingBar aging={agingData} />
           )}
@@ -452,7 +452,7 @@ const VendorAccounts = () => {
 
       {/* KPI Cards */}
       {kpi && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '12px' }}>
           {[
             { label: t('finance.vendorAccounts.kpi.totalPayables'),   value: kpi.totalPayables,             color: '#ef4444', icon: <DollarSign size={16} /> },
             { label: t('finance.vendorAccounts.kpi.overduePayables'), value: kpi.totalOverdue,              color: '#dc2626', icon: <AlertTriangle size={16} /> },
@@ -522,7 +522,7 @@ const VendorAccounts = () => {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
                   {[
@@ -595,7 +595,7 @@ const VendorAccounts = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>

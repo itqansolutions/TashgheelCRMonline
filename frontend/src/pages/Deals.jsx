@@ -1230,7 +1230,7 @@ const Deals = () => {
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', fontSize: '11px', color: '#475569' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '8px', fontSize: '11px', color: '#475569' }}>
                       <div>
                         <span style={{ color: '#64748b' }}>{t('deals.sla.effectiveDeadline', 'Deadline: {date}').split(':')[0]}: </span>
                         <strong><span className="num-en">{new Date(dealSla.effectiveDeadline).toLocaleString('en-GB')}</span></strong>
@@ -1601,7 +1601,7 @@ const Deals = () => {
 
                   {formData.client_id ? (
                     <div style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '16px' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', fontSize: '12px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '12px', fontSize: '12px' }}>
                         <div style={{ background: '#f8fafc', padding: '10px', borderRadius: '8px' }}>
                           <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'اسم العميل' : 'Customer Name'}</span>
                           <strong style={{ fontSize: '14px', color: '#0f172a' }}>{editingDeal?.client_name || selectedCustomer?.name}</strong>
@@ -1903,7 +1903,7 @@ const Deals = () => {
                       </div>
 
                       {dealContract ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '12px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '10px', fontSize: '12px' }}>
                           <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
                             <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{t('deals.status', 'Status')}</span>
                             <strong style={{ color: '#0f172a' }}>{getContractStatusLabel(dealContract.status)}</strong>
@@ -1972,7 +1972,7 @@ const Deals = () => {
                         <div style={{ textAlign: 'center', padding: '14px', color: '#64748b', fontSize: '12px' }}>{t('common.loading', 'Loading installments...')}</div>
                       ) : (dealInstallments || []).length > 0 ? (
                         <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                          <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                             <thead>
                               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: isRTL ? 'right' : 'left' }}>
                                 <th style={{ padding: '6px 8px' }}>#</th>
@@ -2001,7 +2001,7 @@ const Deals = () => {
                                 </tr>
                               ))}
                             </tbody>
-                          </table>
+                          </table></div>
                           {(dealInstallments || []).length > 5 && (
                             <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '11px', color: '#64748b' }}>
                               {isRTL ? `عرض 5 من إجمالي ${dealInstallments.length} قسط. افتح صفحة الأقساط للمزيد.` : `Showing 5 of ${dealInstallments.length} installments. Open page for full list.`}
@@ -2084,7 +2084,7 @@ const Deals = () => {
                       {handoverLoading ? (
                         <div style={{ textAlign: 'center', padding: '14px', color: '#64748b', fontSize: '12px' }}>{t('common.loading', 'Loading handover details...')}</div>
                       ) : dealHandover ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', fontSize: '12px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '10px', fontSize: '12px' }}>
                           <div style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '6px' }}>
                             <span style={{ color: '#64748b', display: 'block', fontSize: '11px' }}>{isRTL ? 'حالة التسليم' : 'Status'}</span>
                             <strong style={{ color: dealHandover.status === 'Handed Over' ? '#16a34a' : '#7c3aed' }}>{dealHandover.status}</strong>

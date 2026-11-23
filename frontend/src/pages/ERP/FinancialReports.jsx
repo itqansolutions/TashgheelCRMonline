@@ -43,7 +43,7 @@ const FinancialReports = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+      <div className="erp-report-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
         {[
           { id: 'tb', label: 'Trial Balance', icon: <Scale size={16} /> },
           { id: 'bs', label: 'Balance Sheet', icon: <FileSpreadsheet size={16} /> },
@@ -81,7 +81,7 @@ const FinancialReports = () => {
                   Total DR: {reportData.grand_total_debit?.toLocaleString()} EGP | Total CR: {reportData.grand_total_credit?.toLocaleString()} EGP
                 </span>
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+              <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                     <th style={{ padding: '10px' }}>Code</th>
@@ -104,7 +104,7 @@ const FinancialReports = () => {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           )}
 

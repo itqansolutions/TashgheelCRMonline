@@ -48,7 +48,7 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions, o
   if (loading) return <div className="loading-spinner">{t('common.loading')}</div>;
 
   return (
-    <div className="table-card">
+    <div className="table-card responsive-data-table">
       <style>{`
         .table-card {
           background: var(--bg-card);
@@ -232,11 +232,11 @@ const DataTable = ({ columns, data, onEdit, onDelete, title, loading, actions, o
                   style={onRowClick ? { cursor: 'pointer' } : undefined}
                 >
                   {(columns || []).map((col) => (
-                    <td key={col.key}>
+                    <td key={col.key} data-label={col.label}>
                       {col.render ? col.render(item[col.key], item) : item[col.key]}
                     </td>
                   ))}
-                  <td>
+                  <td data-label={t('common.actions')}>
                     <div className="action-btns">
                       {actions && actions(item)}
                       <button label="table edit control" title={t('common.edit')} className="btn-icon btn-edit" onClick={() => onEdit(item)}>

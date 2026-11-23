@@ -100,7 +100,7 @@ const MyRequests = () => {
                 </button>
             </div>
 
-            <table className="req-table">
+            <div className="responsive-table-region" role="region" tabIndex={0}><table className="req-table">
                 <thead>
                     <tr>
                         <th>{t('hr.myRequests.colLeaveType', 'Leave Type')}</th>
@@ -132,7 +132,7 @@ const MyRequests = () => {
                         </tr>
                     ))}
                 </tbody>
-            </table>
+            </table></div>
 
             <Modal 
                 isOpen={isModalOpen} 

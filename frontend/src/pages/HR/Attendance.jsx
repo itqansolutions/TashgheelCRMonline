@@ -146,7 +146,7 @@ const Attendance = () => {
                 <h3 style={{ margin: 0, fontSize: '18px' }}>{t('hr.attendance.myTimesheet', 'My Timesheet')}</h3>
             </div>
 
-            <table className="log-table">
+            <div className="responsive-table-region" role="region" tabIndex={0}><table className="log-table">
                 <thead>
                     <tr>
                         <th>{t('hr.attendance.date', 'Date')}</th>
@@ -183,7 +183,7 @@ const Attendance = () => {
                         </tr>
                     ))}
                 </tbody>
-            </table>
+            </table></div>
           </>
       )}
     </div>

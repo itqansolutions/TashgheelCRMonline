@@ -369,7 +369,7 @@ const SalesCycle = () => {
             </button>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left', fontSize: '13px' }}>
+          <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left', fontSize: '13px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569' }}>
                 <th style={{ padding: '14px 18px', fontWeight: 800 }}>{t('sales.orders.columns.orderNo')}</th>
@@ -462,7 +462,7 @@ const SalesCycle = () => {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
@@ -481,7 +481,7 @@ const SalesCycle = () => {
 
             <form onSubmit={handleCreateOrderSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
               {/* Header options */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '14px' }}>
                 <div>
                   <label style={labelStyle}>{t('sales.orders.createModal.customer')}</label>
                   <CustomerSearchSelect
@@ -565,7 +565,7 @@ const SalesCycle = () => {
                 </div>
 
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: isRTL ? 'right' : 'left' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: isRTL ? 'right' : 'left' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                         <th style={{ padding: '10px 12px', fontWeight: 700 }}>{t('sales.orders.createModal.productService')}</th>
@@ -636,7 +636,7 @@ const SalesCycle = () => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
 
                 {/* Total Bar */}
@@ -723,7 +723,7 @@ const SalesCycle = () => {
               {selectedOrder.items && selectedOrder.items.length > 0 && (
                 <div>
                   <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: 800, color: '#475569' }}>{t('sales.orders.viewModal.lineItems')}</h4>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', textAlign: isRTL ? 'right' : 'left' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', textAlign: isRTL ? 'right' : 'left' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                         <th style={{ padding: '8px 12px' }}>{t('sales.orders.viewModal.product')}</th>
@@ -742,7 +742,7 @@ const SalesCycle = () => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
               )}
 
@@ -837,7 +837,7 @@ const SalesCycle = () => {
               <div>
                 <label style={{ ...labelStyle, fontSize: '13px', fontWeight: 800 }}>{t('sales.orders.deliverModal.itemsToDispatch')}</label>
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: isRTL ? 'right' : 'left' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: isRTL ? 'right' : 'left' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                         <th style={{ padding: '10px 12px', fontWeight: 700 }}>{t('sales.orders.deliverModal.product')}</th>
@@ -871,7 +871,7 @@ const SalesCycle = () => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
               </div>
 

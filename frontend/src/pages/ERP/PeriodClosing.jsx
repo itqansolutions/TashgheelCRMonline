@@ -53,7 +53,7 @@ const PeriodClosing = () => {
         ) : fixedAssets.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No Fixed Assets Registered</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+          <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
                 <th style={{ padding: '10px' }}>Asset Code</th>
@@ -87,7 +87,7 @@ const PeriodClosing = () => {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>

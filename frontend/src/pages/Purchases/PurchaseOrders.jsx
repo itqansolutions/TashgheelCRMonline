@@ -624,7 +624,7 @@ const PurchaseOrders = () => {
 
         {/* KPI Summary Cards */}
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
           gap: '16px', marginBottom: '24px'
         }}>
           <div style={{
@@ -799,7 +799,7 @@ const PurchaseOrders = () => {
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+              <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 700 }}>
                     <th style={{ padding: '14px 16px' }}>PO Number</th>
@@ -957,7 +957,7 @@ const PurchaseOrders = () => {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           )}
         </div>
@@ -1067,7 +1067,7 @@ const PurchaseOrders = () => {
                     <div style={{ fontWeight: 700, color: '#0369a1', fontSize: '13px', marginBottom: '6px' }}>
                       Purchase Request Overview (ملخص طلب الشراء):
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', fontSize: '12px', color: '#334155' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '10px', fontSize: '12px', color: '#334155' }}>
                       <div><strong>PR Number:</strong> {selectedPrPreview.request_number}</div>
                       <div><strong>Department:</strong> {selectedPrPreview.department || 'General'}</div>
                       <div><strong>Purpose:</strong> {selectedPrPreview.purpose || selectedPrPreview.notes || 'N/A'}</div>
@@ -1555,7 +1555,7 @@ const PurchaseOrders = () => {
               <div style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a', marginBottom: '8px' }}>
                 Contractual Items ({selectedOrder.items?.length || 0})
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+              <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                 <thead>
                   <tr style={{ background: '#f1f5f9', color: '#475569', textAlign: 'left' }}>
                     <th style={{ padding: '8px 10px' }}>Product</th>
@@ -1600,7 +1600,7 @@ const PurchaseOrders = () => {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
 
             {/* Financial Summary */}
@@ -1774,7 +1774,7 @@ const PurchaseOrders = () => {
                     </button>
                   </div>
 
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>
                         <th style={{ padding: '10px', textAlign: 'left' }}>Product / الصنف</th>
@@ -1823,7 +1823,7 @@ const PurchaseOrders = () => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
 
                 {/* Notes */}

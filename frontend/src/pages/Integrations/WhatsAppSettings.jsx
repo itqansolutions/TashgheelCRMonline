@@ -463,7 +463,7 @@ const WhatsAppSettings = () => {
   // Render
   // -------------------------------------------------------------------
   return (
-    <div style={{ padding: '24px', maxWidth: 800 }}>
+    <div className="whatsapp-settings-page" style={{ padding: '24px', maxWidth: 800 }}>
       <IntegrationsSubNav />
 
       {/* Header */}
@@ -577,7 +577,7 @@ const WhatsAppSettings = () => {
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
                   <th style={{ padding: '10px 14px', fontWeight: 700, color: '#475569' }}>Phone Number</th>
@@ -680,7 +680,7 @@ const WhatsAppSettings = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>
@@ -696,7 +696,7 @@ const WhatsAppSettings = () => {
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 16 }}>
           {/* Card 1: Coexistence (Mobile App + CRM) */}
           <div style={{
             background: '#fff',
@@ -1282,7 +1282,7 @@ const WhatsAppSettings = () => {
             {/* Variable Rows */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
               {Array.isArray(settings.variable_mapping) && settings.variable_mapping.map((v, idx) => (
-                <div key={idx} style={{
+                <div className="whatsapp-variable-row" key={idx} style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   background: '#f8fafc', padding: '10px 14px', borderRadius: 8,
                   border: '1px solid #e2e8f0'
@@ -1419,7 +1419,7 @@ const WhatsAppSettings = () => {
               <h4 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
                 When should the automated greeting message be sent? (Select triggers):
               </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 12, marginBottom: 16 }}>
                 {[
                   {
                     id: 'meta_lead',

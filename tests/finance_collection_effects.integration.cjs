@@ -89,6 +89,20 @@ const res=()=>({code:200,status(n){this.code=n;return this},json(b){this.body=b;
  r=res();await fin.getTreasuryAccounts(req(),r);assert.equal(r.body.totals.total_balance,800);
  r=res();await fin.getFinancialReports(req(),r);assert.equal(r.body.collections.total_collected,800);
  console.log('PASS explicit invoice treasury without a default: saved payment/voucher, summary/report/treasury and outstanding reconcile exactly once; invalid, inactive and wrong-type selection cause no writes');
+
+ // Display names are resolved at read time, never backfilled.
+ const invoiceVoucher=(await pool.query('SELECT id,treasury_account FROM finance_vouchers WHERE invoice_id=8 ORDER BY id DESC LIMIT 1')).rows[0];
+ assert.equal(invoiceVoucher.treasury_account,'Synthetic cash');
+ await pool.query('CREATE TABLE IF NOT EXISTS users(id int primary key,name text)');
+ r=res();await fin.getVouchers(req(),r);assert.equal(r.code,200,JSON.stringify(r.body));assert.equal(r.body.data.find(v=>v.id===invoiceVoucher.id).treasury_account,'Synthetic cash');
+ await pool.query('UPDATE finance_vouchers SET treasury_account=$1 WHERE id=$2',['Legacy generic label',invoiceVoucher.id]);
+ r=res();await fin.getVouchers(req(),r);assert.equal(r.code,200);assert.equal(r.body.data.find(v=>v.id===invoiceVoucher.id).treasury_account,'Synthetic cash');
+ assert.equal((await pool.query('SELECT treasury_account FROM finance_vouchers WHERE id=$1',[invoiceVoucher.id])).rows[0].treasury_account,'Legacy generic label');
+ // Minimal print metadata tables support the real details SELECT.
+ await pool.query('ALTER TABLE tenants ADD COLUMN IF NOT EXISTS name text,ADD COLUMN IF NOT EXISTS logo_url text,ADD COLUMN IF NOT EXISTS tax_no text,ADD COLUMN IF NOT EXISTS reg_no text,ADD COLUMN IF NOT EXISTS phone text,ADD COLUMN IF NOT EXISTS address text,ADD COLUMN IF NOT EXISTS currency text; CREATE TABLE IF NOT EXISTS branches(id uuid primary key,name text,phone text,address text)');
+ // Deployed finance voucher tenant type may be varchar; details compares explicitly.
+ r=res();await fin.getVoucherDetails(req({params:{id:invoiceVoucher.id}}),r);assert.equal(r.code,200,JSON.stringify(r.body));assert.equal(r.body.data.treasury_account,'Synthetic cash');
+ console.log('PASS new voucher stores treasury name; list/details resolve legacy generic display without modifying stored label');
  console.log('ISOLATED_EFFECT_REGRESSION_COMPLETE');
 
 

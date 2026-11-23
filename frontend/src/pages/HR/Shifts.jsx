@@ -235,7 +235,7 @@ const Shifts = () => {
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '12px', borderBottom: '2px solid #e2e8f0', marginBottom: '24px' }}>
+        <div className="hr-management-tabs" style={{ display: 'flex', gap: '12px', borderBottom: '2px solid #e2e8f0', marginBottom: '24px' }}>
           <button
             onClick={() => setActiveTab('shifts')}
             style={{
@@ -272,7 +272,7 @@ const Shifts = () => {
                 <p style={{ fontSize: '13px', color: '#cbd5e1' }}>{t('hr.shifts.noShiftsDesc', 'Create morning or evening shifts to manage employee attendance')}</p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 380px), 1fr))', gap: '20px' }}>
                 {shifts.map((s) => (
                   <div key={s.id} style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '20px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: isRTL ? 'right' : 'left' }}>
                     <div>
@@ -359,7 +359,7 @@ const Shifts = () => {
             ) : userSummary.length === 0 ? (
               <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>{t('hr.shifts.noEmployeesFound', 'No employees found')}</div>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
+              <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                     <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.shifts.colEmployee', 'Employee')}</th>
@@ -403,14 +403,14 @@ const Shifts = () => {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
         )}
 
         {/* Shift Create/Edit Modal */}
         {showShiftModal && (
-          <div style={modalStyle}>
+          <div className="responsive-form-overlay" style={modalStyle}>
             <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
               <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
@@ -503,23 +503,23 @@ const Shifts = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {shiftForm.deduction_rules.map((rule, idx) => (
                       <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '8px', alignItems: 'center' }}>
-                        <input
+                        <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}><span>{t('hr.shifts.placeholderFromMin', 'From Min')}</span><input
                           type="number"
                           placeholder={t('hr.shifts.placeholderFromMin', 'From Min')}
                           value={rule.from_min}
                           onChange={(e) => handleUpdateRule(idx, 'from_min', e.target.value)}
                           style={inputStyle}
                           className="num-en"
-                        />
-                        <input
+                        /></label>
+                        <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}><span>{t('hr.shifts.placeholderToMin', 'To Min')}</span><input
                           type="number"
                           placeholder={t('hr.shifts.placeholderToMin', 'To Min')}
                           value={rule.to_min}
                           onChange={(e) => handleUpdateRule(idx, 'to_min', e.target.value)}
                           style={inputStyle}
                           className="num-en"
-                        />
-                        <input
+                        /></label>
+                        <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}><span>{t('hr.shifts.placeholderDeductDays', 'Deduct Days')}</span><input
                           type="number"
                           step="0.25"
                           placeholder={t('hr.shifts.placeholderDeductDays', 'Deduct Days')}
@@ -527,7 +527,7 @@ const Shifts = () => {
                           onChange={(e) => handleUpdateRule(idx, 'deduct_days', e.target.value)}
                           style={inputStyle}
                           className="num-en"
-                        />
+                        /></label>
                         <button
                           type="button"
                           onClick={() => handleRemoveRule(idx)}
@@ -562,7 +562,7 @@ const Shifts = () => {
 
         {/* Assign User Shift Modal */}
         {showAssignModal && (
-          <div style={modalStyle}>
+          <div className="responsive-form-overlay" style={modalStyle}>
             <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '450px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
               <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>

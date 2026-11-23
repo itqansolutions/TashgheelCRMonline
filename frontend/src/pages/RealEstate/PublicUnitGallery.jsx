@@ -640,7 +640,7 @@ export default function PublicUnitGallery() {
                     /* ─── GRID VIEW ─── */
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',
                         gap: '16px'
                     }}>
                         {photos.map((photo, pIdx) => {

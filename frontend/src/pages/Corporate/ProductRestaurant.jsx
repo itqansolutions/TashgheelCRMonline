@@ -56,7 +56,7 @@ const ProductRestaurant = () => {
       </div>
 
       {/* Pain-Solution Blocks */}
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '40px', marginBottom: '100px' }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '40px', marginBottom: '100px' }}>
         <div style={{ background: '#fff7ed', padding: '40px', borderRadius: '32px', border: '1px solid #ffedd5' }}>
           <h2 style={{ color: '#ea580c', fontSize: '32px', fontWeight: '800', marginBottom: '32px' }}>{t.painSection.title}</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>

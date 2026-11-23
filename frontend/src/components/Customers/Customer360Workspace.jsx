@@ -220,7 +220,7 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
         {/* Row 2: Financial & Operational KPI Badges */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
           gap: '12px',
           paddingTop: '14px',
           borderTop: '1px solid rgba(255,255,255,0.1)'
@@ -837,7 +837,7 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
 
                           {isExpanded && !matchNeedsPrefs && breakdown && (
                             <div style={{ padding: '10px 16px', borderTop: '1px solid #f1f5f9', background: '#fafafa', fontSize: '12px' }}>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '8px' }}>
                                 <div style={{ background: 'white', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                                   <div style={{ fontWeight: 700, color: '#0f172a' }}>Budget ({breakdown.budget?.score}/{breakdown.budget?.max} pts)</div>
                                   <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>{breakdown.budget?.reason}</div>

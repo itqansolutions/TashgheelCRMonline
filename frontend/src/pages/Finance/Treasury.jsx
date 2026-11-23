@@ -327,7 +327,7 @@ const Treasury = () => {
 
       {/* KPI Strip */}
       {totals && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '12px', marginBottom: '24px' }}>
           {[
             { label: t('finance.treasury.kpi.totalBalance'), value: totals.total_balance, color: '#6366f1', icon: <DollarSign size={16} /> },
             { label: t('finance.treasury.kpi.cashAccounts'), value: totals.total_cash,    color: '#10b981', icon: <Wallet size={16} /> },
@@ -436,7 +436,7 @@ const Treasury = () => {
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                   <thead>
                     <tr style={{ background: 'rgba(0,0,0,0.025)' }}>
                       {[
@@ -476,7 +476,7 @@ const Treasury = () => {
                       </td>
                     </tr>
                   </tfoot>
-                </table>
+                </table></div>
               </div>
             )}
           </div>

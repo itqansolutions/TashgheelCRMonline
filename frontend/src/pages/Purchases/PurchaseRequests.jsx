@@ -431,7 +431,7 @@ const PurchaseRequests = () => {
 
         {/* KPI Summary Cards */}
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
           gap: '16px', marginBottom: '24px'
         }}>
           <div style={{
@@ -550,7 +550,7 @@ const PurchaseRequests = () => {
           </div>
 
           {/* Search & Priority Filter */}
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div className="purchase-request-filters" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
@@ -611,7 +611,7 @@ const PurchaseRequests = () => {
               </button>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
                   <th style={{ padding: '14px 18px', fontWeight: 700 }}>Request #</th>
@@ -733,14 +733,14 @@ const PurchaseRequests = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       </div>
 
       {/* CREATE / EDIT MODAL */}
       {showCreateModal && (
-        <div style={{
+        <div className="responsive-form-overlay" style={{
           position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)',
           backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center',
           alignItems: 'center', zIndex: 1100, padding: '20px'
@@ -885,7 +885,7 @@ const PurchaseRequests = () => {
                   </div>
 
                   <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                       <thead>
                         <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
                           <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700 }}>Product *</th>
@@ -972,7 +972,7 @@ const PurchaseRequests = () => {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </table></div>
                   </div>
                 </div>
               </div>
@@ -1036,7 +1036,7 @@ const PurchaseRequests = () => {
 
       {/* DETAIL / APPROVAL DRAWER */}
       {showDetailDrawer && selectedRequest && (
-        <div style={{
+        <div className="responsive-form-overlay" style={{
           position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.5)',
           backdropFilter: 'blur(3px)', display: 'flex', justifyContent: 'flex-end',
           zIndex: 1100
@@ -1162,7 +1162,7 @@ const PurchaseRequests = () => {
                 </div>
 
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
                         <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700 }}>Item</th>
@@ -1190,7 +1190,7 @@ const PurchaseRequests = () => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
 
                 <div style={{
@@ -1310,7 +1310,7 @@ const PurchaseRequests = () => {
 
       {/* REJECT MODAL */}
       {showRejectModal && (
-        <div style={{
+        <div className="responsive-form-overlay" style={{
           position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)',
           backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center',
           alignItems: 'center', zIndex: 1200, padding: '20px'

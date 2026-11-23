@@ -275,7 +275,7 @@ const WhatsAppCampaigns = () => {
           </div>
 
           <form onSubmit={handleLaunchCampaign} style={{ padding: '24px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', marginBottom: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '24px', marginBottom: '24px' }}>
               {/* Step 1: Campaign info */}
               <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
@@ -404,7 +404,7 @@ const WhatsAppCampaigns = () => {
                 </div>
 
                 {/* Filters */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 140px), 1fr))', gap: '10px', marginBottom: '12px' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
                       Classification (التصنيف)
@@ -648,7 +648,7 @@ const WhatsAppCampaigns = () => {
           </div>
 
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                   {['Campaign Name', 'Template Used', 'Language', 'Total Recipients', 'Delivery Status', 'Date Created', 'Action'].map(h => (
@@ -727,7 +727,7 @@ const WhatsAppCampaigns = () => {
                   ))
                 )}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
 
@@ -789,7 +789,7 @@ const WhatsAppCampaigns = () => {
                     </div>
 
                     {/* Recipients table */}
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                       <thead>
                         <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                           {['Customer', 'Phone Number', 'Status', 'Message ID / Error'].map(h => (
@@ -823,7 +823,7 @@ const WhatsAppCampaigns = () => {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </table></div>
                   </div>
                 )}
               </div>

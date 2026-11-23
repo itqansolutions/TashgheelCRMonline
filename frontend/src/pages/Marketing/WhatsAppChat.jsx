@@ -414,7 +414,7 @@ const WhatsAppChat = () => {
   };
 
   return (
-    <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 75px)', boxSizing: 'border-box' }}>
+    <div className="whatsapp-chat-page" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 75px)', boxSizing: 'border-box' }}>
       <IntegrationsSubNav />
 
       {/* Top Header Bar */}
@@ -511,7 +511,7 @@ const WhatsAppChat = () => {
       </div>
 
       {/* Main Two-Pane Chat Area */}
-      <div style={{
+      <div className={activeConversationId ? 'chat-workspace has-active-chat' : 'chat-workspace'} style={{
         display: 'flex',
         flex: 1,
         minHeight: 0,
@@ -522,7 +522,7 @@ const WhatsAppChat = () => {
         overflow: 'hidden'
       }}>
         {/* Left Pane: Conversation List & Filters */}
-        <div style={{
+        <div className="chat-conversation-list" style={{
           width: '340px',
           minWidth: '280px',
           borderRight: '1px solid #e2e8f0',
@@ -777,7 +777,8 @@ const WhatsAppChat = () => {
         </div>
 
         {/* Right Pane: Active Chat Conversation */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#efeae2', position: 'relative' }}>
+        <div className="chat-message-pane" style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#efeae2', position: 'relative' }}>
+          {activeConversationId && <button type="button" className="chat-mobile-back" onClick={() => setActiveConversationId(null)}><ArrowLeft size={18} /> Conversations / المحادثات</button>}
           {activeConv ? (
             <>
               {/* Active Chat Header */}

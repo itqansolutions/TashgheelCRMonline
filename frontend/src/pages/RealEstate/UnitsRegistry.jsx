@@ -800,9 +800,9 @@ const UnitsRegistry = () => {
     }, {});
 
     return (
-        <div dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
+        <div className="units-registry-page" dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
             {/* Header Section */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>
+            <div className="units-registry-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
                         <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'var(--grad-premium)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', boxShadow: '0 8px 16px rgba(79, 70, 229, 0.2)' }}>
@@ -816,7 +816,7 @@ const UnitsRegistry = () => {
                         Real Estate Inventory • <span style={{ color: 'var(--primary)', fontWeight: 700 }}>{units.length} Units Tracked</span>
                     </p>
                 </div>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div className="units-registry-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     {/* View Mode Toggle */}
                     <div style={{ display: 'flex', background: 'rgba(0,0,0,0.04)', padding: '4px', borderRadius: '12px', gap: '2px' }}>
                         {[{ key: 'map', icon: <Map size={15}/>, label: t('realEstate.unitsRegistry.viewMap') }, { key: 'cards', icon: <LayoutGrid size={15}/>, label: t('realEstate.unitsRegistry.viewCards') }, { key: 'list', icon: <List size={15}/>, label: t('realEstate.unitsRegistry.viewList') }].map(v => (
@@ -1021,7 +1021,7 @@ const UnitsRegistry = () => {
                 </div>
             ) : viewMode === 'cards' ? (
                 /* ─── CARDS VIEW ─── */
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))', gap: '20px' }}>
                     {filteredUnits.map(u => {
                         const config = getStatusConfig(u.status);
                         return (
@@ -1062,7 +1062,7 @@ const UnitsRegistry = () => {
             ) : (
                 /* ─── LIST VIEW ─── */
                 <div className="ap-card" style={{ padding: '0', overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr style={{ background: '#f8fafc', borderBottom: '2px solid var(--border)' }}>
                                 {[
@@ -1115,7 +1115,7 @@ const UnitsRegistry = () => {
                                 );
                             })}
                         </tbody>
-                    </table>
+                    </table></div>
                 </div>
             )}
 
@@ -1395,7 +1395,7 @@ const UnitsRegistry = () => {
 
                                     {/* Previews Grid */}
                                     {photoPreviews.length > 0 && (
-                                        <div style={{ marginTop: '14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '10px' }}>
+                                        <div style={{ marginTop: '14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 100px), 1fr))', gap: '10px' }}>
                                             {photoPreviews.map((p, idx) => (
                                                 <div 
                                                     key={idx} 
@@ -2936,7 +2936,7 @@ const UnitsRegistry = () => {
                                         </button>
                                     </div>
                                 ) : (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: '16px' }}>
                                         {(hierarchyTree.projects || []).map(p => {
                                             const isExpanded = expandedProjectId === p.id;
                                             const phasesList = p.phases || [];
@@ -3090,7 +3090,7 @@ const UnitsRegistry = () => {
                                         </button>
                                     </div>
                                 ) : (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: '16px' }}>
                                         {(hierarchyTree.developers || []).map(d => (
                                             <div key={d.id} style={{ padding: '18px', borderRadius: '12px', border: '1px solid var(--border)', background: '#f8fafc', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px' }}>
                                                 <div>

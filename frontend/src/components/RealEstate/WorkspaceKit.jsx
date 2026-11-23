@@ -116,7 +116,7 @@ export const ActionButton = ({ color = '#2563eb', outline = false, children, ...
   </button>
 );
 
-export const SimpleTable = ({ columns, rows, loading, empty, rowStyle, mobileCards = false }) => {
+export const SimpleTable = ({ columns, rows, loading, empty, rowStyle, mobileCards = true }) => {
   const { t, isRTL } = useLanguage();
   const defaultEmpty = empty || t('realEstate.common.noRecords');
   const defaultLoading = t('realEstate.common.loading');

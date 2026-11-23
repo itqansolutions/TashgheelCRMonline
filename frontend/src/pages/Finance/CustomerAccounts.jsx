@@ -227,7 +227,7 @@ const StatementDrawer = ({ customerId, onClose }) => {
 
           {/* Ledger Table */}
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
                   {[
@@ -292,7 +292,7 @@ const StatementDrawer = ({ customerId, onClose }) => {
                   </tr>
                 </tfoot>
               )}
-            </table>
+            </table></div>
           </div>
         </>
       )}
@@ -372,7 +372,7 @@ const CustomerAccounts = () => {
 
       {/* KPI Row */}
       {kpi && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '14px', marginBottom: '24px' }}>
           {[
             { label: t('finance.customerAccounts.kpi.totalReceivables'),         value: kpi.totalReceivables,         color: '#6366f1', icon: <TrendingUp size={18} /> },
             { label: t('finance.customerAccounts.kpi.overdue'),                   value: kpi.totalOverdue,             color: '#ef4444', icon: <AlertTriangle size={18} /> },
@@ -446,7 +446,7 @@ const CustomerAccounts = () => {
         </div>
       ) : (
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr style={{ background: 'rgba(0,0,0,0.025)' }}>
                 {[
@@ -519,7 +519,7 @@ const CustomerAccounts = () => {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
           <div style={{ padding: '12px 16px', borderTop: '1px solid var(--glass-border)', fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
             {t('finance.customerAccounts.table.showingCount', { count: filtered.length, total: customers.length })}
           </div>

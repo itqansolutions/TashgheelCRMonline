@@ -327,14 +327,14 @@ const FinanceDashboard = () => {
     };
     const s = (status || '').toLowerCase();
     const label = t(`finance.invoices.statuses.${s}`, status || 'Unpaid');
-    return <span className={`badge ${styles[s] || 'badge-warning'}`}>{label}</span>;
+    return <span className={`finance-status-badge ${styles[s] || 'badge-warning'}`}>{label}</span>;
   };
 
   const getQuotationStatusBadge = (status) => {
     const s = (status || '').toLowerCase();
     const isApproved = s === 'approved' || s === 'accepted';
     return (
-      <span className={`badge ${isApproved ? 'badge-success' : 'badge-warning'}`}>
+      <span className={`finance-status-badge ${isApproved ? 'badge-success' : 'badge-warning'}`}>
         {t(`finance.quotations.statuses.${s}`, status || 'Draft')}
       </span>
     );
@@ -348,7 +348,7 @@ const FinanceDashboard = () => {
                 inv.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())
               );
               return (
-                <table className="data-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="data-table">
                     <thead>
                     <tr>
                         <th>{t('finance.invoices.invoiceNumber', 'Invoice #')}</th>
@@ -403,7 +403,7 @@ const FinanceDashboard = () => {
                         </tr>
                     ))}
                     </tbody>
-                </table>
+                </table></div>
               );
 
           case 'Quotations':
@@ -412,7 +412,7 @@ const FinanceDashboard = () => {
                 `QUO-${q.id}`.toLowerCase().includes(searchTerm.toLowerCase())
               );
               return (
-                <table className="data-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="data-table">
                     <thead>
                     <tr>
                         <th>{t('finance.quotations.refNumber', 'Reference #')}</th>
@@ -467,7 +467,7 @@ const FinanceDashboard = () => {
                         </tr>
                     ))}
                     </tbody>
-                </table>
+                </table></div>
               );
 
           case 'Receipts':
@@ -476,7 +476,7 @@ const FinanceDashboard = () => {
                 v.party_name?.toLowerCase().includes(searchTerm.toLowerCase())
               );
               return (
-                <table className="data-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="data-table">
                     <thead>
                     <tr>
                         <th>{t('finance.receipts.voucherNumber')}</th>
@@ -539,7 +539,7 @@ const FinanceDashboard = () => {
                         </tr>
                     ))}
                     </tbody>
-                </table>
+                </table></div>
               );
 
           case 'Payments':
@@ -548,7 +548,7 @@ const FinanceDashboard = () => {
                 v.party_name?.toLowerCase().includes(searchTerm.toLowerCase())
               );
               return (
-                <table className="data-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="data-table">
                     <thead>
                     <tr>
                         <th>{t('finance.payments.voucherNumber')}</th>
@@ -610,7 +610,7 @@ const FinanceDashboard = () => {
                         </tr>
                     ))}
                     </tbody>
-                </table>
+                </table></div>
               );
 
           case 'Expenses':
@@ -619,7 +619,7 @@ const FinanceDashboard = () => {
                 e.category?.toLowerCase().includes(searchTerm.toLowerCase())
               );
               return (
-                <table className="data-table">
+                <div className="responsive-table-region" role="region" tabIndex={0}><table className="data-table">
                     <thead>
                     <tr>
                         <th>{t('finance.expenses.date')}</th>
@@ -640,12 +640,12 @@ const FinanceDashboard = () => {
                         </tr>
                     ))}
                     </tbody>
-                </table>
+                </table></div>
               );
 
           case 'Overview':
               return (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', padding: '8px 0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px', padding: '8px 0' }}>
                   {[
                     { label: t('finance.kpi.totalSales', 'Total Sales'), value: summaryStats?.totalSales || summaryStats?.totalInvoiced || 0, color: '#6366f1', sub: t('finance.kpi.allIssuedInvoices', 'All issued invoices') },
                     { label: t('finance.kpi.totalCollected', 'Total Collected'), value: summaryStats?.totalIncome || 0, color: '#10b981', sub: t('finance.kpi.paymentsReceived', 'Payments received') },
@@ -694,10 +694,10 @@ const FinanceDashboard = () => {
         .data-table th, .data-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border); }
         .data-table th { background: rgba(0,0,0,0.02); font-weight: 700; color: var(--text-muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
         .data-table tr:hover { background: rgba(255,255,255,0.02); }
-        .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
-        .badge-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
-        .badge-warning { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-        .badge-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .finance-status-badge { position: static; width: auto; height: auto; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+        .finance-status-badge.badge-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .finance-status-badge.badge-warning { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        .finance-status-badge.badge-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
         .action-btn { background: transparent; border: 1px solid var(--glass-border); padding: 6px 12px; border-radius: 6px; cursor: pointer; color: var(--text-main); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; margin-${isRTL ? 'left' : 'right'}: 8px; transition: 0.2s; }
         .action-btn:hover { background: rgba(0,0,0,0.05); }
         .pay-btn { background: rgba(79, 70, 229, 0.1); color: #4f46e5; border-color: rgba(79, 70, 229, 0.2); }
@@ -707,7 +707,7 @@ const FinanceDashboard = () => {
         .tab-item.active { background: white; color: var(--primary, #3b82f6); box-shadow: var(--shadow-sm); }
         
         /* KPI Cards Grid */
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; margin-bottom: 24px; }
         .kpi-card { background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: 14px; padding: 18px 20px; box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: space-between; }
         .kpi-val { font-size: 22px; font-weight: 900; margin-top: 4px; }
         .kpi-title { font-size: 12px; color: var(--text-muted); font-weight: 600; }
@@ -860,7 +860,7 @@ const FinanceDashboard = () => {
 
       {/* Payment Registration Modal */}
       {showPaymentModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', direction: isRTL ? 'rtl' : 'ltr' }}>
+          <div className="responsive-form-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', direction: isRTL ? 'rtl' : 'ltr' }}>
               <div style={{ background: 'var(--bg-card)', padding: '32px', borderRadius: '16px', width: 'min(440px, calc(100vw - 24px))', maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', boxSizing: 'border-box', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--glass-border)' }}>
                   <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 800 }}>{t('finance.paymentModal.title')}</h3>
                   
@@ -929,7 +929,7 @@ const FinanceDashboard = () => {
 
       {/* Quick Action Modal (Invoice, Quotation, Voucher, Expense) */}
       {showQuickAction && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', direction: isRTL ? 'rtl' : 'ltr' }}>
+          <div className="responsive-form-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', direction: isRTL ? 'rtl' : 'ltr' }}>
               <div style={{ background: 'var(--bg-card)', padding: '32px', borderRadius: '16px', width: '640px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--glass-border)' }}>
                   <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: '800' }}>
                       {quickActionType === 'Receipt Voucher' ? t('finance.quickAction.titleReceiptVoucher') :

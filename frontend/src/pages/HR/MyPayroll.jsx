@@ -70,7 +70,7 @@ const MyPayroll = () => {
 
       {/* Summary Cards */}
       {payrolls.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '16px', marginBottom: '24px' }}>
           <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '18px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)', textAlign: isRTL ? 'right' : 'left' }}>
             <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{t('hr.myPayroll.latestNetSalary', 'Latest Net Salary')}</span>
             <div style={{ fontSize: '24px', fontWeight: 900, color: '#4f46e5', marginTop: '6px' }} className="num-en">
@@ -104,7 +104,7 @@ const MyPayroll = () => {
       )}
 
       {/* Main Ledger Table */}
-      <table className="mp-table">
+      <div className="responsive-table-region" role="region" tabIndex={0}><table className="mp-table">
         <thead>
           <tr>
             <th>{t('hr.myPayroll.colCycle', 'Cycle')}</th>
@@ -151,7 +151,7 @@ const MyPayroll = () => {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
 
       {/* Breakdown Modal */}
       {isDetailsOpen && selectedPayroll && (

@@ -47,7 +47,7 @@ const StatementModal = ({ customer, onClose }) => {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+    <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
       <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '780px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', direction: isRTL ? 'rtl' : 'ltr' }}>
         {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
@@ -102,7 +102,7 @@ const StatementModal = ({ customer, onClose }) => {
               {data.invoices.length > 0 && (
                 <>
                   <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', marginBottom: '12px', paddingBottom: '8px', borderBottom: '2px solid #e2e8f0' }}>📄 {t('customers.invoicesTitle', 'Invoices')}</h3>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
                     <thead><tr style={{ background: '#f1f5f9' }}>
                       {[t('customers.invoiceNumber', 'Invoice #'), t('customers.deal', 'Deal'), t('customers.total', 'Total'), t('common.status', 'Status'), t('customers.dueDate', 'Due Date')].map(h => (
                         <th key={h} style={{ padding: '10px', textAlign: isRTL ? 'right' : 'left', fontSize: '12px', border: '1px solid #e2e8f0', fontWeight: 700 }}>{h}</th>
@@ -129,7 +129,7 @@ const StatementModal = ({ customer, onClose }) => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </>
               )}
 
@@ -137,7 +137,7 @@ const StatementModal = ({ customer, onClose }) => {
               {data.payments.length > 0 && (
                 <>
                   <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b', marginBottom: '12px', paddingBottom: '8px', borderBottom: '2px solid #e2e8f0' }}>💳 {t('customers.paymentsTitle', 'Payments')}</h3>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
                     <thead><tr style={{ background: '#f1f5f9' }}>
                       {[t('customers.invoiceNumber', 'Invoice #'), t('customers.amount', 'Amount'), t('customers.method', 'Method'), t('common.date', 'Date'), t('customers.notes', 'Notes')].map(h => (
                         <th key={h} style={{ padding: '10px', textAlign: isRTL ? 'right' : 'left', fontSize: '12px', border: '1px solid #e2e8f0', fontWeight: 700 }}>{h}</th>
@@ -160,7 +160,7 @@ const StatementModal = ({ customer, onClose }) => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </>
               )}
 
@@ -321,7 +321,7 @@ const ContactsCustomers = () => {
   const inputStyle = { width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', fontWeight: 600, outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box', background: '#fafafa' };
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto', direction: isRTL ? 'rtl' : 'ltr' }}>
+    <div className="contacts-customers-page" style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto', direction: isRTL ? 'rtl' : 'ltr' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
         <div>
@@ -416,7 +416,7 @@ const ContactsCustomers = () => {
             <p style={{ fontWeight: 700, margin: 0 }}>{t('customers.noCustomersFound', 'No customers found')}</p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                 {[t('customers.customerName', 'Name'), t('customers.classification', 'Classification'), t('customers.area', 'Area'), t('customers.phone', 'Phone'), t('customers.address', 'Address'), t('customers.taxNo', 'Tax ID'), t('customers.regNo', 'Commercial Reg'), t('customers.source', 'Source'), t('common.status', 'Status'), t('common.actions', 'Actions')].map(h => (
@@ -565,13 +565,13 @@ const ContactsCustomers = () => {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
 
       {/* Add/Edit Modal */}
       {isModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+        <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 25px 50px rgba(0,0,0,0.2)', direction: isRTL ? 'rtl' : 'ltr' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', borderRadius: '20px 20px 0 0' }}>
               <h3 style={{ margin: 0, color: 'white', fontWeight: 800 }}>{editingCustomer ? t('customers.editCustomer', 'Edit Customer') : t('customers.addCustomer', 'Add New Customer')}</h3>
@@ -703,7 +703,7 @@ const ContactsCustomers = () => {
 
       {/* Customer Details Modal */}
       {viewingCustomer && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+        <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '720px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', direction: isRTL ? 'rtl' : 'ltr' }}>
             
             {/* Modal Header */}
@@ -926,7 +926,7 @@ const ContactsCustomers = () => {
 
       {/* Quick Classification Modal */}
       {showQuickClassificationModal && (
-        <div style={{
+        <div className="responsive-form-overlay" style={{
           position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)',
           zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
         }}>
@@ -1024,7 +1024,7 @@ const ContactsCustomers = () => {
 
       {/* Quick Area Modal */}
       {showQuickAreaModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+        <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '420px', padding: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', direction: isRTL ? 'rtl' : 'ltr' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>

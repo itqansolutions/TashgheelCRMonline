@@ -102,7 +102,7 @@ const AttendanceAdmin = () => {
                 </div>
             </div>
 
-            <table className="admin-table">
+            <div className="responsive-table-region" role="region" tabIndex={0}><table className="admin-table">
                 <thead>
                     <tr>
                         <th>{t('hr.attendanceAdmin.colEmployee', 'Employee')}</th>
@@ -150,7 +150,7 @@ const AttendanceAdmin = () => {
                         </tr>
                     ))}
                 </tbody>
-            </table>
+            </table></div>
         </div>
     </div>
   );

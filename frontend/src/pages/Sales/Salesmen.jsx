@@ -1060,7 +1060,7 @@ const Salesmen = () => {
               )}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 380px), 1fr))', gap: '20px' }}>
               {filteredTeams.map((tm) => (
                 <div
                   key={tm.id}
@@ -1201,7 +1201,7 @@ const Salesmen = () => {
               </p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))', gap: '20px' }}>
               {filteredSalesmen.map((s) => (
                 <div
                   key={s.id}
@@ -1402,7 +1402,7 @@ const Salesmen = () => {
                   {isRealEstate && rePerformance && (
                     <div>
                       {/* Summary KPI Cards Grid */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 170px), 1fr))', gap: '14px', marginBottom: '24px' }}>
                         <div style={{ background: '#f0f9ff', padding: '16px', borderRadius: '12px', border: '1px solid #bae6fd' }}>
                           <span style={{ fontSize: '12px', color: '#0369a1', fontWeight: 700 }}>{t('sales.salesmen.netContractValue')}</span>
                           <div style={{ fontSize: '20px', fontWeight: 800, color: '#0c4a6e', marginTop: '6px' }}>
@@ -1521,7 +1521,7 @@ const Salesmen = () => {
                               {t('sales.salesmen.noContracts')}
                             </div>
                           ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                               <thead>
                                 <tr style={{ background: '#f8fafc', textAlign: isRTL ? 'right' : 'left', borderBottom: '1px solid #e2e8f0' }}>
                                   <th style={{ padding: '10px' }}>{t('sales.salesmen.columns.contractNo')}</th>
@@ -1548,7 +1548,7 @@ const Salesmen = () => {
                                   </tr>
                                 ))}
                               </tbody>
-                            </table>
+                            </table></div>
                           )}
                         </div>
                       )}
@@ -1564,7 +1564,7 @@ const Salesmen = () => {
                               {t('sales.salesmen.noCollections')}
                             </div>
                           ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                               <thead>
                                 <tr style={{ background: '#f8fafc', textAlign: isRTL ? 'right' : 'left', borderBottom: '1px solid #e2e8f0' }}>
                                   <th style={{ padding: '10px' }}>{t('sales.salesmen.columns.refNo')}</th>
@@ -1589,7 +1589,7 @@ const Salesmen = () => {
                                   </tr>
                                 ))}
                               </tbody>
-                            </table>
+                            </table></div>
                           )}
                         </div>
                       )}
@@ -1617,7 +1617,7 @@ const Salesmen = () => {
                           {rePerformance.cancellations?.length === 0 ? (
                             <p style={{ color: '#94a3b8', fontSize: '13px' }}>{t('sales.salesmen.noCancellations')}</p>
                           ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                               <thead>
                                 <tr style={{ background: '#fef2f2', textAlign: isRTL ? 'right' : 'left', borderBottom: '1px solid #fee2e2' }}>
                                   <th style={{ padding: '8px' }}>{t('sales.salesmen.columns.contractNo')}</th>
@@ -1640,7 +1640,7 @@ const Salesmen = () => {
                                   </tr>
                                 ))}
                               </tbody>
-                            </table>
+                            </table></div>
                           )}
                         </div>
                       )}
@@ -1653,7 +1653,7 @@ const Salesmen = () => {
                               {t('sales.salesmen.noCommissions')}
                             </div>
                           ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                               <thead>
                                 <tr style={{ background: '#f8fafc', textAlign: isRTL ? 'right' : 'left', borderBottom: '1px solid #e2e8f0' }}>
                                   <th style={{ padding: '10px' }}>{t('sales.salesmen.columns.dealContract')}</th>
@@ -1691,7 +1691,7 @@ const Salesmen = () => {
                                   </tr>
                                 ))}
                               </tbody>
-                            </table>
+                            </table></div>
                           )}
                         </div>
                       )}
@@ -1711,7 +1711,7 @@ const Salesmen = () => {
                   {!isRealEstate && (
                     <div>
                       {/* Summary KPI Cards Grid */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '14px', marginBottom: '24px' }}>
                         <div style={{ background: '#ecfdf5', padding: '16px', borderRadius: '12px', border: '1px solid #a7f3d0' }}>
                           <span style={{ fontSize: '12px', color: '#047857', fontWeight: 700 }}>{t('sales.salesmen.tabs.targets')}</span>
                           <div style={{ fontSize: '20px', fontWeight: 800, color: '#064e3b', marginTop: '6px' }}>
@@ -1860,7 +1860,7 @@ const Salesmen = () => {
                               {t('sales.salesmen.noCommissions')}
                             </div>
                           ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                               <thead>
                                 <tr style={{ background: '#f8fafc', textAlign: isRTL ? 'right' : 'left', borderBottom: '1px solid #e2e8f0' }}>
                                   <th style={{ padding: '10px' }}>{t('sales.salesmen.columns.invoiceOrder')}</th>
@@ -1895,7 +1895,7 @@ const Salesmen = () => {
                                   </tr>
                                 ))}
                               </tbody>
-                            </table>
+                            </table></div>
                           )}
                         </div>
                       )}
@@ -1908,7 +1908,7 @@ const Salesmen = () => {
                               {t('sales.salesmen.noSettlements')}
                             </div>
                           ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                               <thead>
                                 <tr style={{ background: '#f8fafc', textAlign: isRTL ? 'right' : 'left', borderBottom: '1px solid #e2e8f0' }}>
                                   <th style={{ padding: '10px' }}>{t('sales.salesmen.columns.period')}</th>
@@ -1943,7 +1943,7 @@ const Salesmen = () => {
                                   </tr>
                                 ))}
                               </tbody>
-                            </table>
+                            </table></div>
                           )}
                         </div>
                       )}

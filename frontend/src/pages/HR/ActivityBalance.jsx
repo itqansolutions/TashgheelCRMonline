@@ -227,7 +227,7 @@ const ActivityBalance = () => {
               <p style={{ fontSize: '13px', color: '#cbd5e1' }}>{t('hr.activityBalance.noBalancesDesc', 'Select a different period or assign new balances to employees')}</p>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.activityBalance.colEmployee', 'Employee')}</th>
@@ -286,7 +286,7 @@ const ActivityBalance = () => {
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
 

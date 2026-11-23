@@ -65,7 +65,7 @@ const QuotationPreview = () => {
   );
 
   return (
-    <div style={{ padding: '40px', direction: isRTL ? 'rtl' : 'ltr' }}>
+    <div className="quotation-preview-page" style={{ padding: '40px', direction: isRTL ? 'rtl' : 'ltr' }}>
       <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: '800px', margin: '0 auto 24px auto', flexWrap: 'wrap', gap: '12px' }}>
         <button 
           onClick={() => navigate(-1)}

@@ -144,7 +144,7 @@ const AdminUpgradeRequests = () => {
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left">
+                            <div className="responsive-table-region" role="region" tabIndex={0}><table className="w-full text-sm text-left">
                                 <thead>
                                     <tr className="bg-slate-50 border-b border-slate-100">
                                         <th className="px-5 py-3.5 font-semibold text-slate-500 text-xs uppercase tracking-wide">Company</th>
@@ -206,7 +206,7 @@ const AdminUpgradeRequests = () => {
                                         );
                                     })}
                                 </tbody>
-                            </table>
+                            </table></div>
                         </div>
                     )}
                 </div>

@@ -231,7 +231,7 @@ const Purchases = () => {
               <p style={{ fontWeight: 700, margin: 0 }}>{t('purchases.noPurchases')}</p>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
+            <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                   <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('purchases.colInvoiceNo')}</th>
@@ -281,7 +281,7 @@ const Purchases = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
 
@@ -356,7 +356,7 @@ const Purchases = () => {
                     </button>
                   </div>
 
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', textAlign: isRTL ? 'right' : 'left' }}>
                         <th style={{ padding: '8px', width: '35%' }}>{t('purchases.colItem')}</th>
@@ -425,7 +425,7 @@ const Purchases = () => {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
 
                 {/* Total Summary */}
