@@ -32,7 +32,7 @@ async function transact({tenant,branch,user,mode,instant=new Date(),stamp,ip,loc
  const client=await db.connect();
  try {
   await client.query('BEGIN');
-  if(locationRequest)await require('./attendanceLocationService').enforce(client,locationRequest);
+  if(locationRequest){await client.query("SET LOCAL lock_timeout='3s'");await client.query("SET LOCAL statement_timeout='8s'");await require('./attendanceLocationService').enforce(client,locationRequest);}
   const zone=await timezoneFor(client,tenant,branch);
   if(stamp) instant=deviceInstant(stamp,zone);
   const day=localParts(instant,zone).day;
