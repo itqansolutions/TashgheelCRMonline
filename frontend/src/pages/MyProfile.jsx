@@ -51,9 +51,9 @@ const MyProfile = () => {
   ];
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '32px 24px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="profile-workspace-page" dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '32px 24px', maxWidth: '1200px', margin: '0 auto' }}>
       {/* Profile Hero Header Card */}
-      <div style={{
+      <div className="profile-workspace-hero" style={{
         background: 'white',
         borderRadius: '20px',
         border: '1px solid #e2e8f0',
@@ -112,7 +112,7 @@ const MyProfile = () => {
       </div>
 
       {/* Profile Details Grid */}
-      <div style={{
+      <div className="profile-workspace-details" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
         gap: '24px',
@@ -202,7 +202,7 @@ const MyProfile = () => {
       </div>
 
       {/* Independent Workspaces Quick Navigation */}
-      <div>
+      <div className="profile-workspace-links">
         <h3 style={{ margin: '0 0 16px', fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
           {t('profile.sectionWorkspaces')}
         </h3>

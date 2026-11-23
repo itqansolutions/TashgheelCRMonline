@@ -414,3 +414,23 @@
 @media(max-width:768px) {
  .settings-page .responsive-table-region td[style*="monospace"] { direction:ltr; unicode-bidi:plaintext; white-space:nowrap; }
 }
+
+/* Profile remains a routing hub, not a second copy of each workspace. */
+.profile-workspace-page { width:100%; min-width:0; box-sizing:border-box; }
+.profile-workspace-page .profile-workspace-hero { box-shadow:none!important; border-radius:12px!important; }
+.profile-workspace-page .profile-workspace-hero > div:last-child { min-width:0!important; }
+.profile-workspace-page .profile-workspace-hero p { flex-wrap:wrap; overflow-wrap:anywhere; }
+.profile-workspace-page .profile-workspace-details > div { min-width:0; border-radius:12px!important; box-shadow:none!important; }
+.profile-workspace-page .profile-workspace-details span { overflow-wrap:anywhere; }
+.profile-workspace-page .profile-workspace-links a { min-width:0; box-shadow:none!important; border-radius:10px!important; }
+.profile-workspace-page .profile-workspace-links a > div:last-child { min-width:0; overflow-wrap:anywhere; }
+@media(max-width:768px) {
+ .profile-workspace-page { padding:16px!important; }
+ .profile-workspace-page .profile-workspace-hero { padding:20px!important; gap:16px!important; margin-bottom:20px!important; }
+ .profile-workspace-page .profile-workspace-hero > div:last-child { flex-basis:100%!important; }
+ .profile-workspace-page .profile-workspace-hero h1 { font-size:24px!important; overflow-wrap:anywhere; }
+ .profile-workspace-page .profile-workspace-details { gap:16px!important; margin-bottom:24px!important; }
+ .profile-workspace-page .profile-workspace-details > div { padding:18px!important; }
+ .profile-workspace-page .profile-workspace-details > div > div > div { flex-wrap:wrap; gap:8px; }
+ .profile-workspace-page .profile-workspace-links a { padding:16px!important; min-height:76px; }
+}
