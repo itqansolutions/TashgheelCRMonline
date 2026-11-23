@@ -856,6 +856,7 @@
       }
     },
     "paymentModal": {
+      "selectTreasury": "اختر الخزينة / الحساب البنكي",
       "treasuryAccount": "الخزنة / حساب التسوية",
       "selectAccount": "اختر خزنة أو حساب تسوية",
       "accountsError": "تعذر تحميل حسابات الخزنة",
@@ -880,6 +881,8 @@
       "paymentFailed": "تعذر تسجيل التحصيل"
     },
     "quickAction": {
+      "productLabel": "المنتج المرتبط",
+      "itemTypeLabel": "نوع البند",
       "titleInvoice": "إنشاء فاتورة جديدة",
       "titleQuotation": "إنشاء عرض سعر جديد",
       "customer": "العميل",

@@ -219,3 +219,20 @@
   border-radius: 10px; color: var(--text-main, #1e293b);
 }
 .workspace-form-panel .movement-editor-form .form-group { margin-bottom: 18px; }
+
+/* Finance quick entry only. Short payment/confirmation dialogs remain unchanged. */
+.workspace-form-panel .finance-quick-editor input,
+.workspace-form-panel .finance-quick-editor select,
+.workspace-form-panel .finance-quick-editor [role="button"] {
+  min-height: 44px; min-width: 0; box-sizing: border-box;
+  border: 1px solid #dbe3ed!important; background: #f8fafc!important;
+  border-radius: 9px; padding: 10px 12px!important;
+}
+.finance-line-item { padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; }
+.finance-line-item label { display: flex; flex-direction: column; min-width: 0; gap: 6px; font-size: 12px; color: #64748b; }
+@media(max-width:768px) {
+  .finance-line-item { grid-template-columns: 1fr 1fr!important; gap: 12px!important; }
+  .finance-line-item label:nth-child(1), .finance-line-item label:nth-child(2), .finance-line-item label:nth-child(3) { grid-column: 1 / -1; }
+}
+
+@media(max-width:768px) { .finance-quick-editor .finance-customer-unit { flex-direction: column; } }

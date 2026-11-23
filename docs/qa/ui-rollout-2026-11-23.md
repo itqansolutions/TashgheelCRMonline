@@ -141,3 +141,10 @@ Finance/accounting; purchasing; inventory beyond Products; remaining HR; real es
 
 ### Fixture selector correction
 - Phase3 regression exposed that the prior HR fixture's add-button matcher did not include the actual English `Allocate / Adjust Balance` label. Corrected the fixture only, no application change needed; all12HRvariants pass after correction. Earlier broad12-pass wording should be read with this correction, not as new product failure.
+
+## Phase 4 candidate
+- Finance quick entry only: invoice, quotation, receipt voucher, payment voucher and expense forms share the same long-editor panel. Existing registration-payment, cancellation, preview and approval dialogs unchanged.
+- All original field opening-element ASTs and handle* bodies match Phase3. No amounts, permissions, payloads, validation, service/inventory classification or financial handlers changed. External footer submit links to the original form.
+- Added visible labels and phone item cards for original product/type/description/quantity/price controls, clear boundaries for finance fields. All fields retained; no transaction submitted during layout tests.
+-40 synthetic actual-editor combinations cover5modes,2templates,AR/EN and360/1440. Includes invoice/quotation local item addition/removal and voucher party branches, no network writes. Existing isolated finance collection/default-account and finance-unification regression tests pass. Build passes with pre-existing chunk-size warning.
+- Other finance screens, previews, accounting and all remaining families are still not completed or functionally certified by this form-only batch.

@@ -1,10 +1,11 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { 
-  Plus, Download, Filter, Search, MoreVertical, 
+import {
+  Plus, Download, Filter, Search, MoreVertical,
   TrendingUp, FileText, DollarSign, Activity, BarChart3, Users,
   CreditCard, Calendar, User, ArrowUpRight, ArrowDownRight,
   Settings, CheckCircle, Clock, AlertCircle, ShoppingBag,
@@ -28,7 +29,7 @@ const FinanceDashboard = () => {
   const { customers, products, units, fetchUnits, fetchCustomers, fetchProducts } = useData();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const ALL_TABS = ['Overview', 'Invoices', 'Quotations', 'Receipts', 'Payments', 'Expenses', 'Customers', 'Vendors', 'Treasury', 'Reports'];
 
   const queryParams = new URLSearchParams(location.search);
@@ -44,12 +45,12 @@ const FinanceDashboard = () => {
   const [summaryStats, setSummaryStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Quick Action Modal
   const [showQuickAction, setShowQuickAction] = useState(Boolean(location.state?.create));
   const [quickActionType, setQuickActionType] = useState(location.state?.create || 'Invoice');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Payment Modal State
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -363,7 +364,7 @@ const FinanceDashboard = () => {
   const renderTabContent = () => {
       switch(activeTab) {
           case 'Invoices':
-              const filteredInvoices = (invoices || []).filter(inv => 
+              const filteredInvoices = (invoices || []).filter(inv =>
                 inv.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 inv.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())
               );
@@ -410,9 +411,9 @@ const FinanceDashboard = () => {
                                 <button className="action-btn" onClick={() => navigate(`/finance/invoice-preview/${inv.id}`)}>
                                     <Download size={14} /> {t('finance.invoices.pdf', 'PDF')}
                                 </button>
-                                <button 
-                                    className="action-btn" 
-                                    title={isRTL ? "إرسال الفاتورة عبر واتساب" : "Send via WhatsApp"} 
+                                <button
+                                    className="action-btn"
+                                    title={isRTL ? "إرسال الفاتورة عبر واتساب" : "Send via WhatsApp"}
                                     onClick={() => navigate(`/finance/invoice-preview/${inv.id}`)}
                                     style={{ color: '#25D366' }}
                                 >
@@ -537,7 +538,7 @@ const FinanceDashboard = () => {
                             </td>
                             <td>
                                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                    <button 
+                                    <button
                                         className="action-btn"
                                         style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}
                                         onClick={() => setSelectedVoucherForPreview(v)}
@@ -545,7 +546,7 @@ const FinanceDashboard = () => {
                                         <Printer size={14} /> {t('finance.receipts.printVoucher')}
                                     </button>
                                     {user?.role === 'admin' && (
-                                        <button 
+                                        <button
                                             className="action-btn"
                                             style={{ color: '#ef4444', borderColor: '#fca5a5' }}
                                             onClick={() => openCancelVoucherModal(v)}
@@ -608,7 +609,7 @@ const FinanceDashboard = () => {
                             </td>
                             <td>
                                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                    <button 
+                                    <button
                                         className="action-btn"
                                         style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}
                                         onClick={() => setSelectedVoucherForPreview(v)}
@@ -616,7 +617,7 @@ const FinanceDashboard = () => {
                                         <Printer size={14} /> {t('finance.payments.printVoucher')}
                                     </button>
                                     {user?.role === 'admin' && (
-                                        <button 
+                                        <button
                                             className="action-btn"
                                             style={{ color: '#ef4444', borderColor: '#fca5a5' }}
                                             onClick={() => openCancelVoucherModal(v)}
@@ -725,7 +726,7 @@ const FinanceDashboard = () => {
         .tabs-nav { display: flex; gap: 8px; margin-bottom: 24px; background: rgba(0,0,0,0.02); padding: 4px; border-radius: 10px; width: fit-content; flex-wrap: wrap; }
         .tab-item { padding: 8px 18px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 14px; color: var(--text-muted); transition: 0.3s; display: flex; align-items: center; gap: 6px; }
         .tab-item.active { background: white; color: var(--primary, #3b82f6); box-shadow: var(--shadow-sm); }
-        
+
         /* KPI Cards Grid */
         .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; margin-bottom: 24px; }
         .kpi-card { background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: 14px; padding: 18px 20px; box-shadow: var(--shadow-sm); display: flex; align-items: center; justify-content: space-between; }
@@ -733,7 +734,7 @@ const FinanceDashboard = () => {
         .kpi-title { font-size: 12px; color: var(--text-muted); font-weight: 600; }
         .kpi-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
       `}</style>
-      
+
       {/* Header */}
       <div className="finance-header">
         <div>
@@ -837,8 +838,8 @@ const FinanceDashboard = () => {
                 { id: 'Treasury',   label: t('finance.tabs.treasury'),   icon: <Wallet size={16} /> },
                 { id: 'Reports',    label: t('finance.tabs.reports'),    icon: <BarChart3 size={16} /> },
             ].map(tab => (
-                <div 
-                  key={tab.id} 
+                <div
+                  key={tab.id}
                   className={`tab-item ${activeTab === tab.id ? 'active' : ''}`}
                   onClick={() => handleTabChange(tab.id)}
                 >
@@ -851,7 +852,7 @@ const FinanceDashboard = () => {
         {['Invoices', 'Quotations', 'Receipts', 'Payments', 'Expenses'].includes(activeTab) && (
         <div style={{ position: 'relative', minWidth: '260px' }}>
             <Search size={16} style={{ position: 'absolute', [isRTL ? 'right' : 'left']: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input 
+            <input
                 type="text"
                 placeholder={
                   activeTab === 'Quotations' ? t('finance.quotations.searchPlaceholder') :
@@ -883,7 +884,7 @@ const FinanceDashboard = () => {
           <div className="responsive-form-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', direction: isRTL ? 'rtl' : 'ltr' }}>
               <div style={{ background: 'var(--bg-card)', padding: '32px', borderRadius: '16px', width: 'min(440px, calc(100vw - 24px))', maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', boxSizing: 'border-box', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--glass-border)' }}>
                   <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 800 }}>{t('finance.paymentModal.title')}</h3>
-                  
+
                   <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--glass-border)' }}>
                      <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--text-muted)' }}>
                          {t('finance.paymentModal.invoiceNo')} <strong className="num-en">{selectedInvoice?.invoice_number}</strong>
@@ -899,8 +900,8 @@ const FinanceDashboard = () => {
 
                   <div style={{ marginBottom: '16px' }}>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.paymentModal.paymentAmount', { currency: t('common.currency') })}</label>
-                      <input 
-                         type="number" 
+                      <input
+                         type="number"
                          value={paymentAmount}
                          onChange={(e) => setPaymentAmount(e.target.value)}
                          max={selectedInvoice?.remaining_balance}
@@ -918,7 +919,7 @@ const FinanceDashboard = () => {
                           <option value="check" style={{color:'black'}}>{t('finance.paymentModal.methods.check')}</option>
                       </select>
                   </div>
-                  
+
                   <div style={{ marginBottom: '16px' }}>
                       <label htmlFor="invoice-payment-treasury" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>{t('finance.paymentModal.treasuryAccount')}</label>
                       <select id="invoice-payment-treasury" value={paymentTreasury} onChange={e => setPaymentTreasury(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'var(--bg-card)', color: 'var(--text-main)' }}>
@@ -928,8 +929,8 @@ const FinanceDashboard = () => {
                   </div>
                   <div style={{ marginBottom: '24px' }}>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.paymentModal.notesReference')}</label>
-                      <input 
-                         type="text" 
+                      <input
+                         type="text"
                          value={paymentNotes}
                          onChange={(e) => setPaymentNotes(e.target.value)}
                          placeholder={t('finance.paymentModal.notesPlaceholder')}
@@ -948,25 +949,28 @@ const FinanceDashboard = () => {
       )}
 
       {/* Quick Action Modal (Invoice, Quotation, Voucher, Expense) */}
-      {showQuickAction && (
-          <div className="responsive-form-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', direction: isRTL ? 'rtl' : 'ltr' }}>
-              <div style={{ background: 'var(--bg-card)', padding: '32px', borderRadius: '16px', width: '640px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--glass-border)' }}>
-                  <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: '800' }}>
-                      {quickActionType === 'Receipt Voucher' ? t('finance.quickAction.titleReceiptVoucher') :
+      <Modal isOpen={showQuickAction} onClose={() => setShowQuickAction(false)} variant="form"
+        title={quickActionType === 'Receipt Voucher' ? t('finance.quickAction.titleReceiptVoucher') :
                        quickActionType === 'Payment Voucher' ? t('finance.quickAction.titlePaymentVoucher') :
                        quickActionType === 'Expense' ? t('finance.quickAction.titleExpense') :
                        quickActionType === 'Quotation' ? t('finance.quickAction.titleQuotation') : t('finance.quickAction.titleInvoice')}
-                  </h3>
+        footer={<>
+                          <button type="button" onClick={() => setShowQuickAction(false)} className="action-btn" style={{ flex: 1, justifyContent: 'center' }}>{t('finance.quickAction.cancel')}</button>
+                          <button type="submit" form="finance-quick-editor-form" className="btn-primary" style={{ flex: 2, justifyContent: 'center' }} disabled={isSubmitting}>
+                              {isSubmitting ? t('finance.quickAction.saving') : t('finance.quickAction.saveConfirm')}
+                          </button>
+                      </>}
+      >
+        <form className="finance-quick-editor" id="finance-quick-editor-form" onSubmit={handleQuickActionSubmit}>
 
-                  <form onSubmit={handleQuickActionSubmit}>
                       {/* Vouchers Specific Fields */}
                       {(quickActionType === 'Receipt Voucher' || quickActionType === 'Payment Voucher') ? (
                           <>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '12px', marginBottom: '16px' }}>
                                   <div>
                                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.partyType')}</label>
-                                      <select 
-                                          value={formData.party_type} 
+                                      <select
+                                          value={formData.party_type}
                                           onChange={e => setFormData({ ...formData, party_type: e.target.value })}
                                           style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
                                       >
@@ -981,7 +985,7 @@ const FinanceDashboard = () => {
                                           {quickActionType === 'Receipt Voucher' ? t('finance.quickAction.receivedFrom') : t('finance.quickAction.paidTo')}
                                       </label>
                                       {formData.party_type === 'customer' ? (
-                                          <CustomerSearchSelect 
+                                          <CustomerSearchSelect
                                               customers={customers}
                                               value={formData.customer_id}
                                               onChange={(custId, cust) => {
@@ -991,8 +995,8 @@ const FinanceDashboard = () => {
                                               required
                                           />
                                       ) : (
-                                          <input 
-                                              type="text" 
+                                          <input
+                                              type="text"
                                               required
                                               value={formData.party_name}
                                               onChange={e => setFormData({ ...formData, party_name: e.target.value })}
@@ -1006,8 +1010,8 @@ const FinanceDashboard = () => {
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                                   <div>
                                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.amount', { currency: t('common.currency') })}</label>
-                                      <input 
-                                          type="number" 
+                                      <input
+                                          type="number"
                                           required
                                           value={formData.amount}
                                           onChange={e => setFormData({ ...formData, amount: e.target.value })}
@@ -1017,8 +1021,8 @@ const FinanceDashboard = () => {
                                   </div>
                                   <div>
                                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.voucherDate')}</label>
-                                      <input 
-                                          type="date" 
+                                      <input
+                                          type="date"
                                           required
                                           value={formData.date}
                                           onChange={e => setFormData({ ...formData, date: e.target.value })}
@@ -1030,8 +1034,8 @@ const FinanceDashboard = () => {
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                                   <div>
                                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.paymentModal.paymentMethod')}</label>
-                                      <select 
-                                          value={formData.payment_method} 
+                                      <select
+                                          value={formData.payment_method}
                                           onChange={e => setFormData({ ...formData, payment_method: e.target.value, treasury_account_id: '' })}
                                           style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
                                       >
@@ -1054,8 +1058,8 @@ const FinanceDashboard = () => {
 
                               <div style={{ marginBottom: '16px' }}>
                                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.refNoCheque')}</label>
-                                  <input 
-                                      type="text" 
+                                  <input
+                                      type="text"
                                       value={formData.reference_no}
                                       onChange={e => setFormData({ ...formData, reference_no: e.target.value })}
                                       placeholder={t('finance.quickAction.refNoPlaceholder')}
@@ -1065,8 +1069,8 @@ const FinanceDashboard = () => {
 
                               <div style={{ marginBottom: '24px' }}>
                                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.purposeDescription')}</label>
-                                  <input 
-                                      type="text" 
+                                  <input
+                                      type="text"
                                       value={formData.title}
                                       onChange={e => setFormData({ ...formData, title: e.target.value })}
                                       placeholder={quickActionType === 'Receipt Voucher' ? t('finance.quickAction.receiptPurposePlaceholder') : t('finance.quickAction.paymentPurposePlaceholder')}
@@ -1081,19 +1085,19 @@ const FinanceDashboard = () => {
                                       {quickActionType === 'Expense' ? t('finance.quickAction.expenseTitle') : t('finance.quickAction.customer')}
                                   </label>
                                   {(quickActionType === 'Invoice' || quickActionType === 'Quotation') ? (
-                                      <div style={{ display: 'flex', gap: '12px' }}>
+                                      <div className="finance-customer-unit" style={{ display: 'flex', gap: '12px' }}>
                                         <div style={{ flex: 1 }}>
-                                          <CustomerSearchSelect 
+                                          <CustomerSearchSelect
                                             customers={customers}
-                                            value={formData.customer_id} 
+                                            value={formData.customer_id}
                                             onChange={(custId) => setFormData({...formData, customer_id: custId})}
                                             placeholder={t('finance.invoices.selectCustomer', 'اختر العميل (بحث بالاسم، رقم الموبايل أو الفئة)...')}
                                             required
                                           />
                                         </div>
                                         {isRealEstate && (
-                                            <select 
-                                              value={formData.unit_id || ''} 
+                                            <select
+                                              value={formData.unit_id || ''}
                                               onChange={e => setFormData({...formData, unit_id: e.target.value})}
                                               style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
                                             >
@@ -1103,8 +1107,8 @@ const FinanceDashboard = () => {
                                         )}
                                       </div>
                                   ) : (
-                                      <input 
-                                          type="text" 
+                                      <input
+                                          type="text"
                                           required
                                           value={formData.title}
                                           onChange={e => setFormData({...formData, title: e.target.value})}
@@ -1118,20 +1122,20 @@ const FinanceDashboard = () => {
                                   <div style={{ marginBottom: '16px' }}>
                                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.itemsServices')}</label>
                                       {formData.items.map((item, index) => (
-                                          <div key={index} style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.9fr 1.6fr 0.6fr 0.8fr auto', gap: '8px', marginBottom: '8px' }}>
-                                              <select 
-                                                value={item.product_id} 
+                                          <div className="finance-line-item" key={index} style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.9fr 1.6fr 0.6fr 0.8fr auto', gap: '8px', marginBottom: '8px' }}>
+                                              <label><span>{t('finance.quickAction.productLabel')}</span><select
+                                                value={item.product_id}
                                                 onChange={e => {
                                                     const newItems = [...formData.items];
                                                     const val = e.target.value;
                                                     const prod = products.find(p => p.id === parseInt(val, 10));
                                                     const itemType = prod ? (prod.is_inventory_item ? 'inventory' : 'service') : (item.item_type || 'service');
-                                                    newItems[index] = { 
-                                                      ...newItems[index], 
-                                                      product_id: val, 
+                                                    newItems[index] = {
+                                                      ...newItems[index],
+                                                      product_id: val,
                                                       item_type: itemType,
-                                                      unit_price: prod ? (prod.selling_price !== undefined ? prod.selling_price : (prod.price || 0)) : (newItems[index].unit_price || 0), 
-                                                      description: prod ? prod.name : newItems[index].description 
+                                                      unit_price: prod ? (prod.selling_price !== undefined ? prod.selling_price : (prod.price || 0)) : (newItems[index].unit_price || 0),
+                                                      description: prod ? prod.name : newItems[index].description
                                                     };
                                                     setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
                                                 }}
@@ -1139,8 +1143,8 @@ const FinanceDashboard = () => {
                                               >
                                                   <option value="">{t('finance.quickAction.linkProduct', 'ربط بمنتج (اختياري)')}</option>
                                                   {products.map(p => <option key={p.id} value={p.id} style={{color:'black'}}>{p.name}</option>)}
-                                              </select>
-                                              <select
+                                              </select></label>
+                                              <label><span>{t('finance.quickAction.itemTypeLabel')}</span><select
                                                 value={item.item_type || 'service'}
                                                 disabled={Boolean(item.product_id && products.find(p => p.id === parseInt(item.product_id, 10))?.is_inventory_item)}
                                                 onChange={e => {
@@ -1155,8 +1159,8 @@ const FinanceDashboard = () => {
                                                   {Boolean(item.product_id && products.find(p => p.id === parseInt(item.product_id, 10))?.is_inventory_item) && (
                                                     <option value="inventory" style={{ color: 'black' }}>{t('finance.quickAction.typeInventory', 'مخزني (Inventory)')}</option>
                                                   )}
-                                              </select>
-                                              <input 
+                                              </select></label>
+                                              <label><span>{t('finance.quickAction.descriptionPlaceholder')}</span><input
                                                 type="text"
                                                 placeholder={t('finance.quickAction.descriptionPlaceholder')}
                                                 value={item.description || ''}
@@ -1166,9 +1170,9 @@ const FinanceDashboard = () => {
                                                     setFormData({ ...formData, items: newItems });
                                                 }}
                                                 style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)', fontSize: '12px' }}
-                                              />
-                                              <input 
-                                                type="number" 
+                                              /></label>
+                                              <label><span>{t('finance.quickAction.qty')}</span><input
+                                                type="number"
                                                 placeholder={t('finance.quickAction.qty')} className="num-en"
                                                 value={item.quantity}
                                                 onChange={e => {
@@ -1177,9 +1181,9 @@ const FinanceDashboard = () => {
                                                     setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
                                                 }}
                                                 style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)', fontSize: '12px' }}
-                                              />
-                                              <input 
-                                                type="number" 
+                                              /></label>
+                                              <label><span>{t('finance.quickAction.price')}</span><input
+                                                type="number"
                                                 placeholder={t('finance.quickAction.price')} className="num-en"
                                                 value={item.unit_price}
                                                 onChange={e => {
@@ -1188,7 +1192,7 @@ const FinanceDashboard = () => {
                                                     setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
                                                 }}
                                                 style={{ width: '100%', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)', fontSize: '12px' }}
-                                              />
+                                              /></label>
                                               <button type="button" onClick={() => {
                                                   const newItems = formData.items.filter((_, i) => i !== index);
                                                   setFormData({ ...formData, items: newItems, amount: newItems.reduce((acc, curr) => acc + (curr.quantity * curr.unit_price), 0) });
@@ -1201,8 +1205,8 @@ const FinanceDashboard = () => {
                                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                                       <div>
                                           <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.amount', { currency: t('common.currency') })}</label>
-                                          <input 
-                                              type="number" 
+                                          <input
+                                              type="number"
                                               required
                                               value={formData.amount}
                                               onChange={e => setFormData({ ...formData, amount: e.target.value })}
@@ -1211,8 +1215,8 @@ const FinanceDashboard = () => {
                                       </div>
                                       <div>
                                           <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.date')}</label>
-                                          <input 
-                                              type="date" 
+                                          <input
+                                              type="date"
                                               required
                                               value={formData.date}
                                               onChange={e => setFormData({...formData, date: e.target.value})}
@@ -1221,12 +1225,12 @@ const FinanceDashboard = () => {
                                       </div>
                                   </div>
                               )}
-                              
+
                               {(quickActionType === 'Invoice' || quickActionType === 'Quotation') && (
                                 <div style={{ marginBottom: '16px' }}>
                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.dueDate')}</label>
-                                    <input 
-                                        type="date" 
+                                    <input
+                                        type="date"
                                         required
                                         value={formData.date}
                                         onChange={e => setFormData({...formData, date: e.target.value})}
@@ -1264,22 +1268,14 @@ const FinanceDashboard = () => {
                           </>
                       )}
 
-                      <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-                          <button type="button" onClick={() => setShowQuickAction(false)} className="action-btn" style={{ flex: 1, justifyContent: 'center' }}>{t('finance.quickAction.cancel')}</button>
-                          <button type="submit" className="btn-primary" style={{ flex: 2, justifyContent: 'center' }} disabled={isSubmitting}>
-                              {isSubmitting ? t('finance.quickAction.saving') : t('finance.quickAction.saveConfirm')}
-                          </button>
-                      </div>
-                  </form>
-              </div>
-          </div>
-      )}
+                              </form>
+      </Modal>
 
       {/* Voucher Print Preview Modal */}
       {selectedVoucherForPreview && (
-          <VoucherPreviewModal 
-              voucher={selectedVoucherForPreview} 
-              onClose={() => setSelectedVoucherForPreview(null)} 
+          <VoucherPreviewModal
+              voucher={selectedVoucherForPreview}
+              onClose={() => setSelectedVoucherForPreview(null)}
           />
       )}
 

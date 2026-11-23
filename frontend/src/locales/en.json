@@ -856,6 +856,7 @@
       }
     },
     "paymentModal": {
+      "selectTreasury": "Select treasury account",
       "treasuryAccount": "Treasury / settlement account",
       "selectAccount": "Select a treasury account",
       "accountsError": "Could not load treasury accounts",
@@ -880,6 +881,8 @@
       "paymentFailed": "Failed to record payment"
     },
     "quickAction": {
+      "productLabel": "Linked product",
+      "itemTypeLabel": "Item type",
       "titleInvoice": "Create New Invoice",
       "titleQuotation": "Create New Quotation",
       "customer": "Customer",
