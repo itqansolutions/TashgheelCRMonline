@@ -226,3 +226,7 @@ Finance/accounting; purchasing; inventory beyond Products; remaining HR; real es
 ### Phase 16 follow-up: selected destination readability
 - Review found the native phone select clips the selected handoff text. Added a wrapping read-only live-status description for the exact selected branch/action, including full target node message. No select value, attributes or handler changed. Desktop branch row explicitly wraps so the added description does not squeeze the select.
 - Re-rendered all eight variants and inspected updated phone handoff and desktop branching pixels. Exact AST invariant and build pass. Builder labels remain English in the RTL fixtures, an existing localization limitation; Arabic presentation is not accepted. No automation acceptance or live save.
+
+## Phase 17: WhatsApp start-chat and template editor presentation
+- Start-chat and template-send shells only; original five/two controls, handler and field ASTs exact. Direct text vs Meta template branch exercised locally. Original submit/send callbacks and disabled expressions unchanged. No live chat start, message send, contact creation, takeover or account changes.
+- Twelve distinct editor/branch-language-width variants captured top/bottom with synthetic account/template/customer data and writes blocked. Phone/desktop pixels inspected, chatbot eight-variant regression and build/invariants pass. Existing English/mixed labels in RTL and clipped unselected customer placeholder are localization/native-select limitations, not Arabic presentation acceptance or communication certification.

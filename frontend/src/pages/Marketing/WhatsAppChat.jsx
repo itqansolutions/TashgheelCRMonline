@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import Modal from '../../components/Common/Modal';
 import {
   MessageSquare, Send, Search, User, UserCheck, Clock, AlertCircle,
   Check, CheckCheck, RefreshCw, Plus, Phone, Shield, ExternalLink,
@@ -1168,32 +1169,29 @@ const WhatsAppChat = () => {
 
       {/* Start New Chat Modal */}
       {showStartChatModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex',
-          alignItems: 'center', justifyContent: 'center', padding: '20px'
-        }}>
-          <div style={{
-            background: 'white', borderRadius: '16px', width: '100%', maxWidth: '460px',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.2)', overflow: 'hidden'
-          }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Plus size={18} color="#25D366" />
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>Start New WhatsApp Chat</h3>
-              </div>
-              <button
-                onClick={() => setShowStartChatModal(false)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleStartNewChat} style={{ padding: '20px' }}>
+        <Modal isOpen={true} onClose={() => setShowStartChatModal(false)} variant="form" className="whatsapp-message-editor" title="Start New WhatsApp Chat" footer={<div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowStartChatModal(false)}
+                  style={{
+                    padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1',
+                    background: 'white', color: '#475569', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit" form="whatsapp-start-editor"
+                  disabled={startingChat}
+                  style={{
+                    padding: '8px 20px', borderRadius: '8px', border: 'none',
+                    background: 'linear-gradient(135deg, #25D366, #128C7E)',
+                    color: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  {startingChat ? 'Starting...' : 'Start Chat'}
+                </button>
+              </div>}><form id="whatsapp-start-editor" onSubmit={handleStartNewChat} style={{ padding: '20px' }}>
               <div style={{ marginBottom: '14px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
                   Send From Number
@@ -1355,10 +1353,16 @@ const WhatsAppChat = () => {
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+
+            </form></Modal>
+      )}
+
+      {/* Send Template Modal */}
+      {showTemplateModal && (
+        <Modal isOpen={true} onClose={() => setShowTemplateModal(false)} variant="form" className="whatsapp-message-editor" title="Send WhatsApp Template" footer={<div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowStartChatModal(false)}
+                  onClick={() => setShowTemplateModal(false)}
                   style={{
                     padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1',
                     background: 'white', color: '#475569', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
@@ -1367,50 +1371,18 @@ const WhatsAppChat = () => {
                   Cancel
                 </button>
                 <button
-                  type="submit"
-                  disabled={startingChat}
+                  type="button"
+                  onClick={handleSendTemplate}
+                  disabled={sendingMessage || !selectedTemplateName}
                   style={{
                     padding: '8px 20px', borderRadius: '8px', border: 'none',
                     background: 'linear-gradient(135deg, #25D366, #128C7E)',
                     color: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer'
                   }}
                 >
-                  {startingChat ? 'Starting...' : 'Start Chat'}
+                  {sendingMessage ? 'Sending...' : 'Send Template'}
                 </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Send Template Modal */}
-      {showTemplateModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex',
-          alignItems: 'center', justifyContent: 'center', padding: '20px'
-        }}>
-          <div style={{
-            background: 'white', borderRadius: '16px', width: '100%', maxWidth: '440px',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.2)', overflow: 'hidden'
-          }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '16px 20px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sparkles size={18} color="#25D366" />
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>Send WhatsApp Template</h3>
-              </div>
-              <button
-                onClick={() => setShowTemplateModal(false)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ padding: '20px' }}>
+              </div>}><div className="whatsapp-template-fields">
               <p style={{ margin: '0 0 14px', fontSize: '13px', color: '#64748b' }}>
                 Sending an approved Meta template will reopen the 24-hour customer messaging window once the customer responds.
               </p>
@@ -1453,33 +1425,8 @@ const WhatsAppChat = () => {
                 </select>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowTemplateModal(false)}
-                  style={{
-                    padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1',
-                    background: 'white', color: '#475569', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSendTemplate}
-                  disabled={sendingMessage || !selectedTemplateName}
-                  style={{
-                    padding: '8px 20px', borderRadius: '8px', border: 'none',
-                    background: 'linear-gradient(135deg, #25D366, #128C7E)',
-                    color: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer'
-                  }}
-                >
-                  {sendingMessage ? 'Sending...' : 'Send Template'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+
+            </div></Modal>
       )}
     </div>
   );

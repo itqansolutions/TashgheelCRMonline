@@ -325,3 +325,7 @@
 .chatbot-selected-destination { display:block; flex-basis:100%; width:100%; font-size:12px; line-height:1.6; color:#334155; white-space:normal; overflow-wrap:anywhere; text-align:start; }
 .chatbot-branch-destination { flex-wrap:wrap; }
 .chatbot-selected-destination { order:1; }
+
+.whatsapp-message-editor .modal-footer > div { width:100%; }
+.whatsapp-message-editor .modal-footer button { min-height:44px; }
+.whatsapp-message-editor .modal-body input, .whatsapp-message-editor .modal-body select, .whatsapp-message-editor .modal-body textarea { min-height:44px; max-width:100%; }
