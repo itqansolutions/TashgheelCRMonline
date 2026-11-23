@@ -3399,7 +3399,7 @@ const UnitsRegistry = () => {
                 >
                     <div 
                         onClick={(e) => e.stopPropagation()}
-                        dir={isRtl ? 'rtl' : 'ltr'}
+                        dir={isRTL ? 'rtl' : 'ltr'}
                         style={{
                             background: '#ffffff',
                             borderRadius: '20px',
