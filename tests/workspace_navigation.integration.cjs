@@ -48,7 +48,9 @@ for(const c of ${JSON.stringify(cases)}){
   globalThis.localStorage={getItem:()=>{if(c.storageThrows)throw Error('unavailable');return c.saved||null;},setItem:(k,v)=>{if(c.storageThrows)throw Error('unavailable');writes.push([k,v]);}};
   const html=renderToStaticMarkup(<StaticRouter location={c.link||'/my-profile'}><WorkspaceProvider><Probe/><Sidebar isOpen={true} toggleSidebar={()=>{}}/></WorkspaceProvider></StaticRouter>);
   const links=[...html.matchAll(/href="([^"]+)"/g)].map(m=>m[1].replaceAll('&amp;','&'));
-  assert.equal(context.activeWorkspace,c.workspace,c.name+': active workspace');
+  assert.equal(context.activeWorkspace,c.workspace,c.name+': workspace compatibility');
+  assert(!html.includes('class="workspace-trigger'),c.name+': legacy selector visible');
+  assert.equal(links.length,new Set(links).size,c.name+': duplicated destination');
   if(c.link){
     assert(links.includes(c.link),c.name+': permitted link missing');
     const guarded=renderToStaticMarkup(<StaticRouter location={c.link}><ProtectedRoute><b>allowed-marker</b></ProtectedRoute></StaticRouter>);

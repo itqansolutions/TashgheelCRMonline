@@ -156,4 +156,4 @@ const res=()=>({code:200,status(n){this.code=n;return this},json(b){this.body=b;
 
 
 
-}finally{if(pool)await pool.end();if(cluster)await cluster.stop();}})().catch(e=>{console.error(e);process.exitCode=1});
+}finally{await new Promise(resolve=>setTimeout(resolve,100));if(pool)await pool.end();await new Promise(resolve=>setTimeout(resolve,100));if(cluster)await cluster.stop();}})().catch(e=>{console.error(e);process.exitCode=1});

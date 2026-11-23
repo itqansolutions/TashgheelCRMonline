@@ -83,26 +83,7 @@ const processAttendanceRecord = async (badge_number, timestamp, attend_date, dev
     return;
   }
 
-  // Idempotent upsert:
-  // First punch of the day → check_in
-  // Second punch → check_out
-  // More punches → update check_out with the latest
-  await db.query(`
-    INSERT INTO hr_attendance (
-      user_id, tenant_id, branch_id, check_in, attendance_date, source
-    ) VALUES ($1, $2, $3, $4::timestamptz, $5::date, 'device')
-    ON CONFLICT (user_id, attendance_date)
-    DO UPDATE SET
-      check_out = CASE
-        WHEN EXCLUDED.check_in > hr_attendance.check_in THEN EXCLUDED.check_in
-        ELSE hr_attendance.check_out
-      END,
-      work_hours = CASE
-        WHEN EXCLUDED.check_in > hr_attendance.check_in THEN
-          ROUND(EXTRACT(EPOCH FROM (EXCLUDED.check_in - hr_attendance.check_in)) / 3600.0, 2)
-        ELSE hr_attendance.work_hours
-      END
-  `, [user.id, device.tenant_id, device.branch_id, timestamp, attend_date]);
+  await require('./attendanceService').transact({tenant:device.tenant_id,branch:device.branch_id,user:user.id,mode:'device',stamp:timestamp});
 };
 
 /**

@@ -13,31 +13,20 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useModule } from '../../hooks/useModule';
-import { useWorkspace } from '../../context/WorkspaceContext';
 import { safeArray } from '../../utils/dataUtils';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { user } = useAuth();
   const { t, isRTL } = useLanguage();
   const { can, planName, trialDaysLeft } = useModule();
-  const { 
-    activeWorkspace, 
-    setActiveWorkspace, 
-    accessibleWorkspaces, 
-    allWorkspaces, 
-    getWorkspaceForPath 
-  } = useWorkspace();
+
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState({});
 
   // Sub-accordions inside specific workspaces
   const [profileOpen, setProfileOpen] = useState(false);
-  const [contactsEmployeesOpen, setContactsEmployeesOpen] = useState(false);
-  const [reDefinitionsOpen, setReDefinitionsOpen] = useState(false);
-  const [marketingWhatsappOpen, setMarketingWhatsappOpen] = useState(false);
 
   const hasRealEstate = can('real_estate') !== false && (user?.template_name === 'real_estate' || can('real_estate') === true);
   const isRealEstate = hasRealEstate;
@@ -106,35 +95,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     }
 
     return true;
-  };
-
-  // -------------------------------------------------------------
-  // Workspace Dynamic Expansion Sync
-  // -------------------------------------------------------------
-  useEffect(() => {
-    if (activeWorkspace) {
-      setExpandedGroups(prev => ({
-        ...prev,
-        [activeWorkspace]: true
-      }));
-    }
-  }, [activeWorkspace]);
-
-  useEffect(() => {
-    const matchedWs = getWorkspaceForPath(location.pathname);
-    if (matchedWs) {
-      setExpandedGroups(prev => ({
-        ...prev,
-        [matchedWs]: true
-      }));
-    }
-  }, [location.pathname, getWorkspaceForPath]);
-
-  const toggleGroup = (groupId) => {
-    setExpandedGroups(prev => ({
-      ...prev,
-      [groupId]: !prev[groupId]
-    }));
   };
 
   // -------------------------------------------------------------
@@ -366,6 +326,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       case 'real_estate': return <Building2 size={size} />;
       case 'finance': return <Wallet size={size} />;
       case 'inventory': return <Package size={size} />;
+      case 'purchasing': return <ShoppingCart size={size} />;
       case 'hr': return <UserCheck size={size} />;
       case 'marketing': return <Share2 size={size} />;
       case 'reports': return <BarChart3 size={size} />;
@@ -374,424 +335,26 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     }
   };
 
-  const activeWsDef = allWorkspaces.find(w => w.id === activeWorkspace) || allWorkspaces[0];
 
-  // Map workspace IDs to their respective navigation group renderers
-  const renderWorkspaceGroup = (wsId, isPrimary = false) => {
-    const isExpanded = !!expandedGroups[wsId];
-
-    switch (wsId) {
-      case 'sales':
-        if (salesItems.length === 0) return null;
-        return (
-          <div key="ws-group-sales" className={`workspace-group-block ${isPrimary ? 'primary-active-workspace' : ''}`}>
-            <div 
-              className={`group-header ${isPrimary ? 'active-ws-header' : ''}`}
-              onClick={() => isOpen && toggleGroup('sales')} 
-              title={!isOpen ? t('sidebar.sales') : undefined}
-            >
-              <ShoppingBag size={18} className="main-icon" />
-              <span className="group-label">{t('sidebar.sales')}</span>
-              {isPrimary && isOpen && <span className="active-badge">{t('sidebar.workspace')}</span>}
-              {isOpen && (isExpanded ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
-            </div>
-            <div className={`group-sub-items ${isOpen && isExpanded ? 'expanded' : 'collapsed'}`}>
-              {/* Daily Sales Work */}
-              {dailySalesItems.length > 0 && (
-                <>
-                  {isOpen && isPrimary && (
-                    <div className="workspace-sub-section-header">
-                      <span>{t('sales.sections.dailyWork', 'Daily Sales Work')}</span>
-                    </div>
-                  )}
-                  {dailySalesItems.map(item => (
-                    <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                      {item.icon}
-                      <span style={{ flex: 1 }}>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                      {item.isShortcut && (
-                        <span className="shortcut-pill" title={t('sidebar.shortcut')}>
-                          <ExternalLink size={10} />
-                          {t('sidebar.shortcut')}
-                        </span>
-                      )}
-                    </NavLink>
-                  ))}
-                </>
-              )}
-
-              {/* Sales Management */}
-              {salesManagementItems.length > 0 && (
-                <>
-                  {isOpen && isPrimary && (
-                    <div className="workspace-sub-section-header" style={{ marginTop: '8px' }}>
-                      <span>{t('sales.sections.management', 'Sales Management')}</span>
-                    </div>
-                  )}
-                  {salesManagementItems.map(item => (
-                    <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                      {item.icon}
-                      <span style={{ flex: 1 }}>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                    </NavLink>
-                  ))}
-                </>
-              )}
-
-              {/* Operations & Documents */}
-              {salesOperationItems.length > 0 && (
-                <>
-                  {isOpen && isPrimary && (
-                    <div className="workspace-sub-section-header" style={{ marginTop: '8px' }}>
-                      <span>{t('sales.sections.operations', 'Operations & Config')}</span>
-                    </div>
-                  )}
-                  {salesOperationItems.map(item => (
-                    <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                      {item.icon}
-                      <span style={{ flex: 1 }}>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                    </NavLink>
-                  ))}
-                </>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'contacts':
-        if (visibleContactsDirect.length === 0 && !canAccessEmployees) return null;
-        return (
-          <div key="ws-group-contacts" className={`workspace-group-block ${isPrimary ? 'primary-active-workspace' : ''}`}>
-            <div 
-              className={`group-header ${isPrimary ? 'active-ws-header' : ''}`}
-              onClick={() => isOpen && toggleGroup('contacts')} 
-              title={!isOpen ? t('sidebar.contacts') : undefined}
-            >
-              <Users size={18} className="main-icon" />
-              <span className="group-label">{t('sidebar.contacts')}</span>
-              {isPrimary && isOpen && <span className="active-badge">{t('sidebar.workspace')}</span>}
-              {isOpen && (isExpanded ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
-            </div>
-            <div className={`group-sub-items ${isOpen && isExpanded ? 'expanded' : 'collapsed'}`}>
-              {visibleContactsDirect.map(item => (
-                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                  {item.icon}
-                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                </NavLink>
-              ))}
-
-              {/* Employees Sub-Hierarchy: Master + Departments + Job Titles */}
-              {canAccessEmployees && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '4px' }}>
-                    <NavLink 
-                      to="/contacts/employees" 
-                      style={{ flex: 1 }}
-                      className={() => (location.pathname === '/contacts/employees' && (!location.search || location.search.includes('tab=employees')) ? 'active' : '')}
-                    >
-                      <Briefcase size={17} />
-                      <span>{t('sidebar.employees')}</span>
-                    </NavLink>
-                    {isOpen && (
-                      <span 
-                        onClick={(e) => { e.stopPropagation(); setContactsEmployeesOpen(prev => !prev); }}
-                        style={{ cursor: 'pointer', padding: '6px', color: 'var(--text-muted)' }}
-                        title="Toggle Departments & Job Titles"
-                      >
-                        {contactsEmployeesOpen ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
-                      </span>
-                    )}
-                  </div>
-                  <div className={`group-sub-items nested ${isOpen && contactsEmployeesOpen ? 'expanded' : 'collapsed'}`}>
-                    {employeeSubItems.map(subItem => (
-                      <NavLink key={subItem.name} to={subItem.path} className={() => isItemActive(subItem.path) ? 'active' : ''}>
-                        {subItem.icon}
-                        <span>{subItem.labelKey ? t(subItem.labelKey) : subItem.name}</span>
-                      </NavLink>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'real_estate':
-        if (!isRealEstate || !isPathAllowed('/units-registry')) return null;
-        return (
-          <div key="ws-group-real_estate" className={`workspace-group-block ${isPrimary ? 'primary-active-workspace' : ''}`}>
-            <div 
-              className={`group-header ${isPrimary ? 'active-ws-header' : ''}`}
-              onClick={() => isOpen && toggleGroup('real_estate')} 
-              title={!isOpen ? t('sidebar.realEstate') : undefined}
-            >
-              <Building2 size={18} className="main-icon" />
-              <span className="group-label">{t('sidebar.realEstate')}</span>
-              {isPrimary && isOpen && <span className="active-badge">{t('sidebar.workspace')}</span>}
-              {isOpen && (isExpanded ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
-            </div>
-            <div className={`group-sub-items ${isOpen && isExpanded ? 'expanded' : 'collapsed'}`}>
-              {/* Definitions Sub-Hierarchy */}
-              <div 
-                className="group-header sub-group-header" 
-                onClick={() => isOpen && setReDefinitionsOpen(prev => !prev)}
-                title={!isOpen ? t('sidebar.definitions') : undefined}
-              >
-                <Layers size={16} className="main-icon" />
-                <span className="group-label">{t('sidebar.definitions')}</span>
-                {isOpen && (reDefinitionsOpen ? <ChevronDown size={13} className="group-chevron" /> : <ChevronUp size={13} className="group-chevron" />)}
-              </div>
-              <div className={`group-sub-items nested ${isOpen && reDefinitionsOpen ? 'expanded' : 'collapsed'}`}>
-                {reDefinitionsSubItems.map(subItem => (
-                  <NavLink key={subItem.name} to={subItem.path} className={() => isItemActive(subItem.path) ? 'active' : ''}>
-                    {subItem.icon}
-                    <span>{subItem.labelKey ? t(subItem.labelKey) : subItem.name}</span>
-                  </NavLink>
-                ))}
-              </div>
-
-              {/* Core Real Estate */}
-              {reDirectItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                  {item.icon}
-                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                </NavLink>
-              ))}
-            </div>
-          </div>
-        );
-
-      case 'finance':
-        if (financeItems.length === 0) return null;
-        return (
-          <div key="ws-group-finance" className={`workspace-group-block ${isPrimary ? 'primary-active-workspace' : ''}`}>
-            <div 
-              className={`group-header ${isPrimary ? 'active-ws-header' : ''}`}
-              onClick={() => isOpen && toggleGroup('finance')} 
-              title={!isOpen ? t('sidebar.finance') : undefined}
-            >
-              <Wallet size={18} className="main-icon" />
-              <span className="group-label">{t('sidebar.finance')}</span>
-              {isPrimary && isOpen && <span className="active-badge">{t('sidebar.workspace')}</span>}
-              {isOpen && (isExpanded ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
-            </div>
-            <div className={`group-sub-items ${isOpen && isExpanded ? 'expanded' : 'collapsed'}`}>
-              {financeItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                  {item.icon}
-                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                </NavLink>
-              ))}
-            </div>
-          </div>
-        );
-
-      case 'inventory':
-        if (!(hasInventory && inventoryItems.length > 0) && !(hasPurchasing && purchasingItems.length > 0)) return null;
-        return (
-          <div key="ws-group-inventory" className={`workspace-group-block ${isPrimary ? 'primary-active-workspace' : ''}`}>
-            <div 
-              className={`group-header ${isPrimary ? 'active-ws-header' : ''}`}
-              onClick={() => isOpen && toggleGroup('inventory')} 
-              title={!isOpen ? t('sidebar.warehouse') : undefined}
-            >
-              <Package size={18} className="main-icon" />
-              <span className="group-label">{t('sidebar.warehouse')}</span>
-              {isPrimary && isOpen && <span className="active-badge">{t('sidebar.workspace')}</span>}
-              {isOpen && (isExpanded ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
-            </div>
-            <div className={`group-sub-items ${isOpen && isExpanded ? 'expanded' : 'collapsed'}`}>
-              {warehouseItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                  {item.icon}
-                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                </NavLink>
-              ))}
-              {hasPurchasing && purchasingItems.length > 0 && (
-                <>
-                  <div style={{ height: '1px', background: 'var(--glass-border, #e2e8f0)', margin: '4px 8px' }} />
-                  {purchasingItems.map(item => (
-                    <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                      {item.icon}
-                      <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                    </NavLink>
-                  ))}
-                </>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'hr':
-        if (hrItems.length === 0 && !canAccessEmployees) return null;
-        return (
-          <div key="ws-group-hr" className={`workspace-group-block ${isPrimary ? 'primary-active-workspace' : ''}`}>
-            <div 
-              className={`group-header ${isPrimary ? 'active-ws-header' : ''}`}
-              onClick={() => isOpen && toggleGroup('hr')} 
-              title={!isOpen ? t('sidebar.hr') : undefined}
-            >
-              <UserCheck size={18} className="main-icon" />
-              <span className="group-label">{t('sidebar.hr')}</span>
-              {isPrimary && isOpen && <span className="active-badge">{t('sidebar.workspace')}</span>}
-              {isOpen && (isExpanded ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
-            </div>
-            <div className={`group-sub-items ${isOpen && isExpanded ? 'expanded' : 'collapsed'}`}>
-              {canAccessEmployees && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '4px' }}>
-                    <NavLink 
-                      to="/contacts/employees" 
-                      style={{ flex: 1 }}
-                      className={() => (location.pathname === '/contacts/employees' && (!location.search || location.search.includes('tab=employees')) ? 'active' : '')}
-                    >
-                      <Briefcase size={17} />
-                      <span>{t('sidebar.employees')}</span>
-                    </NavLink>
-                    {isOpen && (
-                      <span 
-                        onClick={(e) => { e.stopPropagation(); setContactsEmployeesOpen(prev => !prev); }}
-                        style={{ cursor: 'pointer', padding: '6px', color: 'var(--text-muted)' }}
-                        title="Toggle Departments & Job Titles"
-                      >
-                        {contactsEmployeesOpen ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
-                      </span>
-                    )}
-                  </div>
-                  <div className={`group-sub-items nested ${isOpen && contactsEmployeesOpen ? 'expanded' : 'collapsed'}`}>
-                    {employeeSubItems.map(subItem => (
-                      <NavLink key={subItem.name} to={subItem.path} className={() => isItemActive(subItem.path) ? 'active' : ''}>
-                        {subItem.icon}
-                        <span>{subItem.labelKey ? t(subItem.labelKey) : subItem.name}</span>
-                      </NavLink>
-                    ))}
-                  </div>
-                </>
-              )}
-              {hrItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                  {item.icon}
-                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                </NavLink>
-              ))}
-            </div>
-          </div>
-        );
-
-      case 'marketing':
-        if (!canAccessMetaForms && whatsappSubItems.length === 0) return null;
-        return (
-          <div key="ws-group-marketing" className={`workspace-group-block ${isPrimary ? 'primary-active-workspace' : ''}`}>
-            <div 
-              className={`group-header ${isPrimary ? 'active-ws-header' : ''}`}
-              onClick={() => isOpen && toggleGroup('marketing')} 
-              title={!isOpen ? t('sidebar.marketing') : undefined}
-            >
-              <Share2 size={18} className="main-icon" />
-              <span className="group-label">{t('sidebar.marketing')}</span>
-              {isPrimary && isOpen && <span className="active-badge">{t('sidebar.workspace')}</span>}
-              {isOpen && (isExpanded ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
-            </div>
-            <div className={`group-sub-items ${isOpen && isExpanded ? 'expanded' : 'collapsed'}`}>
-              {canAccessMetaForms && (
-                <NavLink to="/integrations/meta-forms" className={() => isItemActive('/integrations/meta-forms') ? 'active' : ''}>
-                  <FileText size={17} />
-                  <span>{t('sidebar.metaForms')}</span>
-                </NavLink>
-              )}
-              {(user?.role === 'admin' || user?.role === 'manager') && (
-                <NavLink to="/integrations/property-finder" className={() => isItemActive('/integrations/property-finder') ? 'active' : ''}>
-                  <Globe size={17} />
-                  <span>{t('sidebar.propertyFinder')}</span>
-                </NavLink>
-              )}
-
-              {whatsappSubItems.length > 0 && (
-                <>
-                  <div 
-                    className="group-header sub-group-header" 
-                    onClick={() => isOpen && setMarketingWhatsappOpen(prev => !prev)}
-                    title={!isOpen ? t('sidebar.whatsapp') : undefined}
-                  >
-                    <MessageCircle size={16} className="main-icon" />
-                    <span className="group-label">{t('sidebar.whatsapp')}</span>
-                    {isOpen && (marketingWhatsappOpen ? <ChevronDown size={13} className="group-chevron" /> : <ChevronUp size={13} className="group-chevron" />)}
-                  </div>
-                  <div className={`group-sub-items nested ${isOpen && marketingWhatsappOpen ? 'expanded' : 'collapsed'}`}>
-                    {whatsappSubItems.map(subItem => (
-                      <NavLink key={subItem.name} to={subItem.path} className={() => isItemActive(subItem.path) ? 'active' : ''}>
-                        {subItem.icon}
-                        <span>{subItem.labelKey ? t(subItem.labelKey) : subItem.name}</span>
-                      </NavLink>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'reports':
-        if (reportsItems.length === 0) return null;
-        return (
-          <div key="ws-group-reports" className={`workspace-group-block ${isPrimary ? 'primary-active-workspace' : ''}`}>
-            <div 
-              className={`group-header ${isPrimary ? 'active-ws-header' : ''}`}
-              onClick={() => isOpen && toggleGroup('reports')} 
-              title={!isOpen ? t('sidebar.reports') : undefined}
-            >
-              <BarChart3 size={18} className="main-icon" />
-              <span className="group-label">{t('sidebar.reports')}</span>
-              {isPrimary && isOpen && <span className="active-badge">{t('sidebar.workspace')}</span>}
-              {isOpen && (isExpanded ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
-            </div>
-            <div className={`group-sub-items ${isOpen && isExpanded ? 'expanded' : 'collapsed'}`}>
-              {reportsItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                  {item.icon}
-                  <span style={{ flex: 1 }}>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                  {item.isShortcut && (
-                    <span className="shortcut-pill" title={t('sidebar.shortcut')}>
-                      <ExternalLink size={10} />
-                      {t('sidebar.shortcut')}
-                    </span>
-                  )}
-                </NavLink>
-              ))}
-            </div>
-          </div>
-        );
-
-      case 'admin':
-        if (adminItems.length === 0) return null;
-        return (
-          <div key="ws-group-admin" className={`workspace-group-block ${isPrimary ? 'primary-active-workspace' : ''}`}>
-            <div 
-              className={`group-header ${isPrimary ? 'active-ws-header' : ''}`}
-              onClick={() => isOpen && toggleGroup('admin')} 
-              title={!isOpen ? t('sidebar.admin') : undefined}
-            >
-              <AdminSettingsIcon size={18} className="main-icon" />
-              <span className="group-label">{t('sidebar.admin')}</span>
-              {isPrimary && isOpen && <span className="active-badge">{t('sidebar.workspace')}</span>}
-              {isOpen && (isExpanded ? <ChevronDown size={14} className="group-chevron" /> : <ChevronUp size={14} className="group-chevron" />)}
-            </div>
-            <div className={`group-sub-items ${isOpen && isExpanded ? 'expanded' : 'collapsed'}`}>
-              {adminItems.map(item => (
-                <NavLink key={item.name} to={item.path} className={() => isItemActive(item.path) ? 'active' : ''}>
-                  {item.icon}
-                  <span>{item.labelKey ? t(item.labelKey) : item.name}</span>
-                </NavLink>
-              ))}
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  // Other accessible workspaces (excluding the primary active one)
-  const otherWorkspaces = accessibleWorkspaces.filter(ws => ws.id !== activeWorkspace);
+  // Canonical sections, independent of the remembered workspace selection.
+  const permitted = items => filterByAllowed(items).filter(item => !item.roleGuard || item.roleGuard.includes(user?.role));
+  const employees = canAccessEmployees ? [{name:'Employees',labelKey:'sidebar.employees',path:'/contacts/employees',icon:<Briefcase size={18}/>}, ...employeeSubItems.filter(item=>isPathAllowed(item.path))] : [];
+  const sections = [
+    {id:'sales',label:'sidebar.sales',items:permitted(salesItems).filter(item=>item.path!=='/units-registry')},
+    {id:'contacts',label:'sidebar.contacts',items:visibleContactsDirect.filter(item=>item.path!=='/customers' || !salesItems.some(s=>s.path==='/customers')).concat(hasHr ? [] : employees)},
+    {id:'real_estate',label:'sidebar.realEstate',items:isRealEstate ? permitted([...reDirectItems,...reDefinitionsSubItems]) : []},
+    {id:'inventory',label:'sidebar.warehouse',items:inventoryItems},
+    {id:'purchasing',label:'sidebar.purchases',items:purchasingItems},
+    {id:'finance',label:'sidebar.finance',items:financeItems.length ? [{...financeItems[0],labelKey:'sidebar.finance'}] : []},
+    {id:'hr',label:'sidebar.hr',items:[...(hasHr ? employees : []),...hrItems]},
+    {id:'marketing',label:'sidebar.marketing',items:[...(!isRealEstate && hasMarketing && ['admin','manager'].includes(user?.role) && isPathAllowed('/integrations/property-finder') ? [{name:'Property Finder',labelKey:'sidebar.propertyFinder',path:'/integrations/property-finder',icon:<Globe size={18}/>}]:[]),...(canAccessMetaForms ? [{name:'Meta Forms',labelKey:'sidebar.metaForms',path:'/integrations/meta-forms',icon:<FileText size={18}/>}]:[]),...whatsappSubItems]},
+    {id:'reports',label:'sidebar.reports',items:reportsItems.filter(item=>!financeItems.some(f=>f.path===item.path))},
+    {id:'admin',label:'sidebar.admin',items:adminItems}
+  ];
+  const seen = new Set(['/dashboard',...profileItems.map(item=>item.path)]);
+  const canonicalSections = sections.map(section=>({...section,items:section.items.filter(item=>{if(seen.has(item.path))return false;seen.add(item.path);return true;})})).filter(section=>section.items.length);
+  const currentSection = canonicalSections.find(section=>section.items.some(item=>item.path.split('?')[0]===location.pathname));
+  useEffect(()=>{if(currentSection)setExpandedGroups(prev=>({...prev,[currentSection.id]:true}));if(profileItems.some(item=>item.path.split('?')[0]===location.pathname))setProfileOpen(true);},[location.pathname,location.search,currentSection?.id]);
 
   return (
     <div className={`sidebar ${isOpen ? 'open' : 'closed'}`}>
@@ -1103,72 +666,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         </button>
       </div>
 
-      {/* Discoverable Workspace Switcher */}
-      {accessibleWorkspaces.length > 0 && (
-        <div className="workspace-switcher-container">
-          <div 
-            className={`workspace-trigger ${isSwitcherOpen ? 'active' : ''}`}
-            onClick={() => {
-              if (isOpen) {
-                setIsSwitcherOpen(prev => !prev);
-              } else {
-                toggleSidebar();
-              }
-            }}
-            title={!isOpen ? `${t('sidebar.workspace')}: ${t(activeWsDef?.labelKey || '')}` : undefined}
-          >
-            <div className="workspace-trigger-left">
-              <div className="workspace-icon-badge">
-                {getWorkspaceIcon(activeWorkspace, 16)}
-              </div>
-              {isOpen && (
-                <div className="workspace-trigger-text">
-                  <span className="workspace-kicker">{t('sidebar.workspace')}</span>
-                  <span className="workspace-current-name">{t(activeWsDef?.labelKey || '')}</span>
-                </div>
-              )}
-            </div>
-            {isOpen && accessibleWorkspaces.length > 1 && (
-              <ChevronDown size={14} className={`workspace-chevron ${isSwitcherOpen ? 'rotated' : ''}`} />
-            )}
-          </div>
-
-          {/* Switcher Dropdown */}
-          {isOpen && isSwitcherOpen && accessibleWorkspaces.length > 1 && (
-            <>
-              <div 
-                style={{ position: 'fixed', inset: 0, zIndex: 1040 }} 
-                onClick={() => setIsSwitcherOpen(false)} 
-              />
-              <div className="workspace-dropdown">
-                <div className="workspace-dropdown-header">
-                  {t('sidebar.switchWorkspace')}
-                </div>
-                {accessibleWorkspaces.map(ws => {
-                  const isSelected = ws.id === activeWorkspace;
-                  return (
-                    <div 
-                      key={ws.id}
-                      className={`workspace-dropdown-item ${isSelected ? 'selected' : ''}`}
-                      onClick={() => {
-                        setActiveWorkspace(ws.id);
-                        setIsSwitcherOpen(false);
-                      }}
-                    >
-                      <div className="ws-item-icon">
-                        {getWorkspaceIcon(ws.id, 16)}
-                      </div>
-                      <span className="ws-item-label">{t(ws.labelKey)}</span>
-                      {isSelected && <span className="ws-item-dot" />}
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
       {/* Navigation Links */}
       <nav className="sidebar-nav">
         
@@ -1209,22 +706,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           </div>
         )}
 
-        {/* ======================================================== */}
-        {/* 1. PRIMARY ACTIVE WORKSPACE (EXPANDED BY DEFAULT)       */}
-        {/* ======================================================== */}
-        {renderWorkspaceGroup(activeWorkspace, true)}
-
-        {/* ======================================================== */}
-        {/* 2. OTHER ACCESSIBLE WORKSPACES (COLLAPSED BY DEFAULT)   */}
-        {/* ======================================================== */}
-        {otherWorkspaces.length > 0 && (
-          <>
-            <div className="workspace-section-divider">
-              <span>{t('sidebar.otherWorkspaces')}</span>
-            </div>
-            {otherWorkspaces.map(ws => renderWorkspaceGroup(ws.id, false))}
-          </>
-        )}
+        {canonicalSections.map(section => <div key={section.id} className="workspace-group-block">
+          <button type="button" className="group-header" aria-expanded={!!expandedGroups[section.id]} onClick={()=>{if(!isOpen)toggleSidebar();setExpandedGroups(prev=>({...prev,[section.id]:!isOpen || !prev[section.id]}));}} style={{width:'100%',border:0,background:'transparent',textAlign:'inherit'}} title={t(section.label)}>
+            {getWorkspaceIcon(section.id)}<span className="group-label">{t(section.label)}</span>
+            {isOpen && <ChevronDown size={14} style={{transform:expandedGroups[section.id]?'rotate(180deg)':undefined}}/>}
+          </button>
+          <div className={`group-sub-items ${isOpen && expandedGroups[section.id]?'expanded':'collapsed'}`}>
+            {section.items.map(item=><NavLink key={item.path} to={item.path} className={()=>isItemActive(item.path) || (section.id==='finance' && location.pathname==='/finance')?'active':''}>{item.icon}<span>{t(item.labelKey)}</span></NavLink>)}
+          </div>
+        </div>)}
 
       </nav>
 

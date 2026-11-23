@@ -7,80 +7,13 @@ const db = require('../config/db');
 // @desc    Employee Check-in
 // @route   POST /api/hr/attendance/check-in
 // @access  Private
+const attendanceService = require('../services/attendanceService');
 exports.checkIn = async (req, res) => {
-    const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId;
-    const user_id = req.user.id;
-    const ip_address = req.ip || req.connection.remoteAddress;
-
     try {
-        await db.query('BEGIN');
-
-        // 1. Prevent Double Check-in (Block if active session exists today)
-        const activeRes = await db.query(`
-            SELECT id FROM hr_attendance 
-            WHERE user_id = $1 AND DATE(check_in) = CURRENT_DATE 
-            FOR UPDATE
-        `, [user_id]);
-
-        if (activeRes.rows.length > 0) {
-            throw new Error('Already checked in today.');
-        }
-
-        // 2. Status Engine: Shift-Aware Late Logic
-        let status = 'present';
-        let late_minutes = 0;
-        const now = new Date();
-        const currentMins = (now.getHours() * 60) + now.getMinutes();
-
-        // Fetch active assigned shift for employee
-        let startHour = 9;
-        let startMinute = 15;
-        try {
-            const shiftRes = await db.query(`
-                SELECT s.start_time, s.grace_minutes 
-                FROM hr_user_shifts us
-                JOIN hr_shifts s ON us.shift_id = s.id
-                WHERE us.user_id = $1 AND us.effective_from <= CURRENT_DATE
-                  AND (us.effective_to IS NULL OR us.effective_to >= CURRENT_DATE)
-                  AND s.is_active = TRUE
-                ORDER BY us.effective_from DESC LIMIT 1
-            `, [user_id]);
-
-            if (shiftRes.rows.length > 0) {
-                const shift = shiftRes.rows[0];
-                const [sH, sM] = (shift.start_time || '09:00').split(':').map(Number);
-                const grace = parseInt(shift.grace_minutes) || 0;
-                const totalShiftStartMins = (sH * 60) + sM + grace;
-                startHour = Math.floor(totalShiftStartMins / 60);
-                startMinute = totalShiftStartMins % 60;
-            }
-        } catch (e) {
-            console.warn('Failed to fetch user shift, using default 9:15 AM:', e.message);
-        }
-
-        const startTotalMins = (startHour * 60) + startMinute;
-
-        if (currentMins > startTotalMins) {
-            status = 'late';
-            late_minutes = currentMins - startTotalMins;
-        }
-
-        // 3. Register Check-In
-        const insertRes = await db.query(`
-            INSERT INTO hr_attendance (user_id, tenant_id, branch_id, check_in, status, late_minutes, ip_address, source)
-            VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, $5, $6, 'manual')
-            RETURNING *
-        `, [user_id, tenant_id, branch_id, status, late_minutes, ip_address]);
-
-        await db.query('COMMIT');
-
-        res.status(201).json({ 
-            status: 'success', 
-            message: late_minutes > 0 ? `Checked in late by ${late_minutes} mins.` : 'Checked in successfully.',
-            data: insertRes.rows[0] 
-        });
-
+        const { row } = await attendanceService.transact({tenant:req.user.tenant_id,branch:req.branchId,user:req.user.id,mode:'in',ip:req.ip || req.connection?.remoteAddress});
+        res.status(201).json({status:'success',message:'Checked in successfully.',data:row});
+        const {late_minutes}=row;
+        const user_id=req.user.id, tenant_id=req.user.tenant_id, branch_id=req.branchId;
         // Phase 7 Workflow Engine: Late Employee → Escalation Check
         if (late_minutes > 0) {
             const workflowEngine = require('../services/workflowEngine');
@@ -106,65 +39,13 @@ exports.checkIn = async (req, res) => {
             }).catch(e => console.error('[RuleEngine] EMPLOYEE_LATE error:', e.message));
         }
 
-    } catch (err) {
-        await db.query('ROLLBACK');
-        console.error('Check-in Error:', err.message);
-        // Note: constraint idx_unique_daily_attendance might catch race conditions natively which is great.
-        res.status(400).json({ status: 'error', message: err.message });
-    }
+    } catch (err) { if (!res.headersSent) res.status(err.status || 400).json({status:'error',message:err.message}); }
 };
-
-// @desc    Employee Check-out
-// @route   POST /api/hr/attendance/check-out
-// @access  Private
-exports.checkOut = async (req, res) => {
-    const user_id = req.user.id;
-
+exports.checkOut = async (req,res) => {
     try {
-        await db.query('BEGIN');
-
-        // 1. Ensure Open Session
-        const sessionRes = await db.query(`
-            SELECT * FROM hr_attendance 
-            WHERE user_id = $1 AND DATE(check_in) = CURRENT_DATE AND check_out IS NULL
-            FOR UPDATE
-        `, [user_id]);
-
-        if (sessionRes.rows.length === 0) {
-            throw new Error('No active open session to check out from.');
-        }
-
-        const session = sessionRes.rows[0];
-
-        // 2. Calculate runtime Working Hours (Bulletproof Logic)
-        const checkInDate = new Date(session.check_in);
-        const checkOutDate = new Date();
-        const diffMs = checkOutDate.getTime() - checkInDate.getTime();
-        
-        // work_hours in decimal (e.g., 8.5 hours)
-        const work_hours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(2));
-
-        // 3. Log Check-Out & Hours
-        const updateRes = await db.query(`
-            UPDATE hr_attendance 
-            SET check_out = CURRENT_TIMESTAMP, work_hours = $1 
-            WHERE id = $2 
-            RETURNING *
-        `, [work_hours, session.id]);
-
-        await db.query('COMMIT');
-
-        res.status(200).json({ 
-            status: 'success', 
-            message: `Checked out successfully. Logged ${work_hours} hours.`,
-            data: updateRes.rows[0] 
-        });
-
-    } catch (err) {
-        await db.query('ROLLBACK');
-        console.error('Check-out Error:', err.message);
-        res.status(400).json({ status: 'error', message: err.message });
-    }
+        const {row}=await attendanceService.transact({tenant:req.user.tenant_id,branch:req.branchId,user:req.user.id,mode:'out'});
+        res.json({status:'success',message:'Checked out successfully.',data:row});
+    } catch(err) {res.status(err.status || 400).json({status:'error',message:err.message});}
 };
 
 // @desc    Get Current User's Attendance Log
@@ -174,17 +55,21 @@ exports.getMyAttendance = async (req, res) => {
     const user_id = req.user.id;
     // We only fetch for the current active branch context to maintain strict layout
     const tenant_id = req.user.tenant_id;
-    const branch_id = req.branchId; 
+    const branch_id = req.branchId;
 
     try {
         const result = await db.query(`
-            SELECT * FROM hr_attendance 
+            SELECT *, attendance_date::text AS attendance_date FROM hr_attendance
             WHERE user_id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text
             ORDER BY check_in DESC
             LIMIT 30
         `, [user_id, tenant_id, branch_id]);
 
-        res.json({ status: 'success', data: result.rows });
+        const timezone = await attendanceService.timezoneFor(db, tenant_id, branch_id);
+        const today = attendanceService.localParts(new Date(), timezone).day;
+        const current = result.rows.filter(row => (row.attendance_date ? String(row.attendance_date instanceof Date ? row.attendance_date.toISOString().slice(0,10) : row.attendance_date).slice(0,10) : attendanceService.localParts(new Date(row.check_in),timezone).day) === today);
+        const session_state = current.length > 1 ? 'conflict' : current.length ? (current[0].check_out ? 'completed' : 'checked_in') : 'none';
+        res.json({status:'success',data:result.rows,meta:{timezone,today,session_state}});
     } catch (err) {
         console.error('getMyAttendance Error:', err.message);
         res.status(500).json({ status: 'error', message: 'Failed to retrieve attendance logs.' });
@@ -296,7 +181,7 @@ exports.updateLeaveStatus = async (req, res) => {
 
     try {
         const updateRes = await db.query(`
-            UPDATE hr_leaves 
+            UPDATE hr_leaves
             SET status = $1, approved_by = $2
             WHERE id = $3 AND tenant_id::text = $4::text AND branch_id::text = $5::text
             RETURNING *
@@ -376,7 +261,7 @@ exports.generatePayroll = async (req, res) => {
         // 1. Fetch Employee Profile
         const profileRes = await client.query(`SELECT * FROM hr_profiles WHERE user_id = $1 AND tenant_id::text = $2::text`, [user_id, tenant_id]);
         if (profileRes.rows.length === 0) throw new Error('Employee profile not found or unauthorized.');
-        
+
         const profile = profileRes.rows[0];
         const base_salary = parseFloat(profile.salary) || 0;
 
@@ -384,7 +269,7 @@ exports.generatePayroll = async (req, res) => {
         const existRes = await client.query(`
             SELECT id FROM hr_payroll WHERE user_id = $1 AND payroll_month = $2 AND payroll_year = $3 AND tenant_id::text = $4::text
         `, [user_id, payrollMonth, payrollYear, tenant_id]);
-        
+
         if (existRes.rows.length > 0) throw new Error(`Payroll for ${month}/${year} already exists for this employee.`);
 
         // 2. Calculate Attendance (Late penalties, Work hours)
@@ -413,7 +298,7 @@ exports.generatePayroll = async (req, res) => {
         `, [user_id, payrollMonth, payrollYear, tenant_id, branch_id]);
 
         const unpaid_days = parseInt(leavesRes.rows[0].unpaid_days) || 0;
-        const daily_rate = base_salary / 22; 
+        const daily_rate = base_salary / 22;
         const leave_deduction = parseFloat((unpaid_days * daily_rate).toFixed(2));
 
         const total_deductions = penalty_amount + leave_deduction;
@@ -501,7 +386,7 @@ exports.getMyPayrolls = async (req, res) => {
 
     try {
         const result = await db.query(`
-            SELECT p.*, u.name as employee_name, 
+            SELECT p.*, u.name as employee_name,
                    (SELECT json_agg(i.*) FROM hr_payroll_items i WHERE i.payroll_id = p.id) as details
             FROM hr_payroll p
             JOIN users u ON p.user_id = u.id

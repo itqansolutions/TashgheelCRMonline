@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +28,10 @@ const SalesCycle = () => {
   });
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const dispatchBusy=useRef(false);
+  const pendingDelivery=useRef(null);
+  const dispatchDrafts=useRef(new Map());
+  const dispatchable=order=>(order.items||[]).filter(it=>it.item_type==='inventory' && it.product_id && Number.isFinite(Number(it.quantity)) && Number.isFinite(Number(it.quantity_delivered||0)) && Number(it.quantity)>Number(it.quantity_delivered||0));
 
   // Form State
   const [formData, setFormData] = useState({
@@ -226,7 +230,11 @@ const SalesCycle = () => {
 
   const handleOpenDeliver = (order) => {
     setDeliverOrder(order);
-    const orderItems = order.items || [];
+    const orderItems = dispatchable(order);
+    if(!orderItems.length)return;
+    const saved=dispatchDrafts.current.get(String(order.id));
+    if(saved){pendingDelivery.current=saved.draft;setDeliveryFormData(saved.form);setShowDeliverModal(true);return;}
+    pendingDelivery.current=null;
     setDeliveryFormData({
       warehouse_id: warehouses.length > 0 ? String(warehouses[0].id) : '',
       delivery_date: new Date().toISOString().split('T')[0],
@@ -236,7 +244,8 @@ const SalesCycle = () => {
         product_id: it.product_id,
         product_name: it.product_name || it.description || 'Item',
         ordered_qty: Number(it.quantity || 1),
-        quantity_delivered: Number(it.quantity || 1)
+        remaining_qty: Math.round((Number(it.quantity)-Number(it.quantity_delivered||0))*1e6)/1e6,
+        quantity_delivered: Math.round((Number(it.quantity)-Number(it.quantity_delivered||0))*1e6)/1e6
       }))
     });
     setShowDeliverModal(true);
@@ -248,10 +257,13 @@ const SalesCycle = () => {
     if (!deliveryFormData.warehouse_id) return toast.error(t('sales.orders.toasts.selectWarehouseFirst'));
     if (deliveryFormData.items.length === 0) return toast.error(t('sales.orders.toasts.noItemsToDeliver'));
 
+    if(dispatchBusy.current)return;
+    if(deliveryFormData.items.some(it=>!Number.isFinite(Number(it.quantity_delivered)) || Number(it.quantity_delivered)<=0 || Number(it.quantity_delivered)>it.remaining_qty))return toast.error(t('sales.orders.toasts.invalidDispatchQuantity','Dispatch quantity must be positive and no more than the remaining quantity.'));
+    dispatchBusy.current=true;
     setSubmitting(true);
     try {
       // 1. Create Delivery Note
-      const dnRes = await api.post('/sales/deliveries', {
+      const dnRes = pendingDelivery.current ? {data:{data:pendingDelivery.current}} : await api.post('/sales/deliveries', {
         sales_order_id: deliverOrder.id,
         warehouse_id: deliveryFormData.warehouse_id,
         delivery_date: deliveryFormData.delivery_date,
@@ -264,7 +276,10 @@ const SalesCycle = () => {
       });
 
       const createdDN = dnRes.data?.data;
+      if(!createdDN?.id)throw Error(t('sales.orders.toasts.missingDeliveryId','Delivery could not be verified. Refresh before retrying.'));
       if (createdDN?.id) {
+        pendingDelivery.current=createdDN;
+        dispatchDrafts.current.set(String(deliverOrder.id),{draft:createdDN,form:deliveryFormData});
         // 2. Automatically confirm delivery note to execute authoritative Stock OUT
         await api.put(`/sales/deliveries/${createdDN.id}/confirm`);
         toast.success(t('sales.orders.toasts.deliveryCreatedAndConfirmed', { number: createdDN.number || '' }));
@@ -272,13 +287,15 @@ const SalesCycle = () => {
         toast.success(t('sales.orders.toasts.deliveryCreated'));
       }
 
+      dispatchDrafts.current.delete(String(deliverOrder.id));
+      pendingDelivery.current=null;
       setShowDeliverModal(false);
       setDeliverOrder(null);
       fetchOrders();
     } catch (err) {
       toast.error(err.response?.data?.message || t('sales.orders.toasts.deliveryFailed'));
     } finally {
-      setSubmitting(false);
+      dispatchBusy.current=false;setSubmitting(false);
     }
   };
 
@@ -430,7 +447,7 @@ const SalesCycle = () => {
                         </button>
                       )}
 
-                      {order.status !== 'draft' && (
+                      {order.status !== 'draft' && dispatchable(order).length>0 && (
                         <button
                           onClick={() => handleOpenDeliver(order)}
                           title={t('sales.orders.actions.deliverTitle')}
@@ -753,7 +770,7 @@ const SalesCycle = () => {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                {selectedOrder.status !== 'draft' && (
+                {selectedOrder.status !== 'draft' && dispatchable(selectedOrder).length>0 && (
                   <button
                     onClick={() => {
                       setShowViewModal(false);
@@ -800,16 +817,18 @@ const SalesCycle = () => {
                   {t('sales.orders.deliverModal.customer', { name: deliverOrder.customer_name })}
                 </span>
               </div>
-              <button onClick={() => setShowDeliverModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px', cursor: 'pointer' }}>
+              <button onClick={() => {if(!dispatchBusy.current)setShowDeliverModal(false);}} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
             </div>
 
             <form onSubmit={handleDeliverOrderSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              {pendingDelivery.current && <div role="alert">{t('sales.orders.confirmRetry','Delivery draft saved. Retry to confirm this same draft.')} <span className="num-en">{pendingDelivery.current.number || pendingDelivery.current.id}</span></div>}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '14px' }}>
                 <div>
                   <label style={labelStyle}>{t('sales.orders.deliverModal.sourceWarehouse')}</label>
                   <select
+                    disabled={!!pendingDelivery.current}
                     value={deliveryFormData.warehouse_id}
                     onChange={(e) => setDeliveryFormData({ ...deliveryFormData, warehouse_id: e.target.value })}
                     style={inputStyle}
@@ -825,6 +844,7 @@ const SalesCycle = () => {
                   <label style={labelStyle}>{t('sales.orders.deliverModal.deliveryDate')}</label>
                   <input
                     type="date"
+                    disabled={!!pendingDelivery.current}
                     value={deliveryFormData.delivery_date}
                     onChange={(e) => setDeliveryFormData({ ...deliveryFormData, delivery_date: e.target.value })}
                     style={inputStyle}
@@ -834,6 +854,7 @@ const SalesCycle = () => {
                 </div>
               </div>
 
+              <div aria-live="polite" data-testid="selected-dispatch-warehouse" style={{fontSize:'13px',lineHeight:1.5,overflowWrap:'anywhere',padding:'8px 10px',background:'#f1f5f9',borderRadius:'8px'}}>{t('sales.orders.deliverModal.sourceWarehouse')}: {warehouses.find(w=>String(w.id)===String(deliveryFormData.warehouse_id))?.name || t('sales.orders.deliverModal.selectSourceWarehouse')}</div>
               <div>
                 <label style={{ ...labelStyle, fontSize: '13px', fontWeight: 800 }}>{t('sales.orders.deliverModal.itemsToDispatch')}</label>
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
@@ -850,12 +871,14 @@ const SalesCycle = () => {
                         <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '10px 12px', fontWeight: 600 }}>{it.product_name}</td>
                           <td style={{ padding: '10px 12px', color: '#64748b' }}>
-                            <span className="num-en">{it.ordered_qty}</span>
+                            <span className="num-en">{it.ordered_qty} / {it.remaining_qty} {t('sales.orders.remaining','remaining')}</span>
                           </td>
                           <td style={{ padding: '8px 12px' }}>
                             <input
                               type="number"
-                              min="0.001"
+                              min="0.000001"
+                              max={it.remaining_qty}
+                              disabled={!!pendingDelivery.current}
                               step="any"
                               className="num-en"
                               value={it.quantity_delivered}
@@ -879,6 +902,7 @@ const SalesCycle = () => {
                 <label style={labelStyle}>{t('sales.orders.deliverModal.deliveryNotes')}</label>
                 <textarea
                   rows="2"
+                  disabled={!!pendingDelivery.current}
                   value={deliveryFormData.notes}
                   onChange={(e) => setDeliveryFormData({ ...deliveryFormData, notes: e.target.value })}
                   style={{ ...inputStyle, resize: 'vertical' }}
@@ -889,7 +913,7 @@ const SalesCycle = () => {
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowDeliverModal(false)}
+                  onClick={() => {if(!dispatchBusy.current)setShowDeliverModal(false);}}
                   style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}
                 >
                   {t('common.cancel')}

@@ -1752,6 +1752,8 @@
       "distribution": "Lead Distribution"
     },
     "orders": {
+      "remaining": "remaining",
+      "confirmRetry": "Delivery draft saved. Retry to confirm this same draft.",
       "title": "Sales Orders & Fulfillment Cycle",
       "subtitle": "Manage sales orders, convert quotations, and issue commercial invoices",
       "createOrder": "Create Sales Order",
@@ -1842,6 +1844,8 @@
         "confirmDispatchBtn": "Confirm Delivery & Deduct Stock"
       },
       "toasts": {
+        "invalidDispatchQuantity": "Dispatch quantity must be positive and no more than the remaining quantity.",
+        "missingDeliveryId": "Delivery could not be verified. Refresh before retrying.",
         "loadOrdersError": "Failed to load Sales Orders",
         "importedQuotation": "Imported details from Quotation #QT-{{id}}",
         "minOneItem": "Order must have at least one line item",
@@ -2794,6 +2798,8 @@
       "devices": "ZkTeco Devices"
     },
     "attendance": {
+      "loadFailed": "Attendance could not be loaded. Please retry.",
+      "conflict": "Attendance records need review. Contact HR.",
       "title": "Self-Service Attendance",
       "subtitle": "Daily punch clock and timesheet history.",
       "loading": "Loading Terminal...",

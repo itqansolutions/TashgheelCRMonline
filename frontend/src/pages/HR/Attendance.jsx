@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock, CheckCircle, XCircle, AlertCircle, History, Coffee } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -10,6 +10,9 @@ const Attendance = () => {
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeSession, setActiveSession] = useState(null);
+  const [loadError,setLoadError]=useState(false);
+  const [timezone,setTimezone]=useState(undefined);
+  const busy=useRef(false);
 
   const fetchAttendance = async () => {
     try {
@@ -17,22 +20,15 @@ const Attendance = () => {
       const data = res.data.data || [];
       setLogs(data);
 
-      // Determine active session: check_in exists today but NO check_out
-      const today = new Date().toISOString().split('T')[0];
-      const sessionToday = (data || []).find(log => log.check_in && log.check_in.startsWith(today));
-      
-      if (sessionToday) {
-        if (!sessionToday.check_out) {
-            setActiveSession('checked_in');
-        } else {
-            setActiveSession('completed');
-        }
-      } else {
-        setActiveSession('none');
-      }
+      if(!res.data.meta?.session_state || !res.data.meta?.timezone) throw Error('Attendance session metadata unavailable');
+      setTimezone(res.data.meta.timezone);
+      setActiveSession(res.data.meta.session_state);
+      setLoadError(false);
+      return true;
 
     } catch (err) {
-      console.error('Failed to fetch attendance logs', err);
+      setLoadError(true);setActiveSession(null);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -43,43 +39,51 @@ const Attendance = () => {
   }, []);
 
   const handleCheckIn = async () => {
+    if(busy.current)return;busy.current=true;
     setIsProcessing(true);
     try {
       const res = await api.post('/hr/attendance/check-in');
-      toast.success(res.data.message || t('hr.attendance.checkInSuccess', 'Checked in successfully!'));
-      fetchAttendance();
+      toast.success(res.data.message || t('hr.attendance.toastCheckInSuccess', 'Checked in successfully!'));
+      await fetchAttendance();
     } catch (err) {
-      toast.error(err.response?.data?.message || t('hr.attendance.checkInFailed', 'Failed to check in'));
+      toast.error(err.response?.data?.message || t('hr.attendance.toastCheckInError', 'Failed to check in'));
     } finally {
-      setIsProcessing(false);
+      busy.current=false;setIsProcessing(false);
     }
   };
 
   const handleCheckOut = async () => {
+    if(busy.current)return;busy.current=true;
     setIsProcessing(true);
     try {
       const res = await api.post('/hr/attendance/check-out');
-      toast.success(res.data.message || t('hr.attendance.checkOutSuccess', 'Checked out successfully!'));
-      fetchAttendance();
+      toast.success(res.data.message || t('hr.attendance.toastCheckOutSuccess', 'Checked out successfully!'));
+      await fetchAttendance();
     } catch (err) {
-      toast.error(err.response?.data?.message || t('hr.attendance.checkOutFailed', 'Failed to check out'));
+      toast.error(err.response?.data?.message || t('hr.attendance.toastCheckOutError', 'Failed to check out'));
     } finally {
-      setIsProcessing(false);
+      busy.current=false;setIsProcessing(false);
     }
   };
 
   const getStatusLabel = (status) => {
     switch (status) {
-      case 'present': return t('hr.attendance.statuses.present', 'Present');
-      case 'late': return t('hr.attendance.statuses.late', 'Late');
-      case 'absent': return t('hr.attendance.statuses.absent', 'Absent');
+      case 'present': return t('hr.attendance.statusPresent', 'Present');
+      case 'late': return t('hr.attendance.statusLate', 'Late');
+      case 'absent': return t('hr.attendance.statusAbsent', 'Absent');
       default: return status;
     }
   };
 
   return (
     <div className="attendance-dashboard" dir={isRTL ? 'rtl' : 'ltr'}>
+      {loadError && <div role="alert">{t('hr.attendance.loadFailed','Attendance could not be loaded. Please retry.')} <button onClick={fetchAttendance}>{t('common.retry','Retry')}</button></div>}
+      {activeSession==='conflict' && <div role="alert">{t('hr.attendance.conflict','Attendance records need review. Contact HR.')}</div>}
       <style>{`
+        .attendance-dashboard { width:100%; min-width:0; max-width:100%; overflow:hidden; }
+        .attendance-dashboard .responsive-table-region { width:100%; max-width:100%; overflow-x:auto; }
+        @media(max-width:600px) { .attendance-dashboard .clock-pad {padding:24px 12px;} .attendance-dashboard .btn-clock {width:150px;height:150px;font-size:18px;} .attendance-dashboard .log-table {min-width:650px;} }
+
         .att-header { margin-bottom: 24px; text-align: ${isRTL ? 'right' : 'left'}; }
         .clock-pad { background: var(--bg-card); border-radius: 16px; padding: 40px; text-align: center; border: 1px solid var(--glass-border); box-shadow: var(--shadow-xl); margin-bottom: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; }
         
@@ -110,25 +114,25 @@ const Attendance = () => {
           <div style={{ textAlign: 'center', padding: '40px' }}>{t('hr.attendance.loading', 'Loading Terminal...')}</div>
       ) : (
           <>
-            <div className="clock-pad">
+            {!loadError && <div className="clock-pad">
                 {activeSession === 'none' && (
                     <button className="btn-clock btn-checkin" onClick={handleCheckIn} disabled={isProcessing}>
                         <Clock size={40} />
-                        {t('hr.attendance.checkIn', 'CHECK IN')}
+                        {t('hr.attendance.btnCheckIn', 'CHECK IN')}
                     </button>
                 )}
                 
                 {activeSession === 'checked_in' && (
                     <button className="btn-clock btn-checkout" onClick={handleCheckOut} disabled={isProcessing}>
                         <Clock size={40} />
-                        {t('hr.attendance.checkOut', 'CHECK OUT')}
+                        {t('hr.attendance.btnCheckOut', 'CHECK OUT')}
                     </button>
                 )}
 
                 {activeSession === 'completed' && (
                     <div className="btn-clock btn-completed">
                         <CheckCircle size={40} />
-                        {t('hr.attendance.completed', 'COMPLETED')}
+                        {t('hr.attendance.btnCompleted', 'COMPLETED')}
                         <span style={{ fontSize: '12px', opacity: 0.8, fontWeight: 500 }}>{t('hr.attendance.shiftEnded', 'Shift Ended')}</span>
                     </div>
                 )}
@@ -139,22 +143,22 @@ const Attendance = () => {
                     {activeSession === 'checked_in' && <span className="status-badge status-present"><CheckCircle size={16}/> {t('hr.attendance.checkedInActive', 'Checked In (Active Session)')}</span>}
                     {activeSession === 'completed' && <span className="status-badge" style={{ background: 'rgba(107, 114, 128, 0.1)', color: '#6b7280' }}><Coffee size={16}/> {t('hr.attendance.shiftCompleted', 'Shift Completed')}</span>}
                 </div>
-            </div>
+            </div>}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            {!loadError && <><div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                 <History size={18} color="var(--primary)" />
-                <h3 style={{ margin: 0, fontSize: '18px' }}>{t('hr.attendance.myTimesheet', 'My Timesheet')}</h3>
+                <h3 style={{ margin: 0, fontSize: '18px' }}>{t('hr.attendance.timesheetTitle', 'My Timesheet')}</h3>
             </div>
 
             <div className="responsive-table-region" role="region" tabIndex={0}><table className="log-table">
                 <thead>
                     <tr>
-                        <th>{t('hr.attendance.date', 'Date')}</th>
-                        <th>{t('hr.attendance.checkInTime', 'Check-in')}</th>
-                        <th>{t('hr.attendance.checkOutTime', 'Check-out')}</th>
-                        <th>{t('hr.attendance.durationHrs', 'Duration (Hrs)')}</th>
-                        <th>{t('hr.attendance.status', 'Status')}</th>
-                        <th>{t('hr.attendance.source', 'Source')}</th>
+                        <th>{t('hr.attendance.colDate', 'Date')}</th>
+                        <th>{t('hr.attendance.colCheckIn', 'Check-in')}</th>
+                        <th>{t('hr.attendance.colCheckOut', 'Check-out')}</th>
+                        <th>{t('hr.attendance.colDuration', 'Duration (Hrs)')}</th>
+                        <th>{t('hr.attendance.colStatus', 'Status')}</th>
+                        <th>{t('hr.attendance.colSource', 'Source')}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -162,10 +166,10 @@ const Attendance = () => {
                         <tr><td colSpan="6" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>{t('hr.attendance.noHistory', 'No attendance history found.')}</td></tr>
                     ) : logs.map((log) => (
                         <tr key={log.id}>
-                            <td style={{ fontWeight: 600 }} className="num-en">{new Date(log.check_in).toLocaleDateString()}</td>
-                            <td className="num-en">{new Date(log.check_in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</td>
-                            <td className="num-en">{log.check_out ? new Date(log.check_out).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : <span style={{ color: '#ef4444' }}>--:--</span>}</td>
-                            <td style={{ fontWeight: 700 }} className="num-en">{log.work_hours ? parseFloat(log.work_hours).toFixed(2) : '-'}</td>
+                            <td style={{ fontWeight: 600 }} className="num-en">{new Date(log.check_in).toLocaleDateString(undefined,{timeZone:timezone})}</td>
+                            <td className="num-en">{new Date(log.check_in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit',timeZone:timezone})}</td>
+                            <td className="num-en">{log.check_out ? new Date(log.check_out).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit',timeZone:timezone}) : <span style={{ color: '#ef4444' }}>--:--</span>}</td>
+                            <td style={{ fontWeight: 700 }} className="num-en">{log.work_hours !== null && log.work_hours !== undefined ? parseFloat(log.work_hours).toFixed(2) : '-'}</td>
                             <td>
                                 <span style={{ 
                                     padding: '4px 10px', 
@@ -183,7 +187,7 @@ const Attendance = () => {
                         </tr>
                     ))}
                 </tbody>
-            </table></div>
+            </table></div></>}
           </>
       )}
     </div>
