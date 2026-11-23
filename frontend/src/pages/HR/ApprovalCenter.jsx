@@ -59,22 +59,22 @@ const ApprovalCenter = () => {
             <HRSubNav />
             <div className="approval-center-page" style={{ padding: '0 24px 24px' }}>
                 <style>{`
-                    .approval-header { margin-bottom: 24px; text-align: ${isRTL ? 'right' : 'left'}; }
-                    .approval-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); }
-                    .approval-table th, .approval-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border); }
-                    .approval-table th { background: rgba(0,0,0,0.02); font-weight: 600; color: var(--text-muted); font-size: 13px; text-transform: uppercase; }
-                    .approval-table tr:hover { background: rgba(255,255,255,0.02); }
+                    .approval-center-page .approval-header { margin-bottom: 24px; text-align: ${isRTL ? 'right' : 'left'}; }
+                    .approval-center-page .approval-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); }
+                    .approval-center-page .approval-table th, .approval-center-page .approval-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border); }
+                    .approval-center-page .approval-table th { background: rgba(0,0,0,0.02); font-weight: 600; color: var(--text-muted); font-size: 13px; text-transform: uppercase; }
+                    .approval-center-page .approval-table tr:hover { background: rgba(255,255,255,0.02); }
                     
-                    .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; text-transform: capitalize;}
-                    .badge-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
-                    .badge-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
-                    .badge-pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+                    .approval-center-page .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; text-transform: capitalize;}
+                    .approval-center-page .badge-success { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+                    .approval-center-page .badge-danger { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+                    .approval-center-page .badge-pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
 
-                    .action-btn { background: transparent; border: 1px solid var(--glass-border); padding: 6px 12px; border-radius: 6px; cursor: pointer; color: var(--text-main); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; ${isRTL ? 'margin-left: 8px;' : 'margin-right: 8px;'} transition: 0.2s; }
-                    .btn-approve { background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.2); }
-                    .btn-approve:hover { background: rgba(16, 185, 129, 0.2); }
-                    .btn-reject { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
-                    .btn-reject:hover { background: rgba(239, 68, 68, 0.2); }
+                    .approval-center-page .action-btn { background: transparent; border: 1px solid var(--glass-border); padding: 6px 12px; border-radius: 6px; cursor: pointer; color: var(--text-main); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; ${isRTL ? 'margin-left: 8px;' : 'margin-right: 8px;'} transition: 0.2s; }
+                    .approval-center-page .btn-approve { background: rgba(16, 185, 129, 0.1); color: #10b981; border-color: rgba(16, 185, 129, 0.2); }
+                    .approval-center-page .btn-approve:hover { background: rgba(16, 185, 129, 0.2); }
+                    .approval-center-page .btn-reject { background: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.2); }
+                    .approval-center-page .btn-reject:hover { background: rgba(239, 68, 68, 0.2); }
                 `}</style>
                 
                 <div className="approval-header">

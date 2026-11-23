@@ -582,3 +582,23 @@
  .attendance-dashboard.attendance-dashboard .btn-clock {width:150px;height:150px;font-size:18px;}
  .attendance-dashboard .att-header h2 {font-size:22px !important;}
 }
+
+/* Leave review: presentation only. Approval handlers and permission gates unchanged. */
+.approval-center-page,.approval-center-page * {box-sizing:border-box;}
+.approval-center-page {min-width:0;max-width:100%;}
+.approval-center-page .approval-header {padding-bottom:18px;border-bottom:1px solid var(--glass-border);}
+.approval-center-page .approval-header h2 {line-height:1.4;overflow-wrap:anywhere;}
+.approval-center-page .approval-header p {line-height:1.7;}
+.approval-center-page .responsive-table-region {width:100%;max-width:100%;overflow-x:auto;border-radius:14px;}
+.approval-center-page .approval-table {min-width:1100px;}
+.approval-center-page .approval-table td {line-height:1.6;}
+.approval-center-page .approval-table td:nth-child(1),.approval-center-page .approval-table td:nth-child(2) {min-width:180px;max-width:240px;overflow-wrap:anywhere;}
+.approval-center-page .approval-table td:nth-child(3) {min-width:240px;}
+.approval-center-page .approval-table td:last-child {min-width:240px;}
+.approval-center-page .action-btn {min-height:40px;margin-block:4px;white-space:nowrap;}
+.approval-center-page .approval-table:has(td[colspan]) {min-width:0;table-layout:fixed;}
+@media(max-width:768px) {
+ .approval-center-page {padding:0 12px 24px !important;}
+ .approval-center-page .approval-table:has(td[colspan]) thead {display:none;}
+ .approval-center-page .approval-table td[colspan] {padding:24px 16px !important;overflow-wrap:anywhere;}
+}

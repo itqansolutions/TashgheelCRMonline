@@ -265,3 +265,7 @@ Live phone inspection caught empty messages horizontally outside the initial vie
 
 ### Phase25 personal attendance terminal presentation
 Scoped formerly generic component CSS to attendance dashboard; box sizing/inset header/error readability, phone clock sizing, table numeric semantics, long source wrapping, empty-message fit. No attendance handlers/session state/timezone/duration logic changed.24 Arabic/English phone/desktop fixtures cover none/checked_in/completed/conflict/error/empty states, no POSTs. Exact noncomponent function AST/control attributes unchanged against591884c. Build passes. Actual phone/desktop/error/empty and actual horizontal scroll650/336 inspected, latter reaches hours/status/source. No live punches permitted or performed. Not certification of attendance calculations/geofence/payroll.
+
+
+### Phase26 approval-center presentation
+Scoped generic badge/action/table CSS to approval center. Header/long employee and reason wrapping; horizontal table retains six columns, dates/days/status and distinct approve/reject controls. Empty table fits phone.16 Arabic/English phone/desktop pending/approved/rejected/empty fixtures pass no writes and containment; all original functions/control attributes exact. Build passes. Actual phone/desktop/empty and1100/336 horizontal scroll pixels inspected, both action controls reached without clicking. HRSubNav stubbed locally; needs live read-only context. Existing untranslated fallback strings retained. No approvals/rejections submitted, no claim of action semantics or all HR acceptance.
