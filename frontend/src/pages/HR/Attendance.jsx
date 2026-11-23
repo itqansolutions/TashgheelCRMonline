@@ -84,25 +84,25 @@ const Attendance = () => {
         .attendance-dashboard .responsive-table-region { width:100%; max-width:100%; overflow-x:auto; }
         @media(max-width:600px) { .attendance-dashboard .clock-pad {padding:24px 12px;} .attendance-dashboard .btn-clock {width:150px;height:150px;font-size:18px;} .attendance-dashboard .log-table {min-width:650px;} }
 
-        .att-header { margin-bottom: 24px; text-align: ${isRTL ? 'right' : 'left'}; }
-        .clock-pad { background: var(--bg-card); border-radius: 16px; padding: 40px; text-align: center; border: 1px solid var(--glass-border); box-shadow: var(--shadow-xl); margin-bottom: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; }
+        .attendance-dashboard .att-header { margin-bottom: 24px; text-align: ${isRTL ? 'right' : 'left'}; }
+        .attendance-dashboard .clock-pad { background: var(--bg-card); border-radius: 16px; padding: 40px; text-align: center; border: 1px solid var(--glass-border); box-shadow: var(--shadow-xl); margin-bottom: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; }
         
-        .btn-clock { width: 180px; height: 180px; border-radius: 50%; border: none; font-size: 20px; font-weight: 800; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); color: white; }
-        .btn-clock:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
-        .btn-clock:hover:not(:disabled) { transform: scale(1.05) translateY(-5px); }
+        .attendance-dashboard .btn-clock { width: 180px; height: 180px; border-radius: 50%; border: none; font-size: 20px; font-weight: 800; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); color: white; }
+        .attendance-dashboard .btn-clock:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+        .attendance-dashboard .btn-clock:hover:not(:disabled) { transform: scale(1.05) translateY(-5px); }
         
-        .btn-checkin { background: linear-gradient(135deg, #10b981, #059669); }
-        .btn-checkout { background: linear-gradient(135deg, #ef4444, #b91c1c); }
-        .btn-completed { background: linear-gradient(135deg, #6b7280, #4b5563); cursor: default; }
+        .attendance-dashboard .btn-checkin { background: linear-gradient(135deg, #10b981, #059669); }
+        .attendance-dashboard .btn-checkout { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+        .attendance-dashboard .btn-completed { background: linear-gradient(135deg, #6b7280, #4b5563); cursor: default; }
         
-        .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 20px; font-weight: 700; font-size: 14px; margin-top: 24px; }
-        .status-late { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-        .status-present { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .attendance-dashboard .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 20px; font-weight: 700; font-size: 14px; margin-top: 24px; }
+        .attendance-dashboard .status-late { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        .attendance-dashboard .status-present { background: rgba(16, 185, 129, 0.1); color: #10b981; }
 
-        .log-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); }
-        .log-table th, .log-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border); }
-        .log-table th { background: rgba(0,0,0,0.02); font-weight: 600; color: var(--text-muted); font-size: 13px; text-transform: uppercase; }
-        .log-table tr:hover { background: rgba(255,255,255,0.02); }
+        .attendance-dashboard .log-table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border); }
+        .attendance-dashboard .log-table th, .attendance-dashboard .log-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border); }
+        .attendance-dashboard .log-table th { background: rgba(0,0,0,0.02); font-weight: 600; color: var(--text-muted); font-size: 13px; text-transform: uppercase; }
+        .attendance-dashboard .log-table tr:hover { background: rgba(255,255,255,0.02); }
       `}</style>
       
       <div className="att-header">

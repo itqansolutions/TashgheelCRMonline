@@ -47,11 +47,11 @@ Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional
 | HR/ActivityBalance.jsx | 2 | selected editor shells only | not established in this matrix | no |
 | HR/ActivityDefinition.jsx | 2 | selected editor shells only | not established in this matrix | no |
 | HR/ApprovalCenter.jsx |  | not individually accepted | not established in this matrix | no |
-| HR/Attendance.jsx |  | not individually accepted | not established in this matrix | no |
+| HR/Attendance.jsx | 25 | attendance terminal states/history presentation only | not established in this matrix | no |
 | HR/AttendanceAdmin.jsx |  | not individually accepted | not established in this matrix | no |
 | HR/AttendanceDevices.jsx | 3 | selected editor shells only | not established in this matrix | no |
-| HR/MyActivityBalance.jsx | 24 | personal balance read-only presentation | not established in this matrix | no |
-| HR/MyPayroll.jsx | 24 | personal payroll list/detail presentation | not established in this matrix | no |
+| HR/MyActivityBalance.jsx | 24 | personal balance read-only presentation | live phone empty state checked | no |
+| HR/MyPayroll.jsx | 24 | personal payroll list/detail presentation | live phone empty state checked | no |
 | HR/MyRequests.jsx | 6 | selected editor shells only | not established in this matrix | no |
 | HR/PayrollEngine.jsx |  | not individually accepted | not established in this matrix | no |
 | HR/Shifts.jsx | 2 | selected editor shells only | not established in this matrix | no |
@@ -109,8 +109,8 @@ Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional
 
 ## Totals
 - 102 source page components.
-- 45 components with explicit bounded phase coverage in this matrix.
-- 57 components without individual phase acceptance in this matrix.
+- 46 components with explicit bounded phase coverage in this matrix.
+- 56 components without individual phase acceptance in this matrix.
 - Zero claims of complete end-to-end business acceptance.
 - Earlier phase-specific live evidence remains in the rollout QA log; this matrix conservatively lists only recent explicit captures.
 - No production writes are part of this matrix.

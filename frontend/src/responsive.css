@@ -554,3 +554,31 @@
 @media(max-width:768px) {
  .my-activity-balance-page table:has(td[colspan]) thead,.my-payroll-page .mp-table:has(td[colspan]) thead { display:none; }
 }
+
+/* Personal attendance terminal: preserve action logic and ledger columns. */
+.attendance-dashboard,.attendance-dashboard * { box-sizing:border-box; }
+.attendance-dashboard .att-header { padding-bottom:18px; border-bottom:1px solid var(--glass-border); }
+.attendance-dashboard .att-header p { line-height:1.7; }
+.attendance-dashboard [role="alert"] { margin-bottom:18px; padding:16px; border:1px solid var(--glass-border); border-radius:14px; background:var(--bg-card); line-height:1.7; overflow-wrap:anywhere; }
+.attendance-dashboard [role="alert"] button { margin-inline-start:12px; padding:8px 16px; border:1px solid var(--glass-border); border-radius:8px; background:var(--bg-main); color:var(--text-main); cursor:pointer; }
+.attendance-dashboard .clock-pad { min-width:0; }
+.attendance-dashboard .status-badge { max-width:100%; line-height:1.5; }
+.attendance-dashboard .responsive-table-region { border-radius:14px; }
+.attendance-dashboard .log-table { min-width:760px; }
+.attendance-dashboard .log-table .num-en { display:table-cell; white-space:nowrap; }
+.attendance-dashboard .log-table span.num-en { display:inline; }
+.attendance-dashboard .log-table td:last-child { overflow-wrap:anywhere; max-width:220px; }
+.attendance-dashboard .log-table:has(td[colspan]) { min-width:0; table-layout:fixed; }
+@media(max-width:768px) {
+ .attendance-dashboard .clock-pad {padding:24px 12px; min-height:250px; margin-bottom:24px;}
+ .attendance-dashboard .btn-clock {width:150px;height:150px;font-size:18px;}
+ .attendance-dashboard .log-table:has(td[colspan]) thead {display:none;}
+ .attendance-dashboard .log-table td[colspan] {padding:24px 16px !important;line-height:1.7;overflow-wrap:anywhere;}
+}
+.attendance-dashboard { padding:12px; }
+.attendance-dashboard .att-header h2 {line-height:1.4;overflow-wrap:anywhere;}
+@media(max-width:768px) {
+ .attendance-dashboard.attendance-dashboard .clock-pad {padding:24px 12px;}
+ .attendance-dashboard.attendance-dashboard .btn-clock {width:150px;height:150px;font-size:18px;}
+ .attendance-dashboard .att-header h2 {font-size:22px !important;}
+}

@@ -261,3 +261,7 @@ Scoped payroll badge/button/trace selectors, fitted phone page roots, month/year
 
 #### Phase24 empty-state follow-up
 Live phone inspection caught empty messages horizontally outside the initial viewport. Empty/loading tables now fit width; unused column headers hidden on empty phone tables only. Populated columns untouched. Twenty fixtures/build/invariants pass; corrected empty phone pixels inspected. Original locale gaps retained.
+
+
+### Phase25 personal attendance terminal presentation
+Scoped formerly generic component CSS to attendance dashboard; box sizing/inset header/error readability, phone clock sizing, table numeric semantics, long source wrapping, empty-message fit. No attendance handlers/session state/timezone/duration logic changed.24 Arabic/English phone/desktop fixtures cover none/checked_in/completed/conflict/error/empty states, no POSTs. Exact noncomponent function AST/control attributes unchanged against591884c. Build passes. Actual phone/desktop/error/empty and actual horizontal scroll650/336 inspected, latter reaches hours/status/source. No live punches permitted or performed. Not certification of attendance calculations/geofence/payroll.
