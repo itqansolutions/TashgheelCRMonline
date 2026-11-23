@@ -322,3 +322,6 @@
  .chatbot-builder-editor .modal-body div[style*="display: flex"] > select { flex-basis:100%!important; width:100%; }
  .chatbot-builder-editor .modal-body div[style*="display: flex"] > div[style*="flex: 2"], .chatbot-builder-editor .modal-body div[style*="display: flex"] > div[style*="flex: 1"] { flex-basis:100%!important; }
 }
+.chatbot-selected-destination { display:block; flex-basis:100%; width:100%; font-size:12px; line-height:1.6; color:#334155; white-space:normal; overflow-wrap:anywhere; text-align:start; }
+.chatbot-branch-destination { flex-wrap:wrap; }
+.chatbot-selected-destination { order:1; }

@@ -1005,7 +1005,7 @@ const WhatsAppChatbots = () => {
 
 
                                   {/* Bottom Row: Branching Destination Selector */}
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 4, background: '#f8fafc', padding: '4px 8px', borderRadius: 6 }}>
+                                  <div className="chatbot-branch-destination" style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 4, background: '#f8fafc', padding: '4px 8px', borderRadius: 6 }}>
                                     <span style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
                                       <ArrowRight size={12} color="#0284c7" />
                                       When chosen, branch to:
@@ -1048,6 +1048,16 @@ const WhatsAppChatbots = () => {
                                         <option value="action:complete">Complete & Close Conversation</option>
                                       </optgroup>
                                     </select>
+
+                                    <span className="chatbot-selected-destination" role="status" aria-live="polite">
+                                      {currentTargetVal === 'action:handoff'
+                                        ? 'Selected destination: Transfer to Department Agent (Handoff)'
+                                        : currentTargetVal === 'action:complete'
+                                          ? 'Selected destination: Complete & Close Conversation'
+                                          : currentTargetVal.startsWith('node:')
+                                            ? `Selected destination: Step #${botForm.scenario_nodes.findIndex(targetNode => String(targetNode.id) === currentTargetVal.replace('node:', '')) + 1}: ${botForm.scenario_nodes.find(targetNode => String(targetNode.id) === currentTargetVal.replace('node:', ''))?.message || botForm.scenario_nodes.find(targetNode => String(targetNode.id) === currentTargetVal.replace('node:', ''))?.text || currentTargetVal.replace('node:', '')}`
+                                            : 'Selected destination: Next Step (Sequential / Default Node Action)'}
+                                    </span>
 
                                     {/* Visual Route Indicator Badge */}
                                     {opt.action === 'handoff' ? (
