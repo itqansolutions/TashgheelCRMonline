@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import Modal from '../../components/Common/Modal';
 import {
   Bot, Plus, Play, ToggleLeft, ToggleRight, Trash2, Edit, MessageSquare,
   Users, Sparkles, Phone, ArrowRight, CheckCircle, AlertCircle, RefreshCw,
@@ -585,37 +586,24 @@ const WhatsAppChatbots = () => {
       {/* SCENARIO BUILDER MODAL */}
       {/* ===================================================================== */}
       {showBuilderModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
-        }}>
-          <div style={{
-            background: 'white', borderRadius: 16, width: '100%', maxWidth: '880px', maxHeight: '90vh',
-            display: 'flex', flexDirection: 'column', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)'
-          }}>
-            {/* Modal Header */}
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
-                  {editingBot ? `Edit ChatBot: ${editingBot.name}` : 'Create New ChatBot'}
-                </h2>
-                <p style={{ margin: '2px 0 0', fontSize: 12.5, color: '#64748b' }}>
-                  Configure triggers, question tree, CRM field mappings, and department handoffs.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowBuilderModal(false)}
-                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Modal Form Content */}
-            <form onSubmit={handleSaveBot} style={{ overflowY: 'auto', padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <Modal isOpen={true} onClose={() => setShowBuilderModal(false)} variant="form" className="chatbot-builder-editor" title={editingBot ? `Edit ChatBot: ${editingBot.name}` : 'Create New ChatBot'} footer={<div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid #e2e8f0', paddingTop: 16, marginTop: 'auto' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowBuilderModal(false)}
+                  style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '9px 18px', borderRadius: 8, fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit" form="chatbot-builder-editor"
+                  style={{ background: '#25D366', color: 'white', border: 'none', padding: '9px 22px', borderRadius: 8, fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Save & Activate ChatBot
+                </button>
+              </div>}><p style={{color:'#64748b',fontSize:13,marginBottom:24}}>Configure triggers, question tree, CRM field mappings, and department handoffs.</p><form id="chatbot-builder-editor" onSubmit={handleSaveBot} style={{display:'flex',flexDirection:'column',gap:20}}>
               
               {/* General Settings Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,300px),1fr))', gap: 16 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>ChatBot Name *</label>
                   <input
@@ -1092,24 +1080,8 @@ const WhatsAppChatbots = () => {
               </div>
 
               {/* Modal Footer Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid #e2e8f0', paddingTop: 16, marginTop: 'auto' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowBuilderModal(false)}
-                  style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '9px 18px', borderRadius: 8, fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={{ background: '#25D366', color: 'white', border: 'none', padding: '9px 22px', borderRadius: 8, fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Save & Activate ChatBot
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+
+            </form></Modal>
       )}
 
       {/* ===================================================================== */}

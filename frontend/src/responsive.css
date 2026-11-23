@@ -311,3 +311,14 @@
 .vendor-payment-editor .modal-body input, .vendor-payment-editor .modal-body select { min-height:44px; border:1px solid #d9e2ef!important; background:#f8fafc!important; border-radius:12px!important; }
 .vendor-payment-editor .modal-footer > div { width:100%; }
 .vendor-payment-editor .modal-footer button { min-height:44px; }
+
+/* Scenario builder keeps long branch controls within the phone panel. */
+.chatbot-builder-editor .modal-footer > div { width:100%; margin:0!important; padding:0!important; border:0!important; }
+.chatbot-builder-editor .modal-footer button { min-height:44px; }
+.chatbot-builder-editor .modal-body input, .chatbot-builder-editor .modal-body select, .chatbot-builder-editor .modal-body textarea { min-width:0; max-width:100%; min-height:44px; }
+@media(max-width:768px) {
+ .chatbot-builder-editor .modal-body div[style*="display: flex"] { flex-wrap:wrap; }
+ .chatbot-builder-editor .modal-body div[style*="display: flex"] > * { min-width:0; max-width:100%; }
+ .chatbot-builder-editor .modal-body div[style*="display: flex"] > select { flex-basis:100%!important; width:100%; }
+ .chatbot-builder-editor .modal-body div[style*="display: flex"] > div[style*="flex: 2"], .chatbot-builder-editor .modal-body div[style*="display: flex"] > div[style*="flex: 1"] { flex-basis:100%!important; }
+}
