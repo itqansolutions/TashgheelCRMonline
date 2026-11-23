@@ -1603,33 +1603,31 @@ const UnitsRegistry = () => {
                                                     )}
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    {photos.length > 0 && (
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => handleOpenWhatsAppShare(selectedUnit, photos)}
-                                                            style={{ 
-                                                                cursor: 'pointer',
-                                                                fontSize: '11px',
-                                                                fontWeight: 800,
-                                                                color: '#15803d',
-                                                                background: '#f0fdf4',
-                                                                border: '1px solid #bbf7d0',
-                                                                padding: '5px 12px',
-                                                                borderRadius: '8px',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: '5px',
-                                                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                                                                transition: 'all 0.2s'
-                                                            }}
-                                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#dcfce7'; }}
-                                                            onMouseLeave={(e) => { e.currentTarget.style.background = '#f0fdf4'; }}
-                                                            title={t('realEstate.unitsRegistry.btnShareWhatsApp') || 'مشاركة عبر واتساب'}
-                                                        >
-                                                            <MessageCircle size={13} color="#15803d" />
-                                                            <span>{t('realEstate.unitsRegistry.btnShareWhatsApp') || 'مشاركة عبر واتساب'}</span>
-                                                        </button>
-                                                    )}
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => handleOpenWhatsAppShare(selectedUnit, photos)}
+                                                        style={{ 
+                                                            cursor: 'pointer',
+                                                            fontSize: '11px',
+                                                            fontWeight: 800,
+                                                            color: '#15803d',
+                                                            background: '#f0fdf4',
+                                                            border: '1px solid #86efac',
+                                                            padding: '5px 12px',
+                                                            borderRadius: '8px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '5px',
+                                                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                        onMouseEnter={(e) => { e.currentTarget.style.background = '#dcfce7'; }}
+                                                        onMouseLeave={(e) => { e.currentTarget.style.background = '#f0fdf4'; }}
+                                                        title={t('realEstate.unitsRegistry.btnShareWhatsApp') || 'مشاركة عبر واتساب'}
+                                                    >
+                                                        <MessageCircle size={14} color="#15803d" />
+                                                        <span>{t('realEstate.unitsRegistry.btnShareWhatsApp') || 'مشاركة عبر واتساب'}</span>
+                                                    </button>
                                                     <label 
                                                         htmlFor={`unit-gallery-upload-${selectedUnit.id}`}
                                                         style={{ 
@@ -1851,6 +1849,29 @@ const UnitsRegistry = () => {
                                                                     </div>
 
                                                                     <div style={{ display: 'flex', gap: '6px', pointerEvents: 'auto' }}>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleOpenWhatsAppShare(selectedUnit, photos)}
+                                                                            style={{
+                                                                                width: '32px',
+                                                                                height: '32px',
+                                                                                borderRadius: '8px',
+                                                                                background: '#16a34a',
+                                                                                color: 'white',
+                                                                                border: 'none',
+                                                                                cursor: 'pointer',
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                transition: 'all 0.2s',
+                                                                                boxShadow: '0 2px 8px rgba(22, 163, 74, 0.4)'
+                                                                            }}
+                                                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#15803d'; e.currentTarget.style.transform = 'scale(1.08)'; }}
+                                                                            onMouseLeave={(e) => { e.currentTarget.style.background = '#16a34a'; e.currentTarget.style.transform = 'scale(1)'; }}
+                                                                            title={t('realEstate.unitsRegistry.btnShareWhatsApp') || 'إرسال رابط الصور عبر واتساب'}
+                                                                        >
+                                                                            <MessageCircle size={16} />
+                                                                        </button>
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => {
