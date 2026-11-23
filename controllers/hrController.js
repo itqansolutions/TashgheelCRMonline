@@ -228,6 +228,11 @@ exports.submitLeave = async (req, res) => {
     const branch_id = req.branchId;
     const { type, start_date, end_date, reason } = req.body;
 
+    const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+        Number.isFinite(Date.parse(value + 'T00:00:00Z')) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
+    if (!validDate(start_date) || !validDate(end_date) || end_date < start_date) {
+        return res.status(400).json({ status: 'error', message: 'Provide valid leave dates with end date on or after start date.' });
+    }
     try {
         await db.query('BEGIN');
 
@@ -253,7 +258,7 @@ exports.submitLeave = async (req, res) => {
         // 2. Calculate Days
         const d1 = new Date(start_date);
         const d2 = new Date(end_date);
-        const diffTime = Math.abs(d2 - d1);
+        const diffTime = d2 - d1;
         const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // Inclusive
 
         if (days <= 0) throw new Error('Invalid date range.');

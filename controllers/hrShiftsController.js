@@ -53,6 +53,8 @@ exports.createShift = async (req, res) => {
   if (!start_time)   return res.status(400).json({ status: 'error', message: 'Start time is required' });
   if (!end_time)     return res.status(400).json({ status: 'error', message: 'End time is required' });
 
+  if (grace_minutes !== undefined && grace_minutes !== null && grace_minutes !== '' && (!Number.isInteger(Number(grace_minutes)) || Number(grace_minutes) < 0)) return res.status(400).json({ status: 'error', message: 'Grace minutes must be a non-negative integer' });
+
   try {
     const result = await db.query(`
       INSERT INTO hr_shifts (tenant_id, name, start_time, end_time, off_days, grace_minutes, deduction_rules, is_active)
@@ -60,7 +62,7 @@ exports.createShift = async (req, res) => {
     `, [
       tenant_id, name.trim(), start_time, end_time,
       off_days || [5, 6],
-      parseInt(grace_minutes) || 15,
+      grace_minutes === undefined || grace_minutes === null || grace_minutes === '' ? 15 : Number(grace_minutes),
       JSON.stringify(deduction_rules || []),
       is_active !== false
     ]);
@@ -76,6 +78,8 @@ exports.createShift = async (req, res) => {
 exports.updateShift = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const { name, start_time, end_time, off_days, grace_minutes, deduction_rules, is_active } = req.body;
+  if (grace_minutes !== undefined && grace_minutes !== null && grace_minutes !== '' && (!Number.isInteger(Number(grace_minutes)) || Number(grace_minutes) < 0)) return res.status(400).json({ status: 'error', message: 'Grace minutes must be a non-negative integer' });
+
   try {
     const result = await db.query(`
       UPDATE hr_shifts SET
@@ -85,7 +89,7 @@ exports.updateShift = async (req, res) => {
     `, [
       name?.trim(), start_time, end_time,
       off_days || [5, 6],
-      parseInt(grace_minutes) || 15,
+      grace_minutes === undefined || grace_minutes === null || grace_minutes === '' ? 15 : Number(grace_minutes),
       JSON.stringify(deduction_rules || []),
       is_active !== false,
       req.params.id, tenant_id

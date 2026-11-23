@@ -23,7 +23,12 @@ async function getSuppliers(tenantId) {
 
 async function createSupplier(tenantId, branchId, data) {
   const { name, company_name, email, phone, address, tax_no, payment_terms, credit_limit, currency } = data;
-  const apAccount = await AccountService.getAccountBySubType(tenantId, 'payable');
+  if (!String(name || '').trim()) throw new Error('Supplier name is required.');
+  // Creating a supplier must not seed or modify the tenant's chart of accounts.
+  const payable = await db.query(`SELECT id FROM accounts WHERE tenant_id::text = $1::text
+    AND sub_type = 'payable' AND is_active = true AND is_group = false ORDER BY code LIMIT 1`, [String(tenantId)]);
+  if (!payable.rows.length) throw new Error('Configure an active payable posting account before creating an ERP supplier.');
+  const apAccount = payable.rows[0];
 
   const res = await db.query(`
     INSERT INTO suppliers
@@ -115,16 +120,53 @@ async function getPurchaseOrders(tenantId, branchId) {
 
 // ── GOODS RECEIPT NOTES (GRN) — Posts DR Inventory Asset / CR GRNI ──
 
+// Recheck ownership and remaining quantities at both draft creation and final receipt.
+async function lockReceiptOrder(client, tenantId, branchId, orderId) {
+  const result = await client.query(`SELECT * FROM erp_legacy_purchase_orders WHERE id = $1
+    AND tenant_id::text = $2::text AND branch_id::text IS NOT DISTINCT FROM $3::text FOR UPDATE`,
+    [orderId, String(tenantId), branchId || null]);
+  const po = result.rows[0];
+  if (!po || ['cancelled', 'canceled', 'void'].includes(String(po.status).toLowerCase())) throw new Error('Purchase Order not found, cancelled or outside this branch.');
+  return po;
+}
+async function validateReceiptWarehouse(client, tenantId, branchId, warehouseId) {
+  if (!warehouseId) throw new Error('A destination warehouse is required.');
+  const result = await client.query(`SELECT id FROM warehouses WHERE id::text=$1::text
+    AND tenant_id::text=$2::text AND branch_id::text IS NOT DISTINCT FROM $3::text FOR SHARE`,
+    [String(warehouseId), String(tenantId), branchId || null]);
+  if (!result.rows.length) throw new Error('Destination warehouse is outside this tenant/branch.');
+}
+async function validateReceiptItems(client, tenantId, orderId, items) {
+  if (!Array.isArray(items) || !items.length) throw new Error('Receipt must contain at least one item.');
+  const quantities = new Map();
+  for (const item of items) {
+    const qty = Number(item.quantity_received), cost = Number(item.unit_cost);
+    if (!['number','string'].includes(typeof item.quantity_received) || !Number.isFinite(qty) || qty <= 0 ||
+        !['number','string'].includes(typeof item.unit_cost) || !Number.isFinite(cost) || cost < 0) throw new Error('Receipt quantity/cost is invalid.');
+    if (!item.purchase_order_item_id || !item.product_id) throw new Error('Receipt item must reference its Purchase Order item and product.');
+    const result = await client.query(`SELECT poi.*, p.id AS verified_product FROM erp_legacy_purchase_order_items poi
+      JOIN products p ON p.id = poi.product_id AND p.tenant_id::text = poi.tenant_id::text
+      WHERE poi.id::text=$1::text AND poi.purchase_order_id::text=$2::text AND poi.tenant_id::text=$3::text FOR UPDATE OF poi`,
+      [String(item.purchase_order_item_id), String(orderId), String(tenantId)]);
+    const line = result.rows[0];
+    if (!line || String(line.product_id) !== String(item.product_id)) throw new Error('Receipt item does not belong to this Purchase Order/product/tenant.');
+    const total = (quantities.get(String(line.id)) || 0) + qty;
+    if (total - (Number(line.quantity) - Number(line.quantity_received || 0)) > 0.000001) throw new Error('Receipt exceeds remaining Purchase Order quantity.');
+    quantities.set(String(line.id), total);
+  }
+}
+
 async function createGoodsReceipt(tenantId, branchId, data, userId) {
   return await TransactionEngine.executeTransaction(async (client) => {
     const { purchase_order_id, receipt_date, warehouse_id, items, notes } = data;
 
     if (!purchase_order_id) throw new Error('purchase_order_id is required.');
 
-    const poRes = await client.query('SELECT supplier_id FROM erp_legacy_purchase_orders WHERE id = $1 AND tenant_id::text = $2::text', [purchase_order_id, String(tenantId)]);
-    if (poRes.rows.length === 0) throw new Error('Purchase Order not found.');
+    const po = await lockReceiptOrder(client, tenantId, branchId, purchase_order_id);
+    await validateReceiptWarehouse(client, tenantId, branchId, warehouse_id);
+    await validateReceiptItems(client, tenantId, purchase_order_id, items);
 
-    const supplierId = poRes.rows[0].supplier_id;
+    const supplierId = po.supplier_id;
     const year = new Date(receipt_date || new Date()).getFullYear();
     const number = await nextSequence(client, { tenantId, branchId, docType: 'GRN', fiscalYear: year });
 
@@ -166,7 +208,12 @@ async function approveGoodsReceipt(tenantId, branchId, goodsReceiptId, userId) {
     if (grnRes.rows.length === 0) throw new Error('Goods Receipt not found or already processed.');
 
     const grn = grnRes.rows[0];
+    if (String(branchId || '') !== String(grn.branch_id || '')) throw new Error('Goods Receipt belongs to another branch.');
+    if (grn.received_by && String(grn.received_by) === String(userId)) throw new Error('A different user must approve the Goods Receipt.');
+    await lockReceiptOrder(client, tenantId, branchId, grn.purchase_order_id);
+    await validateReceiptWarehouse(client, tenantId, branchId, grn.warehouse_id);
     const items = grn.items_json || [];
+    await validateReceiptItems(client, tenantId, grn.purchase_order_id, items);
     let totalGRNValue = 0;
 
     for (const item of items) {
@@ -186,8 +233,8 @@ async function approveGoodsReceipt(tenantId, branchId, goodsReceiptId, userId) {
       // Update PO item received quantity
       if (item.purchase_order_item_id) {
         await client.query(`
-          UPDATE erp_legacy_purchase_order_items SET quantity_received = COALESCE(quantity_received, 0) + $1 WHERE id = $2
-        `, [item.quantity_received, item.purchase_order_item_id]);
+          UPDATE erp_legacy_purchase_order_items SET quantity_received = COALESCE(quantity_received, 0) + $1 WHERE id = $2 AND tenant_id::text = $3::text
+        `, [item.quantity_received, item.purchase_order_item_id, String(tenantId)]);
       }
     }
 

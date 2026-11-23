@@ -1403,6 +1403,14 @@ exports.deleteVoucher = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Voucher is already cancelled' });
         }
 
+        // Expense mirrors have no explicit audit-safe voucher link in the current schema.
+        // Never guess a historical match or restore treasury while leaving its expense active.
+        if (voucher.voucher_type === 'payment' && voucher.party_type !== 'vendor') {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ status: 'error', code: 'OPERATING_CANCELLATION_REQUIRES_LINKAGE',
+                message: 'Operating payment cancellation is blocked until its expense can be reversed with an explicit audit-safe link. No balances changed.' });
+        }
+
         const voucherAmount = parseFloat(voucher.amount) || 0;
 
         // 4. Mark voucher as cancelled

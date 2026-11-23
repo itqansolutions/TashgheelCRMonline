@@ -34,7 +34,7 @@ const sodGuard = (documentType) => (req, res, next) => {
     return next();
   }
 
-  const createdBy = String(req.erpDocument.created_by || req.erpDocument.requested_by || '');
+  const createdBy = String(req.erpDocument.created_by || req.erpDocument.requested_by || req.erpDocument.received_by || '');
   const currentUser = String(req.user.id);
 
   if (createdBy && createdBy === currentUser) {

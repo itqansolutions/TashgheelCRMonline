@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 import toast from 'react-hot-toast';
 import { BookOpen, Plus, RefreshCw, Folder, FileText, CheckCircle2 } from 'lucide-react';
 
 const ChartOfAccounts = () => {
+  const { isRTL } = useLanguage();
+  const label = (en, ar) => isRTL ? ar : en;
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const saveLock = useRef(false);
   const [formData, setFormData] = useState({
-    code: '', name: '', type: 'asset', sub_type: 'expense', parent_id: '', is_group: false, currency: 'EGP'
+    code: '', name: '', type: 'asset', sub_type: '', parent_id: '', is_group: false, currency: 'EGP'
   });
 
   useEffect(() => {
@@ -39,13 +44,20 @@ const ChartOfAccounts = () => {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (saveLock.current) return;
+    saveLock.current = true;
+    setSaving(true);
     try {
       await api.post('/erp/accounts', formData);
       toast.success('Account created successfully');
       setShowModal(false);
       fetchAccounts();
+      setFormData({ code: '', name: '', type: 'asset', sub_type: '', parent_id: '', is_group: false, currency: 'EGP' });
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create account');
+    } finally {
+      saveLock.current = false;
+      setSaving(false);
     }
   };
 
@@ -146,6 +158,30 @@ const ChartOfAccounts = () => {
               ))}
             </tbody>
           </table></div>
+        </div>
+      )}
+      {showModal && (
+        <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(15,23,42,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="coa-create-title" style={{ background: 'white', color: '#1e293b', borderRadius: 16, width: '100%', maxWidth: 520, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', padding: 24 }}>
+            <h2 id="coa-create-title" style={{ marginTop: 0 }}>{label('Add Account', 'إضافة حساب')}</h2>
+            <form onSubmit={handleCreate} style={{ display: 'grid', gap: 14 }}>
+              <label>{label('Code', 'الكود')}<input id="coa-code" required value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} style={{ width: '100%', padding: 10, boxSizing: 'border-box' }} /></label>
+              <label>{label('Name', 'الاسم')}<input id="coa-name" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} style={{ width: '100%', padding: 10, boxSizing: 'border-box' }} /></label>
+              <label>{label('Type', 'النوع')}<select id="coa-type" value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value, parent_id: '', sub_type: '' })} style={{ width: '100%', padding: 10 }}>
+                {['asset', 'liability', 'equity', 'revenue', 'expense'].map(type => <option key={type} value={type}>{type}</option>)}
+              </select></label>
+              <label>{label('Parent Group', 'الحساب الرئيسي')}<select id="coa-parent" value={formData.parent_id} onChange={e => setFormData({ ...formData, parent_id: e.target.value })} style={{ width: '100%', padding: 10 }}>
+                <option value="">{label('No parent', 'بدون حساب رئيسي')}</option>{accounts.filter(a => a.is_group && a.type === formData.type).map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+              </select></label>
+              <label>{label('Sub-Type (optional)', 'النوع الفرعي (اختياري)')}<input id="coa-subtype" value={formData.sub_type} onChange={e => setFormData({ ...formData, sub_type: e.target.value })} style={{ width: '100%', padding: 10, boxSizing: 'border-box' }} /></label>
+              <label>{label('Currency', 'العملة')}<input id="coa-currency" required maxLength={3} value={formData.currency} onChange={e => setFormData({ ...formData, currency: e.target.value.toUpperCase() })} style={{ width: '100%', padding: 10, boxSizing: 'border-box' }} /></label>
+              <label><input id="coa-group" type="checkbox" checked={formData.is_group} onChange={e => setFormData({ ...formData, is_group: e.target.checked })} /> {label('Group Account', 'حساب تجميعي')}</label>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                <button type="button" disabled={saving} onClick={() => setShowModal(false)} style={{ padding: '10px 18px' }}>{label('Cancel', 'إلغاء')}</button>
+                <button type="submit" disabled={saving} style={{ padding: '10px 18px', background: '#4f46e5', color: 'white', border: 0, borderRadius: 8 }}>{saving ? label('Saving...', 'جار الحفظ...') : label('Create Account', 'إنشاء الحساب')}</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

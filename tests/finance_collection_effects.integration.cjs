@@ -141,6 +141,11 @@ const res=()=>({code:200,status(n){this.code=n;return this},json(b){this.body=b;
  await pool.query(`CREATE FUNCTION isolated_expense_fail() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'isolated expense failure'; END$$;CREATE TRIGGER isolated_expense_failure BEFORE INSERT ON expenses FOR EACH ROW EXECUTE FUNCTION isolated_expense_fail()`);
  const atomicBefore=await counts();r=res();await fin.createVoucher(req({body:{voucher_type:'payment',party_type:'other',party_name:'Atomic failure fixture',amount:1,treasury_account_id:4}}),r);assert.equal(r.code,400);assert.deepEqual(await counts(),atomicBefore);console.log('PASS failed operating expense insert rolls back its payment voucher and consumes no number');
  await pool.query('DROP TRIGGER isolated_expense_failure ON expenses');
+ r=res();await fin.getSummary(req(),r);const beforeSummary=r.body.data; r=res();await fin.getTreasuryAccounts(req(),r);const beforeTreasury=r.body.totals.total_balance;
+ const op=(await pool.query("SELECT id FROM finance_vouchers WHERE party_name='Synthetic operating payout'")).rows[0];r=res();await fin.deleteVoucher(req({params:{id:op.id},body:{reason:'Isolated local cancellation reconciliation'}}),r);assert.equal(r.code,409,JSON.stringify(r.body));
+ r=res();await fin.getSummary(req(),r);const afterSummary=r.body.data;r=res();await fin.getTreasuryAccounts(req(),r);const afterTreasury=r.body.totals.total_balance;
+ console.log('OPERATING_CANCEL_RECONCILIATION',JSON.stringify({beforeSummary,afterSummary,beforeTreasury,afterTreasury,expense:(await pool.query("SELECT id,title,amount,treasury_account_id FROM expenses")).rows}));
+ assert.equal(afterTreasury,beforeTreasury);assert.equal(afterSummary.totalExpenses,beforeSummary.totalExpenses);console.log('PASS operating cancellation409 leaves voucher/expense/summary/treasury unchanged, no historical matching');
  console.log('ISOLATED_EFFECT_REGRESSION_COMPLETE');
 
 

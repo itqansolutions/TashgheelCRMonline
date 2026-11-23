@@ -18,7 +18,7 @@ const AccountService = require('./AccountService');
  * Trial Balance Report.
  */
 async function getTrialBalance(tenantId, { startDate, endDate }) {
-  let where = 'WHERE je.tenant_id::text = $1::text AND je.status = \'posted\'';
+  let where = 'WHERE a.tenant_id::text = $1::text AND je.tenant_id::text = $1::text AND je.status = \'posted\'';
   const params = [String(tenantId)];
   let idx = 2;
 
@@ -81,8 +81,11 @@ async function getBalanceSheet(tenantId, { asOfDate }) {
       a.sub_type,
       (COALESCE(SUM(jel.debit), 0) - COALESCE(SUM(jel.credit), 0)) AS balance
     FROM accounts a
-    LEFT JOIN journal_entry_lines jel ON jel.account_id = a.id
-    LEFT JOIN journal_entries je ON jel.journal_entry_id = je.id AND je.status = 'posted' AND je.date <= $2
+    LEFT JOIN (
+      SELECT lines.* FROM journal_entry_lines lines
+      JOIN journal_entries entry ON entry.id = lines.journal_entry_id
+      WHERE entry.tenant_id::text = $1::text AND entry.status = 'posted' AND entry.date <= $2
+    ) jel ON jel.account_id = a.id
     WHERE a.tenant_id::text = $1::text AND a.type IN ('asset', 'liability', 'equity')
     GROUP BY a.id, a.code, a.name, a.type, a.sub_type
     ORDER BY a.code ASC
@@ -126,7 +129,7 @@ async function getBalanceSheet(tenantId, { asOfDate }) {
  * Income Statement / P&L Report.
  */
 async function getIncomeStatement(tenantId, { startDate, endDate }) {
-  let where = 'WHERE a.tenant_id::text = $1::text AND a.type IN (\'revenue\', \'expense\')';
+  let where = 'WHERE a.tenant_id::text = $1::text AND je.tenant_id::text = $1::text AND je.status = \'posted\' AND a.type IN (\'revenue\', \'expense\')';
   const params = [String(tenantId)];
   let idx = 2;
 

@@ -441,6 +441,7 @@ test('Voucher Cancellation & Balance Reversal Suite (deleteVoucher P1 hardening)
               id: 202,
               voucher_number: 'PV-001',
               voucher_type: 'payment',
+              party_type: 'vendor',
               amount: '300.00',
               status: 'active',
               invoice_id: 55,
@@ -502,7 +503,7 @@ test('Voucher Cancellation & Balance Reversal Suite (deleteVoucher P1 hardening)
     assert.equal(updatedStatus, 'pending'); // 0 paid -> pending
   });
 
-  await t.test('Payment Voucher without linked invoice: Cancels cleanly without error', async () => {
+  await t.test('Operating Payment Voucher without explicit expense linkage: rejects unchanged with409', async () => {
     let commitCalled = false;
 
     const mockClient = {
@@ -552,9 +553,9 @@ test('Voucher Cancellation & Balance Reversal Suite (deleteVoucher P1 hardening)
 
     await financeController.deleteVoucher(req, res);
 
-    assert.equal(responseCode, 200);
-    assert.equal(commitCalled, true);
-    assert.equal(responseBody.status, 'success');
+    assert.equal(responseCode, 409);
+    assert.equal(commitCalled, false);
+    assert.equal(responseBody.code, 'OPERATING_CANCELLATION_REQUIRES_LINKAGE');
   });
 
   await t.test('Financial Permission Guard: requirePermission blocks unauthorized roles with 403', async () => {
