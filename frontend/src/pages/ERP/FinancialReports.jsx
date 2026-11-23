@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { BarChart3, FileSpreadsheet, PieChart, Scale, ArrowUpRight, ArrowDownRight, CheckCircle2 } from 'lucide-react';
@@ -7,13 +7,18 @@ const FinancialReports = () => {
   const [activeTab, setActiveTab] = useState('tb');
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const requestId = useRef(0);
 
   useEffect(() => {
     fetchReport(activeTab);
+    return () => { requestId.current += 1; };
   }, [activeTab]);
 
   const fetchReport = async (tab) => {
+    const currentRequest = ++requestId.current;
     setLoading(true);
+    setLoadError('');
     setReportData(null);
     try {
       let endpoint = '/erp/reports/trial-balance';
@@ -22,11 +27,13 @@ const FinancialReports = () => {
       if (tab === 'ar') endpoint = '/erp/reports/ar-aging';
 
       const res = await api.get(endpoint);
-      setReportData(res.data.data);
+      if (currentRequest === requestId.current) setReportData(res.data.data);
     } catch (err) {
-      toast.error('Failed to generate report');
+      if (currentRequest === requestId.current) setLoadError(err.response?.data?.code === 'ERP_ACCOUNTING_DISABLED'
+        ? 'ERP Accounting is not enabled. This report is unavailable.'
+        : 'Could not load report data. No report totals have been confirmed.');
     } finally {
-      setLoading(false);
+      if (currentRequest === requestId.current) setLoading(false);
     }
   };
 
@@ -68,7 +75,10 @@ const FinancialReports = () => {
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>Generating Financial Report...</div>
       ) : !reportData ? (
-        <div style={{ textAlign: 'center', padding: '40px' }}>Failed to load report data.</div>
+        <div role="alert" style={{ textAlign: 'center', padding: '40px' }}>
+          <p>{loadError || 'Report data is unavailable.'}</p>
+          <button type="button" style={{ marginInlineStart: '12px', marginTop: '8px', padding: '8px 16px', border: '1px solid #c7d2fe', borderRadius: '8px', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }} onClick={() => fetchReport(activeTab)}>Retry</button>
+        </div>
       ) : (
         <div className="erp-report-content" style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '24px' }}>
           {activeTab === 'tb' && (

@@ -1,0 +1,11 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),parser=require('../frontend/node_modules/@babel/parser');
+function handler(file,name){const source=fs.readFileSync(path.join(__dirname,'../frontend/src/pages',file),'utf8');let found;const walk=node=>{if(!node||typeof node!=='object')return;if(node.type==='VariableDeclarator'&&node.id?.name===name)found=source.slice(node.init.start,node.init.end);for(const value of Object.values(node))if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);};walk(parser.parse(source,{sourceType:'module',plugins:['jsx']}));assert(found);return {source,found};}
+for(const [file,name,setter] of [['Sales/Target.jsx','fetchTargets','setTargets'],['ERP/PeriodClosing.jsx','fetchFixedAssets','setFixedAssets'],['ERP/FinancialReports.jsx','fetchReport','setReportData']]){
+test(file+' latest request owns data/loading; old failure and unmount ignored',async()=>{
+const {source,found}=handler(file,name);assert(source.includes('return () => { requestId.current += 1; };'));
+const pending=[],writes=[],requestId={current:0};const state={api:{get:()=>new Promise((resolve,reject)=>pending.push({resolve,reject}))},requestId,isRealEstate:true,selectedPeriod:'2027-Q1',t:x=>x,toast:{error:x=>writes.push(['toast',x])},setLoading:x=>writes.push(['loading',x]),setLoadError:x=>writes.push(['error',x]),setReportData:x=>writes.push(['data',x]),setTargets:x=>writes.push(['data',x]),setFixedAssets:x=>writes.push(['data',x])};
+const fn=Function(...Object.keys(state),'return '+found)(...Object.values(state));
+let old=fn('tb'),fresh=fn('pl');pending[1].resolve({data:{data:['fresh']}});await fresh;const after=writes.length;pending[0].resolve({data:{data:['old']}});await old;assert.equal(writes.length,after);assert(writes.some(x=>x[0]==='data'&&x[1]?.[0]==='fresh'));
+old=fn('tb');fresh=fn('pl');pending[3].resolve({data:{data:['newer']}});await fresh;const beforeFailure=writes.length;pending[2].reject(Error('old request failed'));await old;assert.equal(writes.length,beforeFailure);
+const unmounted=fn('tb');requestId.current++;const beforeUnmount=writes.length;pending[4].resolve({data:{data:['unmounted']}});await unmounted;assert.equal(writes.length,beforeUnmount);
+});}

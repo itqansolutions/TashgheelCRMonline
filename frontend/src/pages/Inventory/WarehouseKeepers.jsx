@@ -10,6 +10,7 @@ const WarehouseKeepers = () => {
   const { t, isRTL } = useLanguage();
   const [keepers, setKeepers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
@@ -25,8 +26,9 @@ const WarehouseKeepers = () => {
   useEffect(() => {
     const fetchKeepers = async () => {
       setLoading(true);
+      setLoadError(false);
       try {
-        const res = await api.get('/users').catch(() => ({ data: { data: [] } }));
+        const res = await api.get('/users');
         const users = res.data?.data || [];
         const mapped = users.map(u => ({
           id: u.id,
@@ -39,6 +41,7 @@ const WarehouseKeepers = () => {
         }));
         setKeepers(mapped);
       } catch (err) {
+        setLoadError(true);
         toast.error(t('inventory.keepers.loadError'));
       } finally {
         setLoading(false);
@@ -78,10 +81,10 @@ const WarehouseKeepers = () => {
 
     if (editingId) {
       setKeepers(keepers.map(k => k.id === editingId ? { ...k, ...form } : k));
-      toast.success(t('inventory.keepers.updateSuccess'));
+      toast(isRTL ? 'معاينة محلية فقط. لم يتم حفظ التعديل على الخادم.' : 'Local preview only. Changes were not saved to the server.');
     } else {
       setKeepers([...keepers, { id: Date.now(), ...form }]);
-      toast.success(t('inventory.keepers.createSuccess'));
+      toast(isRTL ? 'معاينة محلية فقط. لم يتم إنشاء أمين مخزن على الخادم.' : 'Local preview only. No warehouse keeper was created on the server.');
     }
     setShowModal(false);
   };
@@ -89,7 +92,7 @@ const WarehouseKeepers = () => {
   const handleDelete = (id) => {
     if (!window.confirm(t('inventory.keepers.confirmDelete'))) return;
     setKeepers(keepers.filter(k => k.id !== id));
-    toast.success(t('inventory.keepers.deleteSuccess'));
+    toast(isRTL ? 'تم الإخفاء من المعاينة فقط. لم يتم حذف أي بيانات من الخادم.' : 'Hidden from the preview only. No server data was deleted.');
   };
 
 
@@ -109,6 +112,11 @@ const WarehouseKeepers = () => {
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'}>
       <WarehouseSubNav />
+      <div role="note" style={{ margin: '16px 24px', padding: '16px', background: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', borderRadius: '8px' }}>
+        {isRTL
+          ? 'هذه الشاشة معاينة محلية فقط وليست إدارة فعلية لأمناء المخازن. الأسماء من قائمة المستخدمين؛ تعيينات المخازن ومستويات الوصول المعروضة افتراضية وغير مؤكدة. الإضافة والتعديل والإخفاء هنا لا تُحفظ على الخادم وتُفقد عند إعادة التحميل، ولا تغيّر صلاحيات أي مستخدم.'
+          : 'Local preview only, not warehouse keeper management. Names come from the user list; displayed warehouse assignments and access levels are placeholders, not verified assignments. Add, edit and hide actions are not saved, are lost on reload, and do not change user permissions.'}
+      </div>
       <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -137,6 +145,8 @@ const WarehouseKeepers = () => {
         <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
           {loading ? (
             <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>{t('inventory.keepers.loading')}</div>
+          ) : loadError ? (
+            <div role="alert" style={{ padding: '24px', color: '#991b1b' }}>{t('inventory.keepers.loadError')}</div>
           ) : (
             <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
               <thead>

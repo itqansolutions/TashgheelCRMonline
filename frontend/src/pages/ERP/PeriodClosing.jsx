@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Lock, Calendar, DollarSign, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
@@ -6,20 +6,29 @@ import { Lock, Calendar, DollarSign, CheckCircle2, AlertTriangle, RefreshCw } fr
 const PeriodClosing = () => {
   const [fixedAssets, setFixedAssets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const requestId = useRef(0);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     fetchFixedAssets();
+    return () => { requestId.current += 1; };
   }, []);
 
   const fetchFixedAssets = async () => {
+    const currentRequest = ++requestId.current;
     setLoading(true);
+    setLoadError('');
     try {
       const res = await api.get('/erp/closing/assets');
-      setFixedAssets(res.data.data || []);
+      if (currentRequest === requestId.current) setFixedAssets(res.data.data || []);
     } catch (err) {
-      toast.error('Failed to load fixed assets');
+      if (currentRequest !== requestId.current) return;
+      setFixedAssets([]);
+      setLoadError(err.response?.data?.code === 'ERP_ACCOUNTING_DISABLED'
+        ? 'ERP Accounting is not enabled. Fixed asset data is unavailable.'
+        : 'Could not load fixed assets. This does not mean there are no assets.');
     } finally {
-      setLoading(false);
+      if (currentRequest === requestId.current) setLoading(false);
     }
   };
 
@@ -50,6 +59,11 @@ const PeriodClosing = () => {
         <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '12px', color: '#1e293b' }}>Fixed Assets Directory & Depreciation Engine</h3>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '30px', color: '#64748b' }}>Loading Fixed Assets...</div>
+        ) : loadError ? (
+          <div role="alert" style={{ padding: '24px', color: '#991b1b' }}>
+            <p>{loadError}</p>
+            <button type="button" style={{ marginInlineStart: '12px', marginTop: '8px', padding: '8px 16px', border: '1px solid #c7d2fe', borderRadius: '8px', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }} onClick={fetchFixedAssets}>Retry</button>
+          </div>
         ) : fixedAssets.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>No Fixed Assets Registered</div>
         ) : (
@@ -71,7 +85,7 @@ const PeriodClosing = () => {
                   <td style={{ padding: '10px', fontWeight: '600' }}>{fa.name}</td>
                   <td style={{ padding: '10px' }}>{Number(fa.acquisition_cost).toLocaleString()} EGP</td>
                   <td style={{ padding: '10px', color: '#ef4444' }}>{Number(fa.accumulated_depreciation || 0).toLocaleString()} EGP</td>
-                  <td style={{ padding: '10px', fontWeight: '700', color: '#10b981' }}>{Number(fa.net_book_value || fa.acquisition_cost).toLocaleString()} EGP</td>
+                  <td style={{ padding: '10px', fontWeight: '700', color: '#10b981' }}>{Number(fa.net_book_value ?? fa.acquisition_cost).toLocaleString()} EGP</td>
                   <td style={{ padding: '10px' }}>
                     <button
                       onClick={() => handleRunDepreciation(fa.id)}

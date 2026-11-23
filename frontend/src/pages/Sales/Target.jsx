@@ -1,21 +1,16 @@
 import Modal from '../../components/Common/Modal';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import SalesSubNav from '../../components/Sales/SalesSubNav';
+import { currentQuarter, targetPeriods } from '../../utils/targetPeriods.mjs';
 import {
   Target as TargetIcon, Plus, Edit2, Trash2, TrendingUp, Award, DollarSign,
   Calendar, CheckCircle2, User, X, Eye, Building2, Home, FileText, Clock, Layers, AlertTriangle
 } from 'lucide-react';
 
-const PERIOD_VALUES = [
-  'All Periods',
-  '2026-10', '2026-11', '2026-12',
-  '2026-Q1', '2026-Q2', '2026-Q3', '2026-Q4',
-  '2026'
-];
 
 const Target = () => {
   const { user } = useAuth();
@@ -26,7 +21,9 @@ const Target = () => {
   const [targets, setTargets] = useState([]);
   const [salesmen, setSalesmen] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState('2026-Q3');
+  const requestId = useRef(0);
+  const [loadError, setLoadError] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState(currentQuarter);
   const [showModal, setShowModal] = useState(false);
   const [editingTarget, setEditingTarget] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -39,42 +36,35 @@ const Target = () => {
 
   const [form, setForm] = useState({
     user_id: '',
-    period: '2026-Q3',
+    period: currentQuarter(),
     target_amount: '',
     target_units: 5,
     commission_rate: 3.5,
     notes: ''
   });
 
-  const getPeriodLabel = (val) => {
-    switch (val) {
-      case 'All Periods': return t('sales.targets.allPeriods');
-      case '2026-10': return isRTL ? '2026-10 (أكتوبر 2026)' : '2026-10 (October 2026)';
-      case '2026-11': return isRTL ? '2026-11 (نوفمبر 2026)' : '2026-11 (November 2026)';
-      case '2026-12': return isRTL ? '2026-12 (ديسمبر 2026)' : '2026-12 (December 2026)';
-      case '2026-Q1': return isRTL ? '2026-Q1 (الربع الأول)' : '2026-Q1 (Jan - Mar)';
-      case '2026-Q2': return isRTL ? '2026-Q2 (الربع الثاني)' : '2026-Q2 (Apr - Jun)';
-      case '2026-Q3': return isRTL ? '2026-Q3 (الربع الثالث)' : '2026-Q3 (Jul - Sep)';
-      case '2026-Q4': return isRTL ? '2026-Q4 (الربع الرابع)' : '2026-Q4 (Oct - Dec)';
-      case '2026': return isRTL ? 'Full Year 2026 (سنوي)' : 'Full Year 2026 (Annual)';
-      default: return val;
-    }
-  };
+  const PERIOD_VALUES = targetPeriods(targets, selectedPeriod, form.period);
+  const getPeriodLabel = (value) => value === 'All Periods' ? t('sales.targets.allPeriods') : value;
 
   const fetchTargets = async () => {
+    const currentRequest = ++requestId.current;
     setLoading(true);
+    setLoadError(false);
     try {
       const baseUrl = isRealEstate ? '/re-targets' : '/sales/targets';
       const url = selectedPeriod === 'All Periods'
         ? baseUrl
         : `${baseUrl}?period=${encodeURIComponent(selectedPeriod)}`;
 
-      const res = await api.get(url).catch(() => ({ data: { data: [] } }));
-      setTargets(res.data?.data || []);
+      const res = await api.get(url);
+      if (currentRequest === requestId.current) setTargets(res.data?.data || []);
     } catch (err) {
+      if (currentRequest !== requestId.current) return;
+      setTargets([]);
+      setLoadError(true);
       toast.error(t('sales.targets.toasts.loadError'));
     } finally {
-      setLoading(false);
+      if (currentRequest === requestId.current) setLoading(false);
     }
   };
 
@@ -96,6 +86,7 @@ const Target = () => {
   useEffect(() => {
     fetchTargets();
     fetchSalesmen();
+    return () => { requestId.current += 1; };
   }, [selectedPeriod, isRealEstate]);
 
   const handleOpenModal = (target = null) => {
@@ -103,7 +94,7 @@ const Target = () => {
       setEditingTarget(target);
       setForm({
         user_id: String(target.user_id),
-        period: target.period || '2026-Q3',
+        period: target.period || currentQuarter(),
         target_amount: target.target_amount || '',
         target_units: target.target_units || 0,
         commission_rate: target.commission_rate || 3.5,
@@ -113,7 +104,7 @@ const Target = () => {
       setEditingTarget(null);
       setForm({
         user_id: salesmen.length > 0 ? String(salesmen[0].id) : '',
-        period: selectedPeriod !== 'All Periods' ? selectedPeriod : '2026-Q3',
+        period: selectedPeriod !== 'All Periods' ? selectedPeriod : currentQuarter(),
         target_amount: '',
         target_units: isRealEstate ? 5 : 0,
         commission_rate: 3.5,
@@ -217,6 +208,10 @@ const Target = () => {
       {/* Sales Navigation */}
       <SalesSubNav />
 
+      {loadError && <div role="alert" style={{ padding: '16px', marginBottom: '16px', color: '#991b1b', background: '#fef2f2' }}>
+        {isRTL ? 'تعذر تحميل المستهدفات. لا يمكن تأكيد وجودها أو عدمها.' : 'Targets could not be loaded. Their presence or absence is not confirmed.'}
+        <button type="button" style={{ marginInlineStart: '12px', marginTop: '8px', padding: '8px 16px', border: '1px solid #c7d2fe', borderRadius: '8px', background: '#eef2ff', color: '#4338ca', cursor: 'pointer' }} onClick={fetchTargets}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+      </div>}
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
@@ -266,8 +261,8 @@ const Target = () => {
         </div>
       </div>
 
-      {/* Team Overall Performance Banner */}
-      <div style={{
+      {/* Totals are unknown while loading or after a failed request. */}
+      {!loading && !loadError && <div style={{
         background: isRealEstate
           ? 'linear-gradient(135deg, #0c4a6e 0%, #0369a1 100%)'
           : 'linear-gradient(135deg, #064e3b 0%, #047857 100%)',
@@ -325,13 +320,15 @@ const Target = () => {
         <div style={{ height: '10px', background: 'rgba(255,255,255,0.2)', borderRadius: '10px', overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${Math.min(overallValuePct, 100)}%`, background: isRealEstate ? '#38bdf8' : '#34d399', transition: 'width 0.6s ease' }} />
         </div>
-      </div>
+      </div>}
 
       {/* Salesmen Target Cards */}
       {loading ? (
         <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8', background: 'white', borderRadius: '16px' }}>
           {t('sales.targets.loading')}
         </div>
+      ) : loadError ? (
+        <div style={{ padding: '24px', textAlign: 'center' }}>{t('sales.targets.toasts.loadError')}</div>
       ) : targets.length === 0 ? (
         <div style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '60px', textAlign: 'center' }}>
           <TargetIcon size={48} style={{ color: '#cbd5e1', marginBottom: '16px' }} />

@@ -1,32 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-import toast from 'react-hot-toast';
-import { FileCheck, Send, CheckCircle2, AlertTriangle, RefreshCw, Settings, ShieldCheck, ExternalLink, Search, Cpu } from 'lucide-react';
+import { FileCheck, CheckCircle2, AlertTriangle, Search } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav';
 
 const EInvoice = () => {
+  const { isRTL } = useLanguage();
+  const [loadError, setLoadError] = useState(false);
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [submittingId, setSubmittingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
-
-  // ETA Configuration State
-  const [showConfigModal, setShowConfigModal] = useState(false);
-  const [etaConfig, setEtaConfig] = useState({
-    tax_registration_no: '123-456-789',
-    client_id: 'eta_client_sec_9921',
-    client_secret: '••••••••••••••••',
-    environment: 'Pre-Production (Sandbox)', // 'Pre-Production (Sandbox)' | 'Production'
-    token_status: 'Connected (Valid until 2026-12-31)',
-  });
 
   useEffect(() => {
     // Fetch real sales invoices for ETA submission queue
     const fetchInvoices = async () => {
       setLoading(true);
       try {
-        const res = await api.get('/invoices').catch(() => ({ data: { data: [] } }));
+        const res = await api.get('/invoices');
         const list = res.data.data || res.data || [];
         const mapped = list.map((inv) => ({
           id: inv.id,
@@ -41,7 +32,7 @@ const EInvoice = () => {
         }));
         setInvoices(mapped);
       } catch (err) {
-        toast.error('Failed to load ETA e-invoicing queue');
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -49,28 +40,6 @@ const EInvoice = () => {
 
     fetchInvoices();
   }, []);
-
-  const handleSubmitToETA = async (invoiceId) => {
-    setSubmittingId(invoiceId);
-    try {
-      // Simulate ETA Portal XML/JSON submission & digital signature
-      await new Promise(r => setTimeout(r, 1200));
-
-      const fakeUuid = `ETA-${Math.random().toString(36).substring(2, 10).toUpperCase()}-${Date.now()}`;
-      setInvoices(invoices.map(inv => inv.id === invoiceId ? {
-        ...inv,
-        eta_status: 'Validated',
-        eta_uuid: fakeUuid,
-        submitted_at: new Date().toLocaleString()
-      } : inv));
-
-      toast.success(`Invoice #${invoiceId} successfully submitted & validated by ETA!`);
-    } catch (err) {
-      toast.error('ETA submission failed: Please check tax registration & item codes');
-    } finally {
-      setSubmittingId(null);
-    }
-  };
 
   const filtered = invoices.filter(inv => {
     const matchesSearch = inv.invoice_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -80,19 +49,8 @@ const EInvoice = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const modalStyle = {
-    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-    background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px'
-  };
-
-  const inputStyle = {
-    width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px',
-    fontSize: '14px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box'
-  };
-
   return (
-    <div className="einvoice-read-page">
+    <div className="einvoice-read-page" dir={isRTL ? 'rtl' : 'ltr'}>
       <IntegrationsSubNav />
       <div className="einvoice-content" style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
@@ -102,47 +60,13 @@ const EInvoice = () => {
               <FileCheck size={24} style={{ color: '#0ea5e9' }} /> ETA E-Invoicing Integration
             </h2>
             <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '13px' }}>
-              Submit, digitally sign, and track commercial invoices on the Egyptian Tax Authority Portal
+              Read-only invoice records. ETA submission and digital signing are unavailable.
             </p>
           </div>
 
-          <button
-            onClick={() => setShowConfigModal(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px',
-              background: '#f1f5f9', color: '#0ea5e9', border: '1px solid #cbd5e1',
-              borderRadius: '10px', fontWeight: 800, cursor: 'pointer'
-            }}
-          >
-            <Settings size={16} /> ETA Portal Settings
-          </button>
         </div>
-
-        {/* ETA Portal Connection Card */}
-        <div className="einvoice-connection" style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '16px', padding: '20px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <ShieldCheck size={26} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <h4 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#0369a1' }}>Egyptian Tax Authority (ETA) SDK Status</h4>
-                <span style={{ padding: '2px 8px', borderRadius: '12px', background: '#dcfce7', color: '#15803d', fontSize: '11px', fontWeight: 800 }}>
-                  ● Active Token
-                </span>
-              </div>
-              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#0284c7' }}>
-                Tax ID: <strong>{etaConfig.tax_registration_no}</strong> · Environment: <strong>{etaConfig.environment}</strong>
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => toast.success('ETA API connection verified! Pre-production portal reachable.')}
-            style={{ padding: '8px 16px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <RefreshCw size={14} /> Test Portal Connection
-          </button>
+        <div role="alert" style={{ padding: '20px', marginBottom: '24px', border: '1px solid #fcd34d', borderRadius: '12px', background: '#fffbeb', color: '#92400e' }}>
+          {isRTL ? 'تكامل الفاتورة الإلكترونية غير متصل وغير معتمد. هذه قائمة قراءة فقط؛ لم يتم التحقق من الاتصال أو التوقيع أو إرسال أي فاتورة للضرائب. لا توجد بيانات اعتماد محفوظة من هذه الشاشة.' : 'E-invoicing is not connected or certified. This is a read-only invoice list. No connection, signature or tax submission has been verified, and this page does not save credentials.'}
         </div>
 
         {/* Search & Filter Bar */}
@@ -174,6 +98,8 @@ const EInvoice = () => {
         <div className="einvoice-queue" style={{ background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
           {loading ? (
             <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>Loading submission queue...</div>
+          ) : loadError ? (
+            <div role="alert" style={{ padding: '24px', color: '#991b1b' }}>{isRTL ? 'تعذر تحميل الفواتير. لا يمكن تأكيد محتوى القائمة.' : 'Invoice records could not be loaded. The queue is unknown.'}</div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>No invoices in queue</div>
           ) : (
@@ -192,7 +118,7 @@ const EInvoice = () => {
                 {filtered.map((inv) => {
                   const isValidated = inv.eta_status === 'Validated';
                   const isRejected = inv.eta_status.startsWith('Rejected');
-                  const isSubmitting = submittingId === inv.id;
+
 
                   return (
                     <tr key={inv.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -223,22 +149,9 @@ const EInvoice = () => {
                         {inv.eta_uuid || 'Not Generated Yet'}
                       </td>
                       <td style={{ padding: '14px 18px', textAlign: 'center' }}>
-                        {isValidated ? (
-                          <button
-                            onClick={() => toast.success(`Viewing ETA Portal Document ${inv.eta_uuid}`)}
-                            style={{ padding: '6px 12px', background: '#ede9fe', color: '#7c3aed', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <ExternalLink size={13} /> View on ETA
-                          </button>
-                        ) : (
-                          <button
-                            disabled={isSubmitting}
-                            onClick={() => handleSubmitToETA(inv.id)}
-                            style={{ padding: '6px 14px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                          >
-                            <Send size={13} /> {isSubmitting ? 'Submitting...' : 'Submit to ETA'}
-                          </button>
-                        )}
+                        <button disabled type="button" style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', color: '#64748b', cursor: 'not-allowed' }}>
+                          {isRTL ? 'الإرسال والبوابة غير متاحين' : 'ETA actions unavailable'}
+                        </button>
                       </td>
                     </tr>
                   );
@@ -248,81 +161,7 @@ const EInvoice = () => {
           )}
         </div>
 
-        {/* ETA Config Modal */}
-        {showConfigModal && (
-          <div className="einvoice-config-overlay" style={modalStyle}>
-            <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '480px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-              <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  ETA Integration Credentials
-                </h3>
-                <button onClick={() => setShowConfigModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>✕</button>
-              </div>
 
-              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Tax Registration Number</label>
-                  <input
-                    type="text"
-                    value={etaConfig.tax_registration_no}
-                    onChange={(e) => setEtaConfig({ ...etaConfig, tax_registration_no: e.target.value })}
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>ETA Client ID</label>
-                  <input
-                    type="text"
-                    value={etaConfig.client_id}
-                    onChange={(e) => setEtaConfig({ ...etaConfig, client_id: e.target.value })}
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>ETA Client Secret</label>
-                  <input
-                    type="password"
-                    value={etaConfig.client_secret}
-                    onChange={(e) => setEtaConfig({ ...etaConfig, client_secret: e.target.value })}
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>Environment</label>
-                  <select
-                    value={etaConfig.environment}
-                    onChange={(e) => setEtaConfig({ ...etaConfig, environment: e.target.value })}
-                    style={inputStyle}
-                  >
-                    <option value="Pre-Production (Sandbox)">Pre-Production (Sandbox / Testing)</option>
-                    <option value="Production">Production (Live Portal)</option>
-                  </select>
-                </div>
-
-                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button
-                    onClick={() => setShowConfigModal(false)}
-                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      toast.success('ETA Settings saved!');
-                      setShowConfigModal(false);
-                    }}
-                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
-                  >
-                    Save Credentials
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

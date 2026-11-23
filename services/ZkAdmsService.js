@@ -19,6 +19,7 @@ const parseAttLog = (line) => {
   const clean = line.replace(/^ATTLOG\s+/, '').trim();
   const parts = clean.split('\t');
   if (parts.length < 2) return null;
+  if (!parts[0]?.trim() || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(parts[1]?.trim() || '')) return null;
   return {
     badge_number: parts[0].trim(),
     timestamp: parts[1].trim(),          // "2025-08-17 09:05:00"
@@ -107,9 +108,14 @@ module.exports = (app) => {
         try {
           const device = await getOrRegisterDevice(sn);
 
-          // Parse ATTLOG lines from body
-          if (body && body.includes('ATTLOG')) {
-            const lines = body.split('\n').filter(l => l.trim().startsWith('ATTLOG'));
+          // Standard pushes identify ATTLOG in the query and send raw tab-separated
+          // rows. Keep support for the existing per-row ATTLOG prefix as well.
+          // Never reinterpret OPERLOG/user/template payloads as attendance.
+          const table = String(req.query.table || '').toUpperCase();
+          if (body && (!table || table === 'ATTLOG')) {
+            const lines = body.split(/\r?\n/).filter(l =>
+              table === 'ATTLOG' ? l.trim() : /^ATTLOG\s+/.test(l.trim())
+            );
             let processed = 0;
             for (const line of lines) {
               const parsed = parseAttLog(line);

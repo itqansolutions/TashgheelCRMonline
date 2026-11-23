@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../services/api';
 import { isInvalidDateRange } from '../../utils/dateRange';
+import { reportPreset } from '../../utils/reportPreset.mjs';
 import toast from 'react-hot-toast';
 import {
   BarChart3, TrendingUp, TrendingDown, DollarSign,
@@ -26,49 +27,22 @@ const Reports = ({ onSelectCustomer }) => {
   const { t, isRTL } = useLanguage();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const requestId = useRef(0);
   const [activeReportTab, setActiveReportTab] = useState('overview'); // overview, sales, collections, expenses, aging, cashflow
 
   // Filters
   const [datePreset, setDatePreset] = useState('this_month'); // today, this_month, last_month, this_quarter, this_year, all, custom
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(() => reportPreset('this_month')[0]);
+  const [dateTo, setDateTo] = useState(() => reportPreset('this_month')[1]);
   const [branchId, setBranchId] = useState('');
   const [branches, setBranches] = useState([]);
 
   // Calculate preset dates
   const applyPreset = (preset) => {
     setDatePreset(preset);
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = now.getMonth();
-
-    if (preset === 'today') {
-      const todayStr = now.toISOString().split('T')[0];
-      setDateFrom(todayStr);
-      setDateTo(todayStr);
-    } else if (preset === 'this_month') {
-      const firstDay = new Date(y, m, 1).toISOString().split('T')[0];
-      const lastDay = new Date(y, m + 1, 0).toISOString().split('T')[0];
-      setDateFrom(firstDay);
-      setDateTo(lastDay);
-    } else if (preset === 'last_month') {
-      const firstDay = new Date(y, m - 1, 1).toISOString().split('T')[0];
-      const lastDay = new Date(y, m, 0).toISOString().split('T')[0];
-      setDateFrom(firstDay);
-      setDateTo(lastDay);
-    } else if (preset === 'this_quarter') {
-      const qStartMonth = Math.floor(m / 3) * 3;
-      const firstDay = new Date(y, qStartMonth, 1).toISOString().split('T')[0];
-      const lastDay = new Date(y, qStartMonth + 3, 0).toISOString().split('T')[0];
-      setDateFrom(firstDay);
-      setDateTo(lastDay);
-    } else if (preset === 'this_year') {
-      setDateFrom(`${y}-01-01`);
-      setDateTo(`${y}-12-31`);
-    } else if (preset === 'all') {
-      setDateFrom('');
-      setDateTo('');
-    }
+    const range = reportPreset(preset);
+    if (range) { setDateFrom(range[0]); setDateTo(range[1]); }
   };
 
   // Initial preset
@@ -81,7 +55,12 @@ const Reports = ({ onSelectCustomer }) => {
   }, []);
 
   const fetchReports = useCallback(async () => {
+    const currentRequest = ++requestId.current;
+    setData(null);
+    setLoadError(false);
     if (isInvalidDateRange(dateFrom, dateTo)) {
+      setLoadError(true);
+      setLoading(false);
       toast.error(t('common.invalidDateRange'), { id: 'invalid-date-range' });
       return;
     }
@@ -93,18 +72,26 @@ const Reports = ({ onSelectCustomer }) => {
       if (branchId && branchId !== 'all') params.append('branch_id', branchId);
 
       const res = await api.get(`/finance/reports?${params.toString()}`);
-      setData(res.data);
+      if (currentRequest === requestId.current) setData(res.data);
     } catch (err) {
+      if (currentRequest !== requestId.current) return;
+      setLoadError(true);
       toast.error(t('finance.reports.messages.loadError'));
     } finally {
-      setLoading(false);
+      if (currentRequest === requestId.current) setLoading(false);
     }
   }, [dateFrom, dateTo, branchId, t]);
 
   useEffect(() => {
     if (datePreset !== 'custom' || (dateFrom && dateTo)) {
       fetchReports();
+    } else {
+      requestId.current += 1;
+      setData(null);
+      setLoadError(false);
+      setLoading(false);
     }
+    return () => { requestId.current += 1; };
   }, [fetchReports, datePreset]);
 
   const handlePrint = () => {
@@ -259,6 +246,12 @@ const Reports = ({ onSelectCustomer }) => {
         <div style={{ textAlign: 'center', padding: '80px', color: 'var(--text-muted)' }}>
           <RefreshCw size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '12px', opacity: 0.4 }} />
           <div style={{ fontWeight: 700 }}>{t('finance.reports.loading')}</div>
+        </div>
+      ) : loadError ? (
+        <div role="alert" style={{ padding: '20px', color: '#991b1b', background: '#fef2f2', borderRadius: '10px' }}>
+          {t('finance.reports.messages.loadError')}
+          <p>{isRTL ? 'لم يتم تأكيد أرقام التقرير للفلاتر الحالية.' : 'Report totals for the current filters have not been confirmed.'}</p>
+          <button type="button" onClick={fetchReports} style={{ marginTop: '12px', padding: '8px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', background: 'white', cursor: 'pointer' }}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
         </div>
       ) : !data ? null : (
         <>
