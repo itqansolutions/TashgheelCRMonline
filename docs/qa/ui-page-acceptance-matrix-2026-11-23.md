@@ -60,14 +60,14 @@ Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional
 | Integrations/PropertyFinderSettings.jsx |  | not individually accepted | not established in this matrix | no |
 | Integrations/WhatsAppSettings.jsx |  | not individually accepted | not established in this matrix | no |
 | Inventory/InventoryControl.jsx | 3 | selected editor shells only | not established in this matrix | no |
-| Inventory/ItemCard.jsx |  | not individually accepted | not established in this matrix | no |
+| Inventory/ItemCard.jsx | 23 | read-only item/ledger presentation | not established in this matrix | no |
 | Inventory/StockBalances.jsx | 5 | selected editor shells only | not established in this matrix | no |
-| Inventory/TransactionImpact.jsx |  | not individually accepted | not established in this matrix | no |
+| Inventory/TransactionImpact.jsx | 23 | read-only impact presentation | not established in this matrix | no |
 | Inventory/WarehouseKeepers.jsx | 3 | selected editor shells only | not established in this matrix | no |
 | Inventory/Warehouses.jsx | 3 | selected editor shells only | not established in this matrix | no |
 | Invoices.jsx |  | not individually accepted | not established in this matrix | no |
 | Login.jsx |  | not individually accepted | not established in this matrix | no |
-| Logs.jsx |  | not individually accepted | not established in this matrix | no |
+| Logs.jsx | 22 | read-only list/filter/detail presentation | not established in this matrix | no |
 | Marketing/WhatsAppCampaigns.jsx |  | not individually accepted | not established in this matrix | no |
 | Marketing/WhatsAppChat.jsx | 17 | selected editor shells only | not established in this matrix | no |
 | Marketing/WhatsAppChatbots.jsx | 16 | selected editor shells only | not established in this matrix | no |
@@ -109,8 +109,8 @@ Snapshot: 2026-11-23 15:57 Africa/Cairo. This is an evidence map, not functional
 
 ## Totals
 - 102 source page components.
-- 40 components with explicit bounded phase coverage in this matrix.
-- 62 components without individual phase acceptance in this matrix.
+- 43 components with explicit bounded phase coverage in this matrix.
+- 59 components without individual phase acceptance in this matrix.
 - Zero claims of complete end-to-end business acceptance.
 - Earlier phase-specific live evidence remains in the rollout QA log; this matrix conservatively lists only recent explicit captures.
 - No production writes are part of this matrix.

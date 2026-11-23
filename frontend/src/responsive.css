@@ -513,3 +513,18 @@
  .logs-page .logs-detail-panel .diff-row { grid-template-columns:minmax(0,1fr); }
  .logs-page .logs-detail-panel .diff-row > span { display:block; }
 }
+
+.inventory-read-page,.inventory-read-body { min-width:0; width:100%; box-sizing:border-box; }
+.inventory-read-page .inventory-read-body > div { min-width:0; border-radius:12px!important; }
+.inventory-read-page .inventory-read-body > div:first-child > div { min-width:0; max-width:100%; }
+.inventory-read-page .inventory-read-body h2,.inventory-read-page .inventory-read-body p { overflow-wrap:anywhere; }
+.inventory-read-page table { min-width:1050px; }
+.inventory-read-page table td { vertical-align:top; }
+.inventory-read-page table td .num-en { white-space:nowrap; }
+@media(max-width:768px) {
+ .inventory-read-page .inventory-read-body { padding:12px!important; }
+ .inventory-read-page .inventory-read-body > div:first-child { gap:16px; flex-wrap:wrap; }
+ .inventory-read-page .inventory-read-body > div:first-child > div:last-child { flex-wrap:wrap; width:100%; }
+ .inventory-read-page select { max-width:100%; min-width:0; width:100%; box-sizing:border-box; }
+ .inventory-read-page .inventory-read-body > div:nth-child(2) { padding:16px!important; }
+}

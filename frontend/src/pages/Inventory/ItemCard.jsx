@@ -66,9 +66,9 @@ const ItemCard = () => {
   const fmtMoney = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="inventory-read-page" dir={isRTL ? 'rtl' : 'ltr'}>
       <WarehouseSubNav />
-      <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
+      <div className="inventory-read-body" style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
