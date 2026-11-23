@@ -457,6 +457,19 @@ exports.updateReminder = async (req, res) => {
         }
 
         const act = existing.rows[0];
+        // Reminder changes on deals must obey the same permission and record scope as activity creation.
+        if (String(act.entity_type || '').toLowerCase() === 'deal') {
+            const { checkDealPermission } = require('../middleware/dealPermission');
+            if (!(await checkDealPermission(req.user.id, tenant_id, 'deal.log_activity', req.user.role))) {
+                return res.status(403).json({status:'error', code:'PERMISSION_DENIED', required_permission:'deal.log_activity', message:'Permission denied: "deal.log_activity" is required to update deal reminders.'});
+            }
+            const scope = await require('../services/accessScopeService').buildScopePredicate({user:req.user, tableAlias:'deals', assigneeCol:'assigned_to', paramIndex:3});
+            const params = [act.entity_id, tenant_id];
+            let where = 'id::text = $1::text AND tenant_id::text = $2::text';
+            if (scope.sql && scope.sql !== '1=1') { where += ` AND ${scope.sql}`; params.push(...scope.params); }
+            const deal = await db.query(`SELECT id FROM deals WHERE ${where}`, params);
+            if (!deal.rows.length) return res.status(404).json({status:'error', message:'Deal not found or unauthorized.'});
+        }
         const meta = typeof act.meta === 'string' ? JSON.parse(act.meta) : (act.meta || {});
 
         if (dismiss) {
