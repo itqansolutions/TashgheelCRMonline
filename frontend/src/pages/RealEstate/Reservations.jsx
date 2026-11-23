@@ -34,7 +34,7 @@ const Reservations = () => {
       return {
         text: (
           <span>
-            <span className="num-en">{days}</span> {t('realEstate.contracts.durationMonths', { count: '' }).trim() || 'd'} <span className="num-en">{hours}</span>h
+            <span className="num-en">{days}</span> {t('realEstate.reservations.dayUnit')} <span className="num-en">{hours}</span>h
           </span>
         ),
         ms
@@ -169,7 +169,7 @@ const Reservations = () => {
         { value: 'expiring', label: t('realEstate.reservations.filterExpiring') },
         { value: 'expired', label: t('realEstate.reservations.filterExpired') },
       ]} />
-      <SimpleTable
+      <SimpleTable mobileCards
         columns={columns}
         rows={rows}
         loading={loading}

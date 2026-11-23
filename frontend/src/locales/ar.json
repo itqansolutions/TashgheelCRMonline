@@ -322,6 +322,7 @@
     }
   },
   "customers": {
+    "emailInvalid": "اكتب بريدًا إلكترونيًا صحيحًا أو اتركه فارغًا",
     "matchMissingInputs": "النتائج ممكن تكون أقل دقة. أضف {{fields}} لهذا العميل للحصول على مطابقة أدق.",
     "missingMaxBudget": "الحد الأقصى للميزانية",
     "missingLocation": "المنطقة المفضلة",
@@ -634,7 +635,7 @@
     "dealTitlePlaceholder": "مثال: مشروع تطوير موقع إلكتروني",
     "selectPropertyUnit": "اختيار الوحدة العقارية (القطاع العقاري)",
     "selectAvailableUnit": "-- اختر وحدة متاحة --",
-    "unitAutoValueHint": "اختيار الوحدة يحدد قيمة الصفقة تلقائياً ويقوم بحجزها في النظام.",
+    "unitAutoValueHint": "اختيار الوحدة يحدد قيمة الصفقة تلقائياً. استخدم إجراء الحجز لحجزها.",
     "selectProductOptional": "اختيار المنتج (اختياري)",
     "noSpecificProduct": "-- بدون منتج محدد --",
     "linkToCustomer": "ربط بالعميل",
@@ -855,6 +856,9 @@
       }
     },
     "paymentModal": {
+      "treasuryAccount": "الخزنة / حساب التسوية",
+      "selectAccount": "اختر خزنة أو حساب تسوية",
+      "accountsError": "تعذر تحميل حسابات الخزنة",
       "title": "تسجيل تحصيل وإصدار سند قبض",
       "invoiceNo": "رقم الفاتورة:",
       "customer": "العميل:",
@@ -2239,6 +2243,7 @@
       "pending": "معلق"
     },
     "reservations": {
+      "dayUnit": "يوم",
       "title": "الحجوزات العقارية",
       "subtitle": "الوحدات المحجوزة حاليًا للصفقات المفتوحة، مع تتبع مواعيد الانتهاء والتمديد.",
       "activeReservations": "الحجوزات النشطة",

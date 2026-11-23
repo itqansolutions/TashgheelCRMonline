@@ -1,3 +1,4 @@
+import { isValidCustomerEmail } from '../utils/customerValidation';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext';
@@ -209,6 +210,15 @@ const Customers = () => {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }, 50);
+      return;
+    }
+
+    if (!isValidCustomerEmail(formData.email)) {
+      const message = t('customers.emailInvalid');
+      setFormErrors({ email: message });
+      setExpandedSections(prev => ({ ...prev, basic: true }));
+      toast.error(message);
+      document.getElementById('customer-input-email')?.focus();
       return;
     }
 
@@ -795,11 +805,15 @@ const Customers = () => {
                     <div className="form-group">
                       <label>{t('customers.email', 'Email Address')}</label>
                       <input
+                        id="customer-input-email"
                         type="email"
+                        aria-invalid={!!formErrors.email}
+                        aria-describedby={formErrors.email ? 'customer-email-error' : undefined}
                         placeholder="johndoe@email.com"
                         value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        onChange={(e) => { setFormData({...formData, email: e.target.value}); if (formErrors.email) setFormErrors(prev => ({ ...prev, email: null })); }}
                       />
+                      {formErrors.email && <div id="customer-email-error" role="alert" style={{ color: '#ef4444', fontSize: '12px' }}>{formErrors.email}</div>}
                     </div>
                   </div>
                 </div>

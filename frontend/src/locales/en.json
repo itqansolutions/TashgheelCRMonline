@@ -322,6 +322,7 @@
     }
   },
   "customers": {
+    "emailInvalid": "Enter a valid email address, or leave it blank",
     "matchMissingInputs": "Results may be less accurate. Add {{fields}} to this customer for better matches.",
     "missingMaxBudget": "max budget",
     "missingLocation": "preferred location",
@@ -634,7 +635,7 @@
     "dealTitlePlaceholder": "e.g. Website Overhaul Project",
     "selectPropertyUnit": "SELECT PROPERTY UNIT (REAL ESTATE)",
     "selectAvailableUnit": "-- Select Available Unit --",
-    "unitAutoValueHint": "Selecting a unit will automatically set the deal value and reserve the unit.",
+    "unitAutoValueHint": "Selecting a unit sets the deal value. Use Reserve to reserve it.",
     "selectProductOptional": "Select Product (Optional)",
     "noSpecificProduct": "-- No Specific Product --",
     "linkToCustomer": "Link to Customer",
@@ -855,6 +856,9 @@
       }
     },
     "paymentModal": {
+      "treasuryAccount": "Treasury / settlement account",
+      "selectAccount": "Select a treasury account",
+      "accountsError": "Could not load treasury accounts",
       "title": "Register Payment & Issue Receipt Voucher",
       "invoiceNo": "Invoice #:",
       "customer": "Customer:",
@@ -2239,6 +2243,7 @@
       "pending": "Pending"
     },
     "reservations": {
+      "dayUnit": "d",
       "title": "Reservations",
       "subtitle": "Units currently held for open deals, with expiry and extension tracking.",
       "activeReservations": "Active Reservations",

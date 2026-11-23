@@ -1,3 +1,4 @@
+const { resolveCollectionTreasury } = require('../services/resolveCollectionTreasury');
 const { collectionSource } = require('../services/collectionSource');
 const db = require('../config/db');
 const { logCreate, logUpdate, logDelete, logAction, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
@@ -653,67 +654,10 @@ const recordPaymentInternal = async ({
 
         // 4. Resolve & Validate Treasury Account
         const method = (payment_method || 'cash').toLowerCase();
-        let resolvedTreasuryId = treasury_account_id ? parseInt(treasury_account_id, 10) : null;
-
-        if (resolvedTreasuryId && !isNaN(resolvedTreasuryId)) {
-            // Verify explicitly provided treasury account
-            const taCheck = await client.query(
-                `SELECT id, name, type, is_active, branch_id
-                 FROM treasury_accounts
-                 WHERE id = $1 AND tenant_id::text = $2::text`,
-                [resolvedTreasuryId, tenant_id]
-            );
-
-            if (taCheck.rows.length === 0) {
-                const err = new Error('Specified treasury account not found or unauthorized');
-                err.status = 400;
-                throw err;
-            }
-
-            const acc = taCheck.rows[0];
-            if (!acc.is_active) {
-                const err = new Error(`Specified treasury account '${acc.name}' is inactive`);
-                err.status = 400;
-                throw err;
-            }
-
-            if (invBranchId && acc.branch_id && String(acc.branch_id) !== String(invBranchId)) {
-                const err = new Error('Specified treasury account belongs to another branch');
-                err.status = 400;
-                throw err;
-            }
-        } else {
-            // Rule 1: Card and check require explicit settlement account selection and NEVER auto-fallback
-            if (method === 'card' || method === 'check') {
-                const err = new Error(`Payment method '${method}' requires explicit treasury_account_id selection. Automatic fallback is not permitted for card/check.`);
-                err.status = 400;
-                throw err;
-            }
-
-            // Rule 2: Determine required type strictly for standard cash/bank methods
-            const requiredType = (method === 'bank_transfer' || method === 'bank') ? 'bank' : 'cash';
-
-            // Rule 3: Only match active DEFAULT accounts (is_default = true) - ZERO random fallback
-            const defRes = await client.query(
-                `SELECT id FROM treasury_accounts
-                 WHERE tenant_id::text = $1::text
-                   AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
-                   AND type = $3
-                   AND is_default = true
-                   AND is_active = true
-                 ORDER BY (CASE WHEN branch_id::text = $2::text THEN 0 ELSE 1 END) ASC
-                 LIMIT 1`,
-                [tenant_id, invBranchId ? String(invBranchId) : null, requiredType]
-            );
-
-            if (defRes.rows.length > 0) {
-                resolvedTreasuryId = defRes.rows[0].id;
-            } else {
-                const err = new Error(`No active default ${requiredType} treasury account found for this branch/tenant. Please specify a treasury account or configure a default account in Finance Settings.`);
-                err.status = 400;
-                throw err;
-            }
-        }
+        const treasury = await resolveCollectionTreasury(client, {
+            tenant_id, branch_id: invBranchId, treasury_account_id, payment_method: method
+        });
+        const resolvedTreasuryId = treasury.id;
 
         // 5. Insert payment record
         const payRes = await client.query(`

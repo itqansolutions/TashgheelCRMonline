@@ -112,6 +112,7 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
 
   return (
     <div className="c360-container" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '600px' }}>
+      <style>{`@media(max-width:600px){.c360-container .c360-identity{align-items:flex-start!important;gap:10px!important}.c360-container .c360-identity-badges h2{flex-basis:100%;font-size:17px!important}.c360-container .c360-identity-badges span{max-width:100%}}`}</style>
       {/* ── Top Header Bar ────────────────────────────────────────── */}
       <div style={{
         background: 'linear-gradient(135deg, #1e1e38 0%, #2a2b4c 100%)',
@@ -126,9 +127,9 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
       }}>
         {/* Row 1: Profile & Badges */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div className="c360-identity" style={{ display: 'flex', alignItems: 'center', gap: '16px', minWidth: 0, maxWidth: '100%' }}>
             <div style={{
-              width: '56px',
+              width: '56px', flexShrink: 0,
               height: '56px',
               borderRadius: '16px',
               background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
@@ -142,9 +143,9 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
             }}>
               {(customer.name || 'C')[0]?.toUpperCase()}
             </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#fff' }}>
+            <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+              <div className="c360-identity-badges" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h2 style={{ minWidth: 0, overflowWrap: 'anywhere', margin: 0, fontSize: '20px', fontWeight: 800, color: '#fff' }}>
                   {customer.name || t('customers.customerProfile', 'Customer Profile')}
                 </h2>
                 <span style={{
@@ -323,7 +324,7 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {/* TAB 1: OVERVIEW */}
           {activeTab === 'overview' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: '20px' }}>
               {/* Identity Details Card */}
               <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '20px' }}>
                 <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>

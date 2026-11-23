@@ -1,3 +1,4 @@
+const { isValidCustomerEmail } = require('../utils/customerValidation');
 const db = require('../config/db');
 const accessScopeService = require('../services/accessScopeService');
 const notificationService = require('../services/notificationService');
@@ -263,6 +264,7 @@ exports.getCustomerById = async (req, res) => {
 // @route   POST /api/customers
 // @access  Private
 exports.createCustomer = async (req, res) => {
+  if (!isValidCustomerEmail(req.body.email)) return res.status(400).json({ status: 'error', message: 'Invalid email address', field: 'email' });
   const {
     name, company_name, email, phone, address, source_id, assigned_to, manager_id, status,
     entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms,
@@ -372,6 +374,7 @@ exports.createCustomer = async (req, res) => {
 // @route   PUT /api/customers/:id
 // @access  Private
 exports.updateCustomer = async (req, res) => {
+  if (!isValidCustomerEmail(req.body.email)) return res.status(400).json({ status: 'error', message: 'Invalid email address', field: 'email' });
   const {
     name, company_name, email, phone, address, source_id, assigned_to, manager_id, status,
     entity_type, budget_min, budget_max, preferred_area_min, preferred_area_max, preferred_location, preferred_rooms,

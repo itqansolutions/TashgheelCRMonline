@@ -116,13 +116,24 @@ export const ActionButton = ({ color = '#2563eb', outline = false, children, ...
   </button>
 );
 
-export const SimpleTable = ({ columns, rows, loading, empty, rowStyle }) => {
+export const SimpleTable = ({ columns, rows, loading, empty, rowStyle, mobileCards = false }) => {
   const { t, isRTL } = useLanguage();
   const defaultEmpty = empty || t('realEstate.common.noRecords');
   const defaultLoading = t('realEstate.common.loading');
 
   return (
-    <div style={{ background: 'var(--bg-card, #fff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: '12px', overflowX: 'auto' }}>
+    <div className={mobileCards ? 're-mobile-cards' : undefined} style={{ background: 'var(--bg-card, #fff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: '12px', overflowX: 'auto' }}>
+      {mobileCards && <style>{`
+        @media(max-width:600px) {
+          .re-mobile-cards { overflow-x: visible !important; }
+          .re-mobile-cards table, .re-mobile-cards tbody, .re-mobile-cards tr, .re-mobile-cards td { display: block; width: 100%; box-sizing: border-box; }
+          .re-mobile-cards thead { display:none; }
+          .re-mobile-cards tr { padding: 12px; }
+          .re-mobile-cards td { padding: 7px 0 !important; text-align: start !important; overflow-wrap: anywhere; }
+          .re-mobile-cards td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; font-weight:700; color:#64748b; margin-bottom:3px; }
+          .re-mobile-cards td > div { flex-wrap:wrap; }
+        }
+      `}</style>}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
         <thead>
           <tr style={{ background: '#f8fafc', color: '#475569', textAlign: isRTL ? 'right' : 'left' }}>
@@ -142,7 +153,7 @@ export const SimpleTable = ({ columns, rows, loading, empty, rowStyle }) => {
             rows.map((r, idx) => (
               <tr key={r.id ?? idx} style={{ borderBottom: '1px solid #f1f5f9', ...(rowStyle ? rowStyle(r) : {}) }}>
                 {columns.map((c) => (
-                  <td key={c.key} style={{ padding: '10px 12px', verticalAlign: 'middle', textAlign: c.align || (isRTL ? 'right' : 'left') }}>
+                  <td key={c.key} data-label={mobileCards ? c.label : undefined} style={{ padding: '10px 12px', verticalAlign: 'middle', textAlign: c.align || (isRTL ? 'right' : 'left') }}>
                     {c.render ? c.render(r[c.key], r) : (r[c.key] ?? '—')}
                   </td>
                 ))}

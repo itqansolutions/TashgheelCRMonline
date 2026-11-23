@@ -175,6 +175,16 @@ const Header = ({ toggleSidebar }) => {
         [dir='rtl'] .user-dropdown { right: auto; left: 0; }
         [dir='rtl'] .notification-dropdown { right: auto; left: 0px; }
         [dir='rtl'] .badge { right: auto; left: 0px; }
+        @media(max-width:600px) {
+          .header { height:auto; min-height:56px; padding:8px 12px; gap:8px; flex-wrap:wrap; }
+          .header-left { width:100%; min-width:0; }
+          .search-bar, .search-bar:focus-within { width:100%; box-sizing:border-box; }
+          .header-right { width:100%; min-width:0; gap:6px; justify-content:space-between; flex-wrap:wrap; }
+          .header-right .branch-trigger { max-width:125px; padding:6px; color:var(--text-main); }
+          .header-right .branch-trigger > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+          .header-right .lang-toggle-btn { padding:6px; flex-shrink:0; }
+          .header .notification-dropdown { position:fixed; inset-inline:12px; top:110px; width:auto; }
+        }
       `}</style>
 
       <div className="header-left" onClick={() => { setIsDropdownOpen(false); setIsNotificationsOpen(false); }}>

@@ -69,6 +69,26 @@ const res=()=>({code:200,status(n){this.code=n;return this},json(b){this.body=b;
  r=res();await fin.getSummary(req(),r);assert.equal(r.body.data.totalIncome,700);
  r=res();await fin.getFinancialReports(req(),r);assert.equal(r.body.collections.total_collected,700);assert.equal(r.body.cashflow.by_treasury_account[0].inflow,700);
  console.log('PASS mixed UUID/varchar deployed-schema regression across summary/income/report and treasury subquery');
+ // New invoice UI sends an explicit account even when no default exists.
+ await pool.query('UPDATE treasury_accounts SET is_default=false');
+ const paymentCount=(await pool.query('SELECT COUNT(*) FROM payments')).rows[0].count;
+ const receiptCount=(await pool.query('SELECT COUNT(*) FROM finance_vouchers')).rows[0].count;
+ for(const body of [{amount:10,treasury_account_id:'4bad'},{amount:10,treasury_account_id:999},{amount:10,payment_method:'bank_transfer',treasury_account_id:4},{amount:10,payment_method:'card'},{amount:10,payment_method:'unsupported',treasury_account_id:4}]) {
+   r=res();await fin.createInvoicePaymentDirect(req({params:{id:'8'},body}),r);assert.equal(r.code,400,JSON.stringify(body));
+ }
+ assert.equal((await pool.query('SELECT COUNT(*) FROM payments')).rows[0].count,paymentCount);
+ assert.equal((await pool.query('SELECT COUNT(*) FROM finance_vouchers')).rows[0].count,receiptCount);
+ await pool.query('UPDATE treasury_accounts SET is_active=false WHERE id=4');
+ r=res();await fin.createInvoicePaymentDirect(req({params:{id:'8'},body:{amount:100,payment_method:'cash',treasury_account_id:4}}),r);assert.equal(r.code,400);
+ await pool.query('UPDATE treasury_accounts SET is_active=true WHERE id=4');
+ r=res();await fin.createInvoicePaymentDirect(req({params:{id:'8'},body:{amount:100,payment_method:'cash',treasury_account_id:4}}),r);assert.equal(r.code,201,JSON.stringify(r.body));assert.equal(r.body.data.treasury_account_id,4);
+ const saved=await pool.query('SELECT * FROM payments WHERE invoice_id=8 ORDER BY id DESC LIMIT 1');assert.equal(saved.rows[0].treasury_account_id,4);assert.equal(Number(saved.rows[0].amount),100);
+ assert.equal(Number((await pool.query('SELECT COUNT(*) FROM payments')).rows[0].count),Number(paymentCount)+1);
+ assert.equal(Number((await pool.query('SELECT COUNT(*) FROM finance_vouchers')).rows[0].count),Number(receiptCount)+1);
+ r=res();await fin.getSummary(req(),r);assert.equal(r.body.data.totalIncome,800);assert.equal(r.body.data.totalOutstanding,800);
+ r=res();await fin.getTreasuryAccounts(req(),r);assert.equal(r.body.totals.total_balance,800);
+ r=res();await fin.getFinancialReports(req(),r);assert.equal(r.body.collections.total_collected,800);
+ console.log('PASS explicit invoice treasury without a default: saved payment/voucher, summary/report/treasury and outstanding reconcile exactly once; invalid, inactive and wrong-type selection cause no writes');
  console.log('ISOLATED_EFFECT_REGRESSION_COMPLETE');
 
 

@@ -56,6 +56,8 @@ const FinanceDashboard = () => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentTreasury, setPaymentTreasury] = useState('');
+  const [paymentAccounts, setPaymentAccounts] = useState([]);
 
   // Voucher Print / Preview Modal State
   const [selectedVoucherForPreview, setSelectedVoucherForPreview] = useState(null);
@@ -242,19 +244,28 @@ const FinanceDashboard = () => {
     }
   };
 
-  const openPaymentModal = (invoice) => {
+  const openPaymentModal = async (invoice) => {
+      try {
+          const res = await api.get('/finance/treasury/accounts');
+          setPaymentAccounts((res.data.data || []).filter(a => a.is_active));
+      } catch (err) { toast.error(err.response?.data?.message || t('finance.paymentModal.accountsError')); return; }
+      setPaymentMethod('cash');
+      setPaymentTreasury('');
+      setPaymentNotes('');
       setSelectedInvoice(invoice);
       setPaymentAmount(invoice.remaining_balance);
       setShowPaymentModal(true);
   };
 
   const handlePaymentSubmit = async () => {
-      if (!paymentAmount || parseFloat(paymentAmount) <= 0) return;
+      if (isSubmitting || !paymentAmount || parseFloat(paymentAmount) <= 0) return;
+      if (!paymentTreasury) { toast.error(t('finance.paymentModal.selectAccount')); return; }
       setIsSubmitting(true);
       try {
           const res = await api.post(`/finance/invoices/${selectedInvoice.id}/payments`, {
               amount: paymentAmount,
               payment_method: paymentMethod,
+              treasury_account_id: paymentTreasury,
               notes: paymentNotes
           });
           toast.success(t('finance.paymentModal.paymentSuccess'));
@@ -850,7 +861,7 @@ const FinanceDashboard = () => {
       {/* Payment Registration Modal */}
       {showPaymentModal && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', direction: isRTL ? 'rtl' : 'ltr' }}>
-              <div style={{ background: 'var(--bg-card)', padding: '32px', borderRadius: '16px', width: '440px', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--glass-border)' }}>
+              <div style={{ background: 'var(--bg-card)', padding: '32px', borderRadius: '16px', width: 'min(440px, calc(100vw - 24px))', maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', boxSizing: 'border-box', boxShadow: 'var(--shadow-xl)', border: '1px solid var(--glass-border)' }}>
                   <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 800 }}>{t('finance.paymentModal.title')}</h3>
                   
                   <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--glass-border)' }}>
@@ -880,7 +891,7 @@ const FinanceDashboard = () => {
 
                   <div style={{ marginBottom: '16px' }}>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.paymentModal.paymentMethod')}</label>
-                      <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}>
+                      <select value={paymentMethod} onChange={e => { setPaymentMethod(e.target.value); setPaymentTreasury(''); }} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}>
                           <option value="cash" style={{color:'black'}}>{t('finance.paymentModal.methods.cash')}</option>
                           <option value="bank_transfer" style={{color:'black'}}>{t('finance.paymentModal.methods.bank_transfer')}</option>
                           <option value="card" style={{color:'black'}}>{t('finance.paymentModal.methods.card')}</option>
@@ -888,6 +899,13 @@ const FinanceDashboard = () => {
                       </select>
                   </div>
                   
+                  <div style={{ marginBottom: '16px' }}>
+                      <label htmlFor="invoice-payment-treasury" style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>{t('finance.paymentModal.treasuryAccount')}</label>
+                      <select id="invoice-payment-treasury" value={paymentTreasury} onChange={e => setPaymentTreasury(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'var(--bg-card)', color: 'var(--text-main)' }}>
+                          <option value="">{t('finance.paymentModal.selectAccount')}</option>
+                          {paymentAccounts.filter(a => a.type === (paymentMethod === 'cash' ? 'cash' : 'bank')).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </select>
+                  </div>
                   <div style={{ marginBottom: '24px' }}>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.paymentModal.notesReference')}</label>
                       <input 
