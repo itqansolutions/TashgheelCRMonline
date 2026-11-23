@@ -47,3 +47,36 @@ No customer or production database is contacted by tests. Tests cover inactive/m
 - https://docs.railway.com/deployments/deployment-actions
 - https://www.postgresql.org/docs/18/app-pgdump.html
 - https://www.postgresql.org/docs/18/app-pgrestore.html
+
+## 2026-11-23 one-trial revision, NOT DEPLOYED
+
+Owner chose personal Google Drive, not Railway bucket storage. Owner authorized a
+restricted drive.file offline grant and ONE measured Railway trial within a $1
+operational stop/report budget, not an enforceable invoice ceiling. No daily
+activation or retention deletion is authorized. Original S3 adapter remains
+preparation only and is not the selected destination.
+
+`trial.py` plus `drive.py` prepare that finite run: PostgreSQL18 clients, explicit
+private-network DB reference, read-only transaction default, 256MiB maximum file
+size,150-second dump timeout, archive listing, new private app-created Drive
+folder, unique archive upload, full readback SHA256 comparison, and a verified
+manifest with restore_tested:false. It excludes cluster roles and external file
+storage. No delete, permissions/share, schedule, migration or restore operation.
+`Dockerfile` overrides the inherited database entrypoint with GNU timeout300s
+plus5s kill grace. It never runs a PostgreSQL server. The upstream Postgres image
+is digest-pinned; OS Python/CA packages still come from signed Debian apt sources
+at build time. Final build/tool/runtime evidence remains to be obtained.
+
+Before the single deploy, inspect the actual Railway worker settings: no cron,
+restart NEVER,1CPU/0.5GB ceilings where supported, exact branch/root/Dockerfile,
+private DATABASE_URL reference, masked OAuth JSON variable and no auto-deploy.
+Nothing goes on the production app or DB start command. A crash must not retry
+or remain idle. Verify the deployment stopped after completion/failure. Measure
+actual runtime, archive bytes and available provider usage, with attribution
+limits for shared DB work. Do not claim invoice-level isolation.
+
+The current External Testing grant is suitable for the trial, not proven
+permanent daily credentials. Token expiration/readiness, retention, missing-success
+monitoring, restore proof and daily scheduler require further work before any
+claim of reliable daily backup. Secrets must never enter Git, artifact reports,
+console exception traces or ordinary messages.
