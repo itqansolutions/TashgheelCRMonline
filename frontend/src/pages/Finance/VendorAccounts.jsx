@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import Modal from '../../components/Common/Modal';
 import {
   Building2, DollarSign, Clock, AlertTriangle, Search,
   X, Printer, RefreshCw,
@@ -104,21 +105,14 @@ const RecordPaymentModal = ({ vendor, onClose, onPaid }) => {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1400, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: 'var(--bg-card)', borderRadius: '16px', padding: '24px', width: 'min(440px, 95vw)', boxShadow: '0 20px 50px rgba(0,0,0,0.25)', direction: isRTL ? 'rtl' : 'ltr' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900 }}>
-              {t('finance.vendorAccounts.recordPaymentModal.title', { name: vendor.name || vendor.vendor_name })}
-            </h3>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              {t('finance.vendorAccounts.recordPaymentModal.subtitle')}
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={18} /></button>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <Modal isOpen={true} onClose={onClose} variant="form" className="vendor-payment-editor" title={t('finance.vendorAccounts.recordPaymentModal.title', { name: vendor.name || vendor.vendor_name })} footer={<div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+            <button type="button" onClick={onClose} style={{ ...btnStyle, flex: 1, justifyContent: 'center' }}>
+              {t('finance.vendorAccounts.recordPaymentModal.cancel')}
+            </button>
+            <button type="submit" form="vendor-payment-editor" disabled={loading} style={{ ...btnStyle, flex: 2, background: 'var(--primary)', color: 'white', border: 'none', justifyContent: 'center' }}>
+              {loading ? t('finance.vendorAccounts.recordPaymentModal.processing') : t('finance.vendorAccounts.recordPaymentModal.confirm')}
+            </button>
+          </div>}><p style={{color:'var(--text-muted)',marginBottom:24}}>{t('finance.vendorAccounts.recordPaymentModal.subtitle')}</p><form id="vendor-payment-editor" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div>
             <label style={labelStyle}>{t('finance.vendorAccounts.recordPaymentModal.amount')}</label>
             <input
@@ -166,17 +160,8 @@ const RecordPaymentModal = ({ vendor, onClose, onPaid }) => {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-            <button type="button" onClick={onClose} style={{ ...btnStyle, flex: 1, justifyContent: 'center' }}>
-              {t('finance.vendorAccounts.recordPaymentModal.cancel')}
-            </button>
-            <button type="submit" disabled={loading} style={{ ...btnStyle, flex: 2, background: 'var(--primary)', color: 'white', border: 'none', justifyContent: 'center' }}>
-              {loading ? t('finance.vendorAccounts.recordPaymentModal.processing') : t('finance.vendorAccounts.recordPaymentModal.confirm')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+
+        </form></Modal>
   );
 };
 

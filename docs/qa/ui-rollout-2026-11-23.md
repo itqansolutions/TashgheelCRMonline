@@ -212,3 +212,8 @@ Finance/accounting; purchasing; inventory beyond Products; remaining HR; real es
 ## Phase 14: unit hierarchy quick editors
 - Developer, project, phase and building quick-add shells use the shared form panel, original title/subtitle text, exact field attributes and noncomponent handlers. Portals and existing topmost Escape owner retained. Linked original submit/cancel actions stay in the fixed footer. Registration remains behind each nested panel, stacking scoped above the parent.
 - Sixteen distinct dialog/language/width variants captured at top/bottom, fields4/4/2/4. Phone/desktop pixels inspected. Parent registration eight-variant nested Escape regression, exact AST invariants and production build pass. No hierarchy creation, uploads or API writes. Live editor verification remains unavailable on the general-account route, which redirects to dashboard.
+
+## Phase 15: vendor payment editor presentation
+- RecordPaymentModal shell only. Exact original field attributes, amount/payment/treasury defaults, noncomponent handlers and financial payload preserved. Original submit/cancel footer linked to the same form; no statement or aging changes.
+- Sixteen distinct AR/EN,360/1440, empty/populated treasury and cash/bank variants, captured top/bottom. Three or four controls as applicable; populated fixtures include original default-account selection behavior. Writes blocked, no submit or real payment.
+- Initial fixture pixels had invisible control borders, fixed with scoped styling and re-rendered. Phone/desktop pixels inspected. Exact invariants, finance40variant regression and production build passed. This is layout verification, not financial workflow approval or payment execution.

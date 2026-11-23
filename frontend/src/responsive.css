@@ -306,3 +306,8 @@
 .unit-quick-editor .ap-label { display:block; margin-bottom:8px; }
 .unit-quick-editor .modal-footer > div { width:100%; }
 .unit-quick-subtitle { color:var(--text-muted); font-size:13px; margin:0 0 24px; }
+
+/* Vendor payment presentation only. Financial submission handlers stay unchanged. */
+.vendor-payment-editor .modal-body input, .vendor-payment-editor .modal-body select { min-height:44px; border:1px solid #d9e2ef!important; background:#f8fafc!important; border-radius:12px!important; }
+.vendor-payment-editor .modal-footer > div { width:100%; }
+.vendor-payment-editor .modal-footer button { min-height:44px; }
