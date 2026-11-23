@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
-const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) => {
+const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width, variant = 'dialog', className = '' }) => {
   const { t, isRTL } = useLanguage();
 
   // Close on ESC key
@@ -17,7 +17,7 @@ const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) =>
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className={`modal-overlay ${variant === 'form' ? 'workspace-form-overlay' : ''} ${className}`} dir={isRTL ? 'rtl' : 'ltr'} onClick={onClose}>
       <style>{`
         .modal-overlay {
           position: fixed;
@@ -87,6 +87,17 @@ const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) =>
           gap: 12px;
         }
 
+        .modal-overlay.workspace-form-overlay { padding: 0!important; justify-content: flex-end; align-items: stretch; animation: none; }
+        .workspace-form-panel { height: 100dvh; max-height: 100dvh; max-width: min(820px, 100vw); border-radius: 0; animation: none; }
+        .workspace-form-panel .modal-header { padding: 22px 24px; }
+        .workspace-form-panel .modal-body { max-height: none; padding: 24px; }
+        .workspace-form-panel .modal-footer { padding: 18px 24px; }
+        @media(max-width:768px) {
+          .workspace-form-overlay { padding: 0!important; }
+          .workspace-form-panel { width: 100vw; max-height: 100dvh!important; }
+          .workspace-form-panel .modal-body { padding: 18px!important; }
+          .workspace-form-panel .modal-footer button { flex: 1; }
+        }
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }
@@ -97,7 +108,7 @@ const Modal = ({ isOpen, onClose, title, children, footer, maxWidth, width }) =>
         }
       `}</style>
       
-      <div className="modal-content" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} onClick={(e) => e.stopPropagation()}>
+      <div className={`modal-content ${variant === 'form' ? 'workspace-form-panel' : ''}`} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>
           <button aria-label={t('common.close')} title={t('common.close')} className="close-btn" onClick={onClose}>

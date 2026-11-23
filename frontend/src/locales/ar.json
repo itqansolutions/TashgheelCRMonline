@@ -3328,7 +3328,8 @@
       "toastEmailRequired": "البريد الإلكتروني مطلوب",
       "toastPasswordRequired": "كلمة المرور مطلوبة",
       "toastEmpAdded": "تمت إضافة الموظف بنجاح",
-      "toastEmpUpdated": "تم تحديث بيانات الموظف بنجاح"
+      "toastEmpUpdated": "تم تحديث بيانات الموظف بنجاح",
+      "workDetails": "بيانات العمل"
     }
   },
   "subNav": {

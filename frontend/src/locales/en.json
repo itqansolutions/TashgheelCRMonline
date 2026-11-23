@@ -3328,7 +3328,8 @@
       "toastEmailRequired": "Email is required",
       "toastPasswordRequired": "Password is required",
       "toastEmpAdded": "Employee added successfully",
-      "toastEmpUpdated": "Employee updated successfully"
+      "toastEmpUpdated": "Employee updated successfully",
+      "workDetails": "Work details"
     }
   },
   "subNav": {

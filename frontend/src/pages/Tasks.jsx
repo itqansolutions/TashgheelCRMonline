@@ -463,7 +463,7 @@ const Tasks = () => {
       )}
 
       {/* Add/Edit Task Modal */}
-      <Modal
+      <Modal variant="form"
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingTask ? t('tasks.modalEdit') : t('tasks.modalCreate')}

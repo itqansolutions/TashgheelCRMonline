@@ -402,16 +402,16 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
   ];
 
   return (
-    <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} dir={isRTL ? 'rtl' : 'ltr'}>
-      <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '750px', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
+    <div className="responsive-form-overlay employee-form-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }} dir={isRTL ? 'rtl' : 'ltr'}>
+      <div role="dialog" aria-modal="true" aria-label={emp ? t('hr.contactsEmployees.modalEmpEdit') : t('hr.contactsEmployees.modalEmpAdd')} className="employee-form-panel" style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '750px', maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
         {/* Header */}
-        <div style={{ padding: '18px 24px', background: 'linear-gradient(135deg, #4f46e5, #06b6d4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="employee-form-header" style={{ padding: '18px 24px', background: 'linear-gradient(135deg, #4f46e5, #06b6d4)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, color: 'white', fontWeight: 800 }}>{emp ? t('hr.contactsEmployees.modalEmpEdit') : t('hr.contactsEmployees.modalEmpAdd')}</h3>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}><X size={18} /></button>
+          <button aria-label={t('common.close')} onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}><X size={18} /></button>
         </div>
 
         {/* Sub-Tabs */}
-        <div style={{ display: 'flex', gap: '4px', padding: '12px 20px 0', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+        <div className="employee-form-tabs" style={{ display: 'flex', gap: '4px', padding: '12px 20px 0', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
           {tabs.map(tTab => (
             <button key={tTab.id} onClick={() => !tTab.disabled && setActiveTab(tTab.id)} disabled={tTab.disabled}
               style={{ padding: '8px 16px', background: 'transparent', border: 'none', borderBottom: activeTab === tTab.id ? '2px solid #4f46e5' : '2px solid transparent', color: tTab.disabled ? '#cbd5e1' : activeTab === tTab.id ? '#4f46e5' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: tTab.disabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '-1px' }}>
@@ -421,10 +421,11 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px', scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #f1f5f9' }}>
+        <div className="employee-form-body" style={{ flex: 1, overflowY: 'auto', padding: '20px', scrollbarWidth: 'thin', scrollbarColor: '#94a3b8 #f1f5f9' }}>
           {activeTab === 'info' ? (
             <form id="emp-form" onSubmit={handleSubmit}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="employee-field-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <h4 className="employee-field-section">{t('hr.contactsEmployees.tabBasicInfo')}</h4>
                 <div style={{ gridColumn: '1/-1' }}>
                   <label style={labelStyle}>{t('hr.contactsEmployees.lblFullName')}</label>
                   <input value={form.name} onChange={e => set('name', e.target.value)} placeholder={t('hr.contactsEmployees.placeholderFullName')} style={inputStyle} required />
@@ -469,6 +470,7 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
                   <label style={labelStyle}>{t('hr.contactsEmployees.lblBirthDate')}</label>
                   <input type="date" value={form.birth_date} onChange={e => set('birth_date', e.target.value)} style={inputStyle} />
                 </div>
+                <h4 className="employee-field-section">{t('hr.contactsEmployees.workDetails')}</h4>
                 <div>
                   <label style={labelStyle}>{t('hr.contactsEmployees.lblHireDate')}</label>
                   <input type="date" value={form.hire_date} onChange={e => set('hire_date', e.target.value)} style={inputStyle} />
@@ -724,7 +726,7 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
 
         {/* Footer */}
         {activeTab === 'info' && (
-          <div style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px', background: '#fafbfc' }}>
+          <div className="employee-form-footer" style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px', background: '#fafbfc' }}>
             <button onClick={onClose} style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>{t('hr.contactsEmployees.btnCancel')}</button>
             <button form="emp-form" type="submit" disabled={saving} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #4f46e5, #06b6d4)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
               {saving ? t('hr.contactsEmployees.saving') : emp ? t('hr.contactsEmployees.btnSaveChanges') : t('hr.contactsEmployees.btnAddEmployee')}
@@ -739,7 +741,7 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 const ContactsEmployees = () => {
   const { t, isRTL } = useLanguage();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'employees';
   const [activeTab, setActiveTab] = useState(['employees', 'departments', 'jobtitles'].includes(initialTab) ? initialTab : 'employees');
 
@@ -800,15 +802,15 @@ const ContactsEmployees = () => {
   };
 
   const TABS = [
+    { id: 'employees', label: t('hr.contactsEmployees.tabEmployees'), icon: <Users2 size={15} /> },
     { id: 'departments', label: t('hr.contactsEmployees.tabDepartments'), icon: <Building size={15} /> },
     { id: 'jobtitles', label: t('hr.contactsEmployees.tabJobTitles'), icon: <Briefcase size={15} /> },
-    { id: 'employees', label: t('hr.contactsEmployees.tabEmployees'), icon: <Users2 size={15} /> },
   ];
 
   return (
-    <div className="contacts-employees-page" style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="contacts-employees-page workspace-page" style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }} dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+      <div className="page-header employee-directory-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
         <div>
           <h1 style={{ fontSize: '28px', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em' }}>{t('hr.contactsEmployees.title')}</h1>
           <p className="num-en" style={{ color: '#64748b', margin: '6px 0 0', fontSize: '14px', fontWeight: 600 }}>
@@ -835,9 +837,9 @@ const ContactsEmployees = () => {
       </div>
 
       {/* Tabs */}
-      <div className="employee-tabs" style={{ display: 'flex', gap: '6px', background: '#f1f5f9', borderRadius: '14px', padding: '5px', marginBottom: '24px', width: 'fit-content' }}>
+      <div role="tablist" className="employee-tabs" style={{ display: 'flex', gap: '6px', background: '#f1f5f9', borderRadius: '14px', padding: '5px', marginBottom: '24px', width: 'fit-content' }}>
         {TABS.map(tTab => (
-          <button key={tTab.id} onClick={() => setActiveTab(tTab.id)} style={{
+          <button key={tTab.id} role="tab" aria-selected={activeTab === tTab.id} onClick={() => { setActiveTab(tTab.id); setSearchParams(prev => { const next = new URLSearchParams(prev); next.set('tab', tTab.id); return next; }, { replace: true }); }} style={{
             padding: '9px 20px', border: 'none', borderRadius: '10px',
             background: activeTab === tTab.id ? 'white' : 'transparent',
             color: activeTab === tTab.id ? '#1e293b' : '#64748b',
@@ -952,7 +954,7 @@ const ContactsEmployees = () => {
                     <p style={{ fontWeight: 700, margin: 0 }}>{t('hr.contactsEmployees.noEmployees')}</p>
                   </div>
                 ) : (
-                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table className="employee-directory-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                         {[
@@ -973,7 +975,7 @@ const ContactsEmployees = () => {
                         <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? 'white' : '#fafbfc', transition: 'background 0.15s' }}
                           onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
                           onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? 'white' : '#fafbfc'}>
-                          <td style={{ padding: '12px 16px' }}>
+                          <td data-label={t('hr.contactsEmployees.colEmployee')} style={{ padding: '12px 16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #4f46e5, #06b6d4)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '14px', fontWeight: 900, flexShrink: 0 }}>
                                 {u.name?.charAt(0).toUpperCase()}
@@ -984,18 +986,18 @@ const ContactsEmployees = () => {
                               </div>
                             </div>
                           </td>
-                          <td style={{ padding: '12px 16px', color: '#475569', fontSize: '13px' }}>{u.job_title_name || '—'}</td>
-                          <td style={{ padding: '12px 16px', color: '#475569', fontSize: '13px' }}>{u.department_name || '—'}</td>
-                          <td className="num-en" style={{ padding: '12px 16px', color: '#64748b', fontSize: '12px' }}>{u.national_id || '—'}</td>
-                          <td className="num-en" style={{ padding: '12px 16px', color: '#64748b', fontSize: '12px' }}>{fmtDate(u.hire_date)}</td>
-                          <td style={{ padding: '12px 16px' }}>
+                          <td data-label={t('hr.contactsEmployees.colJobTitle')} style={{ padding: '12px 16px', color: '#475569', fontSize: '13px' }}>{u.job_title_name || '—'}</td>
+                          <td data-label={t('hr.contactsEmployees.colDepartment')} style={{ padding: '12px 16px', color: '#475569', fontSize: '13px' }}>{u.department_name || '—'}</td>
+                          <td data-label={t('hr.contactsEmployees.colNationalId')} className="num-en" style={{ padding: '12px 16px', color: '#64748b', fontSize: '12px' }}>{u.national_id || '—'}</td>
+                          <td data-label={t('hr.contactsEmployees.colHireDate')} className="num-en" style={{ padding: '12px 16px', color: '#64748b', fontSize: '12px' }}>{fmtDate(u.hire_date)}</td>
+                          <td data-label={t('hr.contactsEmployees.colStatus')} style={{ padding: '12px 16px' }}>
                             {u.is_working !== false ? (
                               <span style={{ background: '#dcfce7', color: '#16a34a', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>✅ {t('hr.contactsEmployees.statusActive')}</span>
                             ) : (
                               <span style={{ background: '#f1f5f9', color: '#64748b', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 800 }}>⏸️ {t('hr.contactsEmployees.statusInactive')}</span>
                             )}
                           </td>
-                          <td style={{ padding: '12px 16px' }}>
+                          <td data-label={t('hr.contactsEmployees.colActions')} style={{ padding: '12px 16px' }}>
                             <button onClick={() => setEmpModal(u)} style={{ background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>{t('hr.contactsEmployees.btnEdit')}</button>
                           </td>
                         </tr>

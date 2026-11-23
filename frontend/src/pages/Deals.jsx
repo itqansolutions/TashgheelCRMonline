@@ -1082,7 +1082,7 @@ const Deals = () => {
         />
       )}
 
-      <Modal 
+      <Modal variant="form"
         isOpen={isModalOpen} 
         onClose={handleCloseModal}
         title={editingDeal ? t('deals.updateDeal', 'Update Deal') : t('deals.newSalesDeal', 'New Sales Deal')}

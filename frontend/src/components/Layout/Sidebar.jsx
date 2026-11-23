@@ -339,7 +339,10 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   // Canonical sections, independent of the remembered workspace selection.
   const permitted = items => filterByAllowed(items).filter(item => !item.roleGuard || item.roleGuard.includes(user?.role));
-  const employees = canAccessEmployees ? [{name:'Employees',labelKey:'sidebar.employees',path:'/contacts/employees',icon:<Briefcase size={18}/>}, ...employeeSubItems.filter(item=>isPathAllowed(item.path))] : [];
+  // Definitions remain reachable through local tabs under the unchanged directory gate.
+  const employees = canAccessEmployees ? [
+    {name:'Employees',labelKey:'sidebar.employees',path:'/contacts/employees',icon:<Briefcase size={18}/>}
+  ] : [];
   const sections = [
     {id:'sales',label:'sidebar.sales',items:permitted(salesItems).filter(item=>item.path!=='/units-registry')},
     {id:'contacts',label:'sidebar.contacts',items:visibleContactsDirect.filter(item=>item.path!=='/customers' || !salesItems.some(s=>s.path==='/customers')).concat(hasHr ? [] : employees)},

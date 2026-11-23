@@ -709,7 +709,7 @@ const Customers = () => {
         )}
       />
 
-      <Modal
+      <Modal variant={isViewingDetails ? 'dialog' : 'form'}
         isOpen={isModalOpen}
         maxWidth={isViewingDetails ? '1100px' : '680px'}
         onClose={() => {

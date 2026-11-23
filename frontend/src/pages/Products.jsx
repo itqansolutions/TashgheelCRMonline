@@ -151,7 +151,7 @@ const Products = () => {
         />
       </div>
 
-      <Modal 
+      <Modal variant="form"
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)}
         title={editingProduct ? t('inventory.products.editProduct') : t('inventory.products.newProduct')}
