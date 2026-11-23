@@ -230,7 +230,7 @@ const Installments = () => {
       />
 
       {/* Create / split installment plan */}
-      <Modal
+      <Modal variant="form"
         isOpen={planOpen}
         onClose={() => setPlanOpen(false)}
         title={t('realEstate.installments.planModalTitle')}

@@ -155,3 +155,10 @@ Finance/accounting; purchasing; inventory beyond Products; remaining HR; real es
 - Stock-take desktop table becomes labelled cards on phone with the same product, system quantity, counted quantity and difference content. Original warehouse subtitle, source/destination/product choices and save/loading/disable logic preserved.
 - Eight AR/EN360/1440 synthetic variants, 24 stock rows, fixed footer and internal long-body scroll pass with no API writes. Actual Arabic phone and English desktop pixels inspected. No transfer or stock adjustment submitted. No ledger or inventory correctness certification.
 - Other remaining page families, dialogs and permissions still require their own bounded review. No database, schema, backup, configuration or role changes.
+
+
+## Phase 6 candidate
+- Opt-in form panel for leave request, RE contract edit, handover scheduling, commission creation and installment-plan entry. Existing footer click/save mechanics preserved; collection, replacement confirmation, history, attachments, payout and lifecycle actions unchanged.
+- All control opening ASTs and every noncomponent function body exact against Phase5. Fields remain4/7/3/7/5; commission percentage/fixed branches tested locally. No change to payloads, permission checks, calculation or schedule logic.
+-20AR/EN360/1440 synthetic actual-editor variants pass and phone/desktop pixels inspected. Leave application references existing matching locale keys and receives visible field boundaries; original values and handler localization left unchanged.
+- No leave submission, contract edit, handover, commission, installment generation, collection or payout performed on live data. Shared form changes are not functional acceptance of these workflows or all remaining pages.

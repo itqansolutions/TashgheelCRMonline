@@ -290,7 +290,7 @@ const Contracts = () => {
         empty={t('realEstate.contracts.empty')}
       />
 
-      <Modal
+      <Modal variant="form"
         isOpen={!!editing}
         onClose={() => setEditing(null)}
         title={editing ? t('realEstate.contracts.modalEditTitle', { number: editing.contract_number }) : ''}

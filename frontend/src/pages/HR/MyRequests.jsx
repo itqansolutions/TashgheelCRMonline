@@ -96,7 +96,7 @@ const MyRequests = () => {
                     <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted)' }}>{t('hr.myRequests.subtitle', 'Submit and track your time-off requests.')}</p>
                 </div>
                 <button className="btn-primary" onClick={() => setIsModalOpen(true)}>
-                    <Plus size={18} /> {t('hr.myRequests.requestLeaveBtn', 'Request Leave')}
+                    <Plus size={18} /> {t('hr.myRequests.btnRequestLeave', 'Request Leave')}
                 </button>
             </div>
 
@@ -134,7 +134,7 @@ const MyRequests = () => {
                 </tbody>
             </table></div>
 
-            <Modal 
+            <Modal variant="form"
                 isOpen={isModalOpen} 
                 onClose={() => setIsModalOpen(false)}
                 title={t('hr.myRequests.modalTitle', 'Submit Leave Application')}
@@ -142,32 +142,32 @@ const MyRequests = () => {
                     <>
                         <button style={{ background: 'transparent', color: 'var(--text-muted)', border: 'none', padding: '10px 16px', fontWeight: 600, cursor: 'pointer' }} onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>{t('hr.myRequests.btnCancel', 'Cancel')}</button>
                         <button className="btn-primary" onClick={handleSubmit} disabled={isSubmitting}>
-                            {isSubmitting ? t('hr.myRequests.submitting', 'Submitting...') : t('hr.myRequests.btnSubmit', 'Send Request')}
+                            {isSubmitting ? t('hr.myRequests.submitting', 'Submitting...') : t('hr.myRequests.btnSendRequest', 'Send Request')}
                         </button>
                     </>
                 }
             >
-                <form>
+                <form className="leave-request-editor">
                     <div className="form-group">
-                        <label>{t('hr.myRequests.fieldLeaveType', 'Leave Type')}</label>
+                        <label>{t('hr.myRequests.lblLeaveType', 'Leave Type')}</label>
                         <select value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value})} style={{color: 'black'}}>
-                            <option value="annual">{t('hr.myRequests.types.annual', 'Annual Leave (Paid)')}</option>
-                            <option value="sick">{t('hr.myRequests.types.sick', 'Sick Leave')}</option>
-                            <option value="unpaid">{t('hr.myRequests.types.unpaid', 'Unpaid Personal Leave')}</option>
+                            <option value="annual">{t('hr.myRequests.optAnnual', 'Annual Leave (Paid)')}</option>
+                            <option value="sick">{t('hr.myRequests.optSick', 'Sick Leave')}</option>
+                            <option value="unpaid">{t('hr.myRequests.optUnpaid', 'Unpaid Personal Leave')}</option>
                         </select>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                         <div className="form-group">
-                            <label>{t('hr.myRequests.fieldStartDate', 'Start Date')}</label>
+                            <label>{t('hr.myRequests.lblStartDate', 'Start Date')}</label>
                             <input type="date" value={formData.start_date} onChange={(e) => setFormData({...formData, start_date: e.target.value})} required className="num-en" />
                         </div>
                         <div className="form-group">
-                            <label>{t('hr.myRequests.fieldEndDate', 'End Date')}</label>
+                            <label>{t('hr.myRequests.lblEndDate', 'End Date')}</label>
                             <input type="date" value={formData.end_date} onChange={(e) => setFormData({...formData, end_date: e.target.value})} required className="num-en" />
                         </div>
                     </div>
                     <div className="form-group">
-                        <label>{t('hr.myRequests.fieldReason', 'Reason / Comments (Optional)')}</label>
+                        <label>{t('hr.myRequests.lblReason', 'Reason / Comments (Optional)')}</label>
                         <textarea 
                             rows="3" 
                             value={formData.reason} 
@@ -178,7 +178,7 @@ const MyRequests = () => {
                     {/* Conflict detection alert UI hint */}
                     <div style={{ padding: '12px', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '8px', fontSize: '12px', color: '#38bdf8', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
                         <Calendar size={16} style={{ flexShrink: 0 }} />
-                        <span>{t('hr.myRequests.conflictNotice', 'The system features strict conflict detection. You cannot apply for overlapping dates with an existing pending/approved request.')}</span>
+                        <span>{t('hr.myRequests.conflictAlert', 'The system features strict conflict detection. You cannot apply for overlapping dates with an existing pending/approved request.')}</span>
                     </div>
                 </form>
             </Modal>

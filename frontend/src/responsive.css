@@ -245,3 +245,11 @@
   .stock-take-table td::before { content: attr(data-label); display: block; margin-bottom: 5px; color: #64748b; font-size: 12px; font-weight: 600; }
   .stock-take-table td input { min-height: 44px; }
 }
+
+.workspace-form-panel .leave-request-editor input,.workspace-form-panel .leave-request-editor select,.workspace-form-panel .leave-request-editor textarea {
+  width: 100%; min-height: 44px; padding: 12px; border: 1px solid #dbe3ee;
+  border-radius: 10px; background: #f8fafc; color: #0f172a;
+}
+.leave-request-editor .form-group { margin-bottom: 20px; }
+
+.workspace-form-panel .leave-request-editor input[type="date"]::-webkit-calendar-picker-indicator { filter: none; }

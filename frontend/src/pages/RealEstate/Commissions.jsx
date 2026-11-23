@@ -209,7 +209,7 @@ const Commissions = () => {
         empty={t('realEstate.commissions.empty')}
       />
 
-      <Modal
+      <Modal variant="form"
         isOpen={formOpen}
         onClose={() => setFormOpen(false)}
         title={t('realEstate.commissions.modalTitle')}

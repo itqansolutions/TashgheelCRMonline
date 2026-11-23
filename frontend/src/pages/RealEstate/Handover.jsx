@@ -177,7 +177,7 @@ const Handover = () => {
         empty={t('realEstate.handover.empty')}
       />
 
-      <Modal
+      <Modal variant="form"
         isOpen={formOpen}
         onClose={() => setFormOpen(false)}
         title={t('realEstate.handover.modalTitle')}
