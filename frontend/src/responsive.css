@@ -299,3 +299,10 @@
  .unit-create-editor [style*="grid-template-columns"] { grid-template-columns:minmax(0,1fr)!important; gap:18px!important; }
  .unit-create-editor [style*="grid-column: span 2"] { grid-column:auto!important; }
 }
+
+/* Unit hierarchy quick editors stay above the registration panel. */
+.unit-quick-editor.modal-overlay { z-index: 10000!important; }
+.unit-quick-editor .ap-input { width:100%; min-height:44px; padding:12px 14px; border:1px solid #d9e2ef; border-radius:12px; background:#f8fafc; box-sizing:border-box; }
+.unit-quick-editor .ap-label { display:block; margin-bottom:8px; }
+.unit-quick-editor .modal-footer > div { width:100%; }
+.unit-quick-subtitle { color:var(--text-muted); font-size:13px; margin:0 0 24px; }

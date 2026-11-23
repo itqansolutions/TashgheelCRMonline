@@ -2528,32 +2528,14 @@ const UnitsRegistry = () => {
 
             {/* Quick Add Developer Modal */}
             {showQuickDevModal && createPortal(
-                <div 
-                    dir={isRTL ? 'rtl' : 'ltr'}
-                    onClick={(e) => {
-                        if (e.target === e.currentTarget) setShowQuickDevModal(false);
-                    }}
-                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
-                >
-                    <div className="ap-card" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
-                        <button 
-                            type="button"
-                            onClick={() => setShowQuickDevModal(false)}
-                            style={{ position: 'absolute', top: '20px', [isRTL ? 'left' : 'right']: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
-                            title={t('common.close') || 'Close'}
-                        >
-                            <X size={16}/>
-                        </button>
-                        <div style={{ marginBottom: '24px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                                    <Building size={20} />
-                                </div>
-                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.devModalTitle')}</h3>
-                            </div>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>{t('realEstate.unitsRegistry.devModalSubtitle')}</p>
-                        </div>
-                        <form onSubmit={handleCreateDeveloper}>
+                <Modal isOpen={true} closeOnEscape={false} onClose={() => setShowQuickDevModal(false)} variant="form" className="unit-quick-editor" title={t('realEstate.unitsRegistry.devModalTitle')} footer={<div style={{ display: 'flex', gap: '12px' }}>
+                                <button type="submit" form="unit-developer-editor" disabled={creatingDev} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
+                                    {creatingDev ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmDev')}
+                                </button>
+                                <button type="button" onClick={() => setShowQuickDevModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                    Cancel
+                                </button>
+                            </div>}><p className="unit-quick-subtitle">{t('realEstate.unitsRegistry.devModalSubtitle')}</p><form id="unit-developer-editor" onSubmit={handleCreateDeveloper}>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
                                 <label className="ap-label">{t('realEstate.unitsRegistry.lblDevName')}</label>
                                 <input 
@@ -2592,48 +2574,21 @@ const UnitsRegistry = () => {
                                     onChange={e => setNewDevForm({ ...newDevForm, email: e.target.value })} 
                                 />
                             </div>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <button type="submit" disabled={creatingDev} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
-                                    {creatingDev ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmDev')}
-                                </button>
-                                <button type="button" onClick={() => setShowQuickDevModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>,
+
+                        </form></Modal>,
                 document.body
             )}
 
             {/* Quick Add Project Modal */}
             {showQuickProjModal && createPortal(
-                <div 
-                    dir={isRTL ? 'rtl' : 'ltr'}
-                    onClick={(e) => {
-                        if (e.target === e.currentTarget) setShowQuickProjModal(false);
-                    }}
-                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
-                >
-                    <div className="ap-card" style={{ width: '100%', maxWidth: '500px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
-                        <button 
-                            type="button"
-                            onClick={() => setShowQuickProjModal(false)}
-                            style={{ position: 'absolute', top: '20px', [isRTL ? 'left' : 'right']: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
-                            title={t('common.close') || 'Close'}
-                        >
-                            <X size={16}/>
-                        </button>
-                        <div style={{ marginBottom: '24px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                                    <Building2 size={20} />
-                                </div>
-                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.projModalTitle')}</h3>
-                            </div>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>{t('realEstate.unitsRegistry.projModalSubtitle')}</p>
-                        </div>
-                        <form onSubmit={handleCreateProject}>
+                <Modal isOpen={true} closeOnEscape={false} onClose={() => setShowQuickProjModal(false)} variant="form" className="unit-quick-editor" title={t('realEstate.unitsRegistry.projModalTitle')} footer={<div style={{ display: 'flex', gap: '12px' }}>
+                                <button type="submit" form="unit-project-editor" disabled={creatingProj} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
+                                    {creatingProj ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmProj')}
+                                </button>
+                                <button type="button" onClick={() => setShowQuickProjModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                    Cancel
+                                </button>
+                            </div>}><p className="unit-quick-subtitle">{t('realEstate.unitsRegistry.projModalSubtitle')}</p><form id="unit-project-editor" onSubmit={handleCreateProject}>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
                                 <label className="ap-label">{t('realEstate.unitsRegistry.lblProjName')}</label>
                                 <input 
@@ -2676,48 +2631,21 @@ const UnitsRegistry = () => {
                                     onChange={e => setNewProjForm({ ...newProjForm, description: e.target.value })} 
                                 />
                             </div>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <button type="submit" disabled={creatingProj} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
-                                    {creatingProj ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmProj')}
-                                </button>
-                                <button type="button" onClick={() => setShowQuickProjModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>,
+
+                        </form></Modal>,
                 document.body
             )}
 
             {/* Quick Add Phase Modal */}
             {showQuickPhaseModal && createPortal(
-                <div 
-                    dir={isRTL ? 'rtl' : 'ltr'}
-                    onClick={(e) => {
-                        if (e.target === e.currentTarget) setShowQuickPhaseModal(false);
-                    }}
-                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
-                >
-                    <div className="ap-card" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
-                        <button 
-                            type="button"
-                            onClick={() => setShowQuickPhaseModal(false)}
-                            style={{ position: 'absolute', top: '20px', [isRTL ? 'left' : 'right']: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
-                            title={t('common.close') || 'Close'}
-                        >
-                            <X size={16}/>
-                        </button>
-                        <div style={{ marginBottom: '24px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                                    <Layers size={20} />
-                                </div>
-                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.phaseModalTitle')}</h3>
-                            </div>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>{t('realEstate.unitsRegistry.phaseModalSubtitle')}</p>
-                        </div>
-                        <form onSubmit={handleCreatePhase}>
+                <Modal isOpen={true} closeOnEscape={false} onClose={() => setShowQuickPhaseModal(false)} variant="form" className="unit-quick-editor" title={t('realEstate.unitsRegistry.phaseModalTitle')} footer={<div style={{ display: 'flex', gap: '12px' }}>
+                                <button type="submit" form="unit-phase-editor" disabled={creatingPhase} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
+                                    {creatingPhase ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmPhase')}
+                                </button>
+                                <button type="button" onClick={() => setShowQuickPhaseModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                    Cancel
+                                </button>
+                            </div>}><p className="unit-quick-subtitle">{t('realEstate.unitsRegistry.phaseModalSubtitle')}</p><form id="unit-phase-editor" onSubmit={handleCreatePhase}>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
                                 <label className="ap-label">{t('realEstate.unitsRegistry.lblProjSelect')}</label>
                                 <select 
@@ -2742,48 +2670,21 @@ const UnitsRegistry = () => {
                                     onChange={e => setNewPhaseForm({ ...newPhaseForm, name: e.target.value })} 
                                 />
                             </div>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <button type="submit" disabled={creatingPhase} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
-                                    {creatingPhase ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmPhase')}
-                                </button>
-                                <button type="button" onClick={() => setShowQuickPhaseModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>,
+
+                        </form></Modal>,
                 document.body
             )}
 
             {/* Quick Add Building Modal */}
             {showQuickBuildingModal && createPortal(
-                <div 
-                    dir={isRTL ? 'rtl' : 'ltr'}
-                    onClick={(e) => {
-                        if (e.target === e.currentTarget) setShowQuickBuildingModal(false);
-                    }}
-                    style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
-                >
-                    <div className="ap-card" style={{ width: '100%', maxWidth: '480px', padding: '32px', background: 'white', position: 'relative', borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.35)' }}>
-                        <button 
-                            type="button"
-                            onClick={() => setShowQuickBuildingModal(false)}
-                            style={{ position: 'absolute', top: '20px', [isRTL ? 'left' : 'right']: '20px', padding: '6px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
-                            title={t('common.close') || 'Close'}
-                        >
-                            <X size={16}/>
-                        </button>
-                        <div style={{ marginBottom: '24px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(99, 102, 241, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                                    <Building size={20} />
-                                </div>
-                                <h3 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'var(--text-main)' }}>{t('realEstate.unitsRegistry.buildingModalTitle')}</h3>
-                            </div>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>{t('realEstate.unitsRegistry.buildingModalSubtitle')}</p>
-                        </div>
-                        <form onSubmit={handleCreateBuilding}>
+                <Modal isOpen={true} closeOnEscape={false} onClose={() => setShowQuickBuildingModal(false)} variant="form" className="unit-quick-editor" title={t('realEstate.unitsRegistry.buildingModalTitle')} footer={<div style={{ display: 'flex', gap: '12px' }}>
+                                <button type="submit" form="unit-building-editor" disabled={creatingBuilding} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
+                                    {creatingBuilding ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmBuilding')}
+                                </button>
+                                <button type="button" onClick={() => setShowQuickBuildingModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                    Cancel
+                                </button>
+                            </div>}><p className="unit-quick-subtitle">{t('realEstate.unitsRegistry.buildingModalSubtitle')}</p><form id="unit-building-editor" onSubmit={handleCreateBuilding}>
                             <div className="ap-form-group" style={{ marginBottom: '14px' }}>
                                 <label className="ap-label">Project / Compound *</label>
                                 <select 
@@ -2832,17 +2733,8 @@ const UnitsRegistry = () => {
                                     onChange={e => setNewBuildingForm({ ...newBuildingForm, floors_count: e.target.value })} 
                                 />
                             </div>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <button type="submit" disabled={creatingBuilding} className="btn-primary-premium" style={{ flex: 1, height: '46px', justifyContent: 'center' }}>
-                                    {creatingBuilding ? t('realEstate.unitsRegistry.saving') : t('realEstate.unitsRegistry.btnConfirmBuilding')}
-                                </button>
-                                <button type="button" onClick={() => setShowQuickBuildingModal(false)} style={{ padding: '0 20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'white', fontWeight: 700, color: 'var(--text-muted)', cursor: 'pointer' }}>
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>,
+
+                        </form></Modal>,
                 document.body
             )}
 
