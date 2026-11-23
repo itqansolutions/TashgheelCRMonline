@@ -196,3 +196,9 @@ Finance/accounting; purchasing; inventory beyond Products; remaining HR; real es
 -16template/language/width fixture variants plus top/bottom captures pass, actual phone/desktop pixels inspected. Local nested quick-add open/close checks verify overlays remain above panel, no writes; department/branch/manager options populated synthetically. Daily16andHR12regressions/build pass.
 - Salesmen existing selectedPeriod is2026-10(line58) and period choices hardcoded2026. Preserved limitation, no current-period correctness claim. Whole-page work remains partial.
 - Phase10deployment5a46f96f-4b04-458b-9eae-27c94986c8dcSUCCESS3d9e8de, dashboard assetindex-c05bd8df.js. POroute redirects dashboard, no live POeditor pixels established, no grant/settings change.
+
+
+## Phase 12 candidate
+- ERPsales order create and treasury account create shell only. Cash3/bank5treasury controls; sales10including child customer-search control. All original field/function ASTs exact against3dceeb8. Original default checkbox/opening-balance/account payloads untouched; no account/default/order creation executed. Sales delivery/details unchanged.
+-24distinct editor/mode/template/language/viewport variants, top/bottom captures and duplicate sales captures across treasury mode loop pass. Sales line add10to14and remove14to10passes locally; synthetic customer/product gives25EGPtotal. Fixed initially borderless treasury inputs, re-rendered and inspected phone/desktop. POeightregression/build pass. Quotation import handler unchanged but not functionally certified.
+- Phase11SUCCESS741145af-81d0-4fe7-811a-69792ea24cb0 exact3dceeb8, assetindex-e19bb8b2.js. Actual contacts/customers blank editor desktop/phone inspected11controls/footer; salesmen route gated to dashboard, team live pixels not established. No saves.

@@ -291,3 +291,5 @@
 .po-item-field { display:flex; flex-direction:column; gap:7px; min-width:0; }
 .po-item-field > span { font-size:11px; color:#64748b; }
 .po-item-field input,.po-item-field select { width:100%; min-width:0; min-height:40px; }
+
+.treasury-account-editor input:not([type=checkbox]) { border:1px solid #dbe3ee!important; background:#f8fafc!important; color:#0f172a!important; min-height:44px; }

@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import { isInvalidDateRange } from '../../utils/dateRange';
@@ -160,16 +161,14 @@ const AddAccountModal = ({ onClose, onCreated }) => {
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1300, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: 'var(--bg-card)', borderRadius: '16px', padding: '28px', width: 'min(480px,95vw)', boxShadow: '0 25px 60px rgba(0,0,0,0.25)', direction: isRTL ? 'rtl' : 'ltr' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 900 }}>
-            {t('finance.treasury.addAccountModal.title')}
-          </h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <Modal isOpen={true} onClose={onClose} variant="form" title={t('finance.treasury.addAccountModal.title')} footer={<div className="procurement-editor-footer">
+            <button type="button" onClick={onClose} style={{ ...btnStyle, flex: 1 }}>
+              {t('finance.treasury.addAccountModal.cancel')}
+            </button>
+            <button type="submit" form="treasury-account-editor" disabled={saving} style={{ ...btnStyle, flex: 2, background: 'var(--primary)', color: 'white', border: 'none', opacity: saving ? 0.7 : 1 }}>
+              {saving ? t('finance.treasury.addAccountModal.creating') : t('finance.treasury.addAccountModal.create')}
+            </button>
+          </div>}><form id="treasury-account-editor" className="procurement-editor treasury-account-editor" onSubmit={handleSubmit}>
           {/* Type */}
           <div style={{ display: 'flex', gap: '8px' }}>
             {[
@@ -226,17 +225,8 @@ const AddAccountModal = ({ onClose, onCreated }) => {
             {t('finance.treasury.addAccountModal.setDefaultAccount', { type: form.type === 'bank' ? t('finance.treasury.methods.bank_transfer') : t('finance.treasury.methods.cash') })}
           </label>
 
-          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-            <button type="button" onClick={onClose} style={{ ...btnStyle, flex: 1 }}>
-              {t('finance.treasury.addAccountModal.cancel')}
-            </button>
-            <button type="submit" disabled={saving} style={{ ...btnStyle, flex: 2, background: 'var(--primary)', color: 'white', border: 'none', opacity: saving ? 0.7 : 1 }}>
-              {saving ? t('finance.treasury.addAccountModal.creating') : t('finance.treasury.addAccountModal.create')}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+
+        </form></Modal>
   );
 };
 

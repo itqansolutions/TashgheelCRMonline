@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -489,19 +490,23 @@ const SalesCycle = () => {
       </div>
 
       {/* Create Sales Order Modal */}
-      {showCreateModal && (
-        <div style={modalStyle} dir={isRTL ? 'rtl' : 'ltr'}>
-          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '780px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
-            <div style={{ padding: '18px 24px', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white' }}>
-              <h3 style={{ margin: 0, fontWeight: 800, fontSize: '17px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShoppingBag size={20} /> {t('sales.orders.createModal.title')}
-              </h3>
-              <button onClick={() => setShowCreateModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px', cursor: 'pointer' }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateOrderSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} variant="form" title={t('sales.orders.createModal.title')} footer={<div className="procurement-editor-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="submit" form="sales-order-editor"
+                  disabled={submitting}
+                  style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer' }}
+                >
+                  {submitting ? t('sales.orders.createModal.creating') : t('sales.orders.createModal.createBtn')}
+                </button>
+              </div>}>
+<form id="sales-order-editor" className="procurement-editor" onSubmit={handleCreateOrderSubmit}>
               {/* Header options */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '14px' }}>
                 <div>
@@ -587,7 +592,7 @@ const SalesCycle = () => {
                 </div>
 
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
-                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: isRTL ? 'right' : 'left' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table className="procurement-items" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: isRTL ? 'right' : 'left' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                         <th style={{ padding: '10px 12px', fontWeight: 700 }}>{t('sales.orders.createModal.productService')}</th>
@@ -601,7 +606,7 @@ const SalesCycle = () => {
                     <tbody>
                       {formData.items.map((item, idx) => (
                         <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '8px 12px' }}>
+                          <td data-label={t('sales.orders.createModal.productService')} style={{ padding: '8px 12px' }}>
                             <select
                               value={item.product_id}
                               onChange={(e) => handleItemChange(idx, 'product_id', e.target.value)}
@@ -613,7 +618,7 @@ const SalesCycle = () => {
                               ))}
                             </select>
                           </td>
-                          <td style={{ padding: '8px 12px' }}>
+                          <td data-label={t('sales.orders.createModal.description')} style={{ padding: '8px 12px' }}>
                             <input
                               type="text"
                               placeholder={t('sales.orders.createModal.descriptionPlaceholder')}
@@ -622,7 +627,7 @@ const SalesCycle = () => {
                               style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }}
                             />
                           </td>
-                          <td style={{ padding: '8px 12px' }}>
+                          <td data-label={t('sales.orders.createModal.qty')} style={{ padding: '8px 12px' }}>
                             <input
                               type="number"
                               min="1"
@@ -632,7 +637,7 @@ const SalesCycle = () => {
                               style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }}
                             />
                           </td>
-                          <td style={{ padding: '8px 12px' }}>
+                          <td data-label={t('sales.orders.createModal.unitPrice')} style={{ padding: '8px 12px' }}>
                             <input
                               type="number"
                               step="0.01"
@@ -642,10 +647,10 @@ const SalesCycle = () => {
                               style={{ ...inputStyle, padding: '6px 10px', fontSize: '12px' }}
                             />
                           </td>
-                          <td style={{ padding: '8px 12px', fontWeight: 800, color: '#10b981' }}>
+                          <td data-label={t('sales.orders.createModal.subtotal')} style={{ padding: '8px 12px', fontWeight: 800, color: '#10b981' }}>
                             <span className="num-en">{(parseFloat(item.subtotal) || 0).toLocaleString()}</span> {currencyLabel}
                           </td>
-                          <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                          <td data-label={t('common.delete','Remove')} style={{ padding: '8px 12px', textAlign: 'center' }}>
                             <button
                               type="button"
                               onClick={() => removeItemRow(idx)}
@@ -683,26 +688,9 @@ const SalesCycle = () => {
               </div>
 
               {/* Actions */}
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer' }}
-                >
-                  {submitting ? t('sales.orders.createModal.creating') : t('sales.orders.createModal.createBtn')}
-                </button>
-              </div>
+
             </form>
-          </div>
-        </div>
-      )}
+</Modal>
 
       {/* View Order Details Modal */}
       {showViewModal && selectedOrder && (
