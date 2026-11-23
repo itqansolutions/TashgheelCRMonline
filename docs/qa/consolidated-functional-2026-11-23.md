@@ -18,3 +18,11 @@ Fresh temporary PostgreSQL, actual current controllers/services and synthetic fi
 ## Remaining gate
 
 Exact production activation and designated QA live acceptance are still required. No live financial, stock or cancellation writes resumed during this batch. Historical treasury gap/immutable incident untouched. Full cancellation needs a separately approved explicit linkage/status schema strategy. Other business routes/roles/integration effects, all populated states and physical devices are not exhaustively accepted. Overall PARTIAL/NOT READY for unrestricted handover.
+
+## Sales returns follow-up, 06:35 Cairo
+
+Further actual temporary PostgreSQL acceptance exposed two stock-integrity gaps outside the earlier purchasing GRN fix: same-tenant other-branch delivery-note return creation, and duplicate return lines each validated against the same remaining quantity. Local reproducer delivered2/previously returned1 then confirmed two return1 lines, producing returned3/net delivered-1. No live stock was touched and no affected live data claim is made.
+
+Code-only fix validates branch and source warehouse at create/confirm, rejects duplicate/nonfinite/nonpositive items, checks confirmation item source/product and delivered source status, and scopes final update to tenant. Existing invalid drafts fail closed on confirmation without changing their records. No schema, historical matching or manual DB change.
+
+`tests/acceptance_sales_returns.integration.cjs` runs actual temporary SQL baseline quote/order/delivery/return lifecycle, imported invalid draft checks, changed warehouse, source/product mismatch, and concurrent final1 return attempts. Exactly one concurrent return confirms; other rolls back; returned2/net0/current_qty10 with two Stock IN rows total. Existing related invoice/return/delivery suites28/28 pass after mock branch/source metadata refresh. This does not establish live role/stock acceptance. Deployment remains a separate check.

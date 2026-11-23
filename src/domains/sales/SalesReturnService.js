@@ -26,6 +26,34 @@ async function ensureInventoryTrackingColumn(client) {
   inventoryTrackingColumnChecked = true;
 }
 
+function assertBranch(document, branchId, label) {
+  if (branchId != null && String(document.branch_id || '') !== String(branchId)) {
+    throw new Error(`${label} not found in the active branch.`);
+  }
+}
+
+function validateReturnItems(items) {
+  if (!Array.isArray(items) || items.length === 0) throw new Error('Sales Return must contain at least one item.');
+  const seen = new Set();
+  for (const item of items) {
+    const id = String(item.delivery_note_item_id || '');
+    if (!id || seen.has(id)) throw new Error('Each delivery note item must appear exactly once per return.');
+    seen.add(id);
+    if (!Number.isFinite(Number(item.quantity_returned)) || Number(item.quantity_returned) <= 0) {
+      throw new Error('Returned quantity must be a finite positive number.');
+    }
+  }
+}
+
+async function validateReturnWarehouse(client, tenantId, dn) {
+  if (!dn.warehouse_id) return; // Service-only notes may have no warehouse.
+  const result = await client.query(`SELECT id FROM warehouses
+    WHERE id::text = $1::text AND tenant_id::text = $2::text
+      AND branch_id::text IS NOT DISTINCT FROM $3::text`,
+    [String(dn.warehouse_id), String(tenantId), dn.branch_id || null]);
+  if (!result.rows.length) throw new Error('Delivery Note warehouse is not in its tenant and branch.');
+}
+
 /**
  * Create a Sales Return draft linked to a Delivery Note.
  */
@@ -35,9 +63,7 @@ async function createSalesReturn(tenantId, branchId, data, userId) {
     const { delivery_note_id, return_date, items, notes } = data;
 
     if (!delivery_note_id) throw new Error('delivery_note_id is required.');
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      throw new Error('Sales Return must contain at least one item.');
-    }
+    validateReturnItems(items);
 
     // 1. Verify Delivery Note exists, is tenant-scoped, and is in 'delivered' status
     const dnRes = await client.query(`
@@ -53,6 +79,8 @@ async function createSalesReturn(tenantId, branchId, data, userId) {
     }
 
     const dn = dnRes.rows[0];
+    assertBranch(dn, branchId, 'Delivery Note');
+    await validateReturnWarehouse(client, tenantId, dn);
     if (dn.status !== 'delivered') {
       throw new Error(`Cannot return items for a Delivery Note in '${dn.status}' status. Only 'delivered' notes can be returned.`);
     }
@@ -192,6 +220,7 @@ async function confirmSalesReturn(tenantId, branchId, returnId, userId) {
     }
 
     const sr = srRes.rows[0];
+    assertBranch(sr, branchId, 'Sales Return');
 
     // Idempotency guard: already completed return cannot be re-confirmed
     if (sr.status === 'completed') {
@@ -207,9 +236,7 @@ async function confirmSalesReturn(tenantId, branchId, returnId, userId) {
     }
 
     const items = sr.items_json || [];
-    if (items.length === 0) {
-      throw new Error('Sales Return has no items to process.');
-    }
+    validateReturnItems(items);
 
     // 2. Fetch and Lock Delivery Note to resolve warehouse
     const dnRes = await client.query(`
@@ -222,6 +249,10 @@ async function confirmSalesReturn(tenantId, branchId, returnId, userId) {
       throw new Error('Associated Delivery Note not found.');
     }
     const dn = dnRes.rows[0];
+    assertBranch(dn, branchId, 'Delivery Note');
+    if (String(dn.branch_id || '') !== String(sr.branch_id || '')) throw new Error('Sales Return and Delivery Note branches do not match.');
+    if (dn.status !== 'delivered') throw new Error('Only delivered notes can be returned.');
+    await validateReturnWarehouse(client, tenantId, dn);
 
     // 3. Process each item: atomic validation, stock_movement (IN), and product current_qty restoration
     for (const item of items) {
@@ -249,6 +280,9 @@ async function confirmSalesReturn(tenantId, branchId, returnId, userId) {
       }
 
       const dni = dniRes.rows[0];
+      if (String(dni.delivery_note_id) !== String(dn.id) || String(dni.product_id) !== String(item.product_id)) {
+        throw new Error('Return item does not match its Delivery Note and product.');
+      }
       const deliveredQty = Number(dni.quantity_delivered || 0);
       const otherReturned = Number(dni.already_returned || 0);
       const remainingAvailable = Math.max(0, deliveredQty - otherReturned);
@@ -312,9 +346,9 @@ async function confirmSalesReturn(tenantId, branchId, returnId, userId) {
     const updatedSR = await client.query(`
       UPDATE sales_returns
       SET status = 'completed', accounting_status = 'not_applicable', journal_entry_id = NULL
-      WHERE id = $1
+      WHERE id = $1 AND tenant_id::text = $2::text
       RETURNING *
-    `, [sr.id]);
+    `, [sr.id, String(tenantId)]);
 
     // 7. Stage Outbox Event
     await TransactionEngine.stageOutboxEvent(client, {

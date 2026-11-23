@@ -33,7 +33,7 @@ test('Phase G-5: Delivery Returns & Stock IN Integrity Suite', async (t) => {
         if (sql.includes('FROM delivery_notes dn') && sql.includes('FOR UPDATE OF dn')) {
           // Delivery Note is still 'draft' (not confirmed yet)
           return {
-            rows: [{ id: 'dn-1', number: 'DN-001', status: 'draft', customer_id: 10 }]
+            rows: [{ id: 'dn-1', branch_id:'branch-1', number: 'DN-001', status: 'draft', customer_id: 10 }]
           };
         }
         return { rows: [] };
@@ -64,7 +64,7 @@ test('Phase G-5: Delivery Returns & Stock IN Integrity Suite', async (t) => {
       query: async (sql, params) => {
         if (sql.includes('FROM delivery_notes dn') && sql.includes('FOR UPDATE OF dn')) {
           return {
-            rows: [{ id: 'dn-2', number: 'DN-002', status: 'delivered', customer_id: 10 }]
+            rows: [{ id: 'dn-2', branch_id:'branch-1', number: 'DN-002', status: 'delivered', customer_id: 10 }]
           };
         }
         if (sql.includes('FROM delivery_note_items dni') && sql.includes('FOR UPDATE OF dni')) {
@@ -117,14 +117,14 @@ test('Phase G-5: Delivery Returns & Stock IN Integrity Suite', async (t) => {
           return {
             rows: [
               {
-                id: 'sr-100',
+                id: 'sr-100', branch_id:'branch-1',
                 number: 'SR-2026-001',
                 delivery_note_id: 'dn-100',
                 status: 'draft',
                 items_json: [
                   {
                     id: 'sri-1',
-                    sales_return_id: 'sr-100',
+                    sales_return_id: 'sr-100', branch_id:'branch-1',
                     delivery_note_item_id: 'dni-100',
                     product_id: 500,
                     quantity_returned: 4,
@@ -138,15 +138,16 @@ test('Phase G-5: Delivery Returns & Stock IN Integrity Suite', async (t) => {
         // Fetch Delivery Note
         if (sql.includes('FROM delivery_notes') && sql.includes('FOR UPDATE')) {
           return {
-            rows: [{ id: 'dn-100', warehouse_id: 'wh-1', status: 'delivered' }]
+            rows: [{ id: 'dn-100', branch_id:'branch-1', warehouse_id: 'wh-1', status: 'delivered' }]
           };
         }
         // Re-verify DNI limits atomically
         if (sql.includes('FROM delivery_note_items dni') && sql.includes('FOR UPDATE')) {
           return {
-            rows: [{ id: 'dni-100', quantity_delivered: 10, already_returned: 0 }]
+            rows: [{ id: 'dni-100', delivery_note_id:'dn-100', product_id:500, quantity_delivered: 10, already_returned: 0 }]
           };
         }
+        if (sql.includes('FROM warehouses')) return {rows:[{id:'wh-1'}]};
         // Lock Product
         if (sql.includes('FROM products') && sql.includes('FOR UPDATE')) {
           return {
@@ -221,7 +222,7 @@ test('Phase G-5: Delivery Returns & Stock IN Integrity Suite', async (t) => {
           return {
             rows: [
               {
-                id: 'sr-101',
+                id: 'sr-101', branch_id:'branch-1',
                 number: 'SR-2026-002',
                 status: 'completed',
                 delivery_note_id: 'dn-101'
