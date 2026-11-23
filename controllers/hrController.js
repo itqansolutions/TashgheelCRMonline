@@ -10,7 +10,7 @@ const db = require('../config/db');
 const attendanceService = require('../services/attendanceService');
 exports.checkIn = async (req, res) => {
     try {
-        const { row } = await attendanceService.transact({tenant:req.user.tenant_id,branch:req.branchId,user:req.user.id,mode:'in',ip:req.ip || req.connection?.remoteAddress,locationRequest:{...req,locationTransaction:true}});
+        const { row } = await attendanceService.transact({tenant:req.user.tenant_id,branch:req.branchId,user:req.user.id,mode:'in',ip:req.ip || req.connection?.remoteAddress,locationRequest:{user:req.user,branchId:req.branchId,headers:req.headers,body:req.body,locationTransaction:true}});
         res.status(201).json({status:'success',message:'Checked in successfully.',data:row});
         const {late_minutes}=row;
         const user_id=req.user.id, tenant_id=req.user.tenant_id, branch_id=req.branchId;
@@ -43,7 +43,7 @@ exports.checkIn = async (req, res) => {
 };
 exports.checkOut = async (req,res) => {
     try {
-        const {row}=await attendanceService.transact({tenant:req.user.tenant_id,branch:req.branchId,user:req.user.id,mode:'out',locationRequest:{...req,locationTransaction:true}});
+        const {row}=await attendanceService.transact({tenant:req.user.tenant_id,branch:req.branchId,user:req.user.id,mode:'out',locationRequest:{user:req.user,branchId:req.branchId,headers:req.headers,body:req.body,locationTransaction:true}});
         res.json({status:'success',message:'Checked out successfully.',data:row});
     } catch(err) {res.status(err.status || 400).json({status:'error',message:err.message});}
 };
