@@ -51,31 +51,31 @@ const ResetPassword = () => {
   };
 
   return (
-    <div className="login-container" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="login-container auth-recovery-page" dir={isRTL ? 'rtl' : 'ltr'}>
       <style>{`
-        .login-container {
+        .auth-recovery-page.login-container {
           display: flex; justify-content: center; align-items: center; min-height: 100vh;
           background: radial-gradient(circle at top right, #4f46e5 0%, #1e1b4b 100%); padding: 24px;
         }
-        .login-card {
+        .auth-recovery-page .login-card {
           background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(20px);
           padding: 48px; border-radius: 24px; width: 100%; max-width: 440px;
           border: 1px solid rgba(255, 255, 255, 0.1); animation: slideUp 0.6s ease-out;
         }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        h1 { color: white; font-size: 28px; font-weight: 800; margin-bottom: 12px; text-align: center; }
-        p { color: rgba(255, 255, 255, 0.6); text-align: center; margin-bottom: 30px; }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; color: white; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
-        .input-wrapper { position: relative; }
-        .input-wrapper svg { position: absolute; ${isRTL ? 'right: 16px;' : 'left: 16px;'} top: 50%; transform: translateY(-50%); color: rgba(255, 255, 255, 0.4); width: 18px; }
-        input { width: 100%; ${isRTL ? 'padding: 14px 48px 14px 14px;' : 'padding: 14px 14px 14px 48px;'} background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: white; transition: all 0.3s; box-sizing: border-box; }
-        input:focus { outline: none; border-color: #6366f1; background: rgba(255, 255, 255, 0.1); }
-        .btn-submit { width: 100%; padding: 14px; background: #6366f1; color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: all 0.3s; display: flex; justify-content: center; align-items: center; gap: 10px; }
-        .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(99, 102, 241, 0.4); }
-        .error-box { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; padding: 14px; border-radius: 12px; margin-bottom: 24px; display: flex; align-items: center; gap: 10px; font-size: 14px; }
-        .success-box { text-align: center; padding: 20px; }
-        .success-icon { width: 48px; height: 48px; color: #10b981; margin: 0 auto 16px; }
+        .auth-recovery-page h1 { color: white; font-size: 28px; font-weight: 800; margin-bottom: 12px; text-align: center; }
+        .auth-recovery-page p { color: rgba(255, 255, 255, 0.6); text-align: center; margin-bottom: 30px; }
+        .auth-recovery-page .form-group { margin-bottom: 20px; }
+        .auth-recovery-page .form-group label { display: block; color: white; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+        .auth-recovery-page .input-wrapper { position: relative; }
+        .auth-recovery-page .input-wrapper svg { position: absolute; ${isRTL ? 'right: 16px;' : 'left: 16px;'} top: 50%; transform: translateY(-50%); color: rgba(255, 255, 255, 0.4); width: 18px; }
+        .auth-recovery-page input { width: 100%; ${isRTL ? 'padding: 14px 48px 14px 14px;' : 'padding: 14px 14px 14px 48px;'} background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: white; transition: all 0.3s; box-sizing: border-box; }
+        .auth-recovery-page input:focus { outline: none; border-color: #6366f1; background: rgba(255, 255, 255, 0.1); }
+        .auth-recovery-page .btn-submit { width: 100%; padding: 14px; background: #6366f1; color: white; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: all 0.3s; display: flex; justify-content: center; align-items: center; gap: 10px; }
+        .auth-recovery-page .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(99, 102, 241, 0.4); }
+        .auth-recovery-page .error-box { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; padding: 14px; border-radius: 12px; margin-bottom: 24px; display: flex; align-items: center; gap: 10px; font-size: 14px; }
+        .auth-recovery-page .success-box { text-align: center; padding: 20px; }
+        .auth-recovery-page .success-icon { width: 48px; height: 48px; color: #10b981; margin: 0 auto 16px; }
       `}</style>
 
       <div className="login-card">

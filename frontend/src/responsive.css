@@ -968,3 +968,23 @@
 }
 
 .customer-statement-drawer { background:var(--bg-main)!important; }
+
+/* Phase39: recovery-form presentation only. */
+.auth-recovery-page.login-container { min-height:100dvh; box-sizing:border-box; }
+.auth-recovery-page .login-card { min-width:0; box-sizing:border-box; }
+.auth-recovery-page h1,.auth-recovery-page p,.auth-recovery-page .error-box { overflow-wrap:anywhere; }
+.auth-recovery-page .error-box svg { flex-shrink:0; }
+.auth-recovery-page input { min-width:0; min-height:48px; }
+.auth-recovery-page .btn-submit { min-height:48px; white-space:normal; }
+.auth-recovery-page .back-to-login { min-height:44px; }
+@media(max-width:768px) {
+ .auth-recovery-page.login-container { padding:20px 12px; }
+ .auth-recovery-page .login-card { padding:28px 20px; }
+ .auth-recovery-page h1 { font-size:25px; }
+ .auth-recovery-page p { margin-bottom:24px; }
+}
+@media(max-width:768px) {
+ .auth-recovery-page.login-container { padding:20px 12px!important; }
+ .auth-recovery-page .login-card { padding:28px 20px!important; }
+ .auth-recovery-page h1 { font-size:25px!important; }
+}
