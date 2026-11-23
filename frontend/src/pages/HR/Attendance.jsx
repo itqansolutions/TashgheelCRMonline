@@ -14,6 +14,7 @@ const Attendance = () => {
   const [loadError,setLoadError]=useState(false);
   const [timezone,setTimezone]=useState(undefined);
   const busy=useRef(false);
+  const mounted=useRef(true);
   const [locationEnforced,setLocationEnforced]=useState(false);
 
   const fetchAttendance = async () => {
@@ -39,8 +40,10 @@ const Attendance = () => {
   };
 
   useEffect(() => {
+    mounted.current=true;
     setLoading(true);setActiveSession(null);setLocationEnforced(false);
     fetchAttendance();
+    return()=>{mounted.current=false;};
   }, []);
 
   const getPunchLocation = () => new Promise((resolve,reject) => {
@@ -54,7 +57,7 @@ const Attendance = () => {
     if(busy.current)return;busy.current=true;
     setIsProcessing(true);
     try {
-      const res = await api.post('/hr/attendance/check-in',{location:await getPunchLocation()});
+      const res = await api.post('/hr/attendance/check-in',{location:await getPunchLocation().then(fix=>{if(!mounted.current)throw Error('Branch changed. Retry attendance in the selected branch.');return fix;})});
       toast.success(res.data.message || t('hr.attendance.toastCheckInSuccess', 'Checked in successfully!'));
       await fetchAttendance();
     } catch (err) {
@@ -68,7 +71,7 @@ const Attendance = () => {
     if(busy.current)return;busy.current=true;
     setIsProcessing(true);
     try {
-      const res = await api.post('/hr/attendance/check-out',{location:await getPunchLocation()});
+      const res = await api.post('/hr/attendance/check-out',{location:await getPunchLocation().then(fix=>{if(!mounted.current)throw Error('Branch changed. Retry attendance in the selected branch.');return fix;})});
       toast.success(res.data.message || t('hr.attendance.toastCheckOutSuccess', 'Checked out successfully!'));
       await fetchAttendance();
     } catch (err) {
