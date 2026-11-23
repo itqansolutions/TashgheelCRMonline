@@ -17,6 +17,7 @@ function validate(policy,location,userAgent,now=Date.now()){
  return {distance_m:dist,accuracy_m:l.accuracy,fix_timestamp:l.timestamp};
 }
 async function enforce(db,req){
+ if(req.locationTransaction)await db.query("SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))",['attendance-policy',String(req.user.tenant_id)+':'+String(req.branchId)]);
  const r=await db.query('SELECT * FROM hr_branch_attendance_policy WHERE branch_id::text=$1::text AND tenant_id::text=$2::text',[req.branchId,req.user.tenant_id]);
  // Staged rollout: no policy or disabled policy preserves existing attendance until explicit admin activation.
  if(!r.rows[0]?.enforcement_enabled)return null;

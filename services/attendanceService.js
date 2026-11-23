@@ -28,10 +28,11 @@ async function lateness(client,user,tenant,day,instant,zone) {
  if(r.rows.length){const [h,m]=String(r.rows[0].start_time||'09:00').split(':').map(Number);deadline=h*60+m+Number(r.rows[0].grace_minutes||0);}
  const late=Math.max(0,localParts(instant,zone).minutes-deadline);return {late,status:late?'late':'present'};
 }
-async function transact({tenant,branch,user,mode,instant=new Date(),stamp,ip}) {
+async function transact({tenant,branch,user,mode,instant=new Date(),stamp,ip,locationRequest}) {
  const client=await db.connect();
  try {
   await client.query('BEGIN');
+  if(locationRequest)await require('./attendanceLocationService').enforce(client,locationRequest);
   const zone=await timezoneFor(client,tenant,branch);
   if(stamp) instant=deviceInstant(stamp,zone);
   const day=localParts(instant,zone).day;
