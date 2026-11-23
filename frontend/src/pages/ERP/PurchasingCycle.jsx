@@ -34,8 +34,8 @@ const PurchasingCycle = () => {
   };
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+    <div className="purchasing-read-page" style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+      <div className="purchasing-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Package size={28} /> Purchasing & Procurement Cycle
@@ -46,7 +46,7 @@ const PurchasingCycle = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
+      <div className="purchasing-tabs" style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
         <button
           onClick={() => setActiveTab('orders')}
           style={{
@@ -69,7 +69,7 @@ const PurchasingCycle = () => {
         </button>
       </div>
 
-      <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+      <div className="purchasing-card" style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>Loading...</div>
         ) : activeTab === 'orders' ? (

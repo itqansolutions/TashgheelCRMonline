@@ -855,3 +855,27 @@
  .payroll-detail-dialog .modal-footer button { flex:1; min-height:44px; }
 }
 .payroll-engine-page .pr-table td.num-en { display:table-cell; }
+
+/* Phase36: purchasing directories only. */
+.purchasing-read-page { min-width:0; }
+.purchasing-read-page .purchasing-header > div { min-width:0; }
+.purchasing-read-page h1 { align-items:flex-start!important; overflow-wrap:anywhere; }
+.purchasing-read-page h1 svg { flex-shrink:0; }
+.purchasing-read-page .purchasing-tabs { flex-wrap:wrap; }
+.purchasing-read-page .purchasing-tabs button { min-height:44px; }
+.purchasing-read-page table { min-width:1060px; table-layout:fixed; }
+.purchasing-read-page th:nth-child(1) { width:220px; }
+.purchasing-read-page th:nth-child(2) { width:250px; }
+.purchasing-read-page th:nth-child(3) { width:200px; }
+.purchasing-read-page th:nth-child(4) { width:210px; }
+.purchasing-read-page th:nth-child(5) { width:180px; }
+.purchasing-read-page td { overflow-wrap:anywhere; vertical-align:top; }
+.purchasing-read-page td:nth-child(4),.purchasing-read-page td:nth-child(5) { white-space:nowrap; }
+@media(max-width:768px) {
+ .purchasing-read-page { padding:12px!important; }
+ .purchasing-read-page h1 { font-size:22px!important; line-height:1.4; }
+ .purchasing-read-page .purchasing-tabs { display:grid!important; grid-template-columns:1fr 1fr; gap:8px!important; }
+ .purchasing-read-page .purchasing-tabs button { padding:10px 8px!important; }
+ .purchasing-read-page .purchasing-card > div:not(.responsive-table-region) { padding:28px 18px!important; }
+ .purchasing-read-page .purchasing-card h3,.purchasing-read-page .purchasing-card p { overflow-wrap:anywhere; }
+}
