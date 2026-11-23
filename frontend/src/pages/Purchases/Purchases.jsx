@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -286,19 +287,15 @@ const Purchases = () => {
         </div>
 
         {/* Modal: New Purchase Invoice */}
-        {showModal && (
-          <div style={modalStyle} dir={isRTL ? 'rtl' : 'ltr'}>
-            <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '780px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
-              <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)' }}>
-                <h3 style={{ margin: 0, color: 'white', fontWeight: 800, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ShoppingCart size={20} /> {t('purchases.modalNew')}
-                </h3>
-                <button onClick={() => setShowModal(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}>
-                  <X size={18} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} style={{ padding: '24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <Modal isOpen={showModal} onClose={() => setShowModal(false)} variant="form" title={t('purchases.modalNew')} footer={<div className="procurement-editor-footer">
+                  <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
+                    {t('purchases.btnCancel')}
+                  </button>
+                  <button type="submit" form="purchase-invoice-editor" disabled={submitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
+                    {submitting ? t('purchases.saving') : t('purchases.btnSave')}
+                  </button>
+                </div>}>
+<form id="purchase-invoice-editor" className="procurement-editor" onSubmit={handleSubmit}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                   <div>
                     <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>{t('purchases.lblVendor')}</label>
@@ -356,7 +353,7 @@ const Purchases = () => {
                     </button>
                   </div>
 
-                  <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <div className="responsive-table-region" role="region" tabIndex={0}><table className="procurement-items" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                     <thead>
                       <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', textAlign: isRTL ? 'right' : 'left' }}>
                         <th style={{ padding: '8px', width: '35%' }}>{t('purchases.colItem')}</th>
@@ -370,7 +367,7 @@ const Purchases = () => {
                     <tbody>
                       {form.items.map((item, idx) => (
                         <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '8px' }}>
+                          <td data-label={t('purchases.colItem')} style={{ padding: '8px' }}>
                             <select
                               value={item.product_id}
                               onChange={e => handleProductChange(idx, e.target.value)}
@@ -383,10 +380,10 @@ const Purchases = () => {
                               ))}
                             </select>
                           </td>
-                          <td style={{ padding: '8px' }}>
+                          <td data-label={t('inventory.colUnit', 'Unit')} style={{ padding: '8px' }}>
                             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>{item.unit || 'piece'}</span>
                           </td>
-                          <td style={{ padding: '8px' }}>
+                          <td data-label={t('purchases.colQty')} style={{ padding: '8px' }}>
                             <input
                               type="number"
                               step="any"
@@ -398,7 +395,7 @@ const Purchases = () => {
                               required
                             />
                           </td>
-                          <td style={{ padding: '8px' }}>
+                          <td data-label={t('purchases.colPrice')} style={{ padding: '8px' }}>
                             <input
                               type="number"
                               step="any"
@@ -410,10 +407,10 @@ const Purchases = () => {
                               required
                             />
                           </td>
-                          <td className="num-en" style={{ padding: '8px', fontWeight: 800, color: '#0ea5e9' }}>
+                          <td data-label={t('purchases.colSubtotal')} className="num-en" style={{ padding: '8px', fontWeight: 800, color: '#0ea5e9' }}>
                             {item.subtotal.toFixed(2)} {t('common.currency', 'EGP')}
                           </td>
-                          <td style={{ padding: '8px', textAlign: 'center' }}>
+                          <td data-label={t('common.delete', 'Remove')} style={{ padding: '8px', textAlign: 'center' }}>
                             <button
                               type="button"
                               onClick={() => removeItemRow(idx)}
@@ -447,18 +444,9 @@ const Purchases = () => {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }}>
-                  <button type="button" onClick={() => setShowModal(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>
-                    {t('purchases.btnCancel')}
-                  </button>
-                  <button type="submit" disabled={submitting} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #0ea5e9, #0284c7)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
-                    {submitting ? t('purchases.saving') : t('purchases.btnSave')}
-                  </button>
-                </div>
+
               </form>
-            </div>
-          </div>
-        )}
+</Modal>
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { 
-  FileText, Plus, Search, Trash2, Calendar, Building, 
+import {
+  FileText, Plus, Search, Trash2, Calendar, Building,
   CheckCircle2, XCircle, AlertCircle, Clock, ChevronRight, X,
   ShieldCheck, User, Filter, ArrowUpRight, DollarSign,
   Package, Edit3, Send, Trophy, ExternalLink, HelpCircle,
@@ -153,7 +154,7 @@ const RFQs = () => {
   const handleToggleVendorInvite = (vendorId) => {
     setRfqForm(prev => {
       const exists = prev.vendor_ids.includes(vendorId);
-      const updated = exists 
+      const updated = exists
         ? prev.vendor_ids.filter(id => id !== vendorId)
         : [...prev.vendor_ids, vendorId];
       return { ...prev, vendor_ids: updated };
@@ -321,7 +322,7 @@ const RFQs = () => {
   const handleOpenQuotationModal = (preselectedVendorId = '') => {
     if (!selectedRfq) return;
     const vendorId = preselectedVendorId || selectedRfq.vendors[0]?.vendor_id || '';
-    
+
     // Prefill items with RFQ items
     const initialItems = selectedRfq.items.map(it => ({
       product_id: it.product_id,
@@ -822,41 +823,45 @@ const RFQs = () => {
       </div>
 
       {/* CREATE RFQ MODAL */}
-      {showCreateModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center',
-          alignItems: 'center', zIndex: 1100, padding: '20px'
-        }}>
-          <div style={{
-            background: 'white', width: '100%', maxWidth: '850px', maxHeight: '90vh',
-            borderRadius: '16px', display: 'flex', flexDirection: 'column',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', overflow: 'hidden'
-          }}>
-            {/* Modal Header */}
-            <div style={{
-              padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex',
-              justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc'
-            }}>
+      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} variant="form" title="Create Request for Quotation (RFQ)" footer={<div className="procurement-editor-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  style={{
+                    padding: '9px 16px', borderRadius: '8px', border: '1px solid #cbd5e1',
+                    background: 'white', color: '#475569', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit" form="rfq-create-editor"
+                  disabled={submittingAction}
+                  style={{
+                    padding: '9px 18px', borderRadius: '8px', border: '1px solid #0284c7',
+                    background: 'white', color: '#0284c7', fontWeight: 700, fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  Save as Draft
+                </button>
+                <button
+                  type="button"
+                  disabled={submittingAction}
+                  onClick={(e) => handleCreateRfqSubmit(e, true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    padding: '9px 20px', borderRadius: '8px', border: 'none',
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer'
+                  }}
+                >
+                  <Send size={14} />
+                  Save & Send to Vendors
+                </button>
+              </div>}>
+<p style={{color:"#64748b",fontSize:13,marginBottom:20}}>Solicit bids from multiple suppliers for procurement.</p>
+<form id="rfq-create-editor" className="procurement-editor" onSubmit={(e) => handleCreateRfqSubmit(e, false)}>
               <div>
-                <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                  Create Request for Quotation (RFQ)
-                </h2>
-                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
-                  Solicit bids from multiple suppliers for procurement.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <form onSubmit={(e) => handleCreateRfqSubmit(e, false)} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-              <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
                 {/* Generation Mode Selector */}
                 <div style={{
                   display: 'flex', gap: '12px', marginBottom: '20px', background: '#f1f5f9',
@@ -981,7 +986,7 @@ const RFQs = () => {
                     </div>
 
                     <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
-                      <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <div className="responsive-table-region" role="region" tabIndex={0}><table className="procurement-items" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                         <thead>
                           <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
                             <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700 }}>Product *</th>
@@ -993,7 +998,7 @@ const RFQs = () => {
                         <tbody>
                           {rfqForm.items.map((it, idx) => (
                             <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                              <td style={{ padding: '8px 14px' }}>
+                              <td data-label="Product *" style={{ padding: '8px 14px' }}>
                                 <select
                                   value={it.product_id}
                                   onChange={(e) => handleDirectItemChange(idx, 'product_id', e.target.value)}
@@ -1006,7 +1011,7 @@ const RFQs = () => {
                                   ))}
                                 </select>
                               </td>
-                              <td style={{ padding: '8px 14px' }}>
+                              <td data-label="Quantity" style={{ padding: '8px 14px' }}>
                                 <input
                                   type="number"
                                   min="0.01"
@@ -1016,7 +1021,7 @@ const RFQs = () => {
                                   style={{ width: '100%', padding: '7px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px', textAlign: 'center' }}
                                 />
                               </td>
-                              <td style={{ padding: '8px 14px' }}>
+                              <td data-label="Target Specs / Notes" style={{ padding: '8px 14px' }}>
                                 <input
                                   type="text"
                                   placeholder="e.g. Grade A, ISO certified..."
@@ -1025,7 +1030,7 @@ const RFQs = () => {
                                   style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '13px' }}
                                 />
                               </td>
-                              <td style={{ padding: '8px 14px', textAlign: 'center' }}>
+                              <td data-label="Remove item" style={{ padding: '8px 14px', textAlign: 'center' }}>
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveDirectItem(idx)}
@@ -1085,49 +1090,9 @@ const RFQs = () => {
               </div>
 
               {/* Modal Footer */}
-              <div style={{
-                padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc',
-                display: 'flex', justifyContent: 'flex-end', gap: '10px'
-              }}>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  style={{
-                    padding: '9px 16px', borderRadius: '8px', border: '1px solid #cbd5e1',
-                    background: 'white', color: '#475569', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submittingAction}
-                  style={{
-                    padding: '9px 18px', borderRadius: '8px', border: '1px solid #0284c7',
-                    background: 'white', color: '#0284c7', fontWeight: 700, fontSize: '13px', cursor: 'pointer'
-                  }}
-                >
-                  Save as Draft
-                </button>
-                <button
-                  type="button"
-                  disabled={submittingAction}
-                  onClick={(e) => handleCreateRfqSubmit(e, true)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    padding: '9px 20px', borderRadius: '8px', border: 'none',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                    color: 'white', fontWeight: 700, fontSize: '13px', cursor: 'pointer'
-                  }}
-                >
-                  <Send size={14} />
-                  Save & Send to Vendors
-                </button>
-              </div>
+
             </form>
-          </div>
-        </div>
-      )}
+</Modal>
 
       {/* RFQ DETAIL DRAWER */}
       {showDetailDrawer && selectedRfq && (

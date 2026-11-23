@@ -273,3 +273,18 @@
 }
 
 .workspace-form-panel:has(.purchase-request-editor) .modal-footer > div { width:100%; padding:0!important; border:0!important; gap:16px; }
+
+.procurement-editor { display:flex; flex-direction:column; gap:20px; }
+.procurement-editor-footer { display:flex; gap:10px; justify-content:flex-end; width:100%; flex-wrap:wrap; }
+@media(max-width:768px) {
+ .procurement-editor [style*="grid-template-columns"] { grid-template-columns:minmax(0,1fr)!important; }
+ .procurement-items thead { display:none; }
+ .procurement-items,.procurement-items tbody,.procurement-items tr,.procurement-items td { display:block; width:100%!important; }
+ .procurement-items tr { padding:14px; border:1px solid #dbe3ee; border-radius:12px; margin-bottom:14px; }
+ .procurement-items td { padding:8px 0!important; text-align:start!important; }
+ .procurement-items td::before { content:attr(data-label); display:block; color:#64748b; font-size:12px; margin-bottom:6px; }
+ .procurement-items input,.procurement-items select { min-height:44px; }
+ .procurement-editor-footer button { min-height:44px; }
+ .procurement-editor-footer:has(button:nth-child(3)) { display:grid; grid-template-columns:1fr 1fr; }
+ .procurement-editor-footer button:nth-child(3) { grid-column:1/-1; justify-content:center; }
+}
