@@ -261,7 +261,7 @@ exports.updateTask = async (req, res) => {
     const branch_id = req.branchId || req.user?.branch_id;
 
     const verifyResult = await client.query(
-      'SELECT id, status_id, assigned_to, created_by, director_id FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text',
+      'SELECT id, status_id, assigned_to, created_by, director_id FROM tasks WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text FOR UPDATE',
       [req.params.id, tenant_id, branch_id]
     );
     if (verifyResult.rows.length === 0) {
@@ -305,14 +305,24 @@ exports.updateTask = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'Unauthorized: You do not have permission to update this task' });
     }
 
+    // PUT is also used by the status picker with only status_id. Only write
+    // supplied fields so partial updates cannot clear task data or followers.
+    const taskFields = ['title', 'description', 'priority', 'status', 'status_id',
+      'assigned_to', 'director_id', 'parent_type', 'parent_id', 'due_date'];
+    const nullableIds = new Set(['status_id', 'assigned_to', 'director_id', 'due_date']);
+    const suppliedFields = taskFields.filter(field => Object.prototype.hasOwnProperty.call(req.body, field));
+    const values = suppliedFields.map(field => nullableIds.has(field) ? (req.body[field] || null) : req.body[field]);
+    const assignments = suppliedFields.map((field, index) => `${field} = $${index + 1}`);
+    assignments.push('updated_at = CURRENT_TIMESTAMP');
+    const offset = values.length;
     const result = await client.query(
-      'UPDATE tasks SET title = $1, description = $2, priority = $3, status = $4, status_id = $5, assigned_to = $6, director_id = $7, parent_type = $8, parent_id = $9, due_date = $10, updated_at = CURRENT_TIMESTAMP WHERE id = $11 AND tenant_id::text = $12::text AND branch_id::text = $13::text RETURNING *',
-      [title, description, priority, status, status_id || null, assigned_to || null, director_id || null, parent_type, parent_id, due_date || null, req.params.id, tenant_id, branch_id]
+      `UPDATE tasks SET ${assignments.join(', ')} WHERE id = $${offset + 1} AND tenant_id::text = $${offset + 2}::text AND branch_id::text = $${offset + 3}::text RETURNING *`,
+      [...values, req.params.id, tenant_id, branch_id]
     );
 
-    // Update followers: Delete then Insert (simple sync)
-    await client.query('DELETE FROM task_followers WHERE task_id = $1', [req.params.id]);
-    if (follower_ids && Array.isArray(follower_ids)) {
+    // An omitted follower list means unchanged; an explicit [] clears it.
+    if (Array.isArray(follower_ids)) {
+      await client.query('DELETE FROM task_followers WHERE task_id = $1', [req.params.id]);
       for (const followerId of follower_ids) {
         await client.query('INSERT INTO task_followers (task_id, user_id) VALUES ($1, $2)', [req.params.id, followerId]);
       }

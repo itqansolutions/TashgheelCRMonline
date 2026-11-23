@@ -376,7 +376,7 @@ async function matchCustomersForUnit({ tenantId, branchId, unitId, minScore = DE
         FROM customers
         WHERE tenant_id::text = $1::text
           AND (is_blacklisted IS NOT TRUE)
-          ${extraFilters}AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL OR branch_id = 'default-branch')
+          ${extraFilters}AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL OR branch_id::text = 'default-branch')
     `, [tenantId, branchId ? String(branchId) : null]);
 
     const customers = custRes.rows || [];

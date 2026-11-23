@@ -74,6 +74,7 @@ const UnitsRegistry = () => {
     const [matchedBuyersUnit, setMatchedBuyersUnit] = useState(null);
     const [matchedBuyersList, setMatchedBuyersList] = useState([]);
     const [loadingMatchedBuyers, setLoadingMatchedBuyers] = useState(false);
+    const [matchedBuyersError, setMatchedBuyersError] = useState(null);
     const [expandedBuyerId, setExpandedBuyerId] = useState(null);
 
     const [hierarchyTree, setHierarchyTree] = useState({ developers: [], projects: [] });
@@ -201,12 +202,15 @@ const UnitsRegistry = () => {
         setMatchedBuyersUnit(unit);
         setShowMatchBuyersModal(true);
         setLoadingMatchedBuyers(true);
+        setMatchedBuyersError(null);
         setMatchedBuyersList([]);
         try {
             const res = await api.get(`/re-units/match-unit/${unit.id}`);
             setMatchedBuyersList(res.data?.data?.matches || []);
         } catch(err) {
-            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastMatchBuyersError'));
+            const message = t('realEstate.unitsRegistry.toastMatchBuyersError');
+            setMatchedBuyersError(message);
+            toast.error(message);
         } finally {
             setLoadingMatchedBuyers(false);
         }
@@ -2310,6 +2314,10 @@ const UnitsRegistry = () => {
                         {loadingMatchedBuyers ? (
                             <div style={{ padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
                                 {t('realEstate.unitsRegistry.analyzingBuyers')}
+                            </div>
+                        ) : matchedBuyersError ? (
+                            <div role="alert" style={{ padding: '40px', textAlign: 'center', color: '#b91c1c' }}>
+                                {matchedBuyersError}
                             </div>
                         ) : matchedBuyersList.length === 0 ? (
                             <div style={{ padding: '30px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', color: '#64748b', fontSize: '14px' }}>

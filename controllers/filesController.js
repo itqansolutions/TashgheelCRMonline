@@ -225,12 +225,12 @@ exports.getAttachments = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT * FROM attachments 
-       WHERE (${isUnit ? "(linked_type = 'unit' OR linked_type = 're_unit')" : "linked_type = $1"})
+       WHERE (${isUnit ? "(linked_type = $1 OR linked_type IN ('unit', 're_unit'))" : "linked_type = $1"})
          AND linked_id = $2 
          AND tenant_id::text = $3::text 
          AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) 
        ORDER BY created_at DESC`,
-      isUnit ? [entityType, entityId, tenant_id, branch_id || null] : [entityType, entityId, tenant_id, branch_id || null]
+      [entityType, entityId, tenant_id, branch_id || null]
     );
     const normalizedRows = (result.rows || []).map(r => ({
       ...r,

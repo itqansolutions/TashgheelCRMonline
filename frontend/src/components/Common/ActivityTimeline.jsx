@@ -211,6 +211,7 @@ const ActivityTimeline = ({ entityType, entityId, canLog = true, onActivityCreat
     // ── Submit log entry ───────────────────────────────────────────────────
     const handleSubmitLog = async (e) => {
         e.preventDefault();
+        e.stopPropagation();
         setSubmitError('');
         if (!logNote.trim()) {
             setSubmitError(t('customers.pleaseEnterDescription', 'Please enter a description.'));
@@ -293,6 +294,7 @@ const ActivityTimeline = ({ entityType, entityId, canLog = true, onActivityCreat
                 {/* Add Log Button (rendered only if authorized) */}
                 {canLog && (
                     <button
+                        type="button"
                         onClick={() => setShowForm(prev => !prev)}
                         style={{
                             display: 'flex', alignItems: 'center', gap: '6px',
