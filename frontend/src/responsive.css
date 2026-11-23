@@ -339,3 +339,33 @@
 }
 /* Phone numbers keep international plus-prefix order in either language. */
 .whatsapp-message-editor #whatsapp-start-editor input[type="text"][required] { direction:ltr; unicode-bidi:plaintext; }
+
+/* Company profile form, phase18. Source state, upload and save actions unchanged. */
+.company-settings-page { width:100%; min-width:0; align-items:start; }
+.company-settings-page > *, .company-settings-page .form-grid > *, .company-settings-page .card-body { min-width:0; }
+.company-settings-page .settings-header { margin-bottom:0; }
+.company-settings-page .settings-card { box-shadow:none; border-radius:12px; }
+.company-settings-page .form-group input,.company-settings-page .form-group textarea,.company-settings-page .form-group select { min-width:0; box-sizing:border-box; min-height:44px; }
+.company-settings-page .logo-preview { flex-shrink:0; }
+.company-settings-page .a4-preview { box-sizing:border-box; }
+.company-settings-page .preview-header > div { min-width:0; overflow-wrap:anywhere; }
+@media(max-width:768px) {
+ .company-settings-page { padding:16px!important; gap:20px!important; grid-template-columns:minmax(0,1fr)!important; }
+ .company-settings-page .settings-header { grid-column:auto!important; }
+ .company-settings-page .card-body { padding:18px!important; }
+ .company-settings-page .form-grid { grid-template-columns:minmax(0,1fr)!important; }
+ .company-settings-page .form-group.full { grid-column:auto!important; }
+ .company-settings-page .logo-upload-container { flex-wrap:wrap; gap:14px!important; }
+ .company-settings-page .logo-upload-container > div:last-child { flex:1; min-width:130px; }
+ .company-settings-page .preview-pane { position:static!important; }
+ .company-settings-page .a4-preview { padding:18px!important; }
+ .company-settings-page .preview-totals { width:65%!important; }
+ .company-settings-page .btn-save { min-height:48px; }
+}
+@media(max-width:768px) {
+ .company-settings-page .a4-preview { aspect-ratio:auto!important; overflow:visible!important; }
+ .company-settings-page .preview-table { table-layout:auto; }
+ .company-settings-page .preview-table td.num-en,.company-settings-page .preview-table th { white-space:nowrap; }
+ .company-settings-page .preview-table td { padding:10px 4px!important; }
+ .company-settings-page .preview-totals { width:75%!important; }
+}

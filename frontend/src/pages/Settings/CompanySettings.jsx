@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { 
-  Building2, Image as ImageIcon, Globe, Receipt, 
+import {
+  Building2, Image as ImageIcon, Globe, Receipt,
   MapPin, Phone, Hash, FileText, Save, Eye
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -14,7 +14,7 @@ const CompanySettings = () => {
   const { fetchTenant } = useData();
   const { t, isRTL } = useLanguage();
   const fileInputRef = useRef(null);
-  
+
   const [tenant, setTenant] = useState({
     name: '', address: '', phone: '', logo_url: '',
     tax_no: '', reg_no: '', currency: 'EGP',
@@ -28,7 +28,7 @@ const CompanySettings = () => {
     quotation_footer: '', quotation_terms: '',
     primary_color: '#6366f1'
   });
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -107,57 +107,57 @@ const CompanySettings = () => {
   return (
     <div className="company-settings-page" dir={isRTL ? 'rtl' : 'ltr'}>
       <style>{`
-        .company-settings-page { padding: 24px; max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 32px; }
-        .settings-header { grid-column: span 2; margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; }
-        .settings-card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        .card-header { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background: #fbfcfd; display: flex; align-items: center; gap: 10px; }
-        .card-header h3 { font-size: 14px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
-        .card-body { padding: 20px; }
-        
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .form-group { margin-bottom: 16px; }
-        .form-group.full { grid-column: span 2; }
-        .form-group label { display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 6px; }
-        .form-group input, .form-group select, .form-group textarea { 
-          width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 14px; outline: none; transition: 0.2s; 
+        .company-settings-page{ padding: 24px; max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 32px; }
+        .company-settings-page .settings-header{ grid-column: span 2; margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; }
+        .company-settings-page .settings-card{ background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .company-settings-page .card-header{ padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background: #fbfcfd; display: flex; align-items: center; gap: 10px; }
+        .company-settings-page .card-header h3{ font-size: 14px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
+        .company-settings-page .card-body{ padding: 20px; }
+
+        .company-settings-page .form-grid{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .company-settings-page .form-group{ margin-bottom: 16px; }
+        .company-settings-page .form-group.full{ grid-column: span 2; }
+        .company-settings-page .form-group label{ display: block; font-size: 12px; font-weight: 700; color: #64748b; margin-bottom: 6px; }
+        .company-settings-page .form-group input, .company-settings-page .form-group select, .company-settings-page .form-group textarea{
+          width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 14px; outline: none; transition: 0.2s;
           background: #f8fafc;
         }
-        .form-group input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); background: white; }
-        
-        .logo-upload-container { display: flex; align-items: center; gap: 20px; padding: 16px; background: #f8fafc; border: 2px dashed #e2e8f0; border-radius: 12px; margin-bottom: 20px; }
-        .logo-preview { width: 100px; height: 100px; border-radius: 8px; background: white; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #e2e8f0; }
-        .logo-preview img { width: 100%; height: 100%; object-fit: contain; }
-        .upload-btn { padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; }
-        .upload-btn:hover { background: #f1f5f9; }
+        .company-settings-page .form-group input:focus{ border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); background: white; }
+
+        .company-settings-page .logo-upload-container{ display: flex; align-items: center; gap: 20px; padding: 16px; background: #f8fafc; border: 2px dashed #e2e8f0; border-radius: 12px; margin-bottom: 20px; }
+        .company-settings-page .logo-preview{ width: 100px; height: 100px; border-radius: 8px; background: white; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #e2e8f0; }
+        .company-settings-page .logo-preview img{ width: 100%; height: 100%; object-fit: contain; }
+        .company-settings-page .upload-btn{ padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .company-settings-page .upload-btn:hover{ background: #f1f5f9; }
 
         /* Invoice Preview Styles */
-        .preview-pane { position: sticky; top: 24px; }
-        .preview-box { background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
-        .preview-tabs { display: flex; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
-        .preview-tab { flex: 1; text-align: center; padding: 10px 12px; font-size: 11px; font-weight: 800; cursor: pointer; color: #64748b; border-bottom: 2px solid transparent; transition: all 0.2s; }
-        .preview-tab.active { background: white; color: #6366f1; border-bottom-color: #6366f1; }
-        .a4-preview { width: 100%; aspect-ratio: 1 / 1.414; background: white; padding: 30px; font-size: 10px; color: #1e293b; overflow-y: auto; }
-        .preview-header { display: flex; justify-content: space-between; margin-bottom: 30px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px; }
-        .preview-logo { max-height: 40px; max-width: 120px; object-fit: contain; }
-        .preview-company-name { font-size: 16px; font-weight: 800; color: #6366f1; }
-        .preview-title { text-align: right; color: #94a3b8; text-transform: uppercase; font-weight: 900; }
-        .preview-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-        .preview-table th { background: #fbfcfd; text-align: left; padding: 8px; border-bottom: 2px solid #f1f5f9; font-weight: 800; }
-        .preview-table td { padding: 12px 8px; border-bottom: 1px solid #f8fafc; }
-        .preview-totals { margin-left: auto; width: 50%; border-top: 2px solid #1e293b; padding-top: 10px; }
-        .preview-footer { margin-top: 40px; border-top: 1px solid #f1f5f9; padding-top: 15px; font-size: 9px; color: #64748b; }
+        .company-settings-page .preview-pane{ position: sticky; top: 24px; }
+        .company-settings-page .preview-box{ background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .company-settings-page .preview-tabs{ display: flex; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+        .company-settings-page .preview-tab{ flex: 1; text-align: center; padding: 10px 12px; font-size: 11px; font-weight: 800; cursor: pointer; color: #64748b; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .company-settings-page .preview-tab.active{ background: white; color: #6366f1; border-bottom-color: #6366f1; }
+        .company-settings-page .a4-preview{ width: 100%; aspect-ratio: 1 / 1.414; background: white; padding: 30px; font-size: 10px; color: #1e293b; overflow-y: auto; }
+        .company-settings-page .preview-header{ display: flex; justify-content: space-between; margin-bottom: 30px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px; }
+        .company-settings-page .preview-logo{ max-height: 40px; max-width: 120px; object-fit: contain; }
+        .company-settings-page .preview-company-name{ font-size: 16px; font-weight: 800; color: #6366f1; }
+        .company-settings-page .preview-title{ text-align: right; color: #94a3b8; text-transform: uppercase; font-weight: 900; }
+        .company-settings-page .preview-table{ width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .company-settings-page .preview-table th{ background: #fbfcfd; text-align: left; padding: 8px; border-bottom: 2px solid #f1f5f9; font-weight: 800; }
+        .company-settings-page .preview-table td{ padding: 12px 8px; border-bottom: 1px solid #f8fafc; }
+        .company-settings-page .preview-totals{ margin-left: auto; width: 50%; border-top: 2px solid #1e293b; padding-top: 10px; }
+        .company-settings-page .preview-footer{ margin-top: 40px; border-top: 1px solid #f1f5f9; padding-top: 15px; font-size: 9px; color: #64748b; }
 
-        .btn-save { width: 100%; padding: 12px; background: #6366f1; color: white; border-radius: 10px; font-weight: 700; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: 0.2s; }
-        .btn-save:hover { background: #4f46e5; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2); }
+        .company-settings-page .btn-save{ width: 100%; padding: 12px; background: #6366f1; color: white; border-radius: 10px; font-weight: 700; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: 0.2s; }
+        .company-settings-page .btn-save:hover{ background: #4f46e5; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2); }
         @media (max-width: 900px) {
-          .company-settings-page { grid-template-columns: 1fr; }
-          .settings-header { grid-column: span 1; }
+          .company-settings-page{ grid-template-columns: 1fr; }
+          .company-settings-page .settings-header{ grid-column: span 1; }
         }
       `}</style>
 
-      <div className="settings-header">
+      <div className="settings-header page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-             <div style={{ 
+             <div style={{
                  fontSize: '10px', fontWeight: 900, padding: '2px 8px', borderRadius: '4px',
                  background: user?.template_name === 'real_estate' ? '#4f46e5' : '#64748b',
                  color: 'white', textTransform: 'uppercase'
@@ -261,20 +261,20 @@ const CompanySettings = () => {
               <div className="form-grid">
                 <div className="form-group">
                   <label>{t('companySettings.lblInvoiceTitle')}</label>
-                  <input 
-                    type="text" 
-                    value={tenant.invoice_header_title || ''} 
-                    onChange={(e) => setTenant({...tenant, invoice_header_title: e.target.value})} 
-                    placeholder="فاتورة ضريبية / TAX INVOICE" 
+                  <input
+                    type="text"
+                    value={tenant.invoice_header_title || ''}
+                    onChange={(e) => setTenant({...tenant, invoice_header_title: e.target.value})}
+                    placeholder="فاتورة ضريبية / TAX INVOICE"
                   />
                 </div>
                 <div className="form-group">
                   <label>{t('companySettings.lblInvoiceSubtitle')}</label>
-                  <input 
-                    type="text" 
-                    value={tenant.invoice_header_subtitle || ''} 
-                    onChange={(e) => setTenant({...tenant, invoice_header_subtitle: e.target.value})} 
-                    placeholder="مثال: لحلول الأعمال والتجارة الذكية" 
+                  <input
+                    type="text"
+                    value={tenant.invoice_header_subtitle || ''}
+                    onChange={(e) => setTenant({...tenant, invoice_header_subtitle: e.target.value})}
+                    placeholder="مثال: لحلول الأعمال والتجارة الذكية"
                   />
                 </div>
               </div>
@@ -298,20 +298,20 @@ const CompanySettings = () => {
               <div className="form-grid">
                 <div className="form-group">
                   <label>{t('companySettings.lblQuotationTitle')}</label>
-                  <input 
-                    type="text" 
-                    value={tenant.quotation_header_title || ''} 
-                    onChange={(e) => setTenant({...tenant, quotation_header_title: e.target.value})} 
-                    placeholder="عرض أسعار / PRICE QUOTATION" 
+                  <input
+                    type="text"
+                    value={tenant.quotation_header_title || ''}
+                    onChange={(e) => setTenant({...tenant, quotation_header_title: e.target.value})}
+                    placeholder="عرض أسعار / PRICE QUOTATION"
                   />
                 </div>
                 <div className="form-group">
                   <label>{t('companySettings.lblQuotationSubtitle')}</label>
-                  <input 
-                    type="text" 
-                    value={tenant.quotation_header_subtitle || ''} 
-                    onChange={(e) => setTenant({...tenant, quotation_header_subtitle: e.target.value})} 
-                    placeholder="مثال: عروض أسعار هندسية معتمدة" 
+                  <input
+                    type="text"
+                    value={tenant.quotation_header_subtitle || ''}
+                    onChange={(e) => setTenant({...tenant, quotation_header_subtitle: e.target.value})}
+                    placeholder="مثال: عروض أسعار هندسية معتمدة"
                   />
                 </div>
               </div>
