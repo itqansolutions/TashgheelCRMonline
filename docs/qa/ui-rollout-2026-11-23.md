@@ -125,3 +125,10 @@ Finance/accounting; purchasing; inventory beyond Products; remaining HR; real es
 | SuperAdmin/SecretPortalHUD.jsx | 0 | 0 | no |
 | SuperAdmin/TenantAccessManagementModal.jsx | 0 | 0 | no |
 | SuperAdmin/RegistrationRequests.jsx | 0 | 0 | no |
+
+## Phase 2 candidate
+- Shift configuration, activity definition and activity-balance editors converted from bespoke overlay wrappers to the same opt-in form panel. Short shift-assignment dialog unchanged in layout.
+- Exact source comparison confirms all input/select/textarea counts and every handle* function body unchanged, including all policy defaults and save payloads. All23/7/7 rendered controls retained.
+- Existing locale keys wired for matching visible labels, no new policy text. Employee phone form tabs now three visible compact labels with full accessible names/titles.
+-12 AR/EN360/1440 actual HR-editor variants, actual-language HR page controls, prior16CRM-editor and8employee variants, navigation and build passed locally. Screenshots inspected after corrections. No live HR save or business write.
+- Remaining HR pages and other families are not completed by these three editor conversions. Original Phase1 coverage limits still apply.

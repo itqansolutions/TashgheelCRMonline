@@ -3067,6 +3067,8 @@
       "toastDeleteError": "Failed to delete activity"
     },
     "activityBalance": {
+      "phoneSelectEmployee": "-- Select employee --",
+      "phoneSelectActivity": "-- Select activity --",
       "yearOption": "Year {{year}}",
       "title": "Activity & Leave Balance Ledger",
       "subtitle": "Monthly and annual quota balance allocation across staff members.",
@@ -3329,7 +3331,8 @@
       "toastPasswordRequired": "Password is required",
       "toastEmpAdded": "Employee added successfully",
       "toastEmpUpdated": "Employee updated successfully",
-      "workDetails": "Work details"
+      "workDetails": "Work details",
+      "phonePermissions": "Permissions"
     }
   },
   "subNav": {

@@ -3067,6 +3067,8 @@
       "toastDeleteError": "فشل حذف النشاط"
     },
     "activityBalance": {
+      "phoneSelectEmployee": "-- اختر الموظف --",
+      "phoneSelectActivity": "-- اختر نوع النشاط --",
       "yearOption": "سنة {{year}}",
       "title": "دفتر أرصدة الأنشطة والإجازات",
       "subtitle": "توزيع وإدارة الأرصدة والكوتا الشهرية والسنوية على موظفي المؤسسة.",
@@ -3329,7 +3331,8 @@
       "toastPasswordRequired": "كلمة المرور مطلوبة",
       "toastEmpAdded": "تمت إضافة الموظف بنجاح",
       "toastEmpUpdated": "تم تحديث بيانات الموظف بنجاح",
-      "workDetails": "بيانات العمل"
+      "workDetails": "بيانات العمل",
+      "phonePermissions": "الصلاحيات"
     }
   },
   "subNav": {

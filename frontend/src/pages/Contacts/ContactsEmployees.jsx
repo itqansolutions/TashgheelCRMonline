@@ -413,9 +413,9 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
         {/* Sub-Tabs */}
         <div className="employee-form-tabs" style={{ display: 'flex', gap: '4px', padding: '12px 20px 0', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
           {tabs.map(tTab => (
-            <button key={tTab.id} onClick={() => !tTab.disabled && setActiveTab(tTab.id)} disabled={tTab.disabled}
+            <button key={tTab.id} aria-label={tTab.label} title={tTab.label} onClick={() => !tTab.disabled && setActiveTab(tTab.id)} disabled={tTab.disabled}
               style={{ padding: '8px 16px', background: 'transparent', border: 'none', borderBottom: activeTab === tTab.id ? '2px solid #4f46e5' : '2px solid transparent', color: tTab.disabled ? '#cbd5e1' : activeTab === tTab.id ? '#4f46e5' : '#64748b', fontWeight: 700, fontSize: '13px', cursor: tTab.disabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '-1px' }}>
-              {tTab.icon} {tTab.label} {tTab.disabled && <span style={{ fontSize: '10px' }}>{t('hr.contactsEmployees.saveFirst')}</span>}
+              {tTab.icon} <span className="employee-form-tab-label">{tTab.label}</span><span className="employee-form-tab-short">{tTab.id === 'info' ? t('hr.contactsEmployees.tabBasicInfo') : tTab.id === 'permissions' ? t('hr.contactsEmployees.phonePermissions') : t('hr.contactsEmployees.tabAttachments')}</span> {tTab.disabled && <span className="employee-form-tab-hint" style={{ fontSize: '10px' }}>{t('hr.contactsEmployees.saveFirst')}</span>}
             </button>
           ))}
         </div>

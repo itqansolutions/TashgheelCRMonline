@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Plus, Edit2, Trash2, CheckCircle2, XCircle, Clock, Calendar, Sliders } from 'lucide-react';
+import Modal from '../../components/Common/Modal';
 import HRSubNav from '../../components/HR/HRSubNav';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -94,12 +95,6 @@ const ActivityDefinition = () => {
     }
   };
 
-  const modalStyle = {
-    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-    background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px'
-  };
-
   const inputStyle = {
     width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px',
     fontSize: '14px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box',
@@ -111,7 +106,7 @@ const ActivityDefinition = () => {
   };
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="hr-workspace-page" dir={isRTL ? 'rtl' : 'ltr'}>
       <HRSubNav />
       <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
@@ -213,19 +208,26 @@ const ActivityDefinition = () => {
         </div>
 
         {/* Add / Edit Modal */}
-        {showModal && (
-          <div style={modalStyle}>
-            <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '520px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-              <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  {editingId ? t('hr.activityDefinition.editModalTitle', 'Edit Activity Definition') : t('hr.activityDefinition.addModalTitle', 'Add New Activity')}
-                </h3>
-                <button onClick={() => setShowModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>✕</button>
-              </div>
-
-              <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', textAlign: isRTL ? 'right' : 'left' }}>
+        <Modal isOpen={showModal} variant="form" onClose={() => setShowModal(false)} title={editingId ? t('hr.activityDefinition.modalEditTitle', 'Edit Activity Definition') : t('hr.activityDefinition.modalAddTitle', 'Add New Activity')} footer={(
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    type="submit" form="activity-definition-form"
+                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    {t('common.save')}
+                  </button>
+                </div>
+        )}>
+              <form id="activity-definition-form" onSubmit={handleSubmit} style={{ padding: 0, display: 'flex', flexDirection: 'column', gap: '16px', textAlign: isRTL ? 'right' : 'left' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldActivityName', 'Activity Name')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.lblName', 'Activity Name')}</label>
                   <input
                     type="text"
                     placeholder={t('hr.activityDefinition.placeholderName', 'e.g. Late Permission / Annual Leave')}
@@ -237,7 +239,7 @@ const ActivityDefinition = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldUnit', 'Unit')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.lblUnit', 'Unit')}</label>
                   <select
                     value={form.unit}
                     onChange={(e) => setForm({ ...form, unit: e.target.value })}
@@ -250,7 +252,7 @@ const ActivityDefinition = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldStartPost', 'Start Post (Days)')}</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.lblStartPost', 'Start Post (Days)')}</label>
                     <input
                       type="number"
                       value={form.start_post}
@@ -261,7 +263,7 @@ const ActivityDefinition = () => {
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldEndPost', 'End Post (Days)')}</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.lblEndPost', 'End Post (Days)')}</label>
                     <input
                       type="number"
                       value={form.end_post}
@@ -275,7 +277,7 @@ const ActivityDefinition = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldMinValue', 'Min Value')}</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.lblMinValue', 'Min Value')}</label>
                     <input
                       type="number"
                       step="0.1"
@@ -286,7 +288,7 @@ const ActivityDefinition = () => {
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.fieldMaxValue', 'Max Value')}</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityDefinition.lblMaxValue', 'Max Value')}</label>
                     <input
                       type="number"
                       step="0.1"
@@ -306,28 +308,12 @@ const ActivityDefinition = () => {
                     onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
                     style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                   />
-                  <label htmlFor="is_active" style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>{t('hr.activityDefinition.activityIsActive', 'Activity is Active')}</label>
+                  <label htmlFor="is_active" style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>{t('hr.activityDefinition.lblActiveStatus', 'Activity is Active')}</label>
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {t('hr.activityDefinition.btnCancel', 'Cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
-                  >
-                    {editingId ? t('hr.activityDefinition.btnUpdate', 'Update') : t('hr.activityDefinition.btnSave', 'Save')}
-                  </button>
-                </div>
+
               </form>
-            </div>
-          </div>
-        )}
+        </Modal>
       </div>
     </div>
   );

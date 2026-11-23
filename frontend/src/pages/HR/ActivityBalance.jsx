@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Plus, Edit2, Trash2, Wallet, Filter, Search, UserCheck } from 'lucide-react';
+import Modal from '../../components/Common/Modal';
 import HRSubNav from '../../components/HR/HRSubNav';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -132,12 +133,6 @@ const ActivityBalance = () => {
     }
   };
 
-  const modalStyle = {
-    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-    background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '16px'
-  };
-
   const inputStyle = {
     width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: '10px',
     fontSize: '14px', fontWeight: 600, outline: 'none', background: '#f8fafc', boxSizing: 'border-box',
@@ -149,7 +144,7 @@ const ActivityBalance = () => {
   };
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="hr-workspace-page" dir={isRTL ? 'rtl' : 'ltr'}>
       <HRSubNav />
       <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
@@ -171,7 +166,7 @@ const ActivityBalance = () => {
               boxShadow: '0 4px 12px rgba(16,185,129,0.25)'
             }}
           >
-            <Plus size={18} /> {t('hr.activityBalance.assignBalanceBtn', 'Assign Employee Balance')}
+            <Plus size={18} /> {t('hr.activityBalance.btnAllocate', 'Assign Employee Balance')}
           </button>
         </div>
 
@@ -291,19 +286,26 @@ const ActivityBalance = () => {
         </div>
 
         {/* Modal */}
-        {showModal && (
-          <div style={modalStyle}>
-            <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '500px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-              <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  {editingId ? t('hr.activityBalance.editModalTitle', 'Edit Activity Balance') : t('hr.activityBalance.assignModalTitle', 'Assign Employee Activity Balance')}
-                </h3>
-                <button onClick={() => setShowModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>✕</button>
-              </div>
-
-              <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', textAlign: isRTL ? 'right' : 'left' }}>
+        <Modal isOpen={showModal} variant="form" onClose={() => setShowModal(false)} title={editingId ? t('hr.activityBalance.modalEditTitle', 'Edit Activity Balance') : t('hr.activityBalance.modalAddTitle', 'Assign Employee Activity Balance')} footer={(
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    type="submit" form="activity-balance-form"
+                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    {editingId ? t('common.save') : t('hr.activityBalance.btnAllocate', 'Assign')}
+                  </button>
+                </div>
+        )}>
+              <form id="activity-balance-form" onSubmit={handleSubmit} style={{ padding: 0, display: 'flex', flexDirection: 'column', gap: '16px', textAlign: isRTL ? 'right' : 'left' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.fieldEmployee', 'Employee')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.lblSelectEmployee', 'Employee')}</label>
                   <select
                     value={form.user_id}
                     onChange={(e) => setForm({ ...form, user_id: e.target.value })}
@@ -311,7 +313,7 @@ const ActivityBalance = () => {
                     disabled={!!editingId}
                     required
                   >
-                    <option value="">{t('hr.activityBalance.selectEmployeePlaceholder', 'Select Employee...')}</option>
+                    <option value="">{t('hr.activityBalance.phoneSelectEmployee')}</option>
                     {employees.map(e => (
                       <option key={e.id} value={e.id}>{e.name}</option>
                     ))}
@@ -319,7 +321,7 @@ const ActivityBalance = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.fieldActivityType', 'Activity Type')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.lblSelectType', 'Activity Type')}</label>
                   <select
                     value={form.activity_type_id}
                     onChange={(e) => setForm({ ...form, activity_type_id: e.target.value })}
@@ -327,7 +329,7 @@ const ActivityBalance = () => {
                     disabled={!!editingId}
                     required
                   >
-                    <option value="">{t('hr.activityBalance.selectActivityPlaceholder', 'Select Activity...')}</option>
+                    <option value="">{t('hr.activityBalance.phoneSelectActivity')}</option>
                     {activityTypes.map(at => (
                       <option key={at.id} value={at.id}>{at.name} ({getUnitLabel(at.unit)})</option>
                     ))}
@@ -336,7 +338,7 @@ const ActivityBalance = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.fieldMonth', 'Month')}</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.lblPeriodMonth', 'Month')}</label>
                     <select
                       value={form.period_month}
                       onChange={(e) => setForm({ ...form, period_month: parseInt(e.target.value) })}
@@ -349,7 +351,7 @@ const ActivityBalance = () => {
                     </select>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.fieldYear', 'Year')}</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.lblPeriodYear', 'Year')}</label>
                     <input
                       type="number"
                       value={form.period_year}
@@ -363,7 +365,7 @@ const ActivityBalance = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.fieldAllocatedBalance', 'Allocated Balance')}</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.lblAllocatedAmount', 'Allocated Balance')}</label>
                     <input
                       type="number"
                       step="0.5"
@@ -375,7 +377,7 @@ const ActivityBalance = () => {
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.fieldUsed', 'Used')}</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.lblUsedAmount', 'Used')}</label>
                     <input
                       type="number"
                       step="0.5"
@@ -388,7 +390,7 @@ const ActivityBalance = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.fieldNotes', 'Notes')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.activityBalance.lblNotes', 'Notes')}</label>
                   <textarea
                     value={form.notes}
                     onChange={(e) => setForm({ ...form, notes: e.target.value })}
@@ -397,25 +399,9 @@ const ActivityBalance = () => {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {t('hr.activityBalance.btnCancel', 'Cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
-                  >
-                    {editingId ? t('hr.activityBalance.btnUpdate', 'Update') : t('hr.activityBalance.btnAssign', 'Assign')}
-                  </button>
-                </div>
+
               </form>
-            </div>
-          </div>
-        )}
+        </Modal>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Clock, Plus, Edit2, Trash2, Users, Calendar, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react';
+import Modal from '../../components/Common/Modal';
 import HRSubNav from '../../components/HR/HRSubNav';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -13,13 +14,13 @@ const Shifts = () => {
   const [loading, setLoading] = useState(true);
 
   const DAYS_MAP = [
-    { id: 0, name: t('hr.shifts.days.sunday', 'Sunday') },
-    { id: 1, name: t('hr.shifts.days.monday', 'Monday') },
-    { id: 2, name: t('hr.shifts.days.tuesday', 'Tuesday') },
-    { id: 3, name: t('hr.shifts.days.wednesday', 'Wednesday') },
-    { id: 4, name: t('hr.shifts.days.thursday', 'Thursday') },
-    { id: 5, name: t('hr.shifts.days.friday', 'Friday') },
-    { id: 6, name: t('hr.shifts.days.saturday', 'Saturday') },
+    { id: 0, name: t('hr.shifts.daySunday', 'Sunday') },
+    { id: 1, name: t('hr.shifts.dayMonday', 'Monday') },
+    { id: 2, name: t('hr.shifts.dayTuesday', 'Tuesday') },
+    { id: 3, name: t('hr.shifts.dayWednesday', 'Wednesday') },
+    { id: 4, name: t('hr.shifts.dayThursday', 'Thursday') },
+    { id: 5, name: t('hr.shifts.dayFriday', 'Friday') },
+    { id: 6, name: t('hr.shifts.daySaturday', 'Saturday') },
   ];
 
   // Shift Modal
@@ -206,7 +207,7 @@ const Shifts = () => {
   };
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="hr-workspace-page" dir={isRTL ? 'rtl' : 'ltr'}>
       <HRSubNav />
       <div style={{ padding: '24px', maxWidth: '1300px', margin: '0 auto' }}>
         {/* Header */}
@@ -305,7 +306,7 @@ const Shifts = () => {
                       </div>
 
                       <div style={{ marginBottom: '14px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>{t('hr.shifts.weeklyOffDays', 'Weekly Off Days:')}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>{t('hr.shifts.lblOffDays', 'Weekly Off Days:')}</span>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                           {DAYS_MAP.map(d => {
                             const isOff = (s.off_days || []).includes(d.id);
@@ -324,7 +325,7 @@ const Shifts = () => {
 
                       {/* Deduction Rules Preview */}
                       <div>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>{t('hr.shifts.cumulativePenaltyRules', 'Cumulative Penalty Rules:')}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '6px' }}>{t('hr.shifts.colDeductionRules', 'Cumulative Penalty Rules:')}</span>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {(s.deduction_rules || []).map((r, i) => (
                             <div key={i} style={{ fontSize: '12px', background: '#fffbeb', color: '#b45309', padding: '4px 10px', borderRadius: '6px', fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
@@ -357,14 +358,14 @@ const Shifts = () => {
             {loading ? (
               <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>{t('hr.shifts.loading', 'Loading...')}</div>
             ) : userSummary.length === 0 ? (
-              <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>{t('hr.shifts.noEmployeesFound', 'No employees found')}</div>
+              <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>{t('hr.shifts.noAssignments', 'No employees found')}</div>
             ) : (
               <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRTL ? 'right' : 'left' }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
                     <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.shifts.colEmployee', 'Employee')}</th>
                     <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.shifts.colBadgeNumber', 'Badge Number')}</th>
-                    <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.shifts.colAssignedShift', 'Assigned Shift')}</th>
+                    <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.shifts.colCurrentShift', 'Assigned Shift')}</th>
                     <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569' }}>{t('hr.shifts.colEffectiveFrom', 'Effective From')}</th>
                     <th style={{ padding: '14px 18px', fontSize: '12px', fontWeight: 800, color: '#475569', textAlign: 'center' }}>{t('hr.shifts.colActions', 'Actions')}</th>
                   </tr>
@@ -409,19 +410,26 @@ const Shifts = () => {
         )}
 
         {/* Shift Create/Edit Modal */}
-        {showShiftModal && (
-          <div className="responsive-form-overlay" style={modalStyle}>
-            <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-              <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  {editingShiftId ? t('hr.shifts.editShiftModalTitle', 'Edit Shift Config') : t('hr.shifts.createShiftModalTitle', 'Create New Shift')}
-                </h3>
-                <button onClick={() => setShowShiftModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>✕</button>
-              </div>
-
-              <form onSubmit={handleSaveShift} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', textAlign: isRTL ? 'right' : 'left' }}>
+        <Modal isOpen={showShiftModal} variant="form" onClose={() => setShowShiftModal(false)} title={editingShiftId ? t('hr.shifts.modalEditShift', 'Edit Shift Config') : t('hr.shifts.modalAddShift', 'Create New Shift')} footer={(
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowShiftModal(false)}
+                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                  <button
+                    type="submit" form="shift-config-form"
+                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #06b6d4, #0891b2)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    {editingShiftId ? t('common.save') : t('common.save')}
+                  </button>
+                </div>
+        )}>
+              <form id="shift-config-form" onSubmit={handleSaveShift} style={{ padding: 0, display: 'flex', flexDirection: 'column', gap: '16px', textAlign: isRTL ? 'right' : 'left' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.fieldShiftName', 'Shift Name')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.lblShiftName', 'Shift Name')}</label>
                   <input
                     type="text"
                     placeholder={t('hr.shifts.placeholderShiftName', 'e.g. Morning Shift / HQ Operations')}
@@ -434,7 +442,7 @@ const Shifts = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.fieldStartTime', 'Start Time')}</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.lblStartTime', 'Start Time')}</label>
                     <input
                       type="time"
                       value={shiftForm.start_time}
@@ -445,7 +453,7 @@ const Shifts = () => {
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.fieldEndTime', 'End Time')}</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.lblEndTime', 'End Time')}</label>
                     <input
                       type="time"
                       value={shiftForm.end_time}
@@ -456,7 +464,7 @@ const Shifts = () => {
                     />
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.fieldGraceMins', 'Grace (Mins)')}</label>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.lblGraceMinutes', 'Grace (Mins)')}</label>
                     <input
                       type="number"
                       value={shiftForm.grace_minutes}
@@ -469,7 +477,7 @@ const Shifts = () => {
 
                 {/* Off Days Checkboxes */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px' }}>{t('hr.shifts.weeklyOffDays', 'Weekly Off Days')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '8px' }}>{t('hr.shifts.lblOffDays', 'Weekly Off Days')}</label>
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     {DAYS_MAP.map((d) => {
                       const checked = shiftForm.off_days.includes(d.id);
@@ -490,7 +498,7 @@ const Shifts = () => {
                 {/* Dynamic Deduction Rules */}
                 <div style={{ background: '#fafafa', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <label style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>{t('hr.shifts.cumulativePenaltyRules', 'Cumulative Late Penalty Rules')}</label>
+                    <label style={{ fontSize: '13px', fontWeight: 800, color: '#1e293b' }}>{t('hr.shifts.colDeductionRules', 'Cumulative Late Penalty Rules')}</label>
                     <button
                       type="button"
                       onClick={handleAddRule}
@@ -503,26 +511,26 @@ const Shifts = () => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {shiftForm.deduction_rules.map((rule, idx) => (
                       <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '8px', alignItems: 'center' }}>
-                        <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}><span>{t('hr.shifts.placeholderFromMin', 'From Min')}</span><input
+                        <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}><span>{t('hr.shifts.colFromMin', 'From Min')}</span><input
                           type="number"
-                          placeholder={t('hr.shifts.placeholderFromMin', 'From Min')}
+                          placeholder={t('hr.shifts.colFromMin', 'From Min')}
                           value={rule.from_min}
                           onChange={(e) => handleUpdateRule(idx, 'from_min', e.target.value)}
                           style={inputStyle}
                           className="num-en"
                         /></label>
-                        <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}><span>{t('hr.shifts.placeholderToMin', 'To Min')}</span><input
+                        <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}><span>{t('hr.shifts.colToMin', 'To Min')}</span><input
                           type="number"
-                          placeholder={t('hr.shifts.placeholderToMin', 'To Min')}
+                          placeholder={t('hr.shifts.colToMin', 'To Min')}
                           value={rule.to_min}
                           onChange={(e) => handleUpdateRule(idx, 'to_min', e.target.value)}
                           style={inputStyle}
                           className="num-en"
                         /></label>
-                        <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}><span>{t('hr.shifts.placeholderDeductDays', 'Deduct Days')}</span><input
+                        <label style={{ minWidth: 0, fontSize: 12, fontWeight: 700 }}><span>{t('hr.shifts.colDeductDays', 'Deduct Days')}</span><input
                           type="number"
                           step="0.25"
-                          placeholder={t('hr.shifts.placeholderDeductDays', 'Deduct Days')}
+                          placeholder={t('hr.shifts.colDeductDays', 'Deduct Days')}
                           value={rule.deduct_days}
                           onChange={(e) => handleUpdateRule(idx, 'deduct_days', e.target.value)}
                           style={inputStyle}
@@ -540,25 +548,9 @@ const Shifts = () => {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setShowShiftModal(false)}
-                    style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    {t('hr.shifts.btnCancel', 'Cancel')}
-                  </button>
-                  <button
-                    type="submit"
-                    style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #06b6d4, #0891b2)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}
-                  >
-                    {editingShiftId ? t('hr.shifts.btnUpdateShift', 'Update Shift') : t('hr.shifts.btnSaveShift', 'Save Shift')}
-                  </button>
-                </div>
+
               </form>
-            </div>
-          </div>
-        )}
+        </Modal>
 
         {/* Assign User Shift Modal */}
         {showAssignModal && (
@@ -566,21 +558,21 @@ const Shifts = () => {
             <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '450px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
               <div style={{ padding: '18px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                  {t('hr.shifts.assignModalTitle', 'Assign Shift to Employee')}
+                  {t('hr.shifts.modalAssignTitle', 'Assign Shift to Employee')}
                 </h3>
                 <button onClick={() => setShowAssignModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', color: '#94a3b8' }}>✕</button>
               </div>
 
               <form onSubmit={handleSaveAssign} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', textAlign: isRTL ? 'right' : 'left' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.fieldEmployee', 'Employee')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.lblSelectEmployee', 'Employee')}</label>
                   <select
                     value={assignForm.user_id}
                     onChange={(e) => setAssignForm({ ...assignForm, user_id: e.target.value })}
                     style={inputStyle}
                     required
                   >
-                    <option value="">{t('hr.shifts.selectEmployeePlaceholder', 'Select Employee...')}</option>
+                    <option value="">{t('hr.shifts.optSelectEmployee', 'Select Employee...')}</option>
                     {userSummary.map(u => (
                       <option key={u.user_id} value={u.user_id}>{u.employee_name}</option>
                     ))}
@@ -588,14 +580,14 @@ const Shifts = () => {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.fieldTargetShift', 'Target Shift')}</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>{t('hr.shifts.lblSelectShift', 'Target Shift')}</label>
                   <select
                     value={assignForm.shift_id}
                     onChange={(e) => setAssignForm({ ...assignForm, shift_id: e.target.value })}
                     style={inputStyle}
                     required
                   >
-                    <option value="">{t('hr.shifts.selectShiftPlaceholder', 'Select Shift...')}</option>
+                    <option value="">{t('hr.shifts.optSelectShift', 'Select Shift...')}</option>
                     {shifts.map(s => (
                       <option key={s.id} value={s.id}>{s.name} ({s.start_time} - {s.end_time})</option>
                     ))}
@@ -620,7 +612,7 @@ const Shifts = () => {
                     onClick={() => setShowAssignModal(false)}
                     style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
                   >
-                    {t('hr.shifts.btnCancel', 'Cancel')}
+                    {t('common.cancel')}
                   </button>
                   <button
                     type="submit"
