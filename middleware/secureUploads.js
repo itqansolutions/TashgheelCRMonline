@@ -60,6 +60,22 @@ function secureUploads(uploadsDir) {
         [requestedFilename, `%${requestedFilename}`]
       );
       attachmentRecord = earlyLookup.rows[0] || null;
+      // Only explicitly linked tenant branding is anonymous. Private images and
+      // inline fallback bytes obey authentication and tenant checks before any I/O.
+      if (String(attachmentRecord?.linked_type || '').toLowerCase() !== 'tenant') {
+        const header = req.headers['authorization'];
+        const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : req.query?.token;
+        if (!token) return res.status(401).json({status:'error',message:'Authentication required to access this file.'});
+        let user;
+        try { const decoded = jwt.verify(String(token), process.env.JWT_SECRET); user = decoded.user || decoded; }
+        catch (_) { return res.status(401).json({status:'error',message:'Invalid or expired authorization token.'}); }
+        if (!user.tenant_id) return res.status(403).json({status:'error',message:'Access denied.'});
+        const parts = cleanRelativePath.split(/[\\/]+/);
+        const pathTenant = parts[0] === 'whatsapp' && parts.length >= 3 ? parts[1] : parts.length >= 2 && parts[0] !== 'common' ? parts[0] : null;
+        for (const tenant of [attachmentRecord?.tenant_id, pathTenant]) {
+          if (tenant && String(tenant).toLowerCase() !== String(user.tenant_id).toLowerCase()) return res.status(403).json({status:'error',message:'Access denied: File belongs to another organization.'});
+        }
+      }
       if (String(attachmentRecord?.linked_type || '').toLowerCase() === 'deal') {
         const header = req.headers['authorization'];
         const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : req.query?.token;
@@ -95,6 +111,7 @@ function secureUploads(uploadsDir) {
               rawDbPath = rawDbPath.replace(/^uploads[/\\]+/i, '');
             }
             const candidatePath = path.resolve(resolvedUploadsDir, rawDbPath);
+            if (!candidatePath.startsWith(resolvedUploadsDir + path.sep)) return res.status(403).json({status:'error',message:'Invalid file path.'});
             if (candidatePath.startsWith(resolvedUploadsDir + path.sep) && fs.existsSync(candidatePath) && !fs.statSync(candidatePath).isDirectory()) {
               filePath = candidatePath;
             } else if (attachmentRecord.file_data) {
@@ -162,11 +179,9 @@ function secureUploads(uploadsDir) {
       // Unauthenticated request handling:
       if (!authenticatedUser) {
         // Public tenant branding logos & image assets are permitted for invoice/quotation rendering
-        const ext = path.extname(filePath).toLowerCase();
-        const isImage = ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.ico'].includes(ext);
         const isTenantLogo = attachmentRecord && String(attachmentRecord.linked_type).toLowerCase() === 'tenant';
 
-        if (isTenantLogo || isImage) {
+        if (isTenantLogo) {
           return res.sendFile(filePath);
         }
         return res.status(401).json({ status: 'error', message: 'Authentication required to access this file.' });
