@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
@@ -75,7 +76,7 @@ const StatementModal = ({ customer, onClose }) => {
             <div id="statement-content">
               <h1 style={{ fontSize: '22px', fontWeight: 900, color: '#1e293b', marginBottom: '4px' }}>{t('customers.accountStatement', 'Account Statement')}</h1>
               <p style={{ color: '#64748b', marginBottom: '20px', fontSize: '14px' }}>
-                {t('customers.customerLabel', 'Customer')}: <strong>{data.customer.name}</strong> &nbsp;|&nbsp; 
+                {t('customers.customerLabel', 'Customer')}: <strong>{data.customer.name}</strong> &nbsp;|&nbsp;
                 {t('customers.phoneLabel', 'Phone')}: <strong className="num-en" style={{ direction: 'ltr', display: 'inline-block' }}>{data.customer.phone || '—'}</strong> &nbsp;|&nbsp;
                 {t('customers.printDate', 'Print Date:')} <strong className="num-en">{new Date().toLocaleDateString('en-GB')}</strong>
               </p>
@@ -181,13 +182,13 @@ const StatementModal = ({ customer, onClose }) => {
 const ContactsCustomers = () => {
   const { t, isRTL } = useLanguage();
   const navigate = useNavigate();
-  const { 
-    customers, fetchCustomers, 
-    leadSources, fetchLeadSources, 
-    customerClassifications, fetchCustomerClassifications, 
+  const {
+    customers, fetchCustomers,
+    leadSources, fetchLeadSources,
+    customerClassifications, fetchCustomerClassifications,
     customerAreas, fetchCustomerAreas,
     users, fetchUsers,
-    loading 
+    loading
   } = useData();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all'); // all | active | blacklisted
@@ -229,8 +230,8 @@ const ContactsCustomers = () => {
 
   const filtered = allCustomers.filter(c => {
     const q = search.toLowerCase().trim();
-    const matchSearch = !q || 
-      c.name?.toLowerCase().includes(q) || 
+    const matchSearch = !q ||
+      c.name?.toLowerCase().includes(q) ||
       c.phone?.includes(q) ||
       c.meta_form_name?.toLowerCase().includes(q) ||
       c.company_name?.toLowerCase().includes(q) ||
@@ -240,11 +241,11 @@ const ContactsCustomers = () => {
       c.linked_unit_name?.toLowerCase().includes(q) ||
       c.pf_listing_reference?.toLowerCase().includes(q);
 
-    const matchStatus = filterStatus === 'all' || 
-      (filterStatus === 'active' && c.is_active && !c.is_blacklisted) || 
+    const matchStatus = filterStatus === 'all' ||
+      (filterStatus === 'active' && c.is_active && !c.is_blacklisted) ||
       (filterStatus === 'blacklisted' && c.is_blacklisted);
 
-    const matchSource = sourceFilter === 'all' || 
+    const matchSource = sourceFilter === 'all' ||
       (sourceFilter === 'direct' && (!c.source_id || c.source_name === 'Direct')) ||
       String(c.source_id) === String(sourceFilter) ||
       c.source_name?.toLowerCase() === sourceFilter.toLowerCase();
@@ -264,18 +265,18 @@ const ContactsCustomers = () => {
   const openAdd = () => { setEditingCustomer(null); setForm(emptyForm); setIsModalOpen(true); };
   const openEdit = (c) => {
     setEditingCustomer(c);
-    setForm({ 
-      name: c.name || '', 
-      phone: c.phone || '', 
-      address: c.address || '', 
-      tax_no: c.tax_no || '', 
-      reg_no: c.reg_no || '', 
-      source_id: c.source_id || '', 
+    setForm({
+      name: c.name || '',
+      phone: c.phone || '',
+      address: c.address || '',
+      tax_no: c.tax_no || '',
+      reg_no: c.reg_no || '',
+      source_id: c.source_id || '',
       classification_id: c.classification_id || '',
       area_id: c.area_id || '',
       assigned_to: c.assigned_to || '',
-      is_active: c.is_active !== false, 
-      is_blacklisted: c.is_blacklisted === true 
+      is_active: c.is_active !== false,
+      is_blacklisted: c.is_blacklisted === true
     });
     setIsModalOpen(true);
   };
@@ -285,13 +286,13 @@ const ContactsCustomers = () => {
     if (!form.name.trim()) return toast.error(t('customers.customerNameRequired', 'Customer name is required'));
     setSaving(true);
     try {
-      const payload = { 
-        ...form, 
+      const payload = {
+        ...form,
         assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
         classification_id: form.classification_id ? Number(form.classification_id) : null,
         area_id: form.area_id ? Number(form.area_id) : null,
-        entity_type: 'customer', 
-        status: 'customer' 
+        entity_type: 'customer',
+        status: 'customer'
       };
       if (editingCustomer) {
         await api.put(`/customers/${editingCustomer.id}`, payload);
@@ -331,12 +332,12 @@ const ContactsCustomers = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <button 
+          <button
             onClick={() => exportCustomersToExcel(filtered, `customers_${new Date().toISOString().slice(0,10)}`)}
-            style={{ 
-              background: '#ecfdf5', color: '#059669', border: '1.5px solid #a7f3d0', 
-              borderRadius: '12px', padding: '12px 20px', cursor: 'pointer', 
-              fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' 
+            style={{
+              background: '#ecfdf5', color: '#059669', border: '1.5px solid #a7f3d0',
+              borderRadius: '12px', padding: '12px 20px', cursor: 'pointer',
+              fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px'
             }}
             title={t('customers.exportExcelTitle', 'Export filtered customers to Excel')}
           >
@@ -359,9 +360,9 @@ const ContactsCustomers = () => {
           />
         </div>
 
-        <select 
-          value={sourceFilter} 
-          onChange={e => setSourceFilter(e.target.value)} 
+        <select
+          value={sourceFilter}
+          onChange={e => setSourceFilter(e.target.value)}
           style={{ ...inputStyle, width: 'auto', minWidth: '180px' }}
         >
           <option value="all">{t('customers.allSources', 'All Sources')}</option>
@@ -369,9 +370,9 @@ const ContactsCustomers = () => {
           <option value="direct">{t('customers.directOther', 'Direct / Other')}</option>
         </select>
 
-        <select 
-          value={classificationFilter} 
-          onChange={e => setClassificationFilter(e.target.value)} 
+        <select
+          value={classificationFilter}
+          onChange={e => setClassificationFilter(e.target.value)}
           style={{ ...inputStyle, width: 'auto', minWidth: '180px' }}
         >
           <option value="all">{t('customers.allClassifications', 'All Classifications')}</option>
@@ -379,9 +380,9 @@ const ContactsCustomers = () => {
           {customerClassifications.map(cc => <option key={cc.id} value={cc.id}>{cc.name}</option>)}
         </select>
 
-        <select 
-          value={areaFilter} 
-          onChange={e => setAreaFilter(e.target.value)} 
+        <select
+          value={areaFilter}
+          onChange={e => setAreaFilter(e.target.value)}
           style={{ ...inputStyle, width: 'auto', minWidth: '180px' }}
         >
           <option value="all">{t('customers.allAreas', 'All Areas')}</option>
@@ -389,9 +390,9 @@ const ContactsCustomers = () => {
           {(customerAreas || []).map(a => <option key={a.id} value={a.id}>📍 {a.name}</option>)}
         </select>
 
-        <select 
-          value={assigneeFilter} 
-          onChange={e => setAssigneeFilter(e.target.value)} 
+        <select
+          value={assigneeFilter}
+          onChange={e => setAssigneeFilter(e.target.value)}
           style={{ ...inputStyle, width: 'auto', minWidth: '180px' }}
         >
           <option value="all">{t('customers.allEmployees', 'All Employees')}</option>
@@ -570,14 +571,13 @@ const ContactsCustomers = () => {
       </div>
 
       {/* Add/Edit Modal */}
-      {isModalOpen && (
-        <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-          <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 25px 50px rgba(0,0,0,0.2)', direction: isRTL ? 'rtl' : 'ltr' }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', borderRadius: '20px 20px 0 0' }}>
-              <h3 style={{ margin: 0, color: 'white', fontWeight: 800 }}>{editingCustomer ? t('customers.editCustomer', 'Edit Customer') : t('customers.addCustomer', 'Add New Customer')}</h3>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <form onSubmit={handleSave} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} variant="form" title={editingCustomer ? t('customers.editCustomer', 'Edit Customer') : t('customers.addCustomer', 'Add New Customer')} footer={<div className="procurement-editor-footer">
+                <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>{t('common.cancel', 'Cancel')}</button>
+                <button type="submit" form="contact-customer-editor" disabled={saving} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                  {saving ? t('customers.saving', 'Saving...') : editingCustomer ? t('customers.saveChanges', 'Save Changes') : t('customers.addCustomer', 'Add Customer')}
+                </button>
+              </div>}>
+<form id="contact-customer-editor" className="procurement-editor contact-team-editor" onSubmit={handleSave}>
               {/* Name */}
               <div>
                 <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>{t('customers.fullName', 'Full Name')} *</label>
@@ -616,11 +616,11 @@ const ContactsCustomers = () => {
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                     <label style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#374151' }}>{t('customers.classification', 'Classification')}</label>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => setShowQuickClassificationModal(true)}
-                      style={{ 
-                        background: 'none', border: 'none', color: '#4f46e5', 
+                      style={{
+                        background: 'none', border: 'none', color: '#4f46e5',
                         fontSize: '12px', fontWeight: 700, cursor: 'pointer', padding: 0,
                         display: 'flex', alignItems: 'center', gap: '2px'
                       }}
@@ -641,11 +641,11 @@ const ContactsCustomers = () => {
                   <label style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#374151', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <MapPin size={14} color="#0ea5e9" /> {t('customers.area', 'Area')}
                   </label>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setShowQuickAreaModal(true)}
-                    style={{ 
-                      background: 'none', border: 'none', color: '#0ea5e9', 
+                    style={{
+                      background: 'none', border: 'none', color: '#0ea5e9',
                       fontSize: '12px', fontWeight: 700, cursor: 'pointer', padding: 0,
                       display: 'flex', alignItems: 'center', gap: '2px'
                     }}
@@ -664,9 +664,9 @@ const ContactsCustomers = () => {
                 <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>
                   {t('customers.assignedEmployee', 'Assigned Employee')}
                 </label>
-                <select 
-                  value={form.assigned_to} 
-                  onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))} 
+                <select
+                  value={form.assigned_to}
+                  onChange={e => setForm(f => ({ ...f, assigned_to: e.target.value }))}
                   style={inputStyle}
                 >
                   <option value="">{t('customers.letSystemDecide', '-- Let System Decide / Me (Unassigned) --')}</option>
@@ -687,16 +687,9 @@ const ContactsCustomers = () => {
                 </label>
               </div>
               {/* Actions */}
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '8px' }}>
-                <button type="button" onClick={() => setIsModalOpen(false)} style={{ padding: '10px 20px', background: '#f1f5f9', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', color: '#64748b' }}>{t('common.cancel', 'Cancel')}</button>
-                <button type="submit" disabled={saving} style={{ padding: '10px 24px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-                  {saving ? t('customers.saving', 'Saving...') : editingCustomer ? t('customers.saveChanges', 'Save Changes') : t('customers.addCustomer', 'Add Customer')}
-                </button>
-              </div>
+
             </form>
-          </div>
-        </div>
-      )}
+</Modal>
 
       {/* Statement Modal */}
       {statementCustomer && <StatementModal customer={statementCustomer} onClose={() => setStatementCustomer(null)} />}
@@ -705,7 +698,7 @@ const ContactsCustomers = () => {
       {viewingCustomer && (
         <div className="responsive-form-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
           <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '720px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px rgba(0,0,0,0.25)', direction: isRTL ? 'rtl' : 'ltr' }}>
-            
+
             {/* Modal Header */}
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -805,12 +798,12 @@ const ContactsCustomers = () => {
                   </div>
                 )}
 
-                <div style={{ 
-                  background: '#f8fafc', 
-                  padding: '14px', 
-                  borderRadius: '12px', 
-                  border: '1px solid #e2e8f0', 
-                  gridColumn: (viewingCustomer.classification_name && viewingCustomer.area_name) ? 'span 2' : 'span 1' 
+                <div style={{
+                  background: '#f8fafc',
+                  padding: '14px',
+                  borderRadius: '12px',
+                  border: '1px solid #e2e8f0',
+                  gridColumn: (viewingCustomer.classification_name && viewingCustomer.area_name) ? 'span 2' : 'span 1'
                 }}>
                   <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>📍 {t('customers.addressLocation', 'Address / Location')}</div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
@@ -902,18 +895,18 @@ const ContactsCustomers = () => {
 
             {/* Modal Footer */}
             <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button 
+              <button
                 onClick={() => {
                   const toEdit = viewingCustomer;
                   setViewingCustomer(null);
                   openEdit(toEdit);
-                }} 
+                }}
                 style={{ padding: '8px 18px', background: '#e0e7ff', color: '#4338ca', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}
               >
                 ✏️ {t('customers.editCustomer', 'Edit Customer')}
               </button>
-              <button 
-                onClick={() => setViewingCustomer(null)} 
+              <button
+                onClick={() => setViewingCustomer(null)}
                 style={{ padding: '8px 20px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '13px' }}
               >
                 {t('common.close', 'Close')}
@@ -938,7 +931,7 @@ const ContactsCustomers = () => {
               <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
                 🏷️ {t('customers.addNewClassification', 'Add New Customer Classification')}
               </h3>
-              <button 
+              <button
                 type="button"
                 onClick={() => setShowQuickClassificationModal(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '18px' }}
@@ -946,12 +939,12 @@ const ContactsCustomers = () => {
                 ✕
               </button>
             </div>
-            
+
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: '#334155' }}>
                 {t('customers.classificationNameLabel', 'Classification Name (e.g. VIP, Corporate, Retail...) *')}
               </label>
-              <input 
+              <input
                 type="text"
                 placeholder={t('customers.classificationNamePlaceholder', 'e.g. VIP Client')}
                 value={newClassificationName}
@@ -965,7 +958,7 @@ const ContactsCustomers = () => {
                 {t('customers.badgeColor', 'Badge Color')}
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <input 
+                <input
                   type="color"
                   value={newClassificationColor}
                   onChange={e => setNewClassificationColor(e.target.value)}
@@ -982,14 +975,14 @@ const ContactsCustomers = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowQuickClassificationModal(false)}
                 style={{ padding: '8px 16px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
               >
                 {t('common.cancel', 'Cancel')}
               </button>
-              <button 
+              <button
                 type="button"
                 disabled={savingClassification}
                 onClick={async () => {
@@ -1039,8 +1032,8 @@ const ContactsCustomers = () => {
               <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#475569', marginBottom: '6px' }}>
                 {t('customers.areaNameLabel', 'Area Name (e.g. New Cairo, Zayed, Maadi...) *')}
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={newAreaName}
                 onChange={e => setNewAreaName(e.target.value)}
                 placeholder={t('customers.areaNamePlaceholder', 'e.g. New Cairo')}
@@ -1054,8 +1047,8 @@ const ContactsCustomers = () => {
                 {t('customers.badgeColor', 'Badge Color')}
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <input 
-                  type="color" 
+                <input
+                  type="color"
                   value={newAreaColor}
                   onChange={e => setNewAreaColor(e.target.value)}
                   style={{ width: '40px', height: '38px', padding: 0, border: 'none', borderRadius: '8px', cursor: 'pointer' }}
@@ -1073,14 +1066,14 @@ const ContactsCustomers = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setShowQuickAreaModal(false)}
                 style={{ padding: '8px 16px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
               >
                 {t('common.cancel', 'Cancel')}
               </button>
-              <button 
+              <button
                 type="button"
                 disabled={savingArea}
                 onClick={async () => {

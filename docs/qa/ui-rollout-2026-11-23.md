@@ -189,3 +189,10 @@ Finance/accounting; purchasing; inventory beyond Products; remaining HR; real es
 - POcreate only uses shared panel. ApprovedPR route5controls and manager/admin direct route12controls retain all original attributes, guards and function ASTs against73a7892. Route-specific external submit linked to each original form, disabled rules retained. Receive/cancel/details unchanged.
 - Eight route/language/width variants with top/bottom captures, selected approvedPR preview, direct item add12to17and remove17to12pass. Actual phone/desktop inspected, original values gain visible labels for quantity/unit price/discount/tax. Layout follows one-column phone and existing desktop grid. Twelve enriched procurement regression variants/build pass. No order create/receive/cancel/send or business write executed.
 - Phase9deployment35a06fe0-8fa5-4312-aa9f-44bf44d73ebeSUCCESS73a7892, live dashboard assetindex-2ffc731e.js. Both purchase and RFQlive routes redirect dashboard under existing purchasing guard, so phase9editor pixels remain local-only, not live workflows.
+
+
+## Phase 11 candidate
+- Contact-customer add/edit11controls and sales team create/edit8controls to shared form panels. All controls and noncomponent function ASTs exact against3d9e8de. Quick classification/area, statements/payments/details and team members/performance unchanged.
+-16template/language/width fixture variants plus top/bottom captures pass, actual phone/desktop pixels inspected. Local nested quick-add open/close checks verify overlays remain above panel, no writes; department/branch/manager options populated synthetically. Daily16andHR12regressions/build pass.
+- Salesmen existing selectedPeriod is2026-10(line58) and period choices hardcoded2026. Preserved limitation, no current-period correctness claim. Whole-page work remains partial.
+- Phase10deployment5a46f96f-4b04-458b-9eae-27c94986c8dcSUCCESS3d9e8de, dashboard assetindex-c05bd8df.js. POroute redirects dashboard, no live POeditor pixels established, no grant/settings change.

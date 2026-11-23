@@ -1,3 +1,4 @@
+import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
@@ -532,7 +533,7 @@ const Salesmen = () => {
 
   const renderDealsSection = () => {
     const sDeals = salesmanDeals || [];
-    
+
     // Categorize
     const activeDeals = sDeals.filter(d => !['won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost'].includes((d.pipeline_stage || '').toLowerCase()));
     const wonDeals = sDeals.filter(d => ['won', 'closed', 'closed won', 'closed_won', 'مغلقة رابحة', 'فوز'].includes((d.pipeline_stage || '').toLowerCase()));
@@ -2124,29 +2125,30 @@ const Salesmen = () => {
       )}
 
       {/* ── MODAL: CREATE / EDIT SALES TEAM ── */}
-      {showTeamModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: '16px'
-        }}>
-          <div style={{
-            background: 'white', borderRadius: '16px', width: '100%', maxWidth: '520px',
-            overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{
-              padding: '18px 24px', borderBottom: '1px solid #f1f5f9',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc'
-            }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
-                {editingTeamId ? t('sales.teams.editTeam') : t('sales.teams.createTeam')}
-              </h3>
-              <button onClick={() => setShowTeamModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94a3b8' }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleTeamSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <Modal isOpen={showTeamModal} onClose={() => setShowTeamModal(false)} variant="form" title={editingTeamId ? t('sales.teams.editTeam') : t('sales.teams.createTeam')} footer={<div className="procurement-editor-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowTeamModal(false)}
+                  style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  {t('sales.salesmen.form.cancel') || 'Cancel'}
+                </button>
+                <button
+                  type="submit" form="sales-team-editor"
+                  disabled={savingTeam}
+                  style={{
+                    padding: '10px 22px',
+                    background: isRealEstate
+                      ? 'linear-gradient(135deg, #0284c7, #0369a1)'
+                      : 'linear-gradient(135deg, #10b981, #059669)',
+                    color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800,
+                    cursor: savingTeam ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {savingTeam ? '...' : editingTeamId ? (isRTL ? 'تحديث الفريق' : 'Update Team') : (isRTL ? 'حفظ الفريق' : 'Save Team')}
+                </button>
+              </div>}>
+<form id="sales-team-editor" className="procurement-editor contact-team-editor" onSubmit={handleTeamSubmit}>
               <div>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '6px' }}>
                   {isRTL ? 'اسم الفريق *' : 'Team Name *'}
@@ -2274,33 +2276,9 @@ const Salesmen = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowTeamModal(false)}
-                  style={{ padding: '10px 18px', background: '#f1f5f9', border: 'none', borderRadius: '10px', color: '#475569', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  {t('sales.salesmen.form.cancel') || 'Cancel'}
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingTeam}
-                  style={{
-                    padding: '10px 22px',
-                    background: isRealEstate
-                      ? 'linear-gradient(135deg, #0284c7, #0369a1)'
-                      : 'linear-gradient(135deg, #10b981, #059669)',
-                    color: 'white', border: 'none', borderRadius: '10px', fontWeight: 800,
-                    cursor: savingTeam ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {savingTeam ? '...' : editingTeamId ? (isRTL ? 'تحديث الفريق' : 'Update Team') : (isRTL ? 'حفظ الفريق' : 'Save Team')}
-                </button>
-              </div>
+
             </form>
-          </div>
-        </div>
-      )}
+</Modal>
     </div>
   );
 };
