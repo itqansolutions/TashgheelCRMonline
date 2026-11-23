@@ -38,23 +38,23 @@ const MyPayroll = () => {
   return (
     <div className="my-payroll-page" dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
       <style>{`
-        .mp-header { margin-bottom: 24px; text-align: ${isRTL ? 'right' : 'left'}; }
-        .mp-table { width: 100%; border-collapse: collapse; background: var(--bg-card, white); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border, #e2e8f0); }
-        .mp-table th, .mp-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border, #e2e8f0); }
-        .mp-table th { background: rgba(0,0,0,0.02); font-weight: 700; color: var(--text-muted, #64748b); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
-        .mp-table tr:hover { background: rgba(0,0,0,0.01); }
+        .my-payroll-page .mp-header { margin-bottom: 24px; text-align: ${isRTL ? 'right' : 'left'}; }
+        .my-payroll-page .mp-table { width: 100%; border-collapse: collapse; background: var(--bg-card, white); border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border, #e2e8f0); }
+        .my-payroll-page .mp-table th, .my-payroll-page .mp-table td { padding: 16px; text-align: ${isRTL ? 'right' : 'left'}; border-bottom: 1px solid var(--glass-border, #e2e8f0); }
+        .my-payroll-page .mp-table th { background: rgba(0,0,0,0.02); font-weight: 700; color: var(--text-muted, #64748b); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+        .my-payroll-page .mp-table tr:hover { background: rgba(0,0,0,0.01); }
         
-        .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; text-transform: capitalize; }
-        .badge-warning { background: rgba(245, 158, 11, 0.12); color: #d97706; }
-        .badge-success { background: rgba(16, 185, 129, 0.12); color: #059669; }
+        .my-payroll-page .badge { padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; text-transform: capitalize; }
+        .my-payroll-page .badge-warning { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+        .my-payroll-page .badge-success { background: rgba(16, 185, 129, 0.12); color: #059669; }
 
-        .btn-view { background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 8px; cursor: pointer; color: #1e293b; font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }
-        .btn-view:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+        .my-payroll-page .btn-view { background: #f8fafc; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 8px; cursor: pointer; color: #1e293b; font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }
+        .my-payroll-page .btn-view:hover { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
 
-        .trace-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
-        .trace-row.negative { color: #dc2626; }
-        .trace-row.positive { color: #16a34a; }
-        .trace-row.grand { border-top: 2px solid #0f172a; font-size: 18px; font-weight: 900; margin-top: 12px; border-bottom: none; }
+        .payroll-breakdown-read .trace-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .payroll-breakdown-read .trace-row.negative { color: #dc2626; }
+        .payroll-breakdown-read .trace-row.positive { color: #16a34a; }
+        .payroll-breakdown-read .trace-row.grand { border-top: 2px solid #0f172a; font-size: 18px; font-weight: 900; margin-top: 12px; border-bottom: none; }
       `}</style>
 
       {/* Header */}
@@ -168,7 +168,7 @@ const MyPayroll = () => {
             </button>
           }
         >
-          <div style={{ color: '#1e293b', textAlign: isRTL ? 'right' : 'left' }}>
+          <div className="payroll-breakdown-read" style={{ color: '#1e293b', textAlign: isRTL ? 'right' : 'left' }}>
             <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
               <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 800 }}>{t('hr.myPayroll.salaryPeriod', 'Salary Period')}</div>
               <div style={{ fontSize: '20px', fontWeight: 900, marginTop: '2px' }}>

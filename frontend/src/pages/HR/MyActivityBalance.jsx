@@ -47,7 +47,7 @@ const MyActivityBalance = () => {
   const sel = { padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', background: 'white' };
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
+    <div className="my-activity-balance-page" dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '20px', gap: '12px', flexWrap: 'wrap', textAlign: isRTL ? 'right' : 'left' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '26px', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
