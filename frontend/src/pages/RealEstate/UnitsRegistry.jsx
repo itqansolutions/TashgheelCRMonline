@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, Users, Handshake, Activity, Filter, Calendar, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink, Image as ImageIcon, Camera, Upload, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, Users, Handshake, Activity, Filter, Calendar, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink, Image as ImageIcon, Camera, Upload, Eye, ChevronLeft, ChevronRight, MessageCircle, Copy, Check, Send, Share2 } from 'lucide-react';
 import { Navigate, useSearchParams, Link } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -51,6 +51,101 @@ const UnitsRegistry = () => {
     const [lightboxPhotos, setLightboxPhotos] = useState([]);
     const [overviewCarouselIndex, setOverviewCarouselIndex] = useState(0);
     const [uploadingMorePhotos, setUploadingMorePhotos] = useState(false);
+
+    // WhatsApp Share Modal State
+    const [showWhatsAppShareModal, setShowWhatsAppShareModal] = useState(false);
+    const [shareTargetUnit, setShareTargetUnit] = useState(null);
+    const [shareRecipientPhone, setShareRecipientPhone] = useState('');
+    const [shareCustomMessage, setShareCustomMessage] = useState('');
+    const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+    const [copiedShareLink, setCopiedShareLink] = useState(false);
+    const [connectedMetaAccounts, setConnectedMetaAccounts] = useState([]);
+    const [selectedMetaAccountId, setSelectedMetaAccountId] = useState('');
+
+    const handleOpenWhatsAppShare = async (unit, unitPhotos) => {
+        if (!unit) return;
+        setShareTargetUnit(unit);
+        setCopiedShareLink(false);
+
+        // Pre-fill recipient phone from active deal/reservation or vendor
+        let defaultPhone = '';
+        if (unitOverview?.active_reservation_deal?.customer_phone) {
+            defaultPhone = unitOverview.active_reservation_deal.customer_phone;
+        } else if (unitOverview?.deals?.[0]?.customer_phone) {
+            defaultPhone = unitOverview.deals[0].customer_phone;
+        } else if (unit.vendor_phone) {
+            defaultPhone = unit.vendor_phone;
+        }
+        setShareRecipientPhone(defaultPhone);
+        setShareCustomMessage('');
+        setShowWhatsAppShareModal(true);
+
+        try {
+            const accRes = await api.get('/whatsapp/accounts');
+            if (accRes.data?.data) {
+                setConnectedMetaAccounts(accRes.data.data);
+                const defaultAcc = accRes.data.data.find(a => a.is_default) || accRes.data.data[0];
+                if (defaultAcc) setSelectedMetaAccountId(String(defaultAcc.id));
+            }
+        } catch (e) {
+            // Non-critical
+        }
+    };
+
+    const handleCopyShareLink = () => {
+        if (!shareTargetUnit) return;
+        const url = `${window.location.origin}/public/units/${shareTargetUnit.id}/gallery`;
+        navigator.clipboard.writeText(url);
+        setCopiedShareLink(true);
+        toast.success(t('realEstate.unitsRegistry.linkCopied') || 'تم نسخ الرابط بنجاح!');
+        setTimeout(() => setCopiedShareLink(false), 3000);
+    };
+
+    const handleOpenInWhatsAppWeb = () => {
+        if (!shareTargetUnit) return;
+        const cleanPhone = shareRecipientPhone.replace(/[^0-9]/g, '');
+        const url = `${window.location.origin}/public/units/${shareTargetUnit.id}/gallery`;
+        const unitTitle = shareTargetUnit.name || shareTargetUnit.unit_number || 'الوحدة';
+        const text = `مرحباً بك،\nيسعدنا مشاركة صور وتفاصيل الوحدة: *${unitTitle}*\n\n📸 يمكنك استعراض جميع الصور عالية الدقة عبر الرابط المباشر:\n${url}\n\n${shareCustomMessage ? shareCustomMessage + '\n' : ''}`;
+        const waUrl = cleanPhone 
+            ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`
+            : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(waUrl, '_blank');
+    };
+
+    const handleSendWhatsAppGallery = async (e) => {
+        if (e) e.preventDefault();
+        if (!shareRecipientPhone.trim()) {
+            toast.error((t('realEstate.unitsRegistry.recipientPhone') || 'رقم هاتف العميل') + ' مطلوب');
+            return;
+        }
+
+        setSendingWhatsApp(true);
+        try {
+            const res = await api.post(`/re-units/${shareTargetUnit.id}/send-whatsapp-gallery`, {
+                recipient_phone: shareRecipientPhone.trim(),
+                custom_message: shareCustomMessage.trim(),
+                account_id: selectedMetaAccountId || undefined
+            });
+
+            if (res.data?.status === 'success') {
+                toast.success(res.data?.message || (t('realEstate.unitsRegistry.toastWhatsAppSent') || 'تم إرسال رابط الصور بنجاح!'));
+                setShowWhatsAppShareModal(false);
+            } else if (res.data?.status === 'window_expired' || res.data?.status === 'fallback') {
+                toast(res.data?.message || 'نافذة خدمة العملاء مغلقة، تم تجهيز الرابط في واتساب', { icon: '💬', duration: 6000 });
+                if (res.data?.direct_whatsapp_url) {
+                    window.open(res.data.direct_whatsapp_url, '_blank');
+                }
+                setShowWhatsAppShareModal(false);
+            } else {
+                toast.error(res.data?.message || 'حدث خطأ أثناء إرسال الواتساب');
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'فشل إرسال رسالة الواتساب عبر ميتا');
+        } finally {
+            setSendingWhatsApp(false);
+        }
+    };
 
     // Keyboard navigation for Lightbox Carousel
     useEffect(() => {
@@ -1507,7 +1602,34 @@ const UnitsRegistry = () => {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    {photos.length > 0 && (
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => handleOpenWhatsAppShare(selectedUnit, photos)}
+                                                            style={{ 
+                                                                cursor: 'pointer',
+                                                                fontSize: '11px',
+                                                                fontWeight: 800,
+                                                                color: '#15803d',
+                                                                background: '#f0fdf4',
+                                                                border: '1px solid #bbf7d0',
+                                                                padding: '5px 12px',
+                                                                borderRadius: '8px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '5px',
+                                                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                            onMouseEnter={(e) => { e.currentTarget.style.background = '#dcfce7'; }}
+                                                            onMouseLeave={(e) => { e.currentTarget.style.background = '#f0fdf4'; }}
+                                                            title={t('realEstate.unitsRegistry.btnShareWhatsApp') || 'مشاركة عبر واتساب'}
+                                                        >
+                                                            <MessageCircle size={13} color="#15803d" />
+                                                            <span>{t('realEstate.unitsRegistry.btnShareWhatsApp') || 'مشاركة عبر واتساب'}</span>
+                                                        </button>
+                                                    )}
                                                     <label 
                                                         htmlFor={`unit-gallery-upload-${selectedUnit.id}`}
                                                         style={{ 
@@ -3234,6 +3356,308 @@ const UnitsRegistry = () => {
                             })}
                         </div>
                     )}
+                </div>,
+                document.body
+            )}
+
+            {/* WhatsApp Share Modal */}
+            {showWhatsAppShareModal && shareTargetUnit && createPortal(
+                <div 
+                    onClick={() => setShowWhatsAppShareModal(false)}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 9999,
+                        background: 'rgba(15, 23, 42, 0.75)',
+                        backdropFilter: 'blur(8px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '16px'
+                    }}
+                >
+                    <div 
+                        onClick={(e) => e.stopPropagation()}
+                        dir={isRtl ? 'rtl' : 'ltr'}
+                        style={{
+                            background: '#ffffff',
+                            borderRadius: '20px',
+                            width: '100%',
+                            maxWidth: '540px',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                            border: '1px solid #e2e8f0',
+                            overflow: 'hidden',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}
+                    >
+                        {/* Modal Header */}
+                        <div style={{
+                            padding: '18px 24px',
+                            background: 'linear-gradient(135deg, #15803d 0%, #16a34a 100%)',
+                            color: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '10px',
+                                    background: 'rgba(255,255,255,0.2)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}>
+                                    <MessageCircle size={20} color="white" />
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '16px', fontWeight: 900 }}>
+                                        {t('realEstate.unitsRegistry.modalShareTitle') || 'مشاركة ألبوم صور الوحدة عبر واتساب'}
+                                    </div>
+                                    <div style={{ fontSize: '12px', opacity: 0.9 }}>
+                                        {shareTargetUnit.name || shareTargetUnit.unit_number} {shareTargetUnit.project_name ? `• ${shareTargetUnit.project_name}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowWhatsAppShareModal(false)}
+                                style={{
+                                    background: 'rgba(255,255,255,0.15)',
+                                    border: 'none',
+                                    color: 'white',
+                                    width: '32px',
+                                    height: '32px',
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                            {/* Direct Gallery Link Box */}
+                            <div style={{
+                                background: '#f8fafc',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '12px',
+                                padding: '14px 16px'
+                            }}>
+                                <div style={{ fontSize: '12px', fontWeight: 800, color: '#334155', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span>{t('realEstate.unitsRegistry.shareGalleryDirectLink') || 'رابط ألبوم الصور المباشر للعميل'}</span>
+                                    <span style={{ fontSize: '11px', color: '#16a34a', fontWeight: 700, background: '#dcfce7', padding: '2px 8px', borderRadius: '10px' }}>
+                                        خاص بالصور فقط • بدون لوحة تحكم
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <input 
+                                        type="text"
+                                        readOnly
+                                        value={`${window.location.origin}/public/units/${shareTargetUnit.id}/gallery`}
+                                        style={{
+                                            flex: 1,
+                                            padding: '8px 12px',
+                                            borderRadius: '8px',
+                                            border: '1px solid #cbd5e1',
+                                            background: '#ffffff',
+                                            fontSize: '12px',
+                                            color: '#64748b',
+                                            direction: 'ltr',
+                                            textAlign: 'left'
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyShareLink}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                            background: copiedShareLink ? '#16a34a' : 'white',
+                                            color: copiedShareLink ? 'white' : '#334155',
+                                            border: '1px solid #cbd5e1',
+                                            borderRadius: '8px',
+                                            padding: '8px 12px',
+                                            fontSize: '12px',
+                                            fontWeight: 700,
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s',
+                                            flexShrink: 0
+                                        }}
+                                        title={t('realEstate.unitsRegistry.btnCopyLink') || 'نسخ الرابط'}
+                                    >
+                                        {copiedShareLink ? <Check size={14} /> : <Copy size={14} />}
+                                        <span>{copiedShareLink ? (t('realEstate.unitsRegistry.linkCopied') || 'تم النسخ!') : (t('realEstate.unitsRegistry.btnCopyLink') || 'نسخ')}</span>
+                                    </button>
+                                    <a
+                                        href={`/public/units/${shareTargetUnit.id}/gallery`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            background: 'white',
+                                            color: '#6366f1',
+                                            border: '1px solid #c7d2fe',
+                                            borderRadius: '8px',
+                                            padding: '8px 12px',
+                                            fontSize: '12px',
+                                            fontWeight: 700,
+                                            textDecoration: 'none',
+                                            cursor: 'pointer',
+                                            flexShrink: 0
+                                        }}
+                                        title={t('realEstate.unitsRegistry.btnPreviewLink') || 'معاينة الرابط'}
+                                    >
+                                        <ExternalLink size={14} />
+                                    </a>
+                                </div>
+                            </div>
+
+                            {/* Recipient Phone Input */}
+                            <div>
+                                <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#334155', marginBottom: '6px' }}>
+                                    {t('realEstate.unitsRegistry.recipientPhone') || 'رقم هاتف العميل (المستلم)'} <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <div style={{ position: 'relative' }}>
+                                    <input 
+                                        type="tel"
+                                        placeholder="مثال: 01001234567 أو +201001234567"
+                                        value={shareRecipientPhone}
+                                        onChange={(e) => setShareRecipientPhone(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px 14px',
+                                            borderRadius: '10px',
+                                            border: '1px solid #cbd5e1',
+                                            fontSize: '14px',
+                                            color: '#0f172a',
+                                            outline: 'none',
+                                            boxSizing: 'border-box'
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Connected Meta WhatsApp Account Info */}
+                            {connectedMetaAccounts.length > 0 && (
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#64748b', marginBottom: '6px' }}>
+                                        {t('realEstate.unitsRegistry.connectedMetaAccount') || 'حساب واتساب المتصل بميتا (المرسل)'}
+                                    </label>
+                                    <select
+                                        value={selectedMetaAccountId}
+                                        onChange={(e) => setSelectedMetaAccountId(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            padding: '8px 12px',
+                                            borderRadius: '8px',
+                                            border: '1px solid #cbd5e1',
+                                            fontSize: '13px',
+                                            color: '#334155',
+                                            background: '#f8fafc',
+                                            boxSizing: 'border-box'
+                                        }}
+                                    >
+                                        {connectedMetaAccounts.map(acc => (
+                                            <option key={acc.id} value={acc.id}>
+                                                {acc.display_phone_number || acc.phone_number_id} {acc.is_default ? '(الافتراضي)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* Message Customization */}
+                            <div>
+                                <label style={{ display: 'block', fontSize: '13px', fontWeight: 800, color: '#334155', marginBottom: '6px' }}>
+                                    ملاحظة إضافية للعميل (اختياري)
+                                </label>
+                                <textarea 
+                                    rows={2}
+                                    placeholder="أضف أي رسالة تود كتابتها للعميل مع رابط الصور..."
+                                    value={shareCustomMessage}
+                                    onChange={(e) => setShareCustomMessage(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px 14px',
+                                        borderRadius: '10px',
+                                        border: '1px solid #cbd5e1',
+                                        fontSize: '13px',
+                                        color: '#0f172a',
+                                        outline: 'none',
+                                        resize: 'vertical',
+                                        boxSizing: 'border-box'
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Modal Footer / Actions */}
+                        <div style={{
+                            padding: '16px 24px',
+                            background: '#f8fafc',
+                            borderTop: '1px solid #e2e8f0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '12px'
+                        }}>
+                            <button
+                                type="button"
+                                onClick={handleOpenInWhatsAppWeb}
+                                style={{
+                                    border: '1px solid #cbd5e1',
+                                    background: 'white',
+                                    color: '#334155',
+                                    padding: '10px 16px',
+                                    borderRadius: '10px',
+                                    fontSize: '13px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}
+                                title="فتح محادثة مباشرة في واتساب ويب أو التطبيق"
+                            >
+                                <ExternalLink size={15} />
+                                <span>{t('realEstate.unitsRegistry.btnOpenWhatsAppWeb') || 'فتح في واتساب'}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                disabled={sendingWhatsApp}
+                                onClick={handleSendWhatsAppGallery}
+                                style={{
+                                    border: 'none',
+                                    background: sendingWhatsApp ? '#94a3b8' : 'linear-gradient(135deg, #15803d 0%, #16a34a 100%)',
+                                    color: 'white',
+                                    padding: '10px 22px',
+                                    borderRadius: '10px',
+                                    fontSize: '13px',
+                                    fontWeight: 800,
+                                    cursor: sendingWhatsApp ? 'not-allowed' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    boxShadow: '0 4px 14px rgba(22, 163, 74, 0.35)',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <Send size={15} />
+                                <span>{sendingWhatsApp ? (t('common.sending') || 'جاري الإرسال...') : (t('realEstate.unitsRegistry.btnSendMetaWhatsApp') || 'إرسال عبر واتساب الرسمي')}</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>,
                 document.body
             )}

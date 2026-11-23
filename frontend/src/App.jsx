@@ -32,6 +32,7 @@ import SuperAdmin from './pages/SuperAdmin';
 import Attendance from './pages/HR/Attendance';
 import AttendanceAdmin from './pages/HR/AttendanceAdmin';
 import UnitsRegistry from './pages/RealEstate/UnitsRegistry';
+import PublicUnitGallery from './pages/RealEstate/PublicUnitGallery';
 import MyRequests from './pages/HR/MyRequests';
 import ApprovalCenter from './pages/HR/ApprovalCenter';
 import PayrollEngine from './pages/HR/PayrollEngine';
@@ -133,6 +134,8 @@ function App() {
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/pricing" element={<Pricing />} />
+                <Route path="/public/units/:unitId/gallery" element={<PublicUnitGallery />} />
+                <Route path="/gallery/unit/:unitId" element={<PublicUnitGallery />} />
 
                 {/* Corporate "Sales Machine" Layer */}
                 <Route path="/" element={<CorporateLayout />}>

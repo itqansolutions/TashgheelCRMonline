@@ -927,3 +927,328 @@ exports.matchCustomersForUnit = async (req, res) => {
         res.status(err.statusCode || 500).json({ status: 'error', message: err.message });
     }
 };
+
+// @desc    Get public unit showcase details and photos for customer gallery link (PUBLIC - No Auth)
+// @route   GET /api/public/units/:id/gallery
+// @access  Public
+exports.getPublicUnitGallery = async (req, res) => {
+    const { id } = req.params;
+    if (!id || !isUuid(id)) {
+        return res.status(400).json({ status: 'error', message: 'Invalid unit ID' });
+    }
+
+    try {
+        const unitRes = await db.query(`
+            SELECT
+                ru.id,
+                ru.name,
+                ru.unit_number,
+                ru.type,
+                ru.floor,
+                ru.area_sqm,
+                ru.price,
+                ru.rooms,
+                ru.location,
+                ru.status,
+                ru.transaction_type,
+                ru.tenant_id,
+                COALESCE(proj.name, ru.project_name) as project_name,
+                dev.name as developer_name,
+                phase.name as phase_name,
+                bld.name as building_name,
+                t.name as company_name,
+                t.logo_url as company_logo,
+                t.phone as company_phone,
+                t.address as company_address
+            FROM re_units ru
+            LEFT JOIN re_projects proj ON ru.project_id::text = proj.id::text AND proj.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN re_developers dev ON ru.developer_id::text = dev.id::text AND dev.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN re_phases phase ON ru.phase_id::text = phase.id::text AND phase.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN re_buildings bld ON ru.building_id::text = bld.id::text AND bld.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN tenants t ON ru.tenant_id::text = t.id::text
+            WHERE ru.id = $1::uuid
+            LIMIT 1
+        `, [id]);
+
+        if (unitRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Unit not found' });
+        }
+
+        const unit = unitRes.rows[0];
+
+        // Fetch Attachments / Photos
+        let photos = [];
+        try {
+            const attachRes = await db.query(`
+                SELECT id, filename, original_name, mime_type, file_path, file_data, created_at
+                FROM attachments
+                WHERE (linked_type = 'unit' OR linked_type = 're_unit')
+                  AND linked_id = $1::text
+                ORDER BY created_at DESC
+            `, [id]);
+
+            photos = (attachRes.rows || [])
+                .filter(a => a.mime_type?.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(a.file_path || a.filename || ''))
+                .map(r => ({
+                    id: r.id,
+                    original_name: r.original_name,
+                    url: r.file_data ? `data:${r.mime_type || 'image/png'};base64,${r.file_data}` : r.file_path
+                }));
+        } catch (attachErr) {
+            console.warn('[Public Gallery] Attachments fetch warning:', attachErr.message);
+        }
+
+        // Return strictly public-safe data (no CRM internal fields)
+        return res.json({
+            status: 'success',
+            data: {
+                unit: {
+                    id: unit.id,
+                    name: unit.name,
+                    unit_number: unit.unit_number,
+                    type: unit.type,
+                    floor: unit.floor,
+                    area_sqm: unit.area_sqm,
+                    price: unit.price,
+                    rooms: unit.rooms,
+                    location: unit.location,
+                    project_name: unit.project_name,
+                    developer_name: unit.developer_name,
+                    phase_name: unit.phase_name,
+                    building_name: unit.building_name,
+                    status: unit.status,
+                    transaction_type: unit.transaction_type
+                },
+                company: {
+                    name: unit.company_name,
+                    logo_url: unit.company_logo,
+                    phone: unit.company_phone,
+                    address: unit.company_address
+                },
+                photos
+            }
+        });
+    } catch (err) {
+        console.error('[Public Gallery Error]:', err.message);
+        return res.status(500).json({ status: 'error', message: 'Internal server error fetching gallery' });
+    }
+};
+
+// @desc    Dispatch Public Unit Gallery Link to customer via Meta WhatsApp Business API
+// @route   POST /api/re-units/:id/send-whatsapp-gallery
+// @access  Private (Authenticated)
+exports.sendUnitGalleryWhatsApp = async (req, res) => {
+    const { id } = req.params;
+    const { recipient_phone, custom_message, account_id } = req.body || {};
+    const tenant_id = req.user?.tenant_id ? String(req.user.tenant_id) : null;
+    const user_id = req.user?.id;
+
+    if (!tenant_id) {
+        return res.status(400).json({ status: 'error', message: 'Tenant context missing' });
+    }
+    if (!id || !isUuid(id)) {
+        return res.status(400).json({ status: 'error', message: 'Invalid unit ID' });
+    }
+    if (!recipient_phone || !String(recipient_phone).trim()) {
+        return res.status(400).json({ status: 'error', message: 'Recipient phone number is required' });
+    }
+
+    const { normalisePhone, sendDirectTextMessage } = require('../services/whatsappService');
+    const normPhone = normalisePhone(recipient_phone);
+    if (!normPhone) {
+        return res.status(400).json({ status: 'error', message: 'Invalid phone number format. Please ensure valid international number (e.g. +20...)' });
+    }
+
+    try {
+        // 1. Fetch Unit & Tenant Info
+        const unitRes = await db.query(`
+            SELECT 
+                ru.id, ru.name, ru.unit_number, ru.type, ru.area_sqm, ru.price, ru.location,
+                COALESCE(proj.name, ru.project_name) as project_name,
+                t.name as company_name,
+                t.phone as company_phone
+            FROM re_units ru
+            LEFT JOIN re_projects proj ON ru.project_id::text = proj.id::text AND proj.tenant_id::text = ru.tenant_id::text
+            LEFT JOIN tenants t ON ru.tenant_id::text = t.id::text
+            WHERE ru.id = $1::uuid AND ru.tenant_id::text = $2::text
+            LIMIT 1
+        `, [id, tenant_id]);
+
+        if (unitRes.rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+        }
+
+        const unit = unitRes.rows[0];
+        const companyName = unit.company_name || 'Tashgheel';
+
+        // 2. Build Public Gallery URL
+        let baseUrl = process.env.APP_URL || process.env.FRONTEND_URL || '';
+        if (!baseUrl) {
+            const host = req.get('host');
+            const proto = req.get('x-forwarded-proto') || req.protocol || 'http';
+            baseUrl = `${proto}://${host}`;
+        }
+        baseUrl = baseUrl.replace(/\/+$/, '');
+        const galleryUrl = `${baseUrl}/public/units/${unit.id}/gallery`;
+
+        // 3. Construct Message
+        const unitTitle = unit.name || unit.unit_number || 'الوحدة العقارية';
+        const projectText = unit.project_name ? `\n📍 المشروع: *${unit.project_name}*` : (unit.location ? `\n📍 الموقع: *${unit.location}*` : '');
+        const areaText = unit.area_sqm ? `\n📐 المساحة: *${unit.area_sqm} م²*` : '';
+        const priceText = unit.price && Number(unit.price) > 0 ? `\n💰 السعر: *${Number(unit.price).toLocaleString('en-US')} ج.م*` : '';
+
+        let messageText = 
+            `مرحباً بك،\n` +
+            `يسعدنا مشاركة صور وتفاصيل الوحدة: *${unitTitle}*${projectText}${areaText}${priceText}\n\n` +
+            `📸 *يمكنك مشاهدة جميع صور الوحدة عالية الدقة والمعلومات عبر الرابط المباشر التالي:*\n` +
+            `${galleryUrl}\n`;
+
+        if (custom_message && custom_message.trim()) {
+            messageText += `\n💬 ${custom_message.trim()}\n`;
+        }
+
+        messageText += `\nمع تحيات *${companyName}*`;
+
+        const waMeFallbackUrl = `https://wa.me/${normPhone.replace('+', '')}?text=${encodeURIComponent(messageText)}`;
+
+        // 4. Resolve Meta WhatsApp Account Credentials
+        let senderAccount = null;
+        if (account_id) {
+            const accRes = await db.query(
+                `SELECT id, phone_number_id, display_phone_number, access_token 
+                 FROM whatsapp_accounts 
+                 WHERE id::text = $1::text AND tenant_id::text = $2::text AND is_active = true LIMIT 1`,
+                [account_id, tenant_id]
+            );
+            if (accRes.rows.length > 0) senderAccount = accRes.rows[0];
+        }
+
+        if (!senderAccount) {
+            const defaultAccRes = await db.query(
+                `SELECT id, phone_number_id, display_phone_number, access_token 
+                 FROM whatsapp_accounts 
+                 WHERE tenant_id::text = $1::text AND is_active = true 
+                 ORDER BY is_default DESC, id ASC LIMIT 1`,
+                [tenant_id]
+            );
+            if (defaultAccRes.rows.length > 0) senderAccount = defaultAccRes.rows[0];
+        }
+
+        let phoneNumberId = senderAccount?.phone_number_id || null;
+        let accessToken = senderAccount?.access_token || null;
+        let senderDisplayPhone = senderAccount?.display_phone_number || '';
+
+        if (!phoneNumberId || !accessToken) {
+            const settingsRes = await db.query(
+                `SELECT phone_number_id, access_token, is_active 
+                 FROM whatsapp_settings 
+                 WHERE tenant_id::text = $1::text LIMIT 1`,
+                [tenant_id]
+            );
+            if (settingsRes.rows.length > 0 && settingsRes.rows[0].access_token && settingsRes.rows[0].phone_number_id) {
+                phoneNumberId = settingsRes.rows[0].phone_number_id;
+                accessToken = settingsRes.rows[0].access_token;
+                senderDisplayPhone = senderDisplayPhone || 'Connected Meta Business Number';
+            }
+        }
+
+        // If credentials are not configured yet on Meta integration
+        if (!phoneNumberId || !accessToken) {
+            return res.json({
+                status: 'fallback',
+                sent_via: 'manual',
+                message: 'لم يتم ربط رقم واتساب مفعل عبر Meta Business API لهذا الحساب بعد. يمكنك إرسال الرسالة فوراً عبر واتساب المباشر.',
+                gallery_url: galleryUrl,
+                direct_whatsapp_url: waMeFallbackUrl,
+                message_text: messageText
+            });
+        }
+
+        // 5. Send via Meta WhatsApp Cloud API
+        const sendResult = await sendDirectTextMessage({
+            phoneNumberId,
+            accessToken,
+            toPhone: normPhone,
+            text: messageText
+        });
+
+        if (!sendResult.success) {
+            // Handle 24-hr window expiration
+            if (sendResult.code === 'WINDOW_EXPIRED' || sendResult.code === 131047) {
+                return res.json({
+                    status: 'window_expired',
+                    sent_via: 'manual',
+                    message: 'نافذة خدمة العملاء (24 ساعة) مغلقة لهذا الرقم في ميتا. يمكنك إرسال الرابط فوراً بضغطة زر عبر WhatsApp Web أو تطبيق واتساب.',
+                    gallery_url: galleryUrl,
+                    direct_whatsapp_url: waMeFallbackUrl,
+                    message_text: messageText
+                });
+            }
+
+            return res.status(400).json({
+                status: 'error',
+                message: sendResult.error || 'فشل إرسال رسالة الواتساب عبر ميتا',
+                direct_whatsapp_url: waMeFallbackUrl,
+                gallery_url: galleryUrl
+            });
+        }
+
+        // 6. Log Conversation & Outbound Message in CRM Inbox (so agent sees it in WhatsApp chat)
+        try {
+            const convUpsert = await db.query(`
+                INSERT INTO whatsapp_conversations (
+                    tenant_id, account_id, phone_number, contact_name, last_message_body,
+                    last_message_at, last_message_direction, unread_count
+                )
+                VALUES ($1, $2, $3, $4, $5, NOW(), 'outbound', 0)
+                ON CONFLICT (tenant_id, phone_number, account_id)
+                DO UPDATE SET
+                    last_message_body = EXCLUDED.last_message_body,
+                    last_message_at = NOW(),
+                    last_message_direction = 'outbound'
+                RETURNING id
+            `, [
+                tenant_id,
+                senderAccount?.id || null,
+                normPhone,
+                normPhone,
+                `📸 مشاركة صور الوحدة: ${unitTitle} - ${galleryUrl}`
+            ]);
+
+            const conversationId = convUpsert.rows[0]?.id;
+            if (conversationId) {
+                await db.query(`
+                    INSERT INTO whatsapp_messages (
+                        conversation_id, tenant_id, account_id, meta_message_id,
+                        direction, sender_type, sender_id, message_type, body, status, created_at
+                    )
+                    VALUES ($1, $2, $3, $4, 'outbound', 'agent', $5, 'text', $6, 'sent', NOW())
+                    ON CONFLICT DO NOTHING
+                `, [
+                    conversationId,
+                    tenant_id,
+                    senderAccount?.id || null,
+                    sendResult.messageId || `wamid.local.${Date.now()}`,
+                    user_id ? Number(user_id) : null,
+                    messageText
+                ]);
+            }
+        } catch (logErr) {
+            console.warn('[WhatsApp Log Warning]:', logErr.message);
+        }
+
+        return res.json({
+            status: 'success',
+            sent_via: 'meta_api',
+            sender_phone: senderDisplayPhone,
+            message: 'تم إرسال رابط ألبوم الصور بنجاح عبر واتساب المتصل بميتا!',
+            message_id: sendResult.messageId,
+            gallery_url: galleryUrl,
+            direct_whatsapp_url: waMeFallbackUrl
+        });
+
+    } catch (err) {
+        console.error('[Send Unit Gallery WhatsApp Error]:', err.message);
+        return res.status(500).json({ status: 'error', message: err.message });
+    }
+};

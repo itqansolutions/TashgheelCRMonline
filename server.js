@@ -130,6 +130,10 @@ const propertyFinderController = require('./controllers/propertyFinderController
 app.post('/api/propertyfinder/webhook', propertyFinderController.handleWebhook);
 app.post('/api/propertyfinder/webhook/:tenantId', propertyFinderController.handleWebhook);
 
+// Public Real Estate Unit Gallery (Publicly accessible for client photo showcase, no auth required)
+const reUnitsController = require('./controllers/reUnitsController');
+app.get('/api/public/units/:id/gallery', reUnitsController.getPublicUnitGallery);
+
 // Protected SaaS subscription endpoint
 app.get('/api/me/subscription', authMiddleware, subscriptionGuard, plansController.getMySubscription);
 

@@ -21,5 +21,6 @@ router.post('/', ctrl.createUnit);
 router.put('/:id', ctrl.updateUnit);
 router.delete('/:id', roleGuard(DELETE_ROLES), ctrl.deleteUnit);
 router.post('/:id/extend-reservation', ctrl.extendUnitReservation);
+router.post('/:id/send-whatsapp-gallery', ctrl.sendUnitGalleryWhatsApp);
 
 module.exports = router;
