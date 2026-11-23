@@ -72,18 +72,18 @@ const Billing = () => {
     const hasPending = latestReq?.status === 'pending';
 
     return (
-        <div dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '28px', maxWidth: 900, margin: '0 auto' }}>
+        <div className="billing-page" dir={isRTL ? 'rtl' : 'ltr'} style={{ padding: '28px', maxWidth: 900, margin: '0 auto' }}>
             <style>{`
                 @keyframes spin { to { transform: rotate(360deg); } }
                 @keyframes pulse { 0%,100%{opacity:0.6;} 50%{opacity:1;} }
-                .bill-card { background: var(--bg-card); border-radius: 16px; padding: 28px; border: 1px solid var(--glass-border); margin-bottom: 20px; }
-                .plan-select-card { padding: 16px; border-radius: 12px; border: 2px solid transparent; cursor: pointer; transition: all 0.2s; margin-bottom: 10px; background: rgba(0,0,0,0.02); }
-                .plan-select-card:hover { border-color: rgba(79,70,229,0.3); background: rgba(79,70,229,0.04); }
-                .plan-select-card.selected { border-color: var(--primary); background: rgba(79,70,229,0.07); }
-                .btn-upgrade { background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; border: none; padding: 14px 28px; border-radius: 12px; font-weight: 800; font-size: 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; width: 100%; justify-content: center; transition: all 0.25s; }
-                .btn-upgrade:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(79,70,229,0.4); }
-                .btn-upgrade:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-                .badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+                .billing-page .bill-card { background: var(--bg-card); border-radius: 16px; padding: 28px; border: 1px solid var(--glass-border); margin-bottom: 20px; }
+                .billing-page .plan-select-card { padding: 16px; border-radius: 12px; border: 2px solid transparent; cursor: pointer; transition: all 0.2s; margin-bottom: 10px; background: rgba(0,0,0,0.02); }
+                .billing-page .plan-select-card:hover { border-color: rgba(79,70,229,0.3); background: rgba(79,70,229,0.04); }
+                .billing-page .plan-select-card.selected { border-color: var(--primary); background: rgba(79,70,229,0.07); }
+                .billing-page .btn-upgrade { background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; border: none; padding: 14px 28px; border-radius: 12px; font-weight: 800; font-size: 16px; cursor: pointer; display: flex; align-items: center; gap: 10px; width: 100%; justify-content: center; transition: all 0.25s; }
+                .billing-page .btn-upgrade:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(79,70,229,0.4); }
+                .billing-page .btn-upgrade:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+                .billing-page .badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
             `}</style>
 
             {/* Header */}

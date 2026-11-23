@@ -762,3 +762,25 @@
  .automation-control-page {padding:12px;}
  .automation-control-page .ac-header p {overflow-wrap:anywhere;}
 }
+
+/* Subscription presentation only; request/cancel and price data unchanged. */
+.billing-page,.billing-page * {box-sizing:border-box;}
+.billing-page {min-width:0;}
+.billing-page h1 {line-height:1.4;}
+.billing-page h1 svg,.billing-page h3 svg,.billing-page button svg {flex-shrink:0;}
+.billing-page p {line-height:1.7;}
+.billing-page .bill-card {min-width:0;overflow-wrap:anywhere;}
+.billing-page .bill-card > div:first-child > div {min-width:0;}
+.billing-page .badge {white-space:normal;}
+.billing-page .plan-select-card > div {gap:12px;flex-wrap:wrap;}
+.billing-page .num-en {white-space:nowrap;}
+.billing-page button {min-height:44px;}
+@media(max-width:768px) {
+ .billing-page {padding:12px !important;}
+ .billing-page h1 {font-size:24px !important;align-items:flex-start !important;}
+ .billing-page .bill-card {padding:18px;}
+ .billing-page .bill-card > div:first-child {flex-wrap:wrap;gap:16px;}
+ .billing-page .bill-card > div:first-child > div {max-width:100%;}
+ .billing-page .bill-card > div:first-child > button {width:100%;justify-content:center;}
+ .billing-page .btn-upgrade {padding:12px;font-size:14px;}
+}
