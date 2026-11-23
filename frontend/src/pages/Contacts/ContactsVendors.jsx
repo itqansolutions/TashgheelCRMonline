@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Plus, Truck, Search, X, Printer, CreditCard, FileText } from 'lucide-react';
@@ -159,16 +159,26 @@ const RecordPaymentModal = ({ vendor, onClose, onSuccess }) => {
   const [voucherDate, setVoucherDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const [treasuryId, setTreasuryId] = useState('');
+  const submitLock = useRef(false);
+  useEffect(()=>{api.get('/finance/treasury/accounts').then(r=>setAccounts(r.data.data||[])).catch(()=>setAccounts([]));},[]);
+  const availableAccounts=accounts.filter(a=>a.is_active!==false&&a.type===(paymentMethod==='cash'?'cash':'bank'));
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitLock.current) return;
     const payVal = parseFloat(amount);
     if (!payVal || payVal <= 0) return toast.error(t('vendors.toastValidAmount'));
 
+    if (!Number.isFinite(Number(amount)) || !treasuryId) return toast.error(t('finance.paymentModal.treasuryRequired', 'Select a treasury account'));
+    submitLock.current = true;
     setSaving(true);
     try {
       await api.post(`/purchases/vendors/${vendor.id}/payments`, {
         amount: payVal,
+        treasury_account_id: treasuryId,
         payment_method: paymentMethod,
         voucher_date: voucherDate,
         notes: notes || `Payment to supplier ${vendor.name}`
@@ -179,6 +189,7 @@ const RecordPaymentModal = ({ vendor, onClose, onSuccess }) => {
     } catch (err) {
       toast.error(err.response?.data?.message || t('vendors.toastPaymentFailed'));
     } finally {
+      submitLock.current = false;
       setSaving(false);
     }
   };
@@ -212,7 +223,7 @@ const RecordPaymentModal = ({ vendor, onClose, onSuccess }) => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div>
               <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>{t('vendors.lblMethod')}</label>
-              <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} style={inputStyle}>
+              <select value={paymentMethod} onChange={e => {setPaymentMethod(e.target.value);setTreasuryId('');}} style={inputStyle}>
                 <option value="cash">{t('vendors.methodCash')}</option>
                 <option value="bank_transfer">{t('vendors.methodBankTransfer')}</option>
                 <option value="check">{t('vendors.methodCheck')}</option>
@@ -226,6 +237,12 @@ const RecordPaymentModal = ({ vendor, onClose, onSuccess }) => {
             </div>
           </div>
 
+          <div><label htmlFor="vendor-payment-treasury">{t('finance.quickAction.treasuryAccount')}</label>
+            <select id="vendor-payment-treasury" required value={treasuryId} onChange={e=>setTreasuryId(e.target.value)} style={inputStyle}>
+              <option value="">{t('finance.paymentModal.selectTreasury','Select treasury account')}</option>
+              {availableAccounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
           <div>
             <label style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#374151', marginBottom: '6px' }}>{t('vendors.lblNotes')}</label>
             <input value={notes} onChange={e => setNotes(e.target.value)} placeholder={t('vendors.placeholderNotes')} style={inputStyle} />

@@ -103,7 +103,47 @@ const res=()=>({code:200,status(n){this.code=n;return this},json(b){this.body=b;
  // Deployed finance voucher tenant type may be varchar; details compares explicitly.
  r=res();await fin.getVoucherDetails(req({params:{id:invoiceVoucher.id}}),r);assert.equal(r.code,200,JSON.stringify(r.body));assert.equal(r.body.data.treasury_account,'Synthetic cash');
  console.log('PASS new voucher stores treasury name; list/details resolve legacy generic display without modifying stored label');
+
+ const counts=async()=>({expenses:Number((await pool.query('SELECT COUNT(*) FROM expenses')).rows[0].count),vouchers:Number((await pool.query('SELECT COUNT(*) FROM finance_vouchers')).rows[0].count)});
+ const initial=await counts();
+ for(const body of [{title:'bad',amount:-10},{title:'bad',amount:'Infinity'},{title:'bad',amount:'1bad'},{title:'bad',amount:0},{title:'bad',amount:10},{title:'bad',amount:10,treasury_account_id:999},{title:'bad',amount:10,payment_method:'bank_transfer',treasury_account_id:4}]){
+  r=res();await fin.createExpense(req({body}),r);assert.equal(r.code,400,JSON.stringify(r.body));assert.deepEqual(await counts(),initial);
+ }
+ r=res();await fin.createExpense(req({body:{title:'Synthetic expense',amount:25,treasury_account_id:4}}),r);assert.equal(r.code,201,JSON.stringify(r.body));assert.equal(r.body.data.treasury_account_id,4);
+ r=res();await fin.getSummary(req(),r);assert.equal(r.body.data.totalExpenses,25);r=res();await fin.getTreasuryAccounts(req(),r);assert.equal(r.body.totals.total_balance,775);console.log('PASS expense invalid/no-default/treasury cases reject with zero writes; valid25 deducts treasury and summary once');
+ const afterExpense=await counts();
+ for(const body of [{voucher_type:'receipt',amount:12},{voucher_type:'payment',amount:8,treasury_account_id:999},{voucher_type:'other',amount:1,treasury_account_id:4},{voucher_type:'receipt',amount:'Infinity',treasury_account_id:4},{voucher_type:'receipt',amount:3,treasury_account_id:4,customer_id:999}]){
+  r=res();await fin.createVoucher(req({body}),r);assert.equal(r.code,400,JSON.stringify(r.body));assert.deepEqual(await counts(),afterExpense);
+ }
+ r=res();await fin.createVoucher(req({body:{voucher_type:'receipt',party_type:'other',party_name:'Synthetic receipt',amount:12,treasury_account_id:4}}),r);assert.equal(r.code,201,JSON.stringify(r.body));assert.equal(r.body.data.treasury_account,'Synthetic cash');
+ r=res();await fin.createVoucher(req({body:{voucher_type:'payment',party_type:'other',party_name:'Synthetic operating payout',amount:8,treasury_account_id:4}}),r);assert.equal(r.code,201,JSON.stringify(r.body));
+ r=res();await fin.getSummary(req(),r);assert.equal(r.body.data.totalIncome,812);assert.equal(r.body.data.totalExpenses,33);r=res();await fin.getTreasuryAccounts(req(),r);assert.equal(r.body.totals.total_balance,779);console.log('PASS standalone receipt12/payment8 reconcile summary and treasury once; invalid parties/types/accounts/amounts create nothing');
+ await pool.query('CREATE TABLE vendors(id int primary key,name text,tenant_id uuid,branch_id text);CREATE TABLE purchase_invoices(id int primary key,vendor_id int,total_amount numeric,paid_amount numeric,status text,tenant_id uuid,branch_id text,updated_at timestamptz)');
+ await pool.query('INSERT INTO vendors VALUES(10,$1,$2,$3),(11,$4,$2,$3)',['Synthetic Vendor A',TA,BA,'Synthetic Vendor B']);await pool.query('INSERT INTO purchase_invoices VALUES(20,11,100,0,$1,$2,$3,NOW()),(21,10,100,0,$1,$2,$3,NOW())',['unpaid',TA,BA]);const pc=require(root+'/controllers/purchasesController');
+ const beforeSupplier=await counts();
+ for(const body of [{amount:150,purchase_invoice_id:20,treasury_account_id:4},{amount:150,purchase_invoice_id:21,treasury_account_id:4},{amount:10,purchase_invoice_id:21,treasury_account_id:999},{amount:10,purchase_invoice_id:21},{amount:'Infinity',purchase_invoice_id:21,treasury_account_id:4}]){
+  r=res();await pc.recordVendorPayment(req({params:{id:10},body}),r);assert.equal(r.code,400,JSON.stringify(r.body));assert.deepEqual(await counts(),beforeSupplier);
+ }
+ const concurrent=[res(),res()];await Promise.all(concurrent.map(x=>pc.recordVendorPayment(req({params:{id:10},body:{amount:60,purchase_invoice_id:21,treasury_account_id:4}}),x)));assert.deepEqual(concurrent.map(x=>x.code).sort(),[201,400]);assert.equal(Number((await pool.query('SELECT paid_amount FROM purchase_invoices WHERE id=21')).rows[0].paid_amount),60);assert.equal(Number((await pool.query('SELECT paid_amount FROM purchase_invoices WHERE id=20')).rows[0].paid_amount),0);
+ r=res();await fin.getTreasuryAccounts(req(),r);assert.equal(r.body.totals.total_balance,719);console.log('PASS supplier invoice ownership/overpayment/no account/invalid account reject unchanged; concurrent60+60 yields one60 payment only, treasury719, unrelated invoice untouched');
+
+ // Scope and atomicity checks for all newly guarded financial entry paths.
+ const safeCounts=await counts();
+ await pool.query('INSERT INTO treasury_accounts(id,tenant_id,branch_id,is_active,is_default,type,name,opening_balance) VALUES(40,$1,$2,true,false,$3,$4,0),(41,$1,$5,true,false,$3,$6,0),(42,$1,$2,false,false,$3,$7,0),(43,$1,$2,true,false,$8,$9,0)',[TA,BA,'cash','Scoped cash','44444444-4444-4444-8444-444444444444','Other branch','Inactive cash','bank','Scoped bank']);
+ for(const account of [41,42])for(const fn of ['createExpense','createVoucher']){
+  r=res();await fin[fn](req({body:{title:'Denied expense',party_name:'Denied receipt',voucher_type:'receipt',amount:1,treasury_account_id:account}}),r);assert.equal(r.code,400);assert.deepEqual(await counts(),safeCounts);
+ }
+ r=res();await pc.recordVendorPayment(req({branchId:'44444444-4444-4444-8444-444444444444',params:{id:10},body:{amount:1,treasury_account_id:41}}),r);assert.equal(r.code,400);assert.deepEqual(await counts(),safeCounts);
+ await pool.query("UPDATE purchase_invoices SET status='cancelled' WHERE id=21");r=res();await pc.recordVendorPayment(req({params:{id:10},body:{amount:1,purchase_invoice_id:21,treasury_account_id:4}}),r);assert.equal(r.code,400);assert.deepEqual(await counts(),safeCounts);
+ const linkedBefore=Number((await pool.query('SELECT COUNT(*) FROM payments')).rows[0].count);
+ r=res();await fin.createVoucher(req({body:{voucher_type:'receipt',invoice_id:8,customer_id:9,amount:801,treasury_account_id:4}}),r);assert.equal(r.code,400);assert.deepEqual(await counts(),safeCounts);assert.equal(Number((await pool.query('SELECT COUNT(*) FROM payments')).rows[0].count),linkedBefore);
+ r=res();await fin.createVoucher(req({body:{voucher_type:'receipt',invoice_id:8,customer_id:9,amount:10,treasury_account_id:4}}),r);assert.equal(r.code,201,JSON.stringify(r.body));assert.equal(Number((await pool.query('SELECT COUNT(*) FROM payments')).rows[0].count),linkedBefore+1);assert.equal((await counts()).vouchers,safeCounts.vouchers+1);console.log('PASS invoice-linked standalone receipt retains one voucher/payment; overpayment rolls back both; wrong-branch/inactive treasury and cancelled supplier invoice rejected');
+ await pool.query(`CREATE FUNCTION isolated_expense_fail() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN RAISE EXCEPTION 'isolated expense failure'; END$$;CREATE TRIGGER isolated_expense_failure BEFORE INSERT ON expenses FOR EACH ROW EXECUTE FUNCTION isolated_expense_fail()`);
+ const atomicBefore=await counts();r=res();await fin.createVoucher(req({body:{voucher_type:'payment',party_type:'other',party_name:'Atomic failure fixture',amount:1,treasury_account_id:4}}),r);assert.equal(r.code,400);assert.deepEqual(await counts(),atomicBefore);console.log('PASS failed operating expense insert rolls back its payment voucher and consumes no number');
+ await pool.query('DROP TRIGGER isolated_expense_failure ON expenses');
  console.log('ISOLATED_EFFECT_REGRESSION_COMPLETE');
+
+
 
 
 

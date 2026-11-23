@@ -386,7 +386,7 @@ exports.recordVendorPayment = async (req, res) => {
     const { amount, payment_method, purchase_invoice_id, notes, voucher_date, treasury_account_id } = req.body;
 
     const paymentAmount = parseFloat(amount);
-    if (!paymentAmount || paymentAmount <= 0) {
+    if (!Number.isFinite(Number(amount)) || !paymentAmount || paymentAmount <= 0) {
         return res.status(400).json({ status: 'error', message: 'Payment amount must be greater than 0' });
     }
 
@@ -395,27 +395,24 @@ exports.recordVendorPayment = async (req, res) => {
         await client.query('BEGIN');
 
         // Verify vendor
-        const vRes = await client.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id::text = $2::text', [vendorId, tenant_id]);
+        const vRes = await client.query('SELECT name FROM vendors WHERE id = $1 AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text=$3::text OR branch_id IS NULL)', [vendorId, tenant_id, branch_id]);
         if (vRes.rows.length === 0) {
             throw new Error('Vendor not found');
         }
         const vendorName = vRes.rows[0].name;
 
-        // Resolve treasury_account_id: provided → fallback to default account for method → null
-        let resolvedTreasuryId = treasury_account_id || null;
-        if (!resolvedTreasuryId) {
-            try {
-                const accType = (payment_method === 'bank_transfer' || payment_method === 'card' || payment_method === 'check')
-                    ? 'bank' : 'cash';
-                const taRes = await client.query(`
-                    SELECT id FROM treasury_accounts
-                    WHERE tenant_id::text = $1::text
-                      AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
-                      AND type = $3 AND is_default = true AND is_active = true
-                    LIMIT 1
-                `, [tenant_id, branch_id ? String(branch_id) : null, accType]);
-                if (taRes.rows.length > 0) resolvedTreasuryId = taRes.rows[0].id;
-            } catch (_) {}
+        const { resolveCollectionTreasury } = require('../services/resolveCollectionTreasury');
+        const treasury = await resolveCollectionTreasury(client, { tenant_id, branch_id, treasury_account_id, payment_method });
+        const resolvedTreasuryId = treasury.id;
+        let invoice = null;
+        if (purchase_invoice_id) {
+            const found = await client.query(`SELECT id,total_amount,paid_amount,status FROM purchase_invoices
+                WHERE id=$1 AND tenant_id::text=$2::text AND vendor_id::text=$3::text
+                  AND ($4::text IS NULL OR branch_id::text=$4::text OR branch_id IS NULL) FOR UPDATE`,
+                [purchase_invoice_id, tenant_id, String(vendorId), branch_id]);
+            invoice = found.rows[0];
+            if (!invoice || ['cancelled','canceled','void'].includes(String(invoice.status).toLowerCase())) throw new Error('Purchase invoice not found, cancelled or not owned by this vendor/branch');
+            if (paymentAmount > Number(invoice.total_amount) - Number(invoice.paid_amount || 0)) throw new Error('Payment exceeds remaining purchase invoice balance');
         }
 
         // Generate voucher number via shared concurrency-safe numbering service
@@ -437,7 +434,7 @@ exports.recordVendorPayment = async (req, res) => {
             purchase_invoice_id ? parseInt(purchase_invoice_id) : null,
             paymentAmount,
             payment_method || 'cash',
-            'Main Cash / الخزينة الرئيسية',
+            treasury.name,
             resolvedTreasuryId,
             null,
             notes || `Payment to vendor ${vendorName}`,
@@ -448,22 +445,10 @@ exports.recordVendorPayment = async (req, res) => {
         ]);
 
 
-        // If a specific purchase invoice was linked, update its paid_amount & status
-        if (purchase_invoice_id) {
-            const invRes = await client.query(
-                `SELECT total_amount, paid_amount FROM purchase_invoices WHERE id = $1 AND tenant_id::text = $2::text FOR UPDATE`,
-                [purchase_invoice_id, tenant_id]
-            );
-            if (invRes.rows.length > 0) {
-                const newPaid = parseFloat(invRes.rows[0].paid_amount || 0) + paymentAmount;
-                const total = parseFloat(invRes.rows[0].total_amount || 0);
-                const newStatus = newPaid >= total ? 'paid' : 'partial';
-
-                await client.query(
-                    `UPDATE purchase_invoices SET paid_amount = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
-                    [newPaid, newStatus, purchase_invoice_id]
-                );
-            }
+        if (invoice) {
+            const newPaid = Number(invoice.paid_amount || 0) + paymentAmount;
+            await client.query(`UPDATE purchase_invoices SET paid_amount=$1,status=$2,updated_at=CURRENT_TIMESTAMP
+                WHERE id=$3 AND tenant_id::text=$4::text`, [newPaid, newPaid >= Number(invoice.total_amount) ? 'paid' : 'partial', invoice.id, tenant_id]);
         }
 
         await client.query('COMMIT');

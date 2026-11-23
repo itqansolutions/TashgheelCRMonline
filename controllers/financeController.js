@@ -595,7 +595,7 @@ const recordPaymentInternal = async ({
 
     // 1. Amount validation
     const payAmount = parseFloat(amount);
-    if (isNaN(payAmount) || payAmount <= 0) {
+    if (!Number.isFinite(Number(amount)) || payAmount <= 0) {
         const err = new Error('Payment amount must be greater than zero');
         err.status = 400;
         throw err;
@@ -1224,48 +1224,38 @@ exports.createVoucher = async (req, res) => {
         voucher_date
     } = req.body;
 
-    if (!voucher_type || !amount || parseFloat(amount) <= 0) {
+    if (!['receipt', 'payment'].includes(voucher_type) || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
         return res.status(400).json({ status: 'error', message: 'Voucher type and valid amount are required.' });
     }
 
+    await ensureVouchersTable();
+    await ensureInvoicesTable();
+    const client = await db.pool.connect();
     try {
-        await ensureVouchersTable();
-        await db.query('BEGIN');
+        await client.query('BEGIN');
 
-        const voucherNumber = await generateVoucherNumber(tenant_id, branch_id, voucher_type);
-
+        const treasury = await resolveCollectionTreasury(client, { tenant_id, branch_id, treasury_account_id: req.body.treasury_account_id, payment_method });
+        const resolvedTreasuryId = treasury.id;
         let effectivePartyName = party_name;
-        if (!effectivePartyName) {
-            if (customer_id) {
-                const c = await db.query('SELECT name FROM customers WHERE id::text = $1::text', [String(customer_id)]);
-                if (c.rows.length) effectivePartyName = c.rows[0].name;
-            } else if (vendor_id) {
-                const v = await db.query('SELECT name FROM vendors WHERE id::text = $1::text', [String(vendor_id)]);
-                if (v.rows.length) effectivePartyName = v.rows[0].name;
+        for (const [id, table] of [[customer_id, 'customers'], [vendor_id, 'vendors']]) {
+            if (id) {
+                const party = await client.query(`SELECT id,name FROM ${table} WHERE id::text=$1::text AND tenant_id::text=$2::text AND ($3::text IS NULL OR branch_id::text=$3::text OR branch_id IS NULL)`, [String(id), tenant_id, branch_id || null]);
+                if (!party.rows.length) throw new Error('Party not found in this tenant/branch');
+                effectivePartyName = party.rows[0].name;
             }
         }
-        if (!effectivePartyName) {
-            effectivePartyName = voucher_type === 'receipt' ? 'عميل نقدي' : 'جهة الصرف';
+        if (!effectivePartyName) effectivePartyName = voucher_type === 'receipt' ? 'عميل نقدي' : 'جهة الصرف';
+        if (invoice_id) {
+            if (voucher_type !== 'receipt') throw new Error('Use supplier payment action for purchase invoice settlement');
+            const linked = await client.query(`SELECT client_id,customer_id FROM invoices WHERE id=$1 AND tenant_id::text=$2::text
+              AND ($3::text IS NULL OR branch_id::text=$3::text OR branch_id IS NULL) FOR UPDATE`, [invoice_id,tenant_id,branch_id]);
+            if (!linked.rows.length) throw new Error('Invoice not found in this tenant/branch');
+            if (customer_id && ![linked.rows[0].client_id,linked.rows[0].customer_id].some(id=>String(id)===String(customer_id))) throw new Error('Invoice is not owned by selected customer');
         }
 
-        // Resolve treasury_account_id: provided → fallback to default account for method → null
-        let resolvedTreasuryId = req.body.treasury_account_id || null;
-        if (!resolvedTreasuryId) {
-            try {
-                const accType = (payment_method === 'bank_transfer' || payment_method === 'card' || payment_method === 'check')
-                    ? 'bank' : 'cash';
-                const taRes = await db.query(`
-                    SELECT id FROM treasury_accounts
-                    WHERE tenant_id::text = $1::text
-                      AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
-                      AND type = $3 AND is_default = true AND is_active = true
-                    LIMIT 1
-                `, [tenant_id, branch_id ? String(branch_id) : null, accType]);
-                if (taRes.rows.length > 0) resolvedTreasuryId = taRes.rows[0].id;
-            } catch (_) {}
-        }
-
-        const vRes = await db.query(`
+        // Match invoice-payment lock order: invoice first, voucher numbering second.
+        const voucherNumber = await generateVoucherNumber(tenant_id, branch_id, voucher_type, client);
+        const vRes = await client.query(`
             INSERT INTO finance_vouchers (
                 voucher_number, voucher_type, party_type, party_name, customer_id, vendor_id,
                 invoice_id, amount, payment_method, treasury_account, treasury_account_id, reference_no,
@@ -1282,7 +1272,7 @@ exports.createVoucher = async (req, res) => {
             invoice_id || null,
             parseFloat(amount),
             payment_method || 'cash',
-            treasury_account || 'Main Cash / الخزينة الرئيسية',
+            treasury.name,
             resolvedTreasuryId,
             reference_no || null,
             notes || null,
@@ -1294,26 +1284,15 @@ exports.createVoucher = async (req, res) => {
 
         const voucher = vRes.rows[0];
 
-        // If it's a receipt voucher linked to an invoice, record the payment against that invoice
         if (voucher_type === 'receipt' && invoice_id) {
-            await recordPaymentInternal({
-                tenant_id,
-                branch_id,
-                invoice_id,
-                amount,
-                payment_method,
-                treasury_account_id: resolvedTreasuryId,
-                notes: notes ? `${notes} (سند قبض ${voucherNumber})` : `سند قبض رقم ${voucherNumber}`,
-                user_id: req.user.id,
-                req,
-                existing_voucher_id: voucher.id
-            });
+            await recordPaymentInternal({ tenant_id, branch_id, invoice_id, amount, payment_method, treasury_account_id: resolvedTreasuryId,
+                notes, user_id: req.user.id, req, existing_voucher_id: voucher.id, client });
         }
 
-        // If it's an operating payment voucher (NOT vendor settlement), record an expense entry
+        // Keep the expense mirror unlinked to treasury: the payment voucher counts the outflow.
+        // The mirror is used by expense summaries and must commit or roll back with the voucher.
         if (voucher_type === 'payment' && party_type !== 'vendor') {
-            try {
-                await db.query(`
+            await client.query(`
                     INSERT INTO expenses (title, amount, category, expense_date, recorded_by, tenant_id, branch_id)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
                 `, [
@@ -1325,19 +1304,19 @@ exports.createVoucher = async (req, res) => {
                     tenant_id,
                     branch_id
                 ]);
-            } catch (expErr) {
-                console.warn('[Payment Voucher] Expense recording warning:', expErr.message);
-            }
+
         }
 
-        await db.query('COMMIT');
+        await client.query('COMMIT');
         logCreate(req, 'Finance Voucher', voucher.id, { voucherNumber, voucher_type, amount });
 
         res.status(201).json({ status: 'success', data: voucher, message: 'Voucher created successfully' });
     } catch (err) {
-        await db.query('ROLLBACK');
+        await client.query('ROLLBACK');
         console.error('createVoucher Error:', err.message);
         res.status(400).json({ status: 'error', message: err.message });
+    } finally {
+        client.release();
     }
 };
 
@@ -1654,50 +1633,25 @@ exports.getExpenses = async (req, res) => {
 // @route   POST /api/finance/expenses
 exports.createExpense = async (req, res) => {
     const tenant_id = req.user.tenant_id;
-    let branch_id = req.branchId || req.user?.branch_id || null;
+    const branch_id = req.branchId || req.user?.branch_id || null;
     const { title, amount, category, expense_date, payment_method, treasury_account_id } = req.body;
-
+    if (!String(title || '').trim() || !Number.isFinite(Number(amount)) || Number(amount) <= 0) return res.status(400).json({ status: 'error', message: 'Expense title and positive finite amount are required' });
+    await ensureInvoicesTable();
+    const client = await db.pool.connect();
     try {
-        await ensureInvoicesTable();
-
-        // Resolve treasury_account_id: provided → default cash → null (graceful degrade)
-        let resolvedTreasuryId = treasury_account_id || null;
-        if (!resolvedTreasuryId) {
-            try {
-                const accType = (payment_method === 'bank_transfer' || payment_method === 'card' || payment_method === 'check')
-                    ? 'bank' : 'cash';
-                const taRes = await db.query(`
-                    SELECT id FROM treasury_accounts
-                    WHERE tenant_id::text = $1::text
-                      AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
-                      AND type = $3 AND is_default = true AND is_active = true
-                    LIMIT 1
-                `, [tenant_id, branch_id ? String(branch_id) : null, accType]);
-                if (taRes.rows.length > 0) resolvedTreasuryId = taRes.rows[0].id;
-            } catch (_) { /* degrade gracefully if table doesn't exist yet */ }
-        }
-
-        const result = await db.query(`
-            INSERT INTO expenses
-              (title, amount, category, expense_date, payment_method, treasury_account_id, recorded_by, tenant_id, branch_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
-        `, [
-            title, amount,
-            category || 'General',
-            expense_date || new Date().toISOString().split('T')[0],
-            payment_method || 'cash',
-            resolvedTreasuryId,
-            req.user.id,
-            tenant_id,
-            branch_id ? String(branch_id) : null,
-        ]);
-
+        await client.query('BEGIN');
+        const treasury = await resolveCollectionTreasury(client, { tenant_id, branch_id, treasury_account_id, payment_method });
+        const result = await client.query(`INSERT INTO expenses
+            (title, amount, category, expense_date, payment_method, treasury_account_id, recorded_by, tenant_id, branch_id)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+            [title.trim(), Number(amount), category || 'General', expense_date || new Date().toISOString().split('T')[0], payment_method || 'cash', treasury.id, req.user.id, tenant_id, branch_id]);
+        await client.query('COMMIT');
         logCreate(req, 'Expense', result.rows[0].id, result.rows[0]);
         res.status(201).json({ status: 'success', data: result.rows[0] });
     } catch (err) {
-        console.error('createExpense Error:', err.message);
-        res.status(500).json({ status: 'error', message: 'Failed to record expense' });
-    }
+        await client.query('ROLLBACK');
+        res.status(400).json({ status: 'error', message: err.message });
+    } finally { client.release(); }
 };
 
 // @desc    Get Income & Payments List

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import api from '../../services/api';
@@ -29,7 +29,7 @@ const FinanceDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const ALL_TABS = ['Overview', 'Invoices', 'Quotations', 'Receipts', 'Expenses', 'Customers', 'Vendors', 'Treasury', 'Reports'];
+  const ALL_TABS = ['Overview', 'Invoices', 'Quotations', 'Receipts', 'Payments', 'Expenses', 'Customers', 'Vendors', 'Treasury', 'Reports'];
 
   const queryParams = new URLSearchParams(location.search);
   const rawTab = queryParams.get('tab') || location.state?.tab || 'Overview';
@@ -77,10 +77,19 @@ const FinanceDashboard = () => {
     party_name: '',
     party_type: 'customer',
     payment_method: 'cash',
-    treasury_account: 'Main Treasury / Cash',
+    treasury_account: '',
+    treasury_account_id: '',
     reference_no: '',
     items: [{ product_id: '', item_type: 'service', description: '', quantity: 1, unit_price: 0 }]
   });
+
+  const [quickAccounts, setQuickAccounts] = useState([]);
+  useEffect(() => {
+    if (!showQuickAction) return;
+    setFormData(old => ({ ...old, treasury_account_id: '' }));
+    api.get('/finance/treasury/accounts').then(r => setQuickAccounts(r.data.data || [])).catch(() => setQuickAccounts([]));
+  }, [showQuickAction]);
+  const quickTreasuries = quickAccounts.filter(a => a.is_active !== false && a.type === (formData.payment_method === 'cash' ? 'cash' : 'bank'));
 
   const isRealEstate = user?.template_name === 'real_estate';
 
@@ -152,8 +161,15 @@ const FinanceDashboard = () => {
     }
   };
 
+  const quickSubmitLock = useRef(false);
   const handleQuickActionSubmit = async (e) => {
     e.preventDefault();
+    if (quickSubmitLock.current) return;
+    if (['Expense', 'Receipt Voucher', 'Payment Voucher'].includes(quickActionType)) {
+      if (!Number.isFinite(Number(formData.amount)) || Number(formData.amount) <= 0) return toast.error(t('vendors.toastValidAmount'));
+      if (!formData.treasury_account_id) return toast.error(t('finance.paymentModal.treasuryRequired', 'Select a treasury account'));
+    }
+    quickSubmitLock.current = true;
     setIsSubmitting(true);
     try {
       if (quickActionType === 'Invoice') {
@@ -184,7 +200,7 @@ const FinanceDashboard = () => {
           customer_id: formData.customer_id || null,
           amount: formData.amount,
           payment_method: formData.payment_method,
-          treasury_account: formData.treasury_account,
+          treasury_account_id: formData.treasury_account_id,
           reference_no: formData.reference_no,
           notes: formData.title,
           voucher_date: formData.date
@@ -200,7 +216,7 @@ const FinanceDashboard = () => {
           party_name: formData.party_name,
           amount: formData.amount,
           payment_method: formData.payment_method,
-          treasury_account: formData.treasury_account,
+          treasury_account_id: formData.treasury_account_id,
           reference_no: formData.reference_no,
           notes: formData.title,
           voucher_date: formData.date
@@ -214,7 +230,9 @@ const FinanceDashboard = () => {
           title: formData.title,
           amount: formData.amount,
           category: formData.category,
-          expense_date: formData.date
+          expense_date: formData.date,
+          payment_method: formData.payment_method,
+          treasury_account_id: formData.treasury_account_id
         });
         toast.success(t('finance.expenses.createdSuccess'));
       }
@@ -232,7 +250,8 @@ const FinanceDashboard = () => {
         party_name: '',
         party_type: 'customer',
         payment_method: 'cash',
-        treasury_account: 'Main Treasury / Cash',
+        treasury_account: '',
+        treasury_account_id: '',
         reference_no: '',
         items: [{ product_id: '', description: '', quantity: 1, unit_price: 0 }]
       });
@@ -240,6 +259,7 @@ const FinanceDashboard = () => {
       console.error('Action failed', err);
       toast.error(err.response?.data?.message || 'Operation failed');
     } finally {
+      quickSubmitLock.current = false;
       setIsSubmitting(false);
     }
   };
@@ -1012,7 +1032,7 @@ const FinanceDashboard = () => {
                                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.paymentModal.paymentMethod')}</label>
                                       <select 
                                           value={formData.payment_method} 
-                                          onChange={e => setFormData({ ...formData, payment_method: e.target.value })}
+                                          onChange={e => setFormData({ ...formData, payment_method: e.target.value, treasury_account_id: '' })}
                                           style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
                                       >
                                           <option value="cash" style={{color:'black'}}>{t('finance.paymentModal.methods.cash')}</option>
@@ -1023,13 +1043,12 @@ const FinanceDashboard = () => {
                                   </div>
                                   <div>
                                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.treasuryAccount')}</label>
-                                      <input 
-                                          type="text" 
-                                          value={formData.treasury_account}
-                                          onChange={e => setFormData({ ...formData, treasury_account: e.target.value })}
-                                          placeholder={t('finance.quickAction.treasuryPlaceholder')}
-                                          style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}
-                                      />
+                                      <select id="quick-treasury-account" required value={formData.treasury_account_id}
+                                          onChange={e => setFormData({...formData, treasury_account_id: e.target.value})}
+                                          style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}>
+                                          <option value="">{t('finance.paymentModal.selectTreasury', 'Select treasury account')}</option>
+                                          {quickTreasuries.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                      </select>
                                   </div>
                               </div>
 
@@ -1216,6 +1235,19 @@ const FinanceDashboard = () => {
                                 </div>
                               )}
 
+                              {quickActionType === 'Expense' && <div style={{marginBottom:16}}>
+                                <label htmlFor="expense-payment-method">{t('finance.paymentModal.paymentMethod')}</label>
+                                <select id="expense-payment-method" value={formData.payment_method} onChange={e=>setFormData({...formData,payment_method:e.target.value,treasury_account_id:''})} style={{ width: '100%', padding: '10px 12px', marginBottom: 12, border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}>
+                                  {['cash','bank_transfer','check','card'].map(m=><option key={m} value={m}>{t(`finance.paymentModal.methods.${m}`)}</option>)}
+                                </select>
+                                <label htmlFor="quick-treasury-account">{t('finance.quickAction.treasuryAccount')}</label>
+                                      <select id="quick-treasury-account" required value={formData.treasury_account_id}
+                                          onChange={e => setFormData({...formData, treasury_account_id: e.target.value})}
+                                          style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--glass-border)', borderRadius: '8px', background: 'transparent', color: 'var(--text-main)' }}>
+                                          <option value="">{t('finance.paymentModal.selectTreasury', 'Select treasury account')}</option>
+                                          {quickTreasuries.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                      </select>
+                              </div>}
                               {quickActionType === 'Expense' && (
                                   <div style={{ marginBottom: '24px' }}>
                                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.expenseCategory')}</label>
