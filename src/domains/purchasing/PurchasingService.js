@@ -256,34 +256,50 @@ async function createSupplierInvoice(tenantId, branchId, data, userId) {
     const { supplier_id, purchase_order_id, goods_receipt_id, invoice_date, due_date, total_amount, tax_amount, items } = data;
 
     if (!supplier_id) throw new Error('supplier_id is required.');
-
+    const grossAmount = Number(total_amount);
+    const taxAmount = Number(tax_amount ?? 0);
+    if (!['string', 'number'].includes(typeof total_amount) || String(total_amount).trim() === '' || !['string', 'number'].includes(typeof (tax_amount ?? 0)) || !Number.isFinite(grossAmount) || grossAmount < 0 || !Number.isFinite(taxAmount) || taxAmount < 0 || taxAmount > grossAmount) {
+      throw new Error('Invoice total and tax must be finite nonnegative amounts, with tax not exceeding total.');
+    }
+    const supplier = await client.query(`SELECT id FROM suppliers WHERE id = $1 AND tenant_id::text = $2::text
+      AND ($3::text IS NULL OR branch_id::text = $3::text)`, [supplier_id, String(tenantId), branchId || null]);
+    if (!supplier.rows.length) throw new Error('Supplier not found in this tenant and branch.');
+    if (goods_receipt_id && !purchase_order_id) throw new Error('A linked goods receipt requires its purchase order.');
+    let po = null;
+    if (purchase_order_id) {
+      const result = await client.query(`SELECT * FROM erp_legacy_purchase_orders WHERE id = $1 AND tenant_id::text = $2::text
+        AND ($3::text IS NULL OR branch_id::text = $3::text) FOR UPDATE`, [purchase_order_id, String(tenantId), branchId || null]);
+      po = result.rows[0];
+      if (!po || String(po.supplier_id) !== String(supplier_id) || po.status === 'cancelled') throw new Error('Purchase order is not valid for this supplier and branch.');
+    }
+    if (goods_receipt_id) {
+      const result = await client.query(`SELECT * FROM goods_receipts WHERE id = $1 AND tenant_id::text = $2::text
+        AND ($3::text IS NULL OR branch_id::text = $3::text) FOR UPDATE`, [goods_receipt_id, String(tenantId), branchId || null]);
+      const grn = result.rows[0];
+      if (!grn || String(grn.purchase_order_id) !== String(purchase_order_id) || String(grn.supplier_id) !== String(supplier_id) || grn.status !== 'received') throw new Error('Goods receipt is not received or does not match this purchase order and supplier.');
+    }
+    if (items != null && !Array.isArray(items)) throw new Error('Invoice items must be an array.');
+    if (goods_receipt_id && (!items || !items.length)) throw new Error('Linked goods receipt invoice requires matching items.');
     const year = new Date(invoice_date || new Date()).getFullYear();
     const number = await nextSequence(client, { tenantId, branchId, docType: 'INV', fiscalYear: year });
-
-    const grossAmount = Number(total_amount);
-
+    const seen = new Set();
     let ppvTotal = 0;
-
-    // 3-Way Match Check if PO and GRN are linked
-    if (purchase_order_id && goods_receipt_id && items && items.length > 0) {
-      for (const item of items) {
-        const poItemRes  = await client.query('SELECT unit_cost FROM erp_legacy_purchase_order_items WHERE id = $1', [item.purchase_order_item_id]);
-        const grnItemRes = await client.query('SELECT quantity_received FROM goods_receipt_items WHERE goods_receipt_id = $1 AND product_id = $2', [goods_receipt_id, item.product_id]);
-
-        if (poItemRes.rows.length > 0 && grnItemRes.rows.length > 0) {
-          const match = await ThreeWayMatchService.performThreeWayMatch(client, {
-            tenantId,
-            poItem: poItemRes.rows[0],
-            grnItem: grnItemRes.rows[0],
-            invoiceItem: item,
-            supplierInvoiceId: number
-          });
-
-          ppvTotal += match.ppv_total_amount;
-        }
-      }
+    for (const item of items || []) {
+      const key = String(item.purchase_order_item_id || item.product_id || '');
+      if (!key || seen.has(key)) throw new Error('Invoice lines must have distinct source items.');
+      seen.add(key);
+      if (!['string', 'number'].includes(typeof item.quantity) || !['string', 'number'].includes(typeof item.unit_cost) || String(item.unit_cost).trim() === '' || !Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0 || !Number.isFinite(Number(item.unit_cost)) || Number(item.unit_cost) < 0) throw new Error('Invoice quantities and costs must be valid finite amounts.');
+      if (!po) continue;
+      const poItemRes = await client.query(`SELECT * FROM erp_legacy_purchase_order_items WHERE id = $1 AND purchase_order_id = $2 AND tenant_id::text = $3::text FOR UPDATE`, [item.purchase_order_item_id, purchase_order_id, String(tenantId)]);
+      const poItem = poItemRes.rows[0];
+      if (!poItem || String(poItem.product_id) !== String(item.product_id)) throw new Error('Invoice item does not match its purchase order product.');
+      if (!goods_receipt_id) continue;
+      const grnItemRes = await client.query(`SELECT * FROM goods_receipt_items WHERE goods_receipt_id = $1 AND purchase_order_item_id = $2 AND product_id = $3 AND tenant_id::text = $4::text FOR UPDATE`, [goods_receipt_id, item.purchase_order_item_id, item.product_id, String(tenantId)]);
+      if (!grnItemRes.rows.length) throw new Error('Invoice item has no matching received goods.');
+      const received = grnItemRes.rows.reduce((sum, row) => sum + Number(row.quantity_received), 0);
+      const match = await ThreeWayMatchService.performThreeWayMatch(client, { tenantId, poItem, grnItem: {quantity_received:received}, invoiceItem:item, supplierInvoiceId:number });
+      ppvTotal += match.ppv_total_amount;
     }
-
     // Operational Supplier Invoice (Payable tracking only — no GL journal posting)
     const siRes = await client.query(`
       INSERT INTO supplier_invoices
@@ -292,7 +308,7 @@ async function createSupplierInvoice(tenantId, branchId, data, userId) {
       RETURNING *
     `, [
       String(tenantId), branchId || null, number, supplier_id, purchase_order_id || null, goods_receipt_id || null,
-      invoice_date || new Date(), due_date || null, grossAmount, tax_amount || 0, ppvTotal, userId
+      invoice_date || new Date(), due_date || null, grossAmount, taxAmount, ppvTotal, userId
     ]);
 
     return siRes.rows[0];

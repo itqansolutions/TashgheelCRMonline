@@ -30,3 +30,9 @@ Code-only fix validates branch and source warehouse at create/confirm, rejects d
 ## Caller-owned invoice transaction follow-up, 06:37 Cairo
 
 Actual temporary SQL confirmed existing-invoice lookup in convertSalesOrderToInvoice committed a caller-owned transaction. An inserted test marker survived caller ROLLBACK. A transaction ownership guard fixes this single early-return branch. Durable SQL finance regression verifies marker rollback, concurrent confirmed order→invoice60 idempotence and one payment/voucher settlement to paid. Mock regression also asserts no BEGIN/COMMIT/ROLLBACK on an injected client. No live writes or historical changes. Draft-order invoice conversion is existing UI/backend behavior and remains unchanged pending policy requirements.
+
+## Supplier-invoice validation follow-up, 06:52 Cairo
+
+Actual isolated SQL accepted a nonexistent supplier with negative total and nonexistent linked PO/GRN/items by silently skipping match. No live ERP invoice/stock effects tested. Scoped no-schema fix validates finite typed total/tax and quantities/costs, supplier tenant/branch, PO supplier/tenant/branch/status, received GRN/source relationships and individual PO/GRN/product lines. Rejects duplicate invoice source lines. Valid standalone operational invoice remains allowed, no GL journal posting. Existing price-variance escalation/persistence policy remains unchanged and is not certified as approval enforcement.
+
+Durable purchasing SQL suite passes valid linked invoice60 and standalone10; negative/nonfinite/missing/bool totals, invalid tax/supplier/PO/GRN/line/product/quantity/duplicates/tenant/branch, draft GRN and mismatched received source all reject with no extra invoice rows. Purchasing existing20/20 and full finance effects SQL regression green. No schema/history/settings changes. Exact deployment and live effects are separate gates.
