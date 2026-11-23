@@ -1,0 +1,17 @@
+import React,{useEffect,useState} from 'react';
+import {useLanguage} from '../../context/LanguageContext';
+// Human-operated map only. Provider template supplied by deployment configuration.
+// No employee position is sent to a map service; this editor shows branch geography.
+export default function AttendanceAreaMap({lat,lng,radius,onPick,tileTemplate}){
+ const {isRTL}=useLanguage();const text=(ar,en)=>isRTL?ar:en;
+ const [tileError,setTileError]=useState(false),[retry,setRetry]=useState(0);
+ useEffect(()=>setTileError(false),[tileTemplate,lat,lng]);
+ const [zoom,setZoom]=useState(2),valid=Number.isFinite(Number(lat))&&Number.isFinite(Number(lng))&&lat!==''&&lng!=='';
+ const mapLat=valid?Number(lat):0,mapLng=valid?Number(lng):0;
+ const size=256,n=2**zoom,toX=v=>(Number(v)+180)/360*n*size,toY=v=>(1-Math.asinh(Math.tan(Number(v)*Math.PI/180))/Math.PI)/2*n*size;
+ const x=toX(mapLng),y=toY(Math.max(-85.0511,Math.min(85.0511,mapLat))),cx=Math.floor(x/size),cy=Math.floor(y/size),width=640,height=360;
+ const metersPerPixel=156543.03392*Math.cos(mapLat*Math.PI/180)/n,px=Number(radius||0)/metersPerPixel;
+ const pick=e=>{const b=e.currentTarget.getBoundingClientRect(),dx=(e.clientX-b.left)*width/b.width-width/2,dy=(e.clientY-b.top)*height/b.height-height/2;const gx=x+dx,gy=y+dy;onPick(Math.atan(Math.sinh(Math.PI*(1-2*gy/(n*size))))*180/Math.PI,((gx/(n*size)*360-180+540)%360)-180);};
+ const tiles=[];for(let dy=-1;dy<=1;dy++)for(let dx=-2;dx<=2;dx++){const tx=((cx+dx)%n+n)%n,ty=cy+dy;if(ty<0||ty>=n||(cx+dx+1)*size-x+width/2<0||(cx+dx)*size-x+width/2>width||(ty+1)*size-y+height/2<0||ty*size-y+height/2>height)continue;const url=tileTemplate?.replace('{z}',zoom).replace('{x}',tx).replace('{y}',ty);if(url)tiles.push(<image onError={()=>setTileError(true)} key={retry+':'+dx+':'+dy} href={url} x={(cx+dx)*size-x+width/2} y={ty*size-y+height/2} width={size} height={size}/>);}
+ return <div><div style={{display:'flex',flexWrap:'wrap',alignItems:'center',gap:8}}><button type="button" onClick={()=>setZoom(Math.min(19,zoom+1))}>+</button><button type="button" onClick={()=>setZoom(Math.max(2,zoom-1))}>−</button><span>{text('اضغط لتحديد المركز','Click to set center')}</span>{!valid&&<span>{text('لا يوجد مركز محدد. العرض الأولي للعالم.','No branch center selected. Initial view is the world.')}</span>}</div><svg role="img" aria-label="Branch attendance area map" viewBox={`0 0 ${width} ${height}`} onClick={pick} style={{display:'block',width:'100%',maxWidth:640,background:'#e4e9ed',cursor:'crosshair',border:'1px solid #b7c8d5'}}>{tiles}{valid&&<circle cx={width/2} cy={height/2} r={px} fill="#4f46e533" stroke="#4f46e5" strokeWidth="2"/>}{valid&&<circle cx={width/2} cy={height/2} r="6" fill="#c11"/>}{!tileTemplate&&<text x="20" y="30" fontSize="13" direction="ltr" textAnchor="start"><tspan x="20">{text('الخريطة غير محملة.','Map not loaded.')}</tspan><tspan x="20" dy="20">{text('معاينة الإحداثيات والنطاق فقط.','Coordinates and radius preview only.')}</tspan></text>}</svg>{tileError&&<div role="alert">{text('تعذر تحميل الخريطة. الإحداثيات ومعاينة النطاق ما زالت متاحة. راجع الاتصال وأعد المحاولة.','Map tiles could not load. Coordinates and area preview still work. Check connection and retry.')} <button type="button" onClick={()=>{setTileError(false);setRetry(retry+1)}}>{text('إعادة المحاولة','Retry')}</button></div>}{tileTemplate&&<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>}</div>;
+}

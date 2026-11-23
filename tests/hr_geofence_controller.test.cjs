@@ -1,0 +1,6 @@
+// Actual attendance controller with synthetic DB/location dependencies only.
+const assert=require('assert/strict'),path=require('path'),root=path.resolve(__dirname,'..');
+let calls=0;const mock=(f,x)=>{const id=require.resolve(root+'/'+f);require.cache[id]={id,filename:id,loaded:true,exports:x}};
+mock('config/db',{query:async()=>({rows:[{enforcement_enabled:true,center_lat:30,center_lng:31,radius_m:100,max_fix_age_seconds:60,max_future_skew_seconds:5,require_mobile:true}]})});mock('services/attendanceService',{transact:async()=>{calls++;return {row:{late_minutes:0}}}});
+const hr=require('../controllers/hrController');
+(async()=>{for(const name of ['checkIn','checkOut']){const res={code:200,status(n){this.code=n;return this},json(x){this.body=x;return this}};await hr[name]({user:{id:7,tenant_id:'synthetic'},branchId:'branch',body:{},headers:{'user-agent':'iPhone'}},res);assert.equal(res.code,403);assert.equal(calls,0);}console.log('PASS missing location under enabled geofence blocks both actual controller entrypoints before attendance transaction');})().catch(e=>{console.error(e);process.exitCode=1});

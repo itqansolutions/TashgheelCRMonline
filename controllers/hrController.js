@@ -10,6 +10,7 @@ const db = require('../config/db');
 const attendanceService = require('../services/attendanceService');
 exports.checkIn = async (req, res) => {
     try {
+        await require('../services/attendanceLocationService').enforce(db,req);
         const { row } = await attendanceService.transact({tenant:req.user.tenant_id,branch:req.branchId,user:req.user.id,mode:'in',ip:req.ip || req.connection?.remoteAddress});
         res.status(201).json({status:'success',message:'Checked in successfully.',data:row});
         const {late_minutes}=row;
@@ -43,6 +44,7 @@ exports.checkIn = async (req, res) => {
 };
 exports.checkOut = async (req,res) => {
     try {
+        await require('../services/attendanceLocationService').enforce(db,req);
         const {row}=await attendanceService.transact({tenant:req.user.tenant_id,branch:req.branchId,user:req.user.id,mode:'out'});
         res.json({status:'success',message:'Checked out successfully.',data:row});
     } catch(err) {res.status(err.status || 400).json({status:'error',message:err.message});}

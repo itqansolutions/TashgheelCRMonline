@@ -1,0 +1,11 @@
+// Synthetic database assertions, never connects to application records.
+const test=require('node:test'),assert=require('assert/strict'),path=require('path');
+const id=require.resolve('../config/db');let seen=[],rows=[],fail=false;
+require.cache[id]={id,filename:id,loaded:true,exports:{query:async(sql,args)=>{seen.push({sql,args});if(fail)throw Error('synthetic outage');return {rows}}}};
+const policy=require('../controllers/hrAttendancePolicyController');
+const response=()=>({code:200,status(n){this.code=n;return this},json(x){this.body=x;return this}});
+const req=body=>({branchId:'current-branch',user:{tenant_id:'current-tenant',id:7},body});
+const valid={center_lat:30,center_lng:31,radius_m:100,max_fix_age_seconds:60,max_future_skew_seconds:5,enforcement_enabled:false};
+test('policy validation blocks empty, non-finite, out-of-range, fractional-age inputs before SQL',async()=>{for(const patch of [{center_lat:''},{center_lat:91},{center_lng:181},{radius_m:0},{radius_m:'NaN'},{max_fix_age_seconds:0},{max_fix_age_seconds:1.5},{max_future_skew_seconds:-1}]){seen=[];const r=response();await policy.save(req({...valid,...patch}),r);assert.equal(r.code,400);assert.equal(seen.length,0);}});
+test('save cannot choose tenant/branch/user and activation requires literal true',async()=>{rows=[valid];for(const activation of [false,'true',true]){seen=[];const r=response();await policy.save(req({...valid,tenant_id:'foreign',branch_id:'foreign',updated_by:999,enforcement_enabled:activation}),r);assert.equal(r.code,200);assert.deepEqual(seen[0].args,['current-branch','current-tenant',30,31,100,60,5,7,activation===true]);assert.match(seen[0].sql,/WHERE hr_branch_attendance_policy.tenant_id=EXCLUDED.tenant_id/);}});
+test('ownership conflict rejects, reads are scoped, database errors fail clearly',async()=>{rows=[];let r=response();await policy.save(req(valid),r);assert.equal(r.code,403);seen=[];r=response();await policy.get(req({}),r);assert.equal(r.body.data,null);assert.deepEqual(seen[0].args,['current-tenant','current-branch']);fail=true;r=response();await policy.get(req({}),r);assert.equal(r.code,503);r=response();await policy.save(req(valid),r);assert.equal(r.code,503);fail=false;});

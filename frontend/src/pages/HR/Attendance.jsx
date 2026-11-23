@@ -1,3 +1,4 @@
+import { useBranch } from '../../context/BranchContext';
 import React, { useState, useEffect, useRef } from 'react';
 import { Clock, CheckCircle, XCircle, AlertCircle, History, Coffee } from 'lucide-react';
 import api from '../../services/api';
@@ -13,6 +14,7 @@ const Attendance = () => {
   const [loadError,setLoadError]=useState(false);
   const [timezone,setTimezone]=useState(undefined);
   const busy=useRef(false);
+  const [locationEnforced,setLocationEnforced]=useState(false);
 
   const fetchAttendance = async () => {
     try {
@@ -23,6 +25,8 @@ const Attendance = () => {
       if(!res.data.meta?.session_state || !res.data.meta?.timezone) throw Error('Attendance session metadata unavailable');
       setTimezone(res.data.meta.timezone);
       setActiveSession(res.data.meta.session_state);
+      const policy=await api.get('/hr/attendance-policy');
+      setLocationEnforced(policy.data.data?.enforcement_enabled===true);
       setLoadError(false);
       return true;
 
@@ -35,18 +39,26 @@ const Attendance = () => {
   };
 
   useEffect(() => {
+    setLoading(true);setActiveSession(null);setLocationEnforced(false);
     fetchAttendance();
   }, []);
+
+  const getPunchLocation = () => new Promise((resolve,reject) => {
+    if(!locationEnforced)return resolve(undefined);
+    if(!/Android|iPhone|iPod|IEMobile|Windows Phone/i.test(navigator.userAgent)) return reject(new Error(t('hr.attendance.mobileRequired','Use your mobile phone for manual attendance.')));
+    if(!navigator.geolocation) return reject(new Error(t('hr.attendance.locationRequired','Location access is required.')));
+    navigator.geolocation.getCurrentPosition(p=>resolve({latitude:p.coords.latitude,longitude:p.coords.longitude,accuracy:p.coords.accuracy,timestamp:p.timestamp}),()=>reject(new Error(t('hr.attendance.locationRequired','Location access is required.'))),{enableHighAccuracy:true,maximumAge:0,timeout:15000});
+  });
 
   const handleCheckIn = async () => {
     if(busy.current)return;busy.current=true;
     setIsProcessing(true);
     try {
-      const res = await api.post('/hr/attendance/check-in');
+      const res = await api.post('/hr/attendance/check-in',{location:await getPunchLocation()});
       toast.success(res.data.message || t('hr.attendance.toastCheckInSuccess', 'Checked in successfully!'));
       await fetchAttendance();
     } catch (err) {
-      toast.error(err.response?.data?.message || t('hr.attendance.toastCheckInError', 'Failed to check in'));
+      toast.error(err.response?.data?.message || err.message || t('hr.attendance.toastCheckInError', 'Failed to check in'));
     } finally {
       busy.current=false;setIsProcessing(false);
     }
@@ -56,11 +68,11 @@ const Attendance = () => {
     if(busy.current)return;busy.current=true;
     setIsProcessing(true);
     try {
-      const res = await api.post('/hr/attendance/check-out');
+      const res = await api.post('/hr/attendance/check-out',{location:await getPunchLocation()});
       toast.success(res.data.message || t('hr.attendance.toastCheckOutSuccess', 'Checked out successfully!'));
       await fetchAttendance();
     } catch (err) {
-      toast.error(err.response?.data?.message || t('hr.attendance.toastCheckOutError', 'Failed to check out'));
+      toast.error(err.response?.data?.message || err.message || t('hr.attendance.toastCheckOutError', 'Failed to check out'));
     } finally {
       busy.current=false;setIsProcessing(false);
     }
@@ -194,4 +206,4 @@ const Attendance = () => {
   );
 };
 
-export default Attendance;
+export default function BranchAttendance(){const {currentBranch}=useBranch();return <Attendance key={currentBranch?.id}/>;}

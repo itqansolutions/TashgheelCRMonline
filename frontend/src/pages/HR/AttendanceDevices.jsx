@@ -1,4 +1,7 @@
 import Modal from '../../components/Common/Modal';
+import { useBranch } from '../../context/BranchContext';
+import AttendanceAreaSettings from '../../components/HR/AttendanceAreaSettings';
+import { useAuth } from '../../context/AuthContext';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -8,6 +11,8 @@ import { useLanguage } from '../../context/LanguageContext';
 
 const AttendanceDevices = () => {
   const { t, isRTL } = useLanguage();
+  const {user}=useAuth();
+  const {currentBranch}=useBranch();
   const [activeTab, setActiveTab] = useState('devices'); // 'devices' | 'badges'
   const [devices, setDevices] = useState([]);
   const [badgeUsers, setBadgeUsers] = useState([]);
@@ -425,7 +430,8 @@ const AttendanceDevices = () => {
           </form>
         </Modal>
       </div>
-    </div>
+    {user?.role==='admin' && <AttendanceAreaSettings key={currentBranch?.id} />}
+</div>
   );
 };
 

@@ -9,6 +9,10 @@ const roleGuard = require('../middleware/roleGuard');
 router.use(authMiddleware);
 router.use(branchScope);
 
+const policy=require('../controllers/hrAttendancePolicyController');
+router.get('/attendance-policy',policy.get);
+router.put('/attendance-policy',roleGuard(['admin']),policy.save);
+
 // --- Employee Self-Service ---
 // @route   POST api/hr/attendance/check-in
 router.post('/attendance/check-in', hrController.checkIn);
