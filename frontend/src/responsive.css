@@ -329,3 +329,13 @@
 .whatsapp-message-editor .modal-footer > div { width:100%; }
 .whatsapp-message-editor .modal-footer button { min-height:44px; }
 .whatsapp-message-editor .modal-body input, .whatsapp-message-editor .modal-body select, .whatsapp-message-editor .modal-body textarea { min-height:44px; max-width:100%; }
+
+/* Native option labels cannot wrap. Preserve the exact controls and expose full choices. */
+.whatsapp-message-editor .whatsapp-selection-summary { margin-top: 6px; font-size: 12px; line-height: 1.5; color: #475569; white-space: normal; overflow-wrap: anywhere; }
+@media (max-width:768px) {
+ .whatsapp-chat-toolbar > div:last-child { flex-wrap:wrap; min-width:0; max-width:100%; }
+ .whatsapp-chat-toolbar > div:last-child > div { min-width:0; max-width:100%; }
+ .whatsapp-chat-toolbar > div:last-child select { min-width:0; max-width:100%; width:100%; }
+}
+/* Phone numbers keep international plus-prefix order in either language. */
+.whatsapp-message-editor #whatsapp-start-editor input[type="text"][required] { direction:ltr; unicode-bidi:plaintext; }

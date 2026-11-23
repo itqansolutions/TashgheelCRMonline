@@ -419,7 +419,7 @@ const WhatsAppChat = () => {
       <IntegrationsSubNav />
 
       {/* Top Header Bar */}
-      <div style={{
+      <div className="whatsapp-chat-toolbar" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -1210,6 +1210,7 @@ const WhatsAppChat = () => {
                     </option>
                   ))}
                 </select>
+                <div className="whatsapp-selection-summary" role="status">{accounts.filter(acc => String(acc.id) === String(newChatData.account_id)).map(acc => `${acc.display_phone_number || acc.phone_number_id}${acc.verified_name ? ` (${acc.verified_name})` : ''}${acc.is_default ? ' ★ Default' : ''}`).join('')}</div>
               </div>
 
               {/* CRM Customer Picker */}
@@ -1247,6 +1248,7 @@ const WhatsAppChat = () => {
                     </option>
                   ))}
                 </select>
+                <div className="whatsapp-selection-summary" role="status">{newChatData.customer_id ? crmCustomers.filter(cust => String(cust.id) === String(newChatData.customer_id)).map(cust => `${cust.name}${cust.phone ? ` (${cust.phone})` : ''}${cust.company_name ? ` • ${cust.company_name}` : ''}`).join('') : '-- Choose a customer or enter phone below --'}</div>
               </div>
 
               <div style={{ marginBottom: '14px' }}>
@@ -1333,6 +1335,7 @@ const WhatsAppChat = () => {
                       </option>
                     ))}
                   </select>
+                  <div className="whatsapp-selection-summary" role="status">{templates.filter(tpl => tpl.name === newChatData.template_name).map(tpl => `${tpl.name} (${tpl.language || 'ar'})`).join('')}</div>
                 </div>
               ) : (
                 <div style={{ marginBottom: '16px' }}>
