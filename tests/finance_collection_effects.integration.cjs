@@ -62,6 +62,13 @@ const res=()=>({code:200,status(n){this.code=n;return this},json(b){this.body=b;
  r=res();await fin.getSummary(req({user:{tenant_id:'22222222-2222-4222-8222-222222222222'}}),r);assert.equal(r.body.data.totalIncome,0);
  r=res();await fin.getSummary(req({branchId:'44444444-4444-4444-8444-444444444444'}),r);assert.equal(r.body.data.totalIncome,0);
  console.log('PASS cancelled receipt and other tenant/branch excluded');
+ // Production-compatible mixed column types: deployed report exposed uuid/varchar UNION mismatch.
+ await pool.query('ALTER TABLE payments ALTER COLUMN branch_id TYPE uuid USING branch_id::uuid');
+ await pool.query('ALTER TABLE finance_vouchers ALTER COLUMN tenant_id TYPE varchar USING tenant_id::text');
+ for(const fn of ['getSummary','getIncome','getFinancialReports']) { r=res();await fin[fn](req(),r);assert.equal(r.code,200,fn+JSON.stringify(r.body)); }
+ r=res();await fin.getSummary(req(),r);assert.equal(r.body.data.totalIncome,700);
+ r=res();await fin.getFinancialReports(req(),r);assert.equal(r.body.collections.total_collected,700);assert.equal(r.body.cashflow.by_treasury_account[0].inflow,700);
+ console.log('PASS mixed UUID/varchar deployed-schema regression across summary/income/report and treasury subquery');
  console.log('ISOLATED_EFFECT_REGRESSION_COMPLETE');
 
 
