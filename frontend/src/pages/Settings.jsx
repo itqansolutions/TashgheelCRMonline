@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { 
-  Building2, Image as ImageIcon, Globe, Receipt, 
-  MapPin, Phone, Hash, FileText, Save, Eye, Upload, 
+import {
+  Building2, Image as ImageIcon, Globe, Receipt,
+  MapPin, Phone, Hash, FileText, Save, Eye, Upload,
   Plus, Trash2, Edit2, X, Megaphone, Settings as AdminSettingsIcon, CheckSquare,
   Users, Layers, Sliders, ShieldCheck, Zap, DollarSign, Activity, ChevronRight, Briefcase, Tag
 } from 'lucide-react';
@@ -27,7 +27,7 @@ const Settings = () => {
   const { fetchTenant } = useData();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
-  
+
   const [activeTab, setActiveTab] = useState('Branding & Identity');
 
   // Tenant / Company State
@@ -44,7 +44,7 @@ const Settings = () => {
     quotation_footer: '', quotation_terms: '',
     primary_color: '#6366f1'
   });
-  
+
   // CRM State
   const [sources, setSources] = useState([]);
   const [leadStatuses, setLeadStatuses] = useState([]);
@@ -378,71 +378,72 @@ const Settings = () => {
   return (
     <div className="settings-page">
       <style>{`
-        .settings-page { padding: 24px; max-width: 1400px; margin: 0 auto; }
-        .settings-header { margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; }
-        .settings-layout { display: grid; grid-template-columns: 1fr 420px; gap: 28px; }
-        .settings-layout.full-width { grid-template-columns: 1fr; }
-        
-        .settings-card { background: white; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.03); }
-        .card-header { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; }
-        .card-header h3 { font-size: 14px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; display: flex; align-items: center; gap: 8px; }
-        .card-body { padding: 20px; }
-        
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .form-group { margin-bottom: 16px; }
-        .form-group.full { grid-column: span 2; }
-        .form-group label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; }
-        .form-group input, .form-group select, .form-group textarea { 
-          width: 100%; padding: 10px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; font-size: 13px; outline: none; transition: 0.2s; 
+        .settings-page{ padding: 24px; max-width: 1400px; margin: 0 auto; }
+        .settings-page .settings-header{ margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; }
+        .settings-page .settings-layout{ display: grid; grid-template-columns: 1fr 420px; gap: 28px; }
+        .settings-page .settings-layout.full-width{ grid-template-columns: 1fr; }
+
+        .settings-page .settings-card{ background: white; border-radius: 14px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.03); }
+        .settings-page .card-header{ padding: 16px 20px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; }
+        .settings-page .card-header h3{ font-size: 14px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0; display: flex; align-items: center; gap: 8px; }
+        .settings-page .card-body{ padding: 20px; }
+
+        .settings-page .form-grid{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .settings-page .form-group{ margin-bottom: 16px; }
+        .settings-page .form-group.full{ grid-column: span 2; }
+        .settings-page .form-group label{ display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 6px; }
+        .settings-page .form-group input, .settings-page .form-group select, .settings-page .form-group textarea{
+          width: 100%; padding: 10px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; font-size: 13px; outline: none; transition: 0.2s;
           background: #f8fafc; font-weight: 600; box-sizing: border-box;
         }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); background: white; }
-        
-        .logo-upload-container { display: flex; align-items: center; gap: 20px; padding: 16px; background: #f8fafc; border: 2px dashed #e2e8f0; border-radius: 12px; margin-bottom: 20px; }
-        .logo-preview { width: 90px; height: 90px; border-radius: 10px; background: white; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #e2e8f0; }
-        .logo-preview img { width: 100%; height: 100%; object-fit: contain; }
-        .upload-btn { padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
-        .upload-btn:hover { background: #f1f5f9; }
+        .settings-page .form-group input:focus, .settings-page .form-group select:focus, .settings-page .form-group textarea:focus{ border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); background: white; }
 
-        .preview-pane { position: sticky; top: 24px; }
-        .preview-box { background: white; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08); }
-        .preview-tabs { display: flex; background: #f8fafc; padding: 4px; border-bottom: 1px solid #e2e8f0; }
-        .preview-tab { flex: 1; padding: 8px; font-size: 11px; font-weight: 800; text-align: center; cursor: pointer; border-radius: 6px; color: #64748b; transition: 0.2s; }
-        .preview-tab.active { background: white; color: #6366f1; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .settings-page .logo-upload-container{ display: flex; align-items: center; gap: 20px; padding: 16px; background: #f8fafc; border: 2px dashed #e2e8f0; border-radius: 12px; margin-bottom: 20px; }
+        .settings-page .logo-preview{ width: 90px; height: 90px; border-radius: 10px; background: white; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #e2e8f0; }
+        .settings-page .logo-preview img{ width: 100%; height: 100%; object-fit: contain; }
+        .settings-page .upload-btn{ padding: 8px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 6px; }
+        .settings-page .upload-btn:hover{ background: #f1f5f9; }
 
-        .a4-preview { width: 100%; aspect-ratio: 1 / 1.414; background: white; padding: 24px; font-size: 10px; color: #1e293b; overflow-y: auto; box-sizing: border-box; }
-        .preview-header { display: flex; justify-content: space-between; margin-bottom: 24px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; }
-        .preview-logo { max-height: 40px; max-width: 120px; object-fit: contain; }
-        .preview-company-name { font-size: 15px; font-weight: 800; color: ${tenant.primary_color || '#6366f1'}; }
-        .preview-title { text-align: right; color: #94a3b8; text-transform: uppercase; font-weight: 900; }
-        .preview-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10px; }
-        .preview-table th { background: #f8fafc; text-align: left; padding: 6px 8px; border-bottom: 1.5px solid #e2e8f0; font-weight: 800; color: ${tenant.primary_color || '#6366f1'}; }
-        .preview-table td { padding: 8px 8px; border-bottom: 1px solid #f1f5f9; }
-        .preview-footer { margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 12px; font-size: 9px; color: #64748b; }
+        .settings-page .preview-pane{ position: sticky; top: 24px; }
+        .settings-page .preview-box{ background: white; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.08); }
+        .settings-page .preview-tabs{ display: flex; background: #f8fafc; padding: 4px; border-bottom: 1px solid #e2e8f0; }
+        .settings-page .preview-tab{ flex: 1; padding: 8px; font-size: 11px; font-weight: 800; text-align: center; cursor: pointer; border-radius: 6px; color: #64748b; transition: 0.2s; }
+        .settings-page .preview-tab.active{ background: white; color: #6366f1; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 
-        .btn-save { width: 100%; padding: 12px; background: #6366f1; color: white; border-radius: 10px; font-weight: 800; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: 0.2s; margin-top: 10px; font-size: 14px; }
-        .btn-save:hover { background: #4f46e5; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25); }
+        .settings-page .a4-preview{ width: 100%; aspect-ratio: 1 / 1.414; background: white; padding: 24px; font-size: 10px; color: #1e293b; overflow-y: auto; box-sizing: border-box; }
+        .settings-page .preview-header{ display: flex; justify-content: space-between; margin-bottom: 24px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; }
+        .settings-page .preview-logo{ max-height: 40px; max-width: 120px; object-fit: contain; }
+        .settings-page .preview-company-name{ font-size: 15px; font-weight: 800; color: ${tenant.primary_color || '#6366f1'}; }
+        .settings-page .preview-title{ text-align: right; color: #94a3b8; text-transform: uppercase; font-weight: 900; }
+        .settings-page .preview-table{ width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10px; }
+        .settings-page .preview-table th{ background: #f8fafc; text-align: left; padding: 6px 8px; border-bottom: 1.5px solid #e2e8f0; font-weight: 800; color: ${tenant.primary_color || '#6366f1'}; }
+        .settings-page .preview-table td{ padding: 8px 8px; border-bottom: 1px solid #f1f5f9; }
+        .settings-page .preview-footer{ margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 12px; font-size: 9px; color: #64748b; }
 
-        .source-form { display: flex; gap: 10px; margin-bottom: 16px; }
-        .source-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid #f1f5f9; }
-        .source-item:last-child { border-bottom: none; }
-        .status-badge { padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; color: white; }
+        .settings-page .btn-save{ width: 100%; padding: 12px; background: #6366f1; color: white; border-radius: 10px; font-weight: 800; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: 0.2s; margin-top: 10px; font-size: 14px; }
+        .settings-page .btn-save:hover{ background: #4f46e5; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25); }
+
+        .settings-page .source-form{ display: flex; gap: 10px; margin-bottom: 16px; }
+        .settings-page .source-item{ display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid #f1f5f9; }
+        .settings-page .source-item:last-child{ border-bottom: none; }
+        .settings-page .status-badge{ padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; color: white; }
       `}</style>
 
       {/* Page Title & Domain Tab Navigation */}
-      <div className="settings-header">
+      <div className="settings-header page-header">
         <h2 style={{ fontSize: '24px', fontWeight: '900', letterSpacing: '-0.02em', color: '#1e293b', margin: '0 0 4px 0' }}>
            Control Panel & Domain Settings Hub
         </h2>
         <p style={{ color: '#64748b', fontSize: '13px', margin: 0 }}>Unify your brand, domain rules, marketing channels, and financial document defaults.</p>
-        
+
         {/* Domain Tab Navigation */}
-        <div style={{ display: 'flex', gap: '8px', marginTop: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', flexWrap: 'wrap' }}>
+        <div className="settings-domain-tabs" style={{ display: 'flex', gap: '8px', marginTop: '16px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px', flexWrap: 'wrap' }}>
           {TABS.map((tab) => {
             const isActive = activeTab === tab;
             return (
-              <button 
+              <button
                 key={tab}
+                aria-current={isActive ? 'page' : undefined}
                 onClick={() => setActiveTab(tab)}
                 style={{
                   padding: '8px 16px',
@@ -538,49 +539,49 @@ const Settings = () => {
                   <div className="form-grid">
                     <div className="form-group">
                       <label>Invoice Header Title (عنوان رأس الفاتورة)</label>
-                      <input 
-                        type="text" 
-                        value={tenant.invoice_header_title || ''} 
-                        onChange={(e) => setTenant({...tenant, invoice_header_title: e.target.value})} 
-                        placeholder="فاتورة ضريبية / TAX INVOICE" 
+                      <input
+                        type="text"
+                        value={tenant.invoice_header_title || ''}
+                        onChange={(e) => setTenant({...tenant, invoice_header_title: e.target.value})}
+                        placeholder="فاتورة ضريبية / TAX INVOICE"
                       />
                       <small style={{ fontSize: '11px', color: '#94a3b8' }}>النص الرئيسي الظاهر أعلى الفاتورة (الافتراضي: فاتورة ضريبية)</small>
                     </div>
                     <div className="form-group">
                       <label>Invoice Header Subtitle / Tagline (العنوان الفرعي للترويسة)</label>
-                      <input 
-                        type="text" 
-                        value={tenant.invoice_header_subtitle || ''} 
-                        onChange={(e) => setTenant({...tenant, invoice_header_subtitle: e.target.value})} 
-                        placeholder="مثال: لحلول الأعمال الذكية والتجارة" 
+                      <input
+                        type="text"
+                        value={tenant.invoice_header_subtitle || ''}
+                        onChange={(e) => setTenant({...tenant, invoice_header_subtitle: e.target.value})}
+                        placeholder="مثال: لحلول الأعمال الذكية والتجارة"
                       />
                       <small style={{ fontSize: '11px', color: '#94a3b8' }}>سطر وصفي أو شعار يظهر أسفل اسم الشركة في رأس الفاتورة</small>
                     </div>
                     <div className="form-group">
                       <label>Invoice Prefix (بادئة الترقيم)</label>
-                      <input 
-                        type="text" 
-                        value={tenant.invoice_prefix || 'INV-'} 
-                        onChange={(e) => setTenant({...tenant, invoice_prefix: e.target.value})} 
+                      <input
+                        type="text"
+                        value={tenant.invoice_prefix || 'INV-'}
+                        onChange={(e) => setTenant({...tenant, invoice_prefix: e.target.value})}
                       />
                     </div>
                   </div>
                   <div className="form-group" style={{ marginTop: '12px' }}>
                     <label>Terms & Conditions (شروط وأحكام الفاتورة)</label>
-                    <textarea 
-                      style={{ height: '60px' }} 
-                      value={tenant.terms || ''} 
-                      onChange={(e) => setTenant({...tenant, terms: e.target.value})} 
-                      placeholder="شروط السداد والدفع، مواعيد الاستحقاق، بيانات الحساب البنكي..." 
+                    <textarea
+                      style={{ height: '60px' }}
+                      value={tenant.terms || ''}
+                      onChange={(e) => setTenant({...tenant, terms: e.target.value})}
+                      placeholder="شروط السداد والدفع، مواعيد الاستحقاق، بيانات الحساب البنكي..."
                     />
                   </div>
                   <div className="form-group">
                     <label>Invoice Footer / Note (تذييل الفاتورة)</label>
-                    <textarea 
-                      style={{ height: '50px' }} 
-                      value={tenant.invoice_footer || ''} 
-                      onChange={(e) => setTenant({...tenant, invoice_footer: e.target.value})} 
-                      placeholder="شكراً لتعاملكم معنا / Thank you for choosing us!" 
+                    <textarea
+                      style={{ height: '50px' }}
+                      value={tenant.invoice_footer || ''}
+                      onChange={(e) => setTenant({...tenant, invoice_footer: e.target.value})}
+                      placeholder="شكراً لتعاملكم معنا / Thank you for choosing us!"
                     />
                   </div>
                 </div>
@@ -595,49 +596,49 @@ const Settings = () => {
                   <div className="form-grid">
                     <div className="form-group">
                       <label>Quotation Header Title (عنوان رأس عرض السعر)</label>
-                      <input 
-                        type="text" 
-                        value={tenant.quotation_header_title || ''} 
-                        onChange={(e) => setTenant({...tenant, quotation_header_title: e.target.value})} 
-                        placeholder="عرض أسعار / PRICE QUOTATION" 
+                      <input
+                        type="text"
+                        value={tenant.quotation_header_title || ''}
+                        onChange={(e) => setTenant({...tenant, quotation_header_title: e.target.value})}
+                        placeholder="عرض أسعار / PRICE QUOTATION"
                       />
                       <small style={{ fontSize: '11px', color: '#94a3b8' }}>النص الرئيسي الظاهر أعلى عرض السعر (الافتراضي: عرض أسعار)</small>
                     </div>
                     <div className="form-group">
                       <label>Quotation Header Subtitle / Tagline (العنوان الفرعي للترويسة)</label>
-                      <input 
-                        type="text" 
-                        value={tenant.quotation_header_subtitle || ''} 
-                        onChange={(e) => setTenant({...tenant, quotation_header_subtitle: e.target.value})} 
-                        placeholder="مثال: عروض أسعار هندسية معتمدة" 
+                      <input
+                        type="text"
+                        value={tenant.quotation_header_subtitle || ''}
+                        onChange={(e) => setTenant({...tenant, quotation_header_subtitle: e.target.value})}
+                        placeholder="مثال: عروض أسعار هندسية معتمدة"
                       />
                       <small style={{ fontSize: '11px', color: '#94a3b8' }}>سطر وصفي يظهر أسفل اسم الشركة في عرض السعر</small>
                     </div>
                     <div className="form-group">
                       <label>Quotation Prefix (بادئة الترقيم)</label>
-                      <input 
-                        type="text" 
-                        value={tenant.quotation_prefix || 'QUO-'} 
-                        onChange={(e) => setTenant({...tenant, quotation_prefix: e.target.value})} 
+                      <input
+                        type="text"
+                        value={tenant.quotation_prefix || 'QUO-'}
+                        onChange={(e) => setTenant({...tenant, quotation_prefix: e.target.value})}
                       />
                     </div>
                   </div>
                   <div className="form-group" style={{ marginTop: '12px' }}>
                     <label>Quotation Terms & Conditions (شروط وصلاحية العرض)</label>
-                    <textarea 
-                      style={{ height: '60px' }} 
-                      value={tenant.quotation_terms || ''} 
-                      onChange={(e) => setTenant({...tenant, quotation_terms: e.target.value})} 
-                      placeholder="الأسعار سارية لمدة 15 يوماً من تاريخ الإصدار..." 
+                    <textarea
+                      style={{ height: '60px' }}
+                      value={tenant.quotation_terms || ''}
+                      onChange={(e) => setTenant({...tenant, quotation_terms: e.target.value})}
+                      placeholder="الأسعار سارية لمدة 15 يوماً من تاريخ الإصدار..."
                     />
                   </div>
                   <div className="form-group">
                     <label>Quotation Footer / Note (تذييل عرض السعر)</label>
-                    <textarea 
-                      style={{ height: '50px' }} 
-                      value={tenant.quotation_footer || ''} 
-                      onChange={(e) => setTenant({...tenant, quotation_footer: e.target.value})} 
-                      placeholder="نتطلع للتعاون المثمر معكم..." 
+                    <textarea
+                      style={{ height: '50px' }}
+                      value={tenant.quotation_footer || ''}
+                      onChange={(e) => setTenant({...tenant, quotation_footer: e.target.value})}
+                      placeholder="نتطلع للتعاون المثمر معكم..."
                     />
                   </div>
                 </div>
@@ -684,7 +685,7 @@ const Settings = () => {
                     <div>{previewMode === 'Quotation' ? (tenant.quotation_prefix || 'QUO-') : (tenant.invoice_prefix || 'INV-')}1001</div>
                   </div>
                 </div>
-                
+
                 <div className="responsive-table-region" role="region" tabIndex={0}><table className="preview-table">
                   <thead>
                     <tr>
@@ -729,11 +730,11 @@ const Settings = () => {
               </div>
               <div className="card-body">
                 <form className="source-form" onSubmit={handleAddSource}>
-                  <input 
-                    type="text" 
-                    placeholder="Add source (e.g. Google Ads, Referral)..." 
-                    value={newSourceName} 
-                    onChange={(e) => setNewSourceName(e.target.value)} 
+                  <input
+                    type="text"
+                    placeholder="Add source (e.g. Google Ads, Referral)..."
+                    value={newSourceName}
+                    onChange={(e) => setNewSourceName(e.target.value)}
                     style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '13px', outline: 'none' }}
                   />
                   <button type="submit" className="upload-btn" style={{ background: '#6366f1', color: 'white', border: 'none' }}>
@@ -763,17 +764,17 @@ const Settings = () => {
               </div>
               <div className="card-body">
                 <form className="source-form" onSubmit={handleAddLeadStatus} style={{ flexWrap: 'wrap' }}>
-                  <input 
-                    type="text" 
-                    placeholder="Status Name (e.g. New Lead, Contacted)" 
-                    value={newLeadStatus.name} 
+                  <input
+                    type="text"
+                    placeholder="Status Name (e.g. New Lead, Contacted)"
+                    value={newLeadStatus.name}
                     onChange={(e) => setNewLeadStatus({...newLeadStatus, name: e.target.value})}
                     style={{ flex: '1 1 180px', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '13px', outline: 'none' }}
                   />
-                  <input 
-                    type="color" 
-                    value={newLeadStatus.color} 
-                    onChange={(e) => setNewLeadStatus({...newLeadStatus, color: e.target.value})} 
+                  <input
+                    type="color"
+                    value={newLeadStatus.color}
+                    onChange={(e) => setNewLeadStatus({...newLeadStatus, color: e.target.value})}
                     style={{ width: '45px', height: '40px', padding: '2px', cursor: 'pointer' }}
                     title="Status Color"
                   />
@@ -807,17 +808,17 @@ const Settings = () => {
               </div>
               <div className="card-body">
                 <form className="source-form" onSubmit={handleAddClassification} style={{ flexWrap: 'wrap' }}>
-                  <input 
-                    type="text" 
-                    placeholder="Classification Name (e.g. VIP, B2B Corporate, Retail)..." 
-                    value={newClassification.name} 
+                  <input
+                    type="text"
+                    placeholder="Classification Name (e.g. VIP, B2B Corporate, Retail)..."
+                    value={newClassification.name}
                     onChange={(e) => setNewClassification({...newClassification, name: e.target.value})}
                     style={{ flex: '1 1 180px', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '13px', outline: 'none' }}
                   />
-                  <input 
-                    type="color" 
-                    value={newClassification.color} 
-                    onChange={(e) => setNewClassification({...newClassification, color: e.target.value})} 
+                  <input
+                    type="color"
+                    value={newClassification.color}
+                    onChange={(e) => setNewClassification({...newClassification, color: e.target.value})}
                     style={{ width: '45px', height: '40px', padding: '2px', cursor: 'pointer' }}
                     title="Badge Color"
                   />
@@ -834,7 +835,7 @@ const Settings = () => {
                   ) : classifications.map(c => (
                     <div key={c.id} className="source-item" style={{ background: '#f8fafc', margin: '4px 0', borderRadius: '6px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span 
+                        <span
                           style={{
                             background: c.color || '#3b82f6',
                             color: 'white',
@@ -855,8 +856,8 @@ const Settings = () => {
                           </span>
                         )}
                       </div>
-                      <button 
-                        onClick={() => handleDeleteClassification(c.id)} 
+                      <button
+                        onClick={() => handleDeleteClassification(c.id)}
                         style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
                         title="Delete classification"
                       >
@@ -884,12 +885,12 @@ const Settings = () => {
               </div>
               <div className="card-body">
                 <form className="source-form" style={{ flexWrap: 'wrap' }} onSubmit={handleAddTaskStatus}>
-                  <input 
-                    type="text" 
-                    placeholder="Stage Name (e.g. Proposal Sent, Negotiation)" 
-                    style={{ flex: '1 1 200px', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '13px', outline: 'none' }} 
-                    value={newTaskStatus.name} 
-                    onChange={(e) => setNewTaskStatus({...newTaskStatus, name: e.target.value})} 
+                  <input
+                    type="text"
+                    placeholder="Stage Name (e.g. Proposal Sent, Negotiation)"
+                    style={{ flex: '1 1 200px', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '13px', outline: 'none' }}
+                    value={newTaskStatus.name}
+                    onChange={(e) => setNewTaskStatus({...newTaskStatus, name: e.target.value})}
                   />
                   <input type="color" value={newTaskStatus.color} onChange={(e) => setNewTaskStatus({...newTaskStatus, color: e.target.value})} style={{ width: '45px', padding: '2px', height: '40px', cursor: 'pointer' }} title="Status Color" />
                   <input type="number" placeholder="Order" value={newTaskStatus.order_index} onChange={(e) => setNewTaskStatus({...newTaskStatus, order_index: parseInt(e.target.value) || 0})} style={{ width: '70px', padding: '10px', borderRadius: '8px', border: '1.5px solid #e2e8f0' }} title="Display Order" />
@@ -1367,8 +1368,8 @@ const Settings = () => {
                 <div className="form-grid">
                   <div className="form-group">
                     <label>ETA Environment</label>
-                    <select 
-                      value={etaSettings.environment} 
+                    <select
+                      value={etaSettings.environment}
                       onChange={(e) => setEtaSettings({...etaSettings, environment: e.target.value})}
                     >
                       <option value="Pre-Production (Sandbox)">Pre-Production (Sandbox)</option>
@@ -1377,28 +1378,28 @@ const Settings = () => {
                   </div>
                   <div className="form-group">
                     <label>Tax Registration No (TRN)</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. 123-456-789" 
-                      value={etaSettings.tax_id || tenant.tax_no || ''} 
+                    <input
+                      type="text"
+                      placeholder="e.g. 123-456-789"
+                      value={etaSettings.tax_id || tenant.tax_no || ''}
                       onChange={(e) => setEtaSettings({...etaSettings, tax_id: e.target.value})}
                     />
                   </div>
                   <div className="form-group">
                     <label>ETA Client ID</label>
-                    <input 
-                      type="text" 
-                      placeholder="eta_client_sec_xxxx" 
-                      value={etaSettings.client_id} 
+                    <input
+                      type="text"
+                      placeholder="eta_client_sec_xxxx"
+                      value={etaSettings.client_id}
                       onChange={(e) => setEtaSettings({...etaSettings, client_id: e.target.value})}
                     />
                   </div>
                   <div className="form-group">
                     <label>ETA Client Secret</label>
-                    <input 
-                      type="password" 
-                      placeholder="••••••••••••••••" 
-                      value={etaSettings.client_secret} 
+                    <input
+                      type="password"
+                      placeholder="••••••••••••••••"
+                      value={etaSettings.client_secret}
                       onChange={(e) => setEtaSettings({...etaSettings, client_secret: e.target.value})}
                     />
                   </div>
