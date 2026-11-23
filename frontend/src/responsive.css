@@ -988,3 +988,10 @@
  .auth-recovery-page .login-card { padding:28px 20px!important; }
  .auth-recovery-page h1 { font-size:25px!important; }
 }
+/* Recovery pages: legible help, placeholders and error copy on the purple surface. */
+.auth-recovery-page p,
+.auth-recovery-page .back-to-login,
+.auth-recovery-page .input-wrapper svg { color:#e4e4ff!important; }
+.auth-recovery-page input::placeholder { color:#dedff6!important; opacity:1; }
+.auth-recovery-page .back-to-login:hover { color:#fff!important; }
+.auth-recovery-page .error-box { color:#fff!important; background:#812f58!important; border-color:#eeacc6!important; }
