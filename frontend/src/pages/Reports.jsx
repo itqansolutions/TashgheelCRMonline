@@ -90,17 +90,17 @@ const Reports = () => {
   return (
     <div className="reports-page" dir={isRTL ? 'rtl' : 'ltr'}>
       <style>{`
-        .reports-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
-        .chart-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
-        .chart-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; }
-        .chart-container { height: 350px; }
-        .stats-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px; }
-        .summary-mini-card { background: white; padding: 16px; border-radius: 12px; border: 1px solid var(--border); }
-        .summary-mini-card h4 { font-size: 13px; color: var(--text-muted); font-weight: 500; }
-        .summary-mini-card p { font-size: 18px; font-weight: 800; margin-top: 4px; }
+        .reports-page .reports-grid{ display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+        .reports-page .chart-card{ background: white; border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+        .reports-page .chart-card h3{ font-size: 16px; font-weight: 700; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; }
+        .reports-page .chart-container{ height: 350px; }
+        .reports-page .stats-summary{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px; }
+        .reports-page .summary-mini-card{ background: white; padding: 16px; border-radius: 12px; border: 1px solid var(--border); }
+        .reports-page .summary-mini-card h4{ font-size: 13px; color: var(--text-muted); font-weight: 500; }
+        .reports-page .summary-mini-card p{ font-size: 18px; font-weight: 800; margin-top: 4px; }
         @media (max-width: 900px) {
-          .reports-grid { grid-template-columns: 1fr; }
-          .stats-summary { grid-template-columns: 1fr; }
+          .reports-page .reports-grid{ grid-template-columns: 1fr; }
+          .reports-page .stats-summary{ grid-template-columns: 1fr; }
         }
       `}</style>
 
@@ -137,12 +137,14 @@ const Reports = () => {
 
         <div className="chart-card">
           <h3><Package size={18} color="#3b82f6" /> {t('reportsHub.chartTopSelling')}</h3>
+          {topProducts.length > 0 && <ul className="report-product-labels">{topProducts.map((product, index) => <li key={product.id || index}><span>{product.name}</span><span className="num-en">{product.total_sold}</span></li>)}</ul>}
           <div className="chart-container" style={{ height: '350px' }}>
             <Bar 
               data={productChartData} 
               options={{ 
                 indexAxis: 'y', 
                 maintainAspectRatio: false,
+                scales: { y: { ticks: { callback: function(value) { const label = this.getLabelForValue(value); return label.match(/.{1,18}(?:\s|$)|.{1,18}/g) || label; } } } },
                 plugins: { legend: { display: false } }
               }}
             />

@@ -90,8 +90,8 @@ const Files = () => {
   return (
     <div className="files-page" dir={isRTL ? 'rtl' : 'ltr'}>
       <style>{`
-        .btn-download { color: var(--primary); background: #eff6ff; padding: 6px; border-radius: 6px; }
-        .btn-download:hover { background: #dbeafe; }
+        .files-page .btn-download { color: var(--primary); background: #eff6ff; padding: 6px; border-radius: 6px; }
+        .files-page .btn-download:hover { background: #dbeafe; }
       `}</style>
 
       <div className="page-header" style={{ marginBottom: '24px' }}>

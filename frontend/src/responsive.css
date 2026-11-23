@@ -434,3 +434,32 @@
  .profile-workspace-page .profile-workspace-details > div > div > div { flex-wrap:wrap; gap:8px; }
  .profile-workspace-page .profile-workspace-links a { padding:16px!important; min-height:76px; }
 }
+
+/* Read-only file/report views use the same page rhythm as the workspaces. */
+.files-page,.reports-page { min-width:0; width:100%; }
+.files-page > .page-header,.reports-page > .page-header { display:block; }
+.files-page > .page-header h2,.reports-page > .page-header h2 { margin-bottom:8px; }
+.files-page .table-card { box-shadow:none; }
+.files-page td > div { min-width:0; }
+.files-page td > div > span { overflow-wrap:anywhere; min-width:0; }
+.reports-page .chart-card,.reports-page .summary-mini-card { min-width:0; box-shadow:none; }
+.reports-page .summary-mini-card p { overflow-wrap:anywhere; }
+.reports-page .chart-container { min-width:0; position:relative; }
+@media(max-width:768px) {
+ .files-page .action-btns button { min-width:44px; min-height:44px; }
+ .reports-page .chart-card { padding:18px!important; }
+ .reports-page .chart-container { max-width:100%; }
+}
+.reports-page { box-sizing:border-box; }
+.reports-page .reports-grid { min-width:0; grid-template-columns:minmax(0,2fr) minmax(0,1fr); }
+.reports-page .chart-container canvas { max-width:100%; }
+@media(max-width:900px) { .reports-page .reports-grid { grid-template-columns:minmax(0,1fr)!important; } }
+@media(max-width:768px) {
+ .files-page,.reports-page { padding:12px; box-sizing:border-box; }
+ .reports-page .stats-summary { grid-template-columns:minmax(0,1fr)!important; }
+}
+
+.reports-page .report-product-labels { list-style:none; padding:0; margin:0 0 16px; font-size:12px; color:var(--text-muted); }
+.reports-page .report-product-labels li { display:flex; justify-content:space-between; align-items:start; gap:12px; padding:8px 0; border-bottom:1px solid var(--border); }
+.reports-page .report-product-labels li > span:first-child { min-width:0; overflow-wrap:anywhere; }
+.reports-page .report-product-labels .num-en { flex-shrink:0; font-weight:700; }
