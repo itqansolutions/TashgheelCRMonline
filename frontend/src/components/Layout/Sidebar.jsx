@@ -153,12 +153,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // -------------------------------------------------------------
   // 3. REAL ESTATE ITEMS (REAL ESTATE TEMPLATE ONLY)
   // -------------------------------------------------------------
-  const reDefinitionsSubItems = [
-    { name: 'Projects',   labelKey: 'sidebar.projects',   icon: <Building size={16} />,  path: '/units-registry?tab=projects' },
-    { name: 'Developers', labelKey: 'sidebar.developers', icon: <Building2 size={16} />, path: '/units-registry?tab=developers' },
-    { name: 'Phases',     labelKey: 'sidebar.phases',     icon: <Layers size={16} />,    path: '/units-registry?tab=phases' }
-  ];
-
   const reDirectItems = [
     { name: 'Units',           labelKey: 'sidebar.units',          icon: <Key size={18} />,         path: '/units-registry' },
     { name: 'Reservations',    labelKey: 'sidebar.reservations',   icon: <CheckSquare size={18} />, path: '/reservations' },
@@ -346,7 +340,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const sections = [
     {id:'sales',label:'sidebar.sales',items:permitted(salesItems).filter(item=>item.path!=='/units-registry')},
     {id:'contacts',label:'sidebar.contacts',items:visibleContactsDirect.filter(item=>item.path!=='/customers' || !salesItems.some(s=>s.path==='/customers')).concat(hasHr ? [] : employees)},
-    {id:'real_estate',label:'sidebar.realEstate',items:isRealEstate ? permitted([...reDirectItems,...reDefinitionsSubItems]) : []},
+    {id:'real_estate',label:'sidebar.realEstate',items:isRealEstate ? permitted(reDirectItems) : []},
     {id:'inventory',label:'sidebar.warehouse',items:inventoryItems},
     {id:'purchasing',label:'sidebar.purchases',items:purchasingItems},
     {id:'finance',label:'sidebar.finance',items:financeItems.length ? [{...financeItems[0],labelKey:'sidebar.finance'}] : []},

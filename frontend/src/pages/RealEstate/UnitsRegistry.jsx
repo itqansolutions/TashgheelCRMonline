@@ -1,5 +1,5 @@
 import Modal from '../../components/Common/Modal';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, Users, Handshake, Activity, Filter, Calendar, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink, Image as ImageIcon, Camera, Upload, Eye, ChevronLeft, ChevronRight, MessageCircle, Copy, Check, Send, Share2 } from 'lucide-react';
 import { Navigate, useSearchParams, Link } from 'react-router-dom';
@@ -30,7 +30,10 @@ const missingMatchInputs = (c = {}) => {
 const UnitsRegistry = () => {
     const { user } = useAuth();
     const { t, isRTL } = useLanguage();
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const text=(ar,en)=>isRTL?ar:en;
+    const unitsRequest=useRef(0),hierarchyRequest=useRef(0),overviewRequest=useRef(0);
+    const [unitsError,setUnitsError]=useState(false),[hierarchyError,setHierarchyError]=useState(false),[overviewError,setOverviewError]=useState(false);
     const { users, customers, fetchCustomers, fetchUsers } = useData();
     const [units, setUnits] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -211,18 +214,14 @@ const UnitsRegistry = () => {
 
     const fetchUnitOverview = async (unitId) => {
         if (!unitId) return;
-        setOverviewLoading(true);
+        const ticket=++overviewRequest.current;
+        setOverviewLoading(true);setOverviewError(false);setUnitOverview(null);
         try {
-            const res = await api.get(`/re-units/${unitId}/overview`);
-            if (res.data?.data) {
-                setUnitOverview(res.data.data);
-                setOverviewCarouselIndex(0);
-            }
-        } catch (err) {
-            console.warn('[Unit Overview Load Warning]:', err.message);
-        } finally {
-            setOverviewLoading(false);
-        }
+            const res=await api.get(`/re-units/${unitId}/overview`);
+            if(!res.data?.data||typeof res.data.data!=='object')throw Error('Invalid overview');
+            if(ticket===overviewRequest.current){setUnitOverview(res.data.data);setOverviewCarouselIndex(0);}
+        } catch(err){if(ticket===overviewRequest.current)setOverviewError(true);}
+        finally{if(ticket===overviewRequest.current)setOverviewLoading(false);}
     };
 
     // Sync the employee dropdown and fetch unit overview when modal opens
@@ -231,6 +230,8 @@ const UnitsRegistry = () => {
             setAssigningEmployee(selectedUnit.assigned_to || '');
             fetchUnitOverview(selectedUnit.id);
         } else {
+            overviewRequest.current++;
+            setOverviewLoading(false);setOverviewError(false);
             setUnitOverview(null);
             setOverviewCarouselIndex(0);
             setOverviewSearch('');
@@ -256,26 +257,24 @@ const UnitsRegistry = () => {
     const vendors = safeArray(customers).filter(c => c.entity_type === 'vendor');
 
     const fetchHierarchy = async () => {
+        const ticket=++hierarchyRequest.current;setHierarchyError(false);
         try {
-            const res = await api.get('/re-hierarchy/tree');
-            if (res.data?.data) {
-                setHierarchyTree(res.data.data);
-            }
-        } catch (e) {
-            // Non-critical fallback
-        }
+            const res=await api.get('/re-hierarchy/tree');
+            if(!Array.isArray(res.data?.data?.projects)||!Array.isArray(res.data?.data?.developers))throw Error('Invalid hierarchy');
+            if(ticket===hierarchyRequest.current)setHierarchyTree(res.data.data);
+        }catch(e){if(ticket===hierarchyRequest.current){setHierarchyTree({projects:[],developers:[]});setHierarchyError(true);}}
     };
-
     const fetchUnits = async () => {
+        const ticket=++unitsRequest.current;setLoading(true);setUnitsError(false);
         try {
-            const res = await api.get('/re-units');
-            setUnits(res.data.data);
-        } catch (err) {
-            toast.error(t('realEstate.unitsRegistry.toastLoadUnitsError'));
-        } finally {
-            setLoading(false);
-        }
+            const res=await api.get('/re-units');
+            if(!Array.isArray(res.data?.data))throw Error('Invalid inventory');
+            if(ticket===unitsRequest.current)setUnits(res.data.data);
+        }catch(err){if(ticket===unitsRequest.current){setUnits([]);setUnitsError(true);}}
+        finally{if(ticket===unitsRequest.current)setLoading(false);}
     };
+    const openHierarchy=(tab='projects')=>{if(tab==='phases'||tab==='buildings')setExpandedProjectId(hierarchyTree.projects?.[0]?.id??null);setHierarchyTab(tab==='developers'?'developers':'projects');setShowManageHierarchyModal(true);};
+    const closeHierarchy=()=>{setShowManageHierarchyModal(false);if(searchParams.has('tab')){const next=new URLSearchParams(searchParams);next.delete('tab');setSearchParams(next,{replace:true});}};
 
     const handleExtendReservation = async (unitId, hours) => {
         try {
@@ -319,6 +318,8 @@ const UnitsRegistry = () => {
         if (customers.length === 0) fetchCustomers();
     }, []);
 
+    useEffect(()=>()=>{unitsRequest.current++;hierarchyRequest.current++;overviewRequest.current++;},[]);
+
     // Sync URL tab with hierarchy management modal
     useEffect(() => {
         const tab = searchParams.get('tab');
@@ -327,26 +328,24 @@ const UnitsRegistry = () => {
             setShowManageHierarchyModal(true);
         } else if (tab === 'projects' || tab === 'phases' || tab === 'buildings') {
             setHierarchyTab('projects');
+            if(tab==='phases'||tab==='buildings')setExpandedProjectId(hierarchyTree.projects?.[0]?.id??null);
+            setShowManageHierarchyModal(true);
         }
 
-        const targetUnitId = searchParams.get('unit_id') || searchParams.get('id');
-        if (targetUnitId) {
-            if (units && units.length > 0) {
-                const found = units.find(u => String(u.id) === String(targetUnitId));
-                if (found) {
-                    setSelectedUnit(found);
-                } else if (!loading) {
-                    api.get(`/re-units/${targetUnitId}`).then(res => {
-                        if (res.data?.data) setSelectedUnit(res.data.data);
-                    }).catch(() => {});
-                }
-            } else if (!loading) {
-                api.get(`/re-units/${targetUnitId}`).then(res => {
-                    if (res.data?.data) setSelectedUnit(res.data.data);
-                }).catch(() => {});
-            }
-        }
-    }, [searchParams, units, loading]);
+    }, [searchParams]);
+
+    // Ignore a late direct-link response after navigation or unmount.
+    useEffect(()=>{
+        const targetUnitId=searchParams.get('unit_id')||searchParams.get('id');
+        if(!targetUnitId)return;
+        let cancelled=false;
+        const found=units.find(u=>String(u.id)===String(targetUnitId));
+        if(found)setSelectedUnit(found);
+        else if(!loading)api.get(`/re-units/${targetUnitId}`).then(res=>{if(!cancelled&&res.data?.data)setSelectedUnit(res.data.data);}).catch(()=>{});
+        return()=>{cancelled=true;};
+    },[searchParams,units,loading]);
+
+    useEffect(()=>{if(showManageHierarchyModal&&['phases','buildings'].includes(searchParams.get('tab'))&&expandedProjectId===null&&hierarchyTree.projects?.length)setExpandedProjectId(hierarchyTree.projects[0].id);},[showManageHierarchyModal,searchParams,hierarchyTree.projects,expandedProjectId]);
 
     // Close topmost modal on Escape key
     useEffect(() => {
@@ -359,7 +358,7 @@ const UnitsRegistry = () => {
                 else if (showMatchBuyersModal) setShowMatchBuyersModal(false);
                 else if (selectedUnit) setSelectedUnit(null);
                 else if (showAddModal) setShowAddModal(false);
-                else if (showManageHierarchyModal) setShowManageHierarchyModal(false);
+                else if (showManageHierarchyModal) closeHierarchy();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -810,11 +809,11 @@ const UnitsRegistry = () => {
                             <Building2 size={28} />
                         </div>
                         <h1 style={{ margin: 0, fontSize: '32px', fontWeight: 900, color: 'var(--text-main)', letterSpacing: '-0.03em' }}>
-                            Property Registry
+                            {text('الوحدات والعقارات','Property Registry')}
                         </h1>
                     </div>
                     <p style={{ color: 'var(--text-muted)', fontSize: '16px', marginLeft: '72px' }}>
-                        Real Estate Inventory • <span style={{ color: 'var(--primary)', fontWeight: 700 }}>{units.length} Units Tracked</span>
+                        {text('مخزون العقارات','Real Estate Inventory')} • <span style={{ color: 'var(--primary)', fontWeight: 700 }}>{unitsError?text('غير متاح','Unavailable'):units.length+' '+text('وحدة','Units Tracked')}</span>
                     </p>
                 </div>
                 <div className="units-registry-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -826,34 +825,17 @@ const UnitsRegistry = () => {
                             </button>
                         ))}
                     </div>
-                    <button 
-                        onClick={() => setShowManageHierarchyModal(true)} 
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            padding: '10px 18px',
-                            borderRadius: '12px',
-                            border: '1.5px solid var(--border)',
-                            background: 'white',
-                            color: 'var(--text-main)',
-                            fontWeight: 800,
-                            fontSize: '13px',
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        <Building size={16} color="var(--primary)" />
-                        Developers & Projects
-                    </button>
                     <button onClick={openAddModal} className="btn-primary-premium">
                         <Plus size={20} strokeWidth={3} />
-                        Register New Unit
+                        {text('تسجيل وحدة جديدة','Register New Unit')}
                     </button>
                 </div>
             </div>
 
+            <nav aria-label={text('إدارة بيانات العقارات','Property management')} style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:20}}>
+                {[['developers','المطورون','Developers'],['projects','المشاريع','Projects'],['phases','المراحل والمباني','Phases & Buildings']].map(([tab,ar,en])=><button key={tab} type="button" className="btn-secondary" onClick={()=>openHierarchy(tab)} style={{padding:'10px 14px',border:'1px solid var(--border)',borderRadius:10,background:'white',color:'var(--text-main)',fontWeight:700}}>{text(ar,en)}</button>)}
+            </nav>
+            {hierarchyError&&<div role="alert" style={{padding:16,color:'#991b1b'}}>{text('تعذر تحميل بيانات المطورين والمشاريع. أعد المحاولة قبل استخدام الاختيارات.','Property definitions could not be loaded. Retry before using the choices.')} <button onClick={fetchHierarchy}>{text('إعادة المحاولة','Retry')}</button></div>}
             {/* Controls Bar */}
             <div className="ap-card" style={{ padding: '12px 16px', marginBottom: '32px', display: 'flex', gap: '16px', alignItems: 'center', background: 'var(--glass-bg)', flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: '180px', position: 'relative' }}>
@@ -954,7 +936,7 @@ const UnitsRegistry = () => {
             </div>
 
             {/* Content Grid */}
-            {loading ? (
+            {unitsError ? <div role="alert" style={{padding:24,color:'#991b1b'}}>{text('تعذر تحميل الوحدات. لا يتم عرض بيانات قديمة أو اعتبار المخزون فارغًا.','Units could not be loaded. Stale data is not shown as current or empty inventory.')} <button onClick={fetchUnits}>{text('إعادة المحاولة','Retry')}</button></div> : loading ? (
                 <div style={{ textAlign: 'center', padding: '100px', color: 'var(--text-muted)' }}>
                     <div className="wow-float" style={{ marginBottom: '16px' }}><Building2 size={48} opacity={0.3}/></div>
                     <p style={{ fontWeight: 600 }}>{t('realEstate.unitsRegistry.syncingInventory')}</p>
@@ -969,7 +951,7 @@ const UnitsRegistry = () => {
                         <p style={{ color: 'var(--text-muted)', marginBottom: '32px' }}>{t('realEstate.unitsRegistry.adjustFilters')}</p>
                         <button onClick={() => setShowAddModal(true)} className="btn-primary-premium" style={{ margin: '0 auto' }}>
                             <Plus size={20} />
-                            Register First Unit
+                            {text('تسجيل أول وحدة','Register First Unit')}
                         </button>
                    </div>
                 </div>
@@ -1956,16 +1938,17 @@ const UnitsRegistry = () => {
                                             )}
                                         </div>
 
+                                        {overviewError&&<div role="alert" style={{padding:16,color:'#991b1b',background:'#fef2f2',borderRadius:10,marginBottom:16}}>{text('تعذر تحميل بيانات الصفقات المرتبطة. الأرقام غير مؤكدة، أعد المحاولة.','Linked deal data could not be loaded. Counts are unconfirmed, please retry.')} <button onClick={()=>fetchUnitOverview(selectedUnit.id)}>{text('إعادة المحاولة','Retry')}</button></div>}
                                         {/* ─── 4 RBAC-Scoped KPIs (Condition 3) ─── */}
                                         <div style={{ marginBottom: '20px' }}>
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 130px), 1fr))', gap: '12px' }}>
                                                 <div style={{ background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)', border: '1px solid #bfdbfe', borderRadius: '12px', padding: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                     <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#2563eb', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                         <Users size={20} />
                                                     </div>
                                                     <div>
                                                         <div style={{ fontSize: '11px', color: '#1e40af', fontWeight: 800 }}>{isRTL ? 'العملاء المهتمون' : 'Distinct Customers'}</div>
-                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#1e3a8a' }} className="num-en">{overviewLoading ? '...' : kpis.distinct_customers_count}</div>
+                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#1e3a8a' }} className="num-en">{overviewLoading||overviewError||!unitOverview ? '...' : kpis.distinct_customers_count}</div>
                                                     </div>
                                                 </div>
 
@@ -1975,7 +1958,7 @@ const UnitsRegistry = () => {
                                                     </div>
                                                     <div>
                                                         <div style={{ fontSize: '11px', color: '#6b21a8', fontWeight: 800 }}>{isRTL ? 'إجمالي الصفقات' : 'Total Deals'}</div>
-                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#581c87' }} className="num-en">{overviewLoading ? '...' : kpis.total_deals_count}</div>
+                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#581c87' }} className="num-en">{overviewLoading||overviewError||!unitOverview ? '...' : kpis.total_deals_count}</div>
                                                     </div>
                                                 </div>
 
@@ -1985,7 +1968,7 @@ const UnitsRegistry = () => {
                                                     </div>
                                                     <div>
                                                         <div style={{ fontSize: '11px', color: '#166534', fontWeight: 800 }}>{isRTL ? 'الصفقات النشطة' : 'Active Deals'}</div>
-                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#14532d' }} className="num-en">{overviewLoading ? '...' : kpis.active_deals_count}</div>
+                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#14532d' }} className="num-en">{overviewLoading||overviewError||!unitOverview ? '...' : kpis.active_deals_count}</div>
                                                     </div>
                                                 </div>
 
@@ -1995,7 +1978,7 @@ const UnitsRegistry = () => {
                                                     </div>
                                                     <div>
                                                         <div style={{ fontSize: '11px', color: '#92400e', fontWeight: 800 }}>{isRTL ? 'مسؤولو المبيعات' : 'Sales Reps'}</div>
-                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#78350f' }} className="num-en">{overviewLoading ? '...' : kpis.distinct_sales_reps_count}</div>
+                                                        <div style={{ fontSize: '20px', fontWeight: 900, color: '#78350f' }} className="num-en">{overviewLoading||overviewError||!unitOverview ? '...' : kpis.distinct_sales_reps_count}</div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2063,7 +2046,7 @@ const UnitsRegistry = () => {
                                                         {isRTL ? 'العملاء والصفقات المرتبطة بالوحدة' : 'Linked Deals & Interested Prospects'}
                                                     </h3>
                                                     <span style={{ fontSize: '11px', fontWeight: 800, background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '12px' }} className="num-en">
-                                                        {filteredOverviewDeals.length}
+                                                        {overviewLoading||overviewError||!unitOverview?'…':filteredOverviewDeals.length}
                                                     </span>
                                                 </div>
                                                 <Link 
@@ -2125,7 +2108,7 @@ const UnitsRegistry = () => {
                                             </div>
 
                                             {/* Deals List */}
-                                            {overviewLoading ? (
+                                            {overviewError ? <div role="alert" style={{padding:16,color:'#991b1b'}}>{text('تعذر تحميل تفاصيل الصفقات المرتبطة. الأرقام غير مؤكدة.','Linked deal details could not be loaded. Counts are not confirmed.')} <button onClick={()=>fetchUnitOverview(selectedUnit.id)}>{text('إعادة المحاولة','Retry')}</button></div> : overviewLoading ? (
                                                 <div style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontSize: '13px' }}>
                                                     {isRTL ? 'جارٍ تحميل الصفقات والعملاء المرتبطين...' : 'Loading linked prospects and deals...'}
                                                 </div>
@@ -2740,10 +2723,10 @@ const UnitsRegistry = () => {
 
             {/* Full Developers & Projects Management Modal */}
             {showManageHierarchyModal && createPortal(
-                <div 
+                <div role="dialog" aria-modal="true" aria-label={text('إدارة بيانات العقارات','Property management')} data-testid="hierarchy-dialog"
                     dir={isRTL ? 'rtl' : 'ltr'}
                     onClick={(e) => {
-                        if (e.target === e.currentTarget) setShowManageHierarchyModal(false);
+                        if (e.target === e.currentTarget) closeHierarchy();
                     }}
                     style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', background: 'rgba(2, 6, 23, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}
                 >
@@ -2755,7 +2738,7 @@ const UnitsRegistry = () => {
                                 <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>{t('realEstate.unitsRegistry.catalogSubtitle')}</p>
                             </div>
                             <button 
-                                onClick={() => setShowManageHierarchyModal(false)}
+                                onClick={() => closeHierarchy()}
                                 style={{ padding: '8px', borderRadius: '50%', background: 'var(--bg-main)', color: 'var(--text-muted)', cursor: 'pointer', border: 'none' }}
                             >
                                 <X size={18}/>
@@ -2763,7 +2746,7 @@ const UnitsRegistry = () => {
                         </div>
 
                         {/* Tabs */}
-                        <div style={{ padding: '16px 32px 0 32px', display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+                        <div style={{ padding: '16px 24px 0 24px', display: 'flex', flexWrap:'wrap', gap: '8px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
                             <button 
                                 onClick={() => setHierarchyTab('projects')}
                                 style={{ padding: '10px 18px', border: 'none', background: 'transparent', fontWeight: 800, fontSize: '14px', cursor: 'pointer', borderBottom: hierarchyTab === 'projects' ? '3px solid var(--primary)' : '3px solid transparent', color: hierarchyTab === 'projects' ? 'var(--primary)' : 'var(--text-muted)' }}
@@ -2790,9 +2773,10 @@ const UnitsRegistry = () => {
                             </button>
                         </div>
 
+                        {hierarchyError&&<div role="alert" style={{padding:16,color:'#991b1b'}}>{text('تعذر تحميل بيانات الإدارة. أعد المحاولة.','Management data could not be loaded. Retry.')} <button onClick={fetchHierarchy}>{text('إعادة المحاولة','Retry')}</button></div>}
                         {/* Tab Content */}
                         <div style={{ padding: '24px 32px', overflowY: 'auto', flex: 1 }}>
-                            {hierarchyTab === 'projects' ? (
+                            {hierarchyError ? null : hierarchyTab === 'projects' ? (
                                 (hierarchyTree.projects || []).length === 0 ? (
                                     <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
                                         <Building2 size={40} style={{ opacity: 0.3, marginBottom: '12px' }} />
@@ -2882,7 +2866,7 @@ const UnitsRegistry = () => {
                                                                             onClick={() => openAddPhaseModal(p.id, p.name)}
                                                                             style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
                                                                         >
-                                                                            + Add
+                                                                            {text('+ إضافة','+ Add')}
                                                                         </button>
                                                                     </div>
                                                                     {phasesList.length === 0 ? (
@@ -2915,7 +2899,7 @@ const UnitsRegistry = () => {
                                                                             onClick={() => openAddBuildingModal(p.id, p.name)}
                                                                             style={{ border: 'none', background: 'transparent', color: 'var(--primary)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', padding: 0 }}
                                                                         >
-                                                                            + Add
+                                                                            {text('+ إضافة','+ Add')}
                                                                         </button>
                                                                     </div>
                                                                     {buildingsList.length === 0 ? (

@@ -35,6 +35,7 @@ test('Condition 1: Multiple deals can link to the same Available unit in early s
 
   const handleQuery = async (sql, params) => {
     const norm = sql.replace(/\s+/g, ' ').trim();
+    if(norm.startsWith('SELECT id FROM users')&&norm.includes('tenant_id'))return {rows:[{id:params[0]}]};
 
     if (norm === 'BEGIN' || norm === 'COMMIT' || norm === 'ROLLBACK') return { rows: [] };
     if (norm.startsWith('ALTER TABLE deals')) return { rows: [] };

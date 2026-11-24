@@ -71,19 +71,7 @@ exports.getUnits = async (req, res) => {
     } catch (err) {
         console.error('[Units API Error]:', err.message);
 
-        // --- GRACEFUL DEGRADATION ---
-        const isTableMissing = err.message.includes('relation') && err.message.includes('does not exist');
-        const isTimeout = err.message.includes('timeout') || err.message.includes('terminated');
-
-        if (isTableMissing || isTimeout) {
-            return res.status(200).json({
-                status: 'success',
-                data: [],
-                message: 'Unit inventory is currently being synchronized with the cloud. Please refresh in a moment.'
-            });
-        }
-
-        res.status(500).json({ status: 'error', message: 'Dashboard intelligence platform is currently undergoing maintenance.', debug: err.message });
+        res.status(503).json({status:'error',code:'UNIT_INVENTORY_UNAVAILABLE',message:'Unit inventory could not be loaded. Please retry.'});
     }
 };
 
