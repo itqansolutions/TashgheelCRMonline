@@ -336,14 +336,14 @@ exports.createActivity = async (req, res) => {
                 let targetDeal = null;
                 if (cleanEntityType === 'deal') {
                     const dRes = await db.query(
-                        `SELECT id, title, pipeline_stage, custom_fields, assigned_to, branch_id
+                        `SELECT id, title, pipeline_stage, custom_fields, assigned_to, assigned_team_id, branch_id
                          FROM deals WHERE id::text = $1::text AND tenant_id::text = $2::text`,
                         [entity_id, tenant_id]
                     );
                     targetDeal = dRes.rows[0] || null;
                 } else if (cleanEntityType === 'customer') {
                     const dRes = await db.query(
-                        `SELECT id, title, pipeline_stage, custom_fields, assigned_to, branch_id
+                        `SELECT id, title, pipeline_stage, custom_fields, assigned_to, assigned_team_id, branch_id
                          FROM deals
                          WHERE client_id::text = $1::text AND tenant_id::text = $2::text
                            AND LOWER(COALESCE(pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost')
@@ -369,7 +369,7 @@ exports.createActivity = async (req, res) => {
                     }
 
                     const newStage = preVisitStages.includes(currentStageLower) ? 'Site Visit' : targetDeal.pipeline_stage;
-                    const newAssignee = targetDeal.assigned_to || req.user.id;
+                    const newAssignee = targetDeal.assigned_to || (targetDeal.assigned_team_id ? null : req.user.id);
 
                     await db.query(
                         `UPDATE deals
@@ -539,3 +539,68 @@ exports.updateReminder = async (req, res) => {
 };
 
 exports.ensureActivitiesTable = ensureActivitiesTable;
+
+
+// @desc    Manual deal activity counts per employee (calls, WhatsApp, meetings, ...), period in Africa/Cairo days
+// @route   GET /api/activities/reports/deal-activity?from=YYYY-MM-DD&to=YYYY-MM-DD[&team_id=][&user_id=]
+// @access  Private. Admin: all employees. Others: self + own departments + teams they manage/lead.
+exports.getDealActivityReport = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    const { from, to } = req.query;
+    const isDay = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v + 'T00:00:00Z').getTime()) && new Date(v + 'T00:00:00Z').toISOString().slice(0, 10) === v;
+    if (!isDay(from) || !isDay(to) || from > to) {
+        return res.status(400).json({ status: 'error', code: 'INVALID_PERIOD', message: 'from and to must be valid YYYY-MM-DD dates with from <= to.' });
+    }
+    const intOrNull = (v) => (v === undefined || v === '' ) ? null : (Number.isInteger(Number(v)) ? Number(v) : NaN);
+    const teamId = intOrNull(req.query.team_id), userId = intOrNull(req.query.user_id);
+    if (Number.isNaN(teamId) || Number.isNaN(userId)) {
+        return res.status(400).json({ status: 'error', code: 'INVALID_FILTER', message: 'team_id and user_id must be integers.' });
+    }
+    try {
+        const { checkDealPermission } = require('../middleware/dealPermission');
+        if (!(await checkDealPermission(req.user.id, tenant_id, 'deal.view', req.user.role))) {
+            return res.status(403).json({ status: 'error', code: 'PERMISSION_DENIED', message: 'Permission denied: "deal.view" is required.', required_permission: 'deal.view' });
+        }
+        const accessScopeService = require('../services/accessScopeService');
+        const branch_id = req.branchId || req.user?.branch_id || null;
+        let visible = null; // null = every employee of the tenant
+        if (req.user.role !== 'admin') {
+            const deptIds = (await accessScopeService.getAccessibleDepartmentIds(req.user)) || [];
+            const r = await db.query(
+                `SELECT DISTINCT u.id FROM users u WHERE u.tenant_id::text = $1::text AND (
+                    u.id::text = $2::text
+                    OR u.department_id = ANY($3::int[])
+                    OR u.id IN (SELECT stm.user_id FROM sales_team_members stm JOIN sales_teams st ON st.id = stm.team_id AND st.tenant_id::text = stm.tenant_id::text
+                                WHERE st.tenant_id::text = $1::text AND (st.manager_id::text = $2::text OR st.leader_id::text = $2::text)))`,
+                [String(tenant_id), String(req.user.id), deptIds]);
+            visible = r.rows.map(x => x.id);
+        }
+        const params = [String(tenant_id), from, to, branch_id, visible, userId, teamId];
+        const result = await db.query(
+            `SELECT u.id AS user_id, u.name AS user_name, a.action, COUNT(*)::int AS count
+             FROM activities a
+             JOIN users u ON u.id = a.user_id AND u.tenant_id::text = a.tenant_id::text
+             JOIN deals d ON d.id::text = a.entity_id AND d.tenant_id::text = a.tenant_id::text
+             WHERE a.tenant_id::text = $1::text
+               AND LOWER(a.entity_type) = 'deal'
+               AND a.action IN ('called','whatsapp','meeting','email_sent','follow_up','visited','note','task')
+               AND (a.meta::jsonb ->> 'is_manual') = 'true'
+               AND a.created_at >= ($2::date)::timestamp AT TIME ZONE 'Africa/Cairo'
+               AND a.created_at <  (($3::date) + 1)::timestamp AT TIME ZONE 'Africa/Cairo'
+               AND ($4::text IS NULL OR d.branch_id::text = $4::text OR d.branch_id IS NULL)
+               AND ($5::int[] IS NULL OR u.id = ANY($5::int[]))
+               AND ($6::int IS NULL OR u.id = $6::int)
+               AND ($7::int IS NULL OR d.assigned_team_id = $7::int)
+             GROUP BY u.id, u.name, a.action
+             ORDER BY u.name, a.action`, params);
+        const byUser = new Map();
+        for (const row of result.rows) {
+            if (!byUser.has(row.user_id)) byUser.set(row.user_id, { user_id: row.user_id, user_name: row.user_name, total: 0, by_action: {} });
+            const u = byUser.get(row.user_id); u.by_action[row.action] = row.count; u.total += row.count;
+        }
+        res.json({ status: 'success', period: { from, to, timezone: 'Africa/Cairo' }, source: 'manual_logs', data: [...byUser.values()] });
+    } catch (err) {
+        console.error('[Deal Activity Report Error]', err.message);
+        res.status(500).json({ status: 'error', message: 'Failed to build activity report' });
+    }
+};

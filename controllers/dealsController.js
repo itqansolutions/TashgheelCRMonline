@@ -9,6 +9,8 @@ const { checkDealPermission } = require('../middleware/dealPermission');
 const dealSlaService = require('../services/dealSlaService');
 // Ensure deal columns exist to prevent missing-column 500 crashes
 let dealColumnsEnsured = false;
+const dealTeam = require('../services/dealTeamService');
+
 async function ensureDealColumns() {
   if (dealColumnsEnsured) return;
   const run = async (sql) => {
@@ -225,6 +227,7 @@ exports.getDeals = async (req, res) => {
         c.company_name as client_company,
         p.name as product_name,
         u.name as assigned_to_name,
+        st.name as assigned_team_name,
         ru.project_name as unit_project,
         ru.unit_number as unit_number,
         ru.name as unit_name,
@@ -264,6 +267,7 @@ exports.getDeals = async (req, res) => {
       LEFT JOIN customers c ON d.client_id::text = c.id::text AND d.tenant_id::text = c.tenant_id::text
       LEFT JOIN products p ON d.product_id::text = p.id::text AND d.tenant_id::text = p.tenant_id::text
       LEFT JOIN users u ON d.assigned_to::text = u.id::text AND d.tenant_id::text = u.tenant_id::text
+      LEFT JOIN sales_teams st ON st.id = d.assigned_team_id AND st.tenant_id::text = d.tenant_id::text
       LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND d.tenant_id::text = ru.tenant_id::text
       LEFT JOIN re_payments_mvp rp ON d.id::text = rp.deal_id::text AND d.tenant_id::text = rp.tenant_id::text
       LEFT JOIN (
@@ -325,6 +329,7 @@ exports.getDealById = async (req, res) => {
         c.phone as client_phone,
         c.company_name as client_company,
         u.name as assigned_to_name,
+        st.name as assigned_team_name,
         u.email as assigned_to_email,
         p.name as product_name,
         ru.project_name as unit_project,
@@ -342,6 +347,7 @@ exports.getDealById = async (req, res) => {
       FROM deals d 
       LEFT JOIN customers c ON d.client_id::text = c.id::text AND d.tenant_id::text = c.tenant_id::text
       LEFT JOIN users u ON d.assigned_to::text = u.id::text AND d.tenant_id::text = u.tenant_id::text
+      LEFT JOIN sales_teams st ON st.id = d.assigned_team_id AND st.tenant_id::text = d.tenant_id::text
       LEFT JOIN products p ON d.product_id::text = p.id::text AND d.tenant_id::text = p.tenant_id::text 
       LEFT JOIN re_units ru ON d.unit_id::text = ru.id::text AND d.tenant_id::text = ru.tenant_id::text
       LEFT JOIN re_payments_mvp rp ON d.id::text = rp.deal_id::text AND d.tenant_id::text = rp.tenant_id::text
@@ -380,6 +386,10 @@ exports.createDeal = async (req, res) => {
   try {
     await ensureDealColumns();
 
+    let cleanTeamId = null;
+    try { cleanTeamId = dealTeam.parseTeamId(req.body.assigned_team_id); }
+    catch (e) { return res.status(400).json({ status: 'error', code: e.code, message: e.message }); }
+
     if (!title || !String(title).trim()) {
       return res.status(400).json({ status: 'error', message: 'Deal title is required.' });
     }
@@ -391,7 +401,7 @@ exports.createDeal = async (req, res) => {
     const cleanUnitId = (unit_id && unit_id !== '') ? String(unit_id) : null;
     const cleanAssignedTo = (assigned_to !== undefined && assigned_to !== null && String(assigned_to).trim() !== '') 
       ? assigned_to 
-      : (req.user?.id || null);
+      : (cleanTeamId ? null : (req.user?.id || null));
     let cleanValue = (value !== undefined && value !== null && value !== '' && !isNaN(Number(value))) ? Number(value) : 0;
     const cleanProbability = (probability !== undefined && probability !== null && probability !== '' && !isNaN(probability)) ? Math.min(100, Math.max(0, parseInt(probability))) : 0;
 
@@ -408,13 +418,13 @@ exports.createDeal = async (req, res) => {
     const cleanCustomFields = (custom_fields && typeof custom_fields === 'object') ? custom_fields : {};
 
     // If assigning to a different user, require deal.reassign
-    if (assigned_to && cleanAssignedTo && String(cleanAssignedTo) !== String(req.user.id)) {
+    if ((assigned_to && cleanAssignedTo && String(cleanAssignedTo) !== String(req.user.id)) || cleanTeamId) {
       const canReassign = await checkDealPermission(req.user.id, tenant_id, 'deal.reassign', req.user.role);
       if (!canReassign) {
         return res.status(403).json({
           status: 'error',
           code: 'PERMISSION_DENIED',
-          message: 'Permission denied: "deal.reassign" is required to assign deals to other users.',
+          message: 'Permission denied: "deal.reassign" is required to assign deals to other users or teams.',
           required_permission: 'deal.reassign'
         });
       }
@@ -473,7 +483,7 @@ exports.createDeal = async (req, res) => {
       // 1. Real Estate Concurrency Gate: Lock unit row with SELECT ... FOR UPDATE
       if (cleanUnitId) {
         const unitLockRes = await client.query(
-          `SELECT id, status, project_name, unit_number, price, branch_id 
+          `SELECT id, status, project_name, unit_number, price, branch_id, marketing_active 
            FROM re_units 
            WHERE id::text = $1::text AND tenant_id::text = $2::text 
            FOR UPDATE`,
@@ -491,6 +501,11 @@ exports.createDeal = async (req, res) => {
         if (targetUnit.branch_id && branch_id && String(targetUnit.branch_id) !== String(branch_id) && req.user?.role !== 'admin') {
           await client.query('ROLLBACK');
           return res.status(403).json({ status: 'error', message: 'Unauthorized: Unit belongs to a different branch.' });
+        }
+
+        if (targetUnit.marketing_active === false) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ status: 'error', code: 'UNIT_NOT_MARKETED', message: 'This unit is not being marketed. Reactivate it before creating a deal.' });
         }
 
         if (targetUnit.status?.toLowerCase() !== 'available') {
@@ -536,10 +551,15 @@ exports.createDeal = async (req, res) => {
         }
       }
 
+      // 1b. Validate team/employee ownership under locks (tenant, branch, membership)
+      if (cleanTeamId) {
+        await dealTeam.validateTeamAssignment(client, { tenantId: tenant_id, branchId: branch_id, teamId: cleanTeamId, employeeId: assigned_to });
+      }
+
       // 2. Insert Deal inside transaction
       const result = await client.query(
-        'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, branch_id, custom_fields, unit_id, probability, expected_close_date, next_action, source_type, source_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *',
-        [String(title).trim(), cleanValue, pipeline_stage || 'discovery', cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, tenant_id, branch_id, cleanCustomFields, cleanUnitId, cleanProbability, cleanExpectedDate, next_action || '', cleanSourceType, cleanSourceId]
+        'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, branch_id, custom_fields, unit_id, probability, expected_close_date, next_action, source_type, source_id, assigned_team_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *',
+        [String(title).trim(), cleanValue, pipeline_stage || 'discovery', cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, tenant_id, branch_id, cleanCustomFields, cleanUnitId, cleanProbability, cleanExpectedDate, next_action || '', cleanSourceType, cleanSourceId, cleanTeamId]
       );
       newDeal = result.rows[0];
 
@@ -559,6 +579,9 @@ exports.createDeal = async (req, res) => {
       await client.query('COMMIT');
     } catch (txErr) {
       await client.query('ROLLBACK').catch(() => {});
+      if (txErr instanceof dealTeam.AssignmentError) {
+        return res.status(txErr.status).json({ status: 'error', code: txErr.code, message: txErr.message });
+      }
       throw txErr;
     } finally {
       client.release();
@@ -582,7 +605,7 @@ exports.createDeal = async (req, res) => {
     }
 
     // Phase 7 Workflow Engine: Auto-Assign if no explicit assignee was given
-    if (!assigned_to) {
+    if (!assigned_to && !cleanTeamId) {
         const workflowEngine = require('../services/workflowEngine');
         workflowEngine.onDealCreated({
             deal_id: newDeal.id,
@@ -678,9 +701,18 @@ exports.updateDeal = async (req, res) => {
     const cleanClientId = (client_id !== undefined && client_id !== null && client_id !== '') ? (!isNaN(client_id) ? parseInt(client_id) : client_id) : oldData.client_id;
     const cleanProductId = (product_id !== undefined && product_id !== null && product_id !== '' && !isNaN(product_id)) ? parseInt(product_id) : (product_id === '' || product_id === null ? null : oldData.product_id);
     const cleanProjectId = (project_id !== undefined && project_id !== null && project_id !== '' && !isNaN(project_id)) ? parseInt(project_id) : (project_id === '' || project_id === null ? null : oldData.project_id);
+    const hasTeamField = req.body.assigned_team_id !== undefined;
+    let newTeamId;
+    try { newTeamId = hasTeamField ? dealTeam.parseTeamId(req.body.assigned_team_id) : (oldData.assigned_team_id ?? null); }
+    catch (e) { return res.status(400).json({ status: 'error', code: e.code, message: e.message }); }
+    const clearsEmployee = (assigned_to === '' || assigned_to === null) && newTeamId;
     const cleanAssignedTo = (assigned_to && assigned_to !== '')
       ? (!isNaN(assigned_to) ? parseInt(assigned_to) : assigned_to)
-      : (oldData.assigned_to || (assigned_to === '' ? req.user.id : null));
+      : (clearsEmployee ? null : (oldData.assigned_to || (assigned_to === '' ? req.user.id : null)));
+    const changesTeam = normScalar(newTeamId) !== normScalar(oldData.assigned_team_id);
+    if (hasTeamField && !newTeamId && oldData.assigned_team_id && !cleanAssignedTo) {
+      return res.status(400).json({ status: 'error', code: 'DEAL_NEEDS_OWNER', message: 'Select an employee when removing the team from a deal.' });
+    }
     let cleanValue = (value !== undefined && value !== null && value !== '' && !isNaN(Number(value))) ? Number(value) : oldData.value;
     const cleanProbability = (probability !== undefined && probability !== null && probability !== '' && !isNaN(probability)) ? Math.min(100, Math.max(0, parseInt(probability))) : (oldData.probability || 0);
 
@@ -734,7 +766,7 @@ exports.updateDeal = async (req, res) => {
       }
     }
 
-    const changesAssignee = (assigned_to !== undefined && oldData.assigned_to && normScalar(cleanAssignedTo) !== normScalar(oldData.assigned_to));
+    const changesAssignee = ((assigned_to !== undefined && oldData.assigned_to && normScalar(cleanAssignedTo) !== normScalar(oldData.assigned_to)) || changesTeam);
     if (changesAssignee) {
       const canReassign = await checkDealPermission(req.user.id, tenant_id, 'deal.reassign', req.user.role);
       if (!canReassign) {
@@ -783,6 +815,7 @@ exports.updateDeal = async (req, res) => {
       if (normScalar(cleanClientId) !== normScalar(oldData.client_id)) violations.push('customer');
       if (Number(cleanValue || 0) !== Number(oldData.value || 0)) violations.push('deal value');
       if (normScalar(cleanAssignedTo) !== normScalar(oldData.assigned_to)) violations.push('owner');
+      if (changesTeam) violations.push('team');
       if (normScalar(cleanProductId) !== normScalar(oldData.product_id)) violations.push('product');
       if (normScalar(cleanProjectId) !== normScalar(oldData.project_id)) violations.push('project');
       if (stableJson(cleanCustomFields) !== stableJson(oldData.custom_fields)) violations.push('commercial terms');
@@ -802,7 +835,7 @@ exports.updateDeal = async (req, res) => {
     let cleanTitle = title || oldData.title;
     if (isLinkingUnit) {
       const unitCheck = await db.query(
-        `SELECT id, status, project_name, unit_number, name, price, branch_id
+        `SELECT id, status, project_name, unit_number, name, price, branch_id, marketing_active
          FROM re_units
          WHERE id::text = $1::text AND tenant_id::text = $2::text`,
         [requestedUnitId, String(tenant_id)]
@@ -813,6 +846,9 @@ exports.updateDeal = async (req, res) => {
       const targetUnit = unitCheck.rows[0];
       if (targetUnit.branch_id && branch_id && String(targetUnit.branch_id) !== String(branch_id) && req.user?.role !== 'admin') {
         return res.status(403).json({ status: 'error', message: 'Unauthorized: Unit belongs to a different branch.' });
+      }
+      if (targetUnit.marketing_active === false) {
+        return res.status(409).json({ status: 'error', code: 'UNIT_NOT_MARKETED', message: 'This unit is not being marketed. Reactivate it before linking it to a deal.' });
       }
       if (String(targetUnit.status || '').trim().toLowerCase() !== 'available') {
         return res.status(400).json({
@@ -886,12 +922,31 @@ exports.updateDeal = async (req, res) => {
     }
 
     // 2. Perform Update (With phase 2 metrics)
-    const result = await db.query(
-      `UPDATE deals 
-       SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, probability = $9, expected_close_date = $10, next_action = $11, source_type = $12, source_id = $13, unit_id = COALESCE($17, unit_id), updated_at = CURRENT_TIMESTAMP 
-       WHERE id = $14 AND tenant_id::text = $15::text AND ($16::text IS NULL OR branch_id::text = $16::text OR branch_id IS NULL) RETURNING *`,
-      [cleanTitle, cleanValue, effectiveNextStage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, cleanCustomFields, cleanProbability, cleanExpectedDate, next_action !== undefined ? next_action : (oldData.next_action || ''), cleanSourceType, cleanSourceId, req.params.id, tenant_id, branch_id, cleanUnitId]
-    );
+    // Team ownership is validated and written in one locked transaction.
+    const updClient = db.connect ? await db.connect() : await db.pool.connect();
+    let result;
+    try {
+      await updClient.query('BEGIN');
+      await updClient.query('SELECT id FROM deals WHERE id = $1 AND tenant_id::text = $2::text FOR UPDATE', [req.params.id, tenant_id]);
+      if (newTeamId && (changesTeam || normScalar(cleanAssignedTo) !== normScalar(oldData.assigned_to))) {
+        await dealTeam.validateTeamAssignment(updClient, { tenantId: tenant_id, branchId: oldData.branch_id || branch_id, teamId: newTeamId, employeeId: cleanAssignedTo });
+      }
+      result = await updClient.query(
+        `UPDATE deals 
+         SET title = $1, value = $2, pipeline_stage = $3, client_id = $4, product_id = $5, project_id = $6, assigned_to = $7, custom_fields = $8, probability = $9, expected_close_date = $10, next_action = $11, source_type = $12, source_id = $13, unit_id = COALESCE($17, unit_id), assigned_team_id = $18, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = $14 AND tenant_id::text = $15::text AND ($16::text IS NULL OR branch_id::text = $16::text OR branch_id IS NULL) RETURNING *`,
+        [cleanTitle, cleanValue, effectiveNextStage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, cleanCustomFields, cleanProbability, cleanExpectedDate, next_action !== undefined ? next_action : (oldData.next_action || ''), cleanSourceType, cleanSourceId, req.params.id, tenant_id, branch_id, cleanUnitId, newTeamId]
+      );
+      await updClient.query('COMMIT');
+    } catch (txErr) {
+      await updClient.query('ROLLBACK').catch(() => {});
+      if (txErr instanceof dealTeam.AssignmentError) {
+        return res.status(txErr.status).json({ status: 'error', code: txErr.code, message: txErr.message });
+      }
+      throw txErr;
+    } finally {
+      updClient.release();
+    }
 
     if (isMovingToLost && cleanUnitId) {
       await releaseUnitIfReservedByDeal(db, {
@@ -1004,7 +1059,7 @@ exports.updateDealStatus = async (req, res) => {
     }
 
     const oldResult = await client.query(
-      `SELECT title, pipeline_stage, assigned_to FROM deals WHERE ${lockWhere} FOR UPDATE`, 
+      `SELECT title, pipeline_stage, assigned_to, assigned_team_id FROM deals WHERE ${lockWhere} FOR UPDATE`, 
       lockParams
     );
     if (oldResult.rows.length === 0) {
@@ -1042,7 +1097,7 @@ exports.updateDealStatus = async (req, res) => {
     }
 
     const result = await client.query(
-      `UPDATE deals SET pipeline_stage = $1, assigned_to = COALESCE(assigned_to, $5), updated_at = CURRENT_TIMESTAMP ${extraCfUpdate} WHERE id = $2 AND tenant_id::text = $3::text AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) RETURNING *`,
+      `UPDATE deals SET pipeline_stage = $1, assigned_to = CASE WHEN assigned_team_id IS NULL THEN COALESCE(assigned_to, $5) ELSE assigned_to END, updated_at = CURRENT_TIMESTAMP ${extraCfUpdate} WHERE id = $2 AND tenant_id::text = $3::text AND ($4::text IS NULL OR branch_id::text = $4::text OR branch_id IS NULL) RETURNING *`,
       updateParams
     );
 
@@ -1340,6 +1395,11 @@ exports.reserveDealUnit = async (req, res) => {
       return res.status(403).json({ status: 'error', message: 'Unauthorized: Unit belongs to a different branch.' });
     }
 
+    if (targetUnit.marketing_active === false && String(targetUnit.status || '').trim().toLowerCase() === 'available') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ status: 'error', code: 'UNIT_NOT_MARKETED', message: 'This unit is not being marketed. Reactivate it before reserving.' });
+    }
+
     const uStatus = String(targetUnit.status || '').trim().toLowerCase();
     if (uStatus === 'reserved' && isExplicitlyReservingDeal(deal)) {
       await client.query('COMMIT');
@@ -1485,6 +1545,18 @@ exports.getDealSla = async (req, res) => {
   }
 };
 
+
+// Team-owned deals: SLA/reassign endpoints only check the permission flag, so for deals
+// that carry a team we also require the caller to be inside the team/department scope.
+async function teamDealGate(req, dealId, queryable) {
+  const tenantId = req.user.tenant_id;
+  const d = await queryable.query('SELECT assigned_team_id FROM deals WHERE id::text = $1::text AND tenant_id::text = $2::text', [String(dealId), String(tenantId)]);
+  if (d.rows.length === 0 || d.rows[0].assigned_team_id == null) return;
+  const scope = await accessScopeService.buildScopePredicate({ user: req.user, tableAlias: 'deals', assigneeCol: 'assigned_to', paramIndex: 3 });
+  const ok = await queryable.query(`SELECT 1 FROM deals WHERE id::text = $1::text AND tenant_id::text = $2::text AND ${scope.sql}`, [String(dealId), String(tenantId), ...scope.params]);
+  if (ok.rows.length === 0) { const e = new Error('Deal not found or unauthorized.'); e.statusCode = 404; throw e; }
+}
+
 // @desc    Extend deal SLA by +48h (unlimited extensions permitted, idempotent via key)
 // @route   POST /api/deals/:id/extend-sla
 // @access  Private (deal.extend_sla)
@@ -1494,6 +1566,7 @@ exports.extendDealSla = async (req, res) => {
   const key = idempotency_key || idempotencyKey || null;
 
   try {
+    await teamDealGate(req, req.params.id, db);
     const result = await dealSlaService.extendDealSla({
       dealId: req.params.id,
       tenantId: tenant_id,
@@ -1520,22 +1593,31 @@ exports.reassignDeal = async (req, res) => {
     return res.status(400).json({ status: 'error', message: 'Target sales representative is required.' });
   }
 
+  let tx = null;
   try {
+    tx = db.connect ? await db.connect() : await db.pool.connect();
+    await tx.query('BEGIN');
+    await teamDealGate(req, req.params.id, tx);
     const result = await dealSlaService.reassignDeal({
       dealId: req.params.id,
       tenantId: tenant_id,
       user: req.user,
       targetUserId: newAssigneeId,
-      reason
+      reason,
+      queryable: tx
     });
+    await tx.query('COMMIT');
     res.json({ status: 'success', ...result });
   } catch (err) {
+    if (tx) await tx.query('ROLLBACK').catch(() => {});
     console.error('[Reassign Deal Error]:', err.message);
     res.status(err.statusCode || 400).json({ 
       status: 'error', 
       code: err.code || 'BAD_REQUEST',
       message: err.message 
     });
+  } finally {
+    if (tx) tx.release();
   }
 };
 

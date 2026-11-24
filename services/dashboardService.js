@@ -351,7 +351,8 @@ async function getRealEstateUnitsOverview(tenantId) {
     const unitStatsRes = await db.query(`
         SELECT 
             COUNT(*) as total_units,
-            COUNT(*) FILTER (WHERE status = 'Available') as available,
+            COUNT(*) FILTER (WHERE status = 'Available' AND marketing_active IS NOT FALSE) as available,
+            COUNT(*) FILTER (WHERE marketing_active = FALSE) as marketing_inactive,
             COUNT(*) FILTER (WHERE status = 'Reserved') as reserved,
             COUNT(*) FILTER (WHERE status = 'Contracted') as contracted,
             COUNT(*) FILTER (WHERE status = 'Handed Over') as handed_over,
@@ -365,6 +366,7 @@ async function getRealEstateUnitsOverview(tenantId) {
     return {
         total: parseInt(row.total_units) || 0,
         available: parseInt(row.available) || 0,
+        marketing_inactive: parseInt(row.marketing_inactive) || 0,
         reserved: parseInt(row.reserved) || 0,
         contracted: parseInt(row.contracted) || 0,
         handed_over: parseInt(row.handed_over) || 0,

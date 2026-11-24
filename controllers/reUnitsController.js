@@ -309,55 +309,60 @@ exports.updateUnit = async (req, res) => {
         }
     }
 
-    if (setClauses.length === 0) {
+    const unitEvents = require('../services/unitEventService');
+    const wantsMarketing = Object.prototype.hasOwnProperty.call(req.body, 'marketing_active');
+    if (setClauses.length === 0 && !wantsMarketing) {
         if (req.body.hasOwnProperty('status') && currentUnit && currentUnit.status === req.body.status) {
             return res.json({ status: 'success', data: currentUnit, message: 'Status is already unchanged.' });
         }
         return res.status(400).json({ status: 'error', message: 'No fields to update' });
     }
 
-    // Always update the timestamp
-    setClauses.push(`updated_at = NOW()`);
-
-    // Append WHERE clause parameters
-    values.push(id, tenant_id, branch_id ? String(branch_id) : null);
-    const whereP1 = paramIdx;
-    const whereP2 = paramIdx + 1;
-    const whereP3 = paramIdx + 2;
-
-    const updateSql = `
-        UPDATE re_units
-        SET ${setClauses.join(', ')}
-        WHERE id = $${whereP1}::uuid
-          AND tenant_id::text = $${whereP2}::text
-          AND ($${whereP3}::text IS NULL OR branch_id::text = $${whereP3}::text OR branch_id IS NULL)
-        RETURNING *
-    `;
-
+    const branchParam = branch_id ? String(branch_id) : null;
+    const client = db.connect ? await db.connect() : await db.pool.connect();
     try {
-        let result;
-        try {
-            result = await db.query(updateSql, values);
-        } catch (dbErr) {
-            if (dbErr.message && dbErr.message.includes('invalid input syntax for type uuid')) {
-                console.warn('[Auto-Healing] Altering re_units columns on updateUnit...');
-                await db.query(`
-                    ALTER TABLE re_units
-                    ALTER COLUMN assigned_to TYPE VARCHAR(255) USING assigned_to::text,
-                    ALTER COLUMN vendor_id TYPE VARCHAR(255) USING vendor_id::text,
-                    ALTER COLUMN responsible_person_id TYPE VARCHAR(255) USING responsible_person_id::text
-                `);
-                result = await db.query(updateSql, values);
-            } else {
-                throw dbErr;
+        await client.query('BEGIN');
+        // Lock the unit so the price/marketing change and its history event are one atomic step.
+        const lockRes = await client.query(
+            `SELECT * FROM re_units WHERE id = $1::uuid AND tenant_id::text = $2::text
+               AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL) FOR UPDATE`,
+            [id, tenant_id, branchParam]);
+        if (lockRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+        }
+        const oldUnit = lockRes.rows[0];
+        const events = [];
+        const priceEvent = unitEvents.buildPriceEvent(oldUnit, req.body);
+        if (priceEvent) events.push(priceEvent);
+
+        if (wantsMarketing) {
+            const m = await unitEvents.planMarketingChange(client, oldUnit, req.body, tenant_id);
+            if (m.changed) {
+                setClauses.push(`marketing_active = $${paramIdx}`); values.push(m.active); paramIdx++;
+                setClauses.push(`marketing_inactive_reason = $${paramIdx}`); values.push(m.reason); paramIdx++;
+                setClauses.push(`marketing_changed_at = NOW()`);
+                setClauses.push(`marketing_changed_by = $${paramIdx}`); values.push(req.user?.id ?? null); paramIdx++;
+                events.push(m.event);
             }
         }
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+        let data = oldUnit;
+        if (setClauses.length > 0) {
+            setClauses.push(`updated_at = NOW()`);
+            values.push(id, tenant_id, branchParam);
+            const updateSql = `
+                UPDATE re_units
+                SET ${setClauses.join(', ')}
+                WHERE id = $${paramIdx}::uuid
+                  AND tenant_id::text = $${paramIdx + 1}::text
+                  AND ($${paramIdx + 2}::text IS NULL OR branch_id::text = $${paramIdx + 2}::text OR branch_id IS NULL)
+                RETURNING *`;
+            const result = await client.query(updateSql, values);
+            data = result.rows[0];
         }
-
-        const updatedUnit = result.rows[0];
+        for (const ev of events) await unitEvents.insertEvent(client, { tenantId: tenant_id, branchId: oldUnit.branch_id, unitId: id, user: req.user, ...ev });
+        await client.query('COMMIT');
 
         // Audit log dispute changes to system_logs
         if (isDisputeTransition && disputeDetails) {
@@ -377,13 +382,92 @@ exports.updateUnit = async (req, res) => {
             }
         }
 
-        res.json({ status: 'success', data: updatedUnit });
+        res.json({ status: 'success', data });
     } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        if (err && err.isUnitRuleError) {
+            return res.status(err.status || 400).json({ status: 'error', code: err.code, message: err.message });
+        }
         console.error('[Unit Update Error]', err.message, err.stack);
         res.status(500).json({ status: 'error', message: err.message });
+    } finally {
+        client.release();
     }
 };
 
+
+
+const isDayStr = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(v + 'T00:00:00Z').toISOString().slice(0, 10) === v;
+
+// @desc    Unit history timeline (price and marketing changes). History starts when this feature was released.
+// @route   GET /api/re-units/:id/events
+exports.getUnitEvents = async (req, res) => {
+    const tenantId = req.user?.tenant_id, branchId = req.branchId || req.user?.branch_id || null;
+    if (!tenantId) return res.status(400).json({ status: 'error', message: 'Tenant context missing' });
+    if (!isUuid(req.params.id)) return res.status(400).json({ status: 'error', message: 'Invalid unit ID format' });
+    try {
+        const unit = await db.query(
+            `SELECT id FROM re_units WHERE id = $1::uuid AND tenant_id::text = $2::text
+               AND ($3::text IS NULL OR status = 'Available' OR branch_id::text = $3::text OR branch_id IS NULL)`,
+            [req.params.id, String(tenantId), branchId ? String(branchId) : null]);
+        if (unit.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+        const r = await db.query(
+            `SELECT id, event_type, previous_data, new_data, actor_user_id, actor_snapshot, source, created_at
+             FROM re_unit_events WHERE tenant_id::text = $1::text AND unit_id = $2::uuid ORDER BY created_at DESC, id DESC LIMIT 200`,
+            [String(tenantId), req.params.id]);
+        res.json({ status: 'success', history_starts_at_release: true, data: r.rows });
+    } catch (err) {
+        console.error('[Unit Events Error]', err.message);
+        res.status(503).json({ status: 'error', message: 'Unit history unavailable' });
+    }
+};
+
+// @desc    Dashboard price indicators for a period (Africa/Cairo days). Sale and rent are never mixed or averaged.
+// @route   GET /api/re-units/price-changes?from=YYYY-MM-DD&to=YYYY-MM-DD
+exports.getPriceChanges = async (req, res) => {
+    const tenantId = req.user?.tenant_id, branchId = req.branchId || req.user?.branch_id || null;
+    const { from, to } = req.query;
+    if (!tenantId) return res.status(400).json({ status: 'error', message: 'Tenant context missing' });
+    if (!isDayStr(from) || !isDayStr(to) || from > to) {
+        return res.status(400).json({ status: 'error', code: 'INVALID_PERIOD', message: 'from and to must be valid YYYY-MM-DD dates with from <= to.' });
+    }
+    try {
+        const r = await db.query(
+            `SELECT e.unit_id, e.created_at, e.previous_data, e.new_data, e.actor_snapshot,
+                    u.name, u.unit_number, u.project_name, u.status, u.transaction_type
+             FROM re_unit_events e JOIN re_units u ON u.id = e.unit_id AND u.tenant_id::text = e.tenant_id::text
+             WHERE e.tenant_id::text = $1::text AND e.event_type = 'price_changed'
+               AND e.created_at >= ($2::date)::timestamp AT TIME ZONE 'Africa/Cairo'
+               AND e.created_at <  (($3::date) + 1)::timestamp AT TIME ZONE 'Africa/Cairo'
+               AND ($4::text IS NULL OR u.status = 'Available' OR u.branch_id::text = $4::text OR u.branch_id IS NULL)
+             ORDER BY e.unit_id, e.created_at, e.id`,
+            [String(tenantId), from, to, branchId ? String(branchId) : null]);
+        const units = new Map();
+        for (const row of r.rows) {
+            const prevP = row.previous_data?.price, newP = row.new_data?.price;
+            const type = row.new_data?.transaction_type || row.transaction_type || null;
+            if (!units.has(row.unit_id)) units.set(row.unit_id, { unit_id: row.unit_id, name: row.name, unit_number: row.unit_number, project_name: row.project_name, transaction_type: type, changes: [] });
+            const u = units.get(row.unit_id); u.transaction_type = type;
+            const a = prevP == null ? null : Number(prevP), b = newP == null ? null : Number(newP);
+            u.changes.push({ at: row.created_at, old_price: prevP ?? null, new_price: newP ?? null, delta: a !== null && b !== null ? b - a : null, percent: a ? ((b - a) / a) * 100 : null, by: row.actor_snapshot?.name || null });
+        }
+        const out = [], summary = {};
+        for (const u of units.values()) {
+            const first = u.changes[0], last = u.changes[u.changes.length - 1];
+            const a = first.old_price == null ? null : Number(first.old_price), b = last.new_price == null ? null : Number(last.new_price);
+            const net = a !== null && b !== null ? b - a : null;
+            const direction = net === null ? 'unknown' : net > 0 ? 'up' : net < 0 ? 'down' : 'unchanged';
+            out.push({ ...u, period_old_price: first.old_price, period_new_price: last.new_price, net_delta: net, net_percent: a ? (net / a) * 100 : null, direction });
+            const k = u.transaction_type || 'unknown';
+            summary[k] = summary[k] || { up: 0, down: 0, unchanged: 0, unknown: 0 };
+            summary[k][direction]++;
+        }
+        res.json({ status: 'success', period: { from, to, timezone: 'Africa/Cairo' }, history_starts_at_release: true, summary_by_transaction_type: summary, data: out });
+    } catch (err) {
+        console.error('[Price Changes Error]', err.message);
+        res.status(503).json({ status: 'error', message: 'Price indicators unavailable' });
+    }
+};
 
 // @desc    Get single unit details
 // @route   GET /api/re-units/:id
@@ -842,6 +926,11 @@ exports.deleteUnit = async (req, res) => {
                 message: 'Cannot delete a unit that is linked to a deal, contract, cancellation, handover or payment record.',
                 linked
             });
+        }
+        const hist = await client.query(`SELECT 1 FROM re_unit_events WHERE unit_id = $1::uuid AND tenant_id::text = $2::text LIMIT 1`, [check.rows[0].id, tenant_id]);
+        if (hist.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ status: 'error', code: 'UNIT_HAS_HISTORY', message: 'This unit has price or marketing history. Deactivate it instead of deleting it.' });
         }
         await client.query(`DELETE FROM re_units WHERE id = $1`, [check.rows[0].id]);
         await client.query('COMMIT');

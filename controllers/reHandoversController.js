@@ -6,6 +6,7 @@
 const db = require('../config/db');
 const { logDelete } = require('../services/loggerService');
 const accessScopeService = require('../services/accessScopeService');
+const rentalSvc = require('../services/rentalOccupancyService');
 
 // @desc    Get handovers
 // @route   GET /api/re-handovers
@@ -181,7 +182,10 @@ exports.updateHandoverStatus = async (req, res) => {
         actual_handover_date,
         snagging_notes,
         keys_handed_over,
-        clearance_certificate
+        clearance_certificate,
+        rental_ends_on,
+        rental_starts_on,
+        rental_reminder_lead_days
     } = req.body;
 
     const allowed = ['Scheduled', 'Inspection', 'Ready for Delivery', 'Handed Over', 'Postponed'];
@@ -217,6 +221,8 @@ exports.updateHandoverStatus = async (req, res) => {
             return res.status(404).json({ status: 'error', message: 'Handover record not found or unauthorized.' });
         }
 
+        let isRentalUnit = false;
+        let rentalTerms = null;
         if (status === 'Handed Over') {
             const contractRes = await client.query(`
                 SELECT status FROM re_contracts
@@ -228,13 +234,28 @@ exports.updateHandoverStatus = async (req, res) => {
                 return res.status(409).json({ status: 'error', message: 'A Signed or Active contract is required to complete handover.' });
             }
             const unitRes = await client.query(`
-                SELECT status FROM re_units
+                SELECT status, transaction_type FROM re_units
                 WHERE id::text = $1::text AND tenant_id::text = $2::text
                 FOR UPDATE
             `, [String(ho.unit_id), tenant_id]);
+            isRentalUnit = String(unitRes.rows[0]?.transaction_type || '').toLowerCase() === 'rent';
             if (unitRes.rows.length === 0 || String(unitRes.rows[0].status || '').toLowerCase() !== 'contracted') {
                 await client.query('ROLLBACK');
                 return res.status(409).json({ status: 'error', message: 'Only a Contracted unit can be handed over.' });
+            }
+            if (isRentalUnit) {
+                // Rental handover needs staff-chosen notice timing; end date defaults to the contract end date.
+                const cEnd = await client.query(`SELECT to_char(end_date,'YYYY-MM-DD') AS e FROM re_contracts WHERE id::text = $1::text AND tenant_id::text = $2::text`, [String(ho.contract_id), tenant_id]);
+                try {
+                    rentalTerms = rentalSvc.parseTerms({
+                        starts_on: rental_starts_on || actual_handover_date || new Date().toISOString().split('T')[0],
+                        ends_on: rental_ends_on || cEnd.rows[0]?.e,
+                        reminder_lead_days: rental_reminder_lead_days
+                    });
+                } catch (termsErr) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({ status: 'error', code: termsErr.code || 'RENTAL_TERMS_REQUIRED', message: termsErr.message });
+                }
             }
         }
 
@@ -271,6 +292,14 @@ exports.updateHandoverStatus = async (req, res) => {
                     WHERE id = $1 AND tenant_id::text = $2::text
                 `, [ho.contract_id, tenant_id]);
             }
+
+            if (rentalTerms) {
+                await rentalSvc.createOccupancy(client, {
+                    tenantId: tenant_id, branchId: ho.branch_id || ho.deal_branch_id, unitId: ho.unit_id,
+                    handoverId: ho.id, contractId: ho.contract_id,
+                    terms: { starts_on: rentalTerms.startsOn, ends_on: rentalTerms.endsOn, reminder_lead_days: rentalTerms.leadDays }, user: req.user
+                });
+            }
         }
 
         await client.query('COMMIT');
@@ -282,6 +311,9 @@ exports.updateHandoverStatus = async (req, res) => {
         });
     } catch (err) {
         await client.query('ROLLBACK');
+        if (err && err.isRentalRuleError) {
+            return res.status(err.status || 400).json({ status: 'error', code: err.code, message: err.message });
+        }
         console.error('[Update Handover Status Error]:', err.message);
         res.status(500).json({ status: 'error', message: 'Failed to update handover status. Please try again or contact support.' });
     } finally {

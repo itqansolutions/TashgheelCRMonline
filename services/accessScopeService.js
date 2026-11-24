@@ -73,8 +73,15 @@ class AccessScopeService {
     user,
     tableAlias = 'c',
     assigneeCol = 'assigned_to',
-    paramIndex = 1
+    paramIndex = 1,
+    teamCol
   }) {
+    // Deals carry an optional owning team. Rows owned by a team are visible to
+    // that team's members, supervising manager and leader, in addition to the
+    // existing assignee/department rules. Customers etc. are unaffected.
+    if (teamCol === undefined) {
+      teamCol = (assigneeCol === 'assigned_to' && (tableAlias === 'd' || tableAlias === 'deals')) ? 'assigned_team_id' : null;
+    }
     if (!user || user.role === 'admin') {
       return { sql: '1=1', params: [], nextParamIndex: paramIndex };
     }
@@ -96,7 +103,7 @@ class AccessScopeService {
       ))`;
 
       const params = [String(user.id), accessibleDeptIds, String(user.tenant_id)];
-      return { sql, params, nextParamIndex: paramIndex + 3 };
+      return this._withTeam({ sql, params, nextParamIndex: paramIndex + 3 }, { user, tableAlias, teamCol });
     }
 
     // Regular Employee: Strictly own assigned records
@@ -104,7 +111,27 @@ class AccessScopeService {
     const col = tableAlias ? `${tableAlias}.${assigneeCol}` : assigneeCol;
     const sql = `(${col}::text = $${p1}::text)`;
     const params = [String(user.id)];
-    return { sql, params, nextParamIndex: paramIndex + 1 };
+    return this._withTeam({ sql, params, nextParamIndex: paramIndex + 1 }, { user, tableAlias, teamCol });
+  }
+
+  _withTeam(base, { user, tableAlias, teamCol }) {
+    if (!teamCol) return base;
+    const col = tableAlias ? `${tableAlias}.${teamCol}` : teamCol;
+    const pUser = base.nextParamIndex;
+    const pTenant = base.nextParamIndex + 1;
+    const teamSql = `${col} IN (
+      SELECT st.id FROM sales_teams st
+      WHERE st.tenant_id::text = $${pTenant}::text
+        AND (st.manager_id::text = $${pUser}::text OR st.leader_id::text = $${pUser}::text
+             OR EXISTS (SELECT 1 FROM sales_team_members stm
+                        WHERE stm.team_id = st.id AND stm.tenant_id::text = $${pTenant}::text
+                          AND stm.user_id::text = $${pUser}::text))
+    )`;
+    return {
+      sql: `(${base.sql} OR ${teamSql})`,
+      params: [...base.params, String(user.id), String(user.tenant_id)],
+      nextParamIndex: base.nextParamIndex + 2
+    };
   }
 }
 

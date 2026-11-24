@@ -237,7 +237,7 @@ async function extendDealSla({ dealId, tenantId, user, reason, idempotencyKey = 
 async function reassignDeal({ dealId, tenantId, user, targetUserId, reason = '', queryable = db }) {
   // 1. Fetch existing deal FOR UPDATE
   const dealRes = await queryable.query(
-    `SELECT id, title, assigned_to, branch_id, custom_fields 
+    `SELECT id, title, assigned_to, assigned_team_id, branch_id, custom_fields 
      FROM deals 
      WHERE id::text = $1::text AND tenant_id::text = $2::text 
      FOR UPDATE`,
@@ -288,6 +288,16 @@ async function reassignDeal({ dealId, tenantId, user, targetUserId, reason = '',
     err.statusCode = 403;
     err.code = 'PERMISSION_DENIED';
     throw err;
+  }
+
+  if (deal.assigned_team_id) {
+    // Team-owned deal: the new employee must belong to the owning team.
+    try {
+      await require('./dealTeamService').validateTeamAssignment(queryable, { tenantId, branchId: deal.branch_id, teamId: deal.assigned_team_id, employeeId: targetRep.id });
+    } catch (e) {
+      e.statusCode = e.status || 400;
+      throw e;
+    }
   }
 
   const previousAssigneeId = deal.assigned_to;

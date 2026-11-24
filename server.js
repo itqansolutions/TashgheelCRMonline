@@ -204,6 +204,7 @@ app.use('/api/re-installments',  templateGuard('real_estate'), require('./routes
 app.use('/api/re-commissions',   templateGuard('real_estate'), require('./routes/reCommissionRoutes'));
 app.use('/api/re-cancellations', templateGuard('real_estate'), require('./routes/reCancellationRoutes'));
 app.use('/api/re-handovers',     templateGuard('real_estate'), require('./routes/reHandoverRoutes'));
+app.use('/api/re-rentals',       templateGuard('real_estate'), require('./routes/reRentalOccupancyRoutes'));
 app.use('/api/re-targets',       templateGuard('real_estate'), require('./routes/reTargetRoutes'));
 app.use('/api/propertyfinder',   templateGuard('real_estate'), require('./routes/propertyFinderRoutes'));
 
@@ -345,6 +346,7 @@ const startup = startServing({
     require('./services/notificationWorkerService').startWorker(5000);
     startReservationScanner(10);
     require('./services/contractExpiryService').startContractExpiryScanner(60);
+    require('./services/rentalOccupancyService').startRentalAlertScanner(15);
     require('./services/dealSlaService').startSlaScanner(15);
     require('./services/activityReminderService').startActivityReminderScanner(30);
     require('./services/taskOverdueService').startTaskOverdueScanner(60);

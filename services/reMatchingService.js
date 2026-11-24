@@ -268,7 +268,7 @@ async function matchUnitsForCustomer({ tenantId, branchId, customerId, includeAl
     const params = [tenantId, branchId ? String(branchId) : null];
 
     if (!includeAllStatus) {
-        query += ` AND ru.status = 'Available'`;
+        query += ` AND ru.status = 'Available' AND ru.marketing_active IS NOT FALSE`;
     }
 
     const unitsRes = await db.query(query, params);
