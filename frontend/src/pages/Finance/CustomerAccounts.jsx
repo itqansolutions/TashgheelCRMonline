@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useBranch } from '../../context/BranchContext';
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import api from '../../services/api';
 import { isInvalidDateRange } from '../../utils/dateRange';
 import toast from 'react-hot-toast';
@@ -10,6 +11,7 @@ import {
 import { useLanguage } from '../../context/LanguageContext';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+const hasNumbers = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && keys.every(key => (typeof value[key] === 'number' || (typeof value[key] === 'string' && value[key].trim() !== '')) && Number.isFinite(Number(value[key])));
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -93,9 +95,13 @@ const StatementDrawer = ({ customerId, onClose }) => {
   const [dateTo,   setDateTo]   = useState('');
   const [view, setView]         = useState('statement'); // 'statement' | 'aging'
 
+  const drawerId = useRef(0);
+  const [drawerError, setDrawerError] = useState(false);
   const load = useCallback(async () => {
+    const request = ++drawerId.current;
+    setDrawerError(false); setData(null); setAging(null);
     if (isInvalidDateRange(dateFrom, dateTo)) {
-      toast.error(t('common.invalidDateRange'), { id: 'invalid-date-range' });
+      setDrawerError(true); setLoading(false);
       return;
     }
     setLoading(true);
@@ -108,16 +114,18 @@ const StatementDrawer = ({ customerId, onClose }) => {
         api.get(`/finance/customers/${customerId}/statement?${params}`),
         api.get(`/finance/customers/${customerId}/aging`),
       ]);
+      if (request !== drawerId.current) return;
+      if (String(stRes.data?.customer?.id) !== String(customerId) || !hasNumbers(stRes.data?.summary, ['total_invoiced', 'total_paid', 'outstanding', 'overdue']) || !Array.isArray(stRes.data?.statement) || !hasNumbers(agRes.data?.aging, ['current', 'days_1_30', 'days_31_60', 'days_61_90', 'days_90_plus', 'total'])) throw new Error('Invalid statement');
       setData(stRes.data);
       setAging(agRes.data.aging);
     } catch (err) {
-      toast.error(t('finance.customerAccounts.messages.statementLoadError'));
+      if (request === drawerId.current) setDrawerError(true);
     } finally {
-      setLoading(false);
+      if (request === drawerId.current) setLoading(false);
     }
   }, [customerId, dateFrom, dateTo, t]);
 
-  useEffect(() => { load(); }, [load]);
+  useLayoutEffect(() => { load(); return () => { drawerId.current += 1; }; }, [load]);
 
   const handlePrint = () => window.print();
 
@@ -127,7 +135,7 @@ const StatementDrawer = ({ customerId, onClose }) => {
     ...(isRTL ? { left: 0 } : { right: 0 }),
     bottom: 0,
     width: 'min(600px, 95vw)',
-    background: 'var(--bg-card)',
+    background: 'var(--bg-main, #f1f5f9)',
     ...(isRTL ? { borderRight: '1px solid var(--glass-border)' } : { borderLeft: '1px solid var(--glass-border)' }),
     boxShadow: isRTL ? '20px 0 60px rgba(0,0,0,0.12)' : '-20px 0 60px rgba(0,0,0,0.12)',
     zIndex: 1200,
@@ -137,15 +145,6 @@ const StatementDrawer = ({ customerId, onClose }) => {
     flexDirection: 'column',
     direction: isRTL ? 'rtl' : 'ltr',
   };
-
-  if (loading) return (
-    <div className="customer-statement-drawer" style={currentDrawerStyle}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: '12px' }}>
-        <RefreshCw size={28} style={{ color: 'var(--primary)', animation: 'spin 1s linear infinite' }} />
-        <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{t('finance.customerAccounts.drawer.loading')}</span>
-      </div>
-    </div>
-  );
 
   const { customer, summary, statement } = data || {};
 
@@ -170,7 +169,7 @@ const StatementDrawer = ({ customerId, onClose }) => {
       </div>
 
       {/* Summary Cards */}
-      <div className="statement-summary" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+      {!loading && !drawerError && data && <div className="statement-summary" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
         {[
           { label: t('finance.customerAccounts.drawer.totalInvoiced'), value: summary?.total_invoiced, color: '#6366f1' },
           { label: t('finance.customerAccounts.drawer.totalPaid'),     value: summary?.total_paid,     color: '#10b981' },
@@ -186,6 +185,7 @@ const StatementDrawer = ({ customerId, onClose }) => {
         ))}
       </div>
 
+      }
       {/* View Toggle */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', background: 'rgba(0,0,0,0.03)', padding: '3px', borderRadius: '8px', width: 'fit-content' }}>
         {[
@@ -225,6 +225,12 @@ const StatementDrawer = ({ customerId, onClose }) => {
             </button>
           </div>
 
+          {drawerError && <div role="alert" style={{ padding: '12px', color: '#991b1b' }}>
+            <p>{isRTL ? 'تعذر تأكيد كشف الحساب أو نطاق التاريخ. يمكنك تعديل التاريخ والمحاولة مرة أخرى.' : 'The statement or date range could not be confirmed. Edit the dates or retry.'}</p>
+            <button type="button" className="btn-secondary" onClick={load}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+          </div>}
+          {loading && <div role="status">{t('finance.customerAccounts.drawer.loading')}</div>}
+          {!loading && !drawerError && data && <>
           {/* Ledger Table */}
           <div style={{ overflowX: 'auto' }}>
             <div className="responsive-table-region" role="region" tabIndex={0}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
@@ -294,10 +300,12 @@ const StatementDrawer = ({ customerId, onClose }) => {
               )}
             </table></div>
           </div>
+          </>}
         </>
       )}
 
-      {view === 'aging' && <AgingBar aging={aging} />}
+      {view === 'aging' && (loading ? <div role="status">{t('finance.customerAccounts.drawer.loading')}</div> : drawerError ? <div role="alert"><button onClick={load}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button></div> : null)}
+      {view === 'aging' && !loading && !drawerError && <AgingBar aging={aging} />}
     </div>
   );
 };
@@ -329,20 +337,38 @@ const CustomerAccounts = () => {
   const initialCustomerId = new URLSearchParams(window.location.search).get('customer_id') || null;
   const [selectedCustomerId, setSelectedCustomerId] = useState(initialCustomerId);
 
+  const { currentBranch } = useBranch();
+  const branchKey = String(currentBranch?.id || '');
+  const readId = useRef(0);
+  const previousBranch = useRef(branchKey);
+  const [loadError, setLoadError] = useState(false);
   const fetchCustomers = useCallback(async () => {
+    const request = ++readId.current;
     setLoading(true);
+    setLoadError(false);
+    setCustomers([]);
+    setKpi(null);
     try {
       const res = await api.get('/finance/customers');
-      setCustomers(res.data.data || []);
-      setKpi(res.data.kpi || null);
+      if (request !== readId.current) return;
+      if (!Array.isArray(res.data?.data) || !hasNumbers(res.data?.kpi, ['totalReceivables', 'totalOverdue', 'dueThisMonth', 'customersWithOutstanding'])) throw new Error('Invalid financial response');
+      setCustomers(res.data.data);
+      setKpi(res.data.kpi);
     } catch (err) {
-      toast.error(t('finance.customerAccounts.messages.loadError'));
+      if (request !== readId.current) return;
+      setLoadError(true);
     } finally {
-      setLoading(false);
+      if (request === readId.current) setLoading(false);
     }
-  }, [t]);
+  }, [branchKey]);
 
-  useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
+  useLayoutEffect(() => {
+    if (previousBranch.current && previousBranch.current !== branchKey) setSelectedCustomerId(null);
+    previousBranch.current = branchKey;
+    fetchCustomers();
+    return () => { readId.current += 1; };
+  }, [fetchCustomers]);
+
 
   // Filtering
   const filtered = customers.filter(c => {
@@ -354,10 +380,15 @@ const CustomerAccounts = () => {
     return matchSearch && matchStatus;
   });
 
+  if (loadError) return (<div role="alert" style={{ padding: '16px', marginBottom: '16px', border: '1px solid #fca5a5', borderRadius: '10px', background: '#fef2f2', color: '#991b1b' }}>
+        <p>{isRTL ? 'تعذر تأكيد البيانات المالية. حاول مرة أخرى.' : 'Financial data could not be confirmed. Please retry.'}</p>
+        <button type="button" className="btn-secondary" onClick={fetchCustomers}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+      </div>);
+
   return (
     <div className="customer-accounts-page" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Overlay */}
-      {selectedCustomerId && (
+      {selectedCustomerId && branchKey && (
         <>
           <div
             onClick={() => setSelectedCustomerId(null)}

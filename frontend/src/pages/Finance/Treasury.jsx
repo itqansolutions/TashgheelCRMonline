@@ -1,5 +1,6 @@
+import { useBranch } from '../../context/BranchContext';
 import Modal from '../../components/Common/Modal';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import api from '../../services/api';
 import { isInvalidDateRange } from '../../utils/dateRange';
 import toast from 'react-hot-toast';
@@ -13,6 +14,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+const hasNumbers = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && keys.every(key => (typeof value[key] === 'number' || (typeof value[key] === 'string' && value[key].trim() !== '')) && Number.isFinite(Number(value[key])));
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -245,27 +247,49 @@ const Treasury = () => {
   const [selected, setSelected]     = useState(null); // selected account object
   const [txns, setTxns]             = useState([]);
   const [txnLoading, setTxnLoading] = useState(false);
+  const txnId = useRef(0);
+  const [txnError, setTxnError] = useState(false);
   const [showAdd, setShowAdd]       = useState(false);
   const [dateFrom, setDateFrom]     = useState('');
   const [dateTo, setDateTo]         = useState('');
 
+  const { currentBranch } = useBranch();
+  const branchKey = String(currentBranch?.id || '');
+  const selectedBranch = useRef(null);
+  const readId = useRef(0);
+  const [loadError, setLoadError] = useState(false);
   const fetchAccounts = useCallback(async () => {
+    const request = ++readId.current;
     setLoading(true);
+    setLoadError(false);
+    setAccounts([]);
+    setTotals(null);
     try {
       const res = await api.get('/finance/treasury/accounts');
-      setAccounts(res.data.data || []);
-      setTotals(res.data.totals || null);
+      if (request !== readId.current) return;
+      if (!Array.isArray(res.data?.data) || !hasNumbers(res.data?.totals, ['total_balance', 'total_cash', 'total_bank', 'month_incoming', 'month_outgoing'])) throw new Error('Invalid financial response');
+      setAccounts(res.data.data);
+      setTotals(res.data.totals);
     } catch (err) {
-      toast.error(t('finance.treasury.messages.loadAccountsError'));
+      if (request !== readId.current) return;
+      setLoadError(true);
     } finally {
-      setLoading(false);
+      if (request === readId.current) setLoading(false);
     }
-  }, [t]);
+  }, [branchKey]);
+
+  useLayoutEffect(() => {
+    setSelected(null); setTxns([]); txnId.current += 1;
+    fetchAccounts();
+    return () => { readId.current += 1; };
+  }, [fetchAccounts]);
 
   const fetchTransactions = useCallback(async (accountId) => {
     if (!accountId) return;
+    const request = ++txnId.current;
+    setTxns([]); setTxnError(false);
     if (isInvalidDateRange(dateFrom, dateTo)) {
-      toast.error(t('common.invalidDateRange'), { id: 'invalid-date-range' });
+      setTxnError(true); setTxnLoading(false);
       return;
     }
     setTxnLoading(true);
@@ -274,20 +298,24 @@ const Treasury = () => {
       if (dateFrom) params.append('date_from', dateFrom);
       if (dateTo)   params.append('date_to', dateTo);
       const res = await api.get(`/finance/treasury/accounts/${accountId}/transactions?${params}`);
-      setTxns(res.data.transactions || []);
+      if (request !== txnId.current) return;
+      if (!Array.isArray(res.data?.transactions) || String(res.data?.account?.id) !== String(accountId) || !hasNumbers(res.data?.account, ['current_balance'])) throw new Error('Invalid transactions');
+      setTxns(res.data.transactions);
       // Update current balance in selected account from response
       if (res.data.account) {
         setSelected(prev => prev ? { ...prev, current_balance: res.data.account.current_balance } : prev);
       }
     } catch (err) {
-      toast.error(t('finance.treasury.messages.loadTransactionsError'));
+      if (request === txnId.current) setTxnError(true);
     } finally {
-      setTxnLoading(false);
+      if (request === txnId.current) setTxnLoading(false);
     }
-  }, [dateFrom, dateTo, t]);
+  }, [dateFrom, dateTo, branchKey]);
 
-  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
-  useEffect(() => { if (selected) fetchTransactions(selected.id); }, [selected?.id, fetchTransactions]);
+  useLayoutEffect(() => {
+    if (selected && selectedBranch.current === branchKey) fetchTransactions(selected.id);
+    return () => { txnId.current += 1; };
+  }, [selected?.id, fetchTransactions]);
 
   const setDefaultAccount = async (account) => {
     if (!window.confirm(isRTL ? `تعيين ${account.name} كخزنة افتراضية لهذا النوع؟` : `Set ${account.name} as the default for this account type?`)) return;
@@ -299,10 +327,16 @@ const Treasury = () => {
   };
 
   const handleSelectAccount = (acc) => {
+    selectedBranch.current = branchKey;
     setSelected(acc);
     setDateFrom('');
     setDateTo('');
   };
+
+  if (loadError) return (<div role="alert" style={{ padding: '16px', marginBottom: '16px', border: '1px solid #fca5a5', borderRadius: '10px', background: '#fef2f2', color: '#991b1b' }}>
+        <p>{isRTL ? 'تعذر تأكيد البيانات المالية. حاول مرة أخرى.' : 'Financial data could not be confirmed. Please retry.'}</p>
+        <button type="button" className="btn-secondary" onClick={fetchAccounts}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+      </div>);
 
   if (loading) return (
     <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
@@ -393,7 +427,7 @@ const Treasury = () => {
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                   {t('finance.treasury.transactions.balance')}{' '}
                   <strong style={{ color: selected.current_balance >= 0 ? '#10b981' : '#ef4444' }}>
-                    <span className="num-en">{fmt(selected.current_balance)}</span> {t('common.currency', 'EGP')}
+                    <span className="num-en">{txnLoading || txnError ? '...' : fmt(selected.current_balance)}</span> {t('common.currency', 'EGP')}
                   </strong>
                   {selected.opening_balance > 0 && (
                     <span style={{ marginInlineStart: '6px', color: 'var(--text-muted)' }}>
@@ -413,7 +447,10 @@ const Treasury = () => {
             </div>
 
             {/* Transaction Table */}
-            {txnLoading ? (
+            {txnError ? (<div role="alert" style={{ padding: '20px', color: '#991b1b' }}>
+              <p>{isRTL ? 'تعذر تأكيد الحركات المالية أو نطاق التاريخ.' : 'Transactions or the date range could not be confirmed.'}</p>
+              <button type="button" className="btn-secondary" onClick={() => fetchTransactions(selected.id)}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+            </div>) : txnLoading ? (
               <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite', marginBottom: '8px', opacity: 0.4 }} />
                 <div>{t('finance.treasury.transactions.loading')}</div>
@@ -462,7 +499,7 @@ const Treasury = () => {
                         {t('finance.treasury.transactions.table.txnCount', { count: txns.length })}
                       </td>
                       <td style={{ padding: '12px 14px', textAlign: isRTL ? 'left' : 'right', fontWeight: 900, fontSize: '15px', color: selected.current_balance >= 0 ? '#10b981' : '#ef4444' }}>
-                        <span className="num-en">{fmt(selected.current_balance)}</span> {t('common.currency', 'EGP')}
+                        <span className="num-en">{txnLoading || txnError ? '...' : fmt(selected.current_balance)}</span> {t('common.currency', 'EGP')}
                       </td>
                     </tr>
                   </tfoot>

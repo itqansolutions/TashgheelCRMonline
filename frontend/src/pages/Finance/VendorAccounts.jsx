@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useBranch } from '../../context/BranchContext';
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import Modal from '../../components/Common/Modal';
@@ -11,6 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+const hasNumbers = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && keys.every(key => (typeof value[key] === 'number' || (typeof value[key] === 'string' && value[key].trim() !== '')) && Number.isFinite(Number(value[key])));
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
@@ -175,24 +177,31 @@ const VendorStatementDrawer = ({ vendorId, onClose, onPaymentRecorded }) => {
   const [view, setView] = useState('statement'); // 'statement' | 'aging'
   const [showPayModal, setShowPayModal] = useState(false);
 
+  const drawerId = useRef(0);
+  const [drawerError, setDrawerError] = useState(false);
   const loadData = useCallback(async () => {
     setLoading(true);
+    const request = ++drawerId.current;
+    setDrawerError(false); setStatementData(null); setAgingData(null);
     try {
       const [stmtRes, agingRes] = await Promise.all([
         api.get(`/finance/vendors/${vendorId}/statement`),
         api.get(`/finance/vendors/${vendorId}/aging`)
       ]);
-      setStatementData(stmtRes.data?.data || null);
+      if (request !== drawerId.current) return;
+      if (String(stmtRes.data?.data?.vendor?.id) !== String(vendorId) || !hasNumbers(stmtRes.data?.data?.summary, ['total_purchases', 'total_paid', 'outstanding_balance']) || !Array.isArray(stmtRes.data?.data?.transactions) || !hasNumbers(agingRes.data?.aging, ['current', 'days_1_30', 'days_31_60', 'days_61_90', 'days_90_plus', 'total'])) throw new Error('Invalid statement');
+      setStatementData(stmtRes.data.data);
       setAgingData(agingRes.data?.aging || null);
     } catch (err) {
-      toast.error(t('finance.vendorAccounts.messages.statementLoadError'));
+      if (request === drawerId.current) setDrawerError(true);
     } finally {
-      setLoading(false);
+      if (request === drawerId.current) setLoading(false);
     }
   }, [vendorId, t]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (vendorId) loadData();
+    return () => { drawerId.current += 1; };
   }, [vendorId, loadData]);
 
   const currentDrawerStyle = {
@@ -201,7 +210,7 @@ const VendorStatementDrawer = ({ vendorId, onClose, onPaymentRecorded }) => {
     ...(isRTL ? { left: 0 } : { right: 0 }),
     bottom: 0,
     width: 'min(680px, 92vw)',
-    background: 'var(--bg-card)',
+    background: 'var(--bg-main, #f1f5f9)',
     zIndex: 1200,
     ...(isRTL ? { borderRight: '1px solid var(--glass-border)' } : { borderLeft: '1px solid var(--glass-border)' }),
     boxShadow: isRTL ? '10px 0 40px rgba(0,0,0,0.2)' : '-10px 0 40px rgba(0,0,0,0.2)',
@@ -209,6 +218,12 @@ const VendorStatementDrawer = ({ vendorId, onClose, onPaymentRecorded }) => {
     flexDirection: 'column',
     direction: isRTL ? 'rtl' : 'ltr'
   };
+
+  if (drawerError) return (<div style={{ ...currentDrawerStyle, background: 'var(--bg-main, #f1f5f9)', padding: '24px', boxSizing: 'border-box', gap: '12px' }} role="alert">
+    <p>{isRTL ? 'تعذر تأكيد كشف الحساب أو نطاق التاريخ.' : 'The statement or date range could not be confirmed.'}</p>
+    <button type="button" className="btn-secondary" onClick={loadData}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+    <button type="button" className="btn-secondary" onClick={onClose}>{isRTL ? 'إغلاق' : 'Close'}</button>
+  </div>);
 
   if (loading) {
     return (
@@ -401,27 +416,46 @@ const VendorAccounts = () => {
   const [search, setSearch] = useState('');
   const [selectedVendorId, setSelectedVendorId] = useState(null);
 
+  const { currentBranch } = useBranch();
+  const branchKey = String(currentBranch?.id || '');
+  const readId = useRef(0);
+  const [loadError, setLoadError] = useState(false);
   const fetchVendors = useCallback(async () => {
+    const request = ++readId.current;
     setLoading(true);
+    setLoadError(false);
+    setVendors([]);
+    setKpi(null);
     try {
       const res = await api.get('/finance/vendors');
-      setVendors(res.data?.data || []);
-      setKpi(res.data?.kpi || null);
+      if (request !== readId.current) return;
+      if (!Array.isArray(res.data?.data) || !hasNumbers(res.data?.kpi, ['totalPayables', 'totalOverdue', 'dueThisMonth', 'vendorsWithOutstanding'])) throw new Error('Invalid financial response');
+      setVendors(res.data.data);
+      setKpi(res.data.kpi);
     } catch (err) {
-      toast.error(t('finance.vendorAccounts.messages.loadError'));
+      if (request !== readId.current) return;
+      setLoadError(true);
     } finally {
-      setLoading(false);
+      if (request === readId.current) setLoading(false);
     }
-  }, [t]);
+  }, [branchKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    setSelectedVendorId(null);
     fetchVendors();
+    return () => { readId.current += 1; };
   }, [fetchVendors]);
+
 
   const filtered = vendors.filter(v =>
     v.vendor_name?.toLowerCase().includes(search.toLowerCase()) ||
     v.vendor_phone?.includes(search)
   );
+
+  if (loadError) return (<div role="alert" style={{ padding: '16px', marginBottom: '16px', border: '1px solid #fca5a5', borderRadius: '10px', background: '#fef2f2', color: '#991b1b' }}>
+        <p>{isRTL ? 'تعذر تأكيد البيانات المالية. حاول مرة أخرى.' : 'Financial data could not be confirmed. Please retry.'}</p>
+        <button type="button" className="btn-secondary" onClick={fetchVendors}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+      </div>);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

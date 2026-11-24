@@ -1,5 +1,6 @@
+import { useBranch } from '../../context/BranchContext';
 import Modal from '../../components/Common/Modal';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import api from '../../services/api';
@@ -22,6 +23,7 @@ import CustomerSearchSelect from '../../components/Common/CustomerSearchSelect';
 import { useLanguage } from '../../context/LanguageContext';
 import { useModule } from '../../hooks/useModule';
 
+const hasNumbers = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && keys.every(key => (typeof value[key] === 'number' || (typeof value[key] === 'string' && value[key].trim() !== '')) && Number.isFinite(Number(value[key])));
 const FinanceDashboard = () => {
   const { t, isRTL } = useLanguage();
   const { user, hasFinancialPermission } = useAuth();
@@ -43,6 +45,14 @@ const FinanceDashboard = () => {
   const [receiptVouchers, setReceiptVouchers] = useState([]);
   const [paymentVouchers, setPaymentVouchers] = useState([]);
   const [summaryStats, setSummaryStats] = useState(null);
+  const { currentBranch } = useBranch();
+  const branchKey = String(currentBranch?.id || '');
+  const summaryId = useRef(0);
+  const listId = useRef(0);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState(false);
+  const [listError, setListError] = useState(false);
+  const money = value => summaryLoading || summaryError || !summaryStats ? '...' : Number(value ?? 0).toLocaleString('en-US');
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -113,52 +123,69 @@ const FinanceDashboard = () => {
     navigate(`/finance?tab=${tabId}`, { replace: true });
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     fetchSummary();
-  }, []);
+    return () => { summaryId.current += 1; };
+  }, [branchKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     fetchData();
     fetchCustomers();
     if (can('inventory')) fetchProducts();
     if (isRealEstate) fetchUnits();
-  }, [activeTab]);
+    return () => { listId.current += 1; };
+  }, [activeTab, branchKey]);
 
   const fetchSummary = async () => {
+    const request = ++summaryId.current;
+    setSummaryLoading(true); setSummaryError(false); setSummaryStats(null);
     try {
       const res = await api.get('/finance/summary');
-      if (res.data?.data) {
-        setSummaryStats(res.data.data);
-      }
+      if (request !== summaryId.current) return;
+      if (!hasNumbers(res.data?.data, ['totalInvoiced', 'totalIncome', 'totalOutstanding', 'totalExpenses', 'netCashflow'])) throw new Error('Invalid summary');
+      setSummaryStats(res.data.data);
     } catch (err) {
-      console.warn('Failed to load summary stats', err);
+      if (request === summaryId.current) setSummaryError(true);
+    } finally {
+      if (request === summaryId.current) setSummaryLoading(false);
     }
   };
 
   const fetchData = async () => {
-    setLoading(true);
+    const request = ++listId.current;
+    setLoading(true); setListError(false);
+    setInvoices([]); setQuotations([]); setReceiptVouchers([]); setPaymentVouchers([]); setExpenses([]);
     try {
       if (activeTab === 'Invoices') {
         const res = await api.get('/finance/invoices');
+        if (request !== listId.current) return;
+        if (!Array.isArray(res.data?.data)) throw new Error('Invalid list response');
         setInvoices(res.data.data || []);
       } else if (activeTab === 'Quotations') {
         const res = await api.get('/quotations');
+        if (request !== listId.current) return;
+        if (!Array.isArray(res.data?.data)) throw new Error('Invalid list response');
         setQuotations(res.data.data || []);
       } else if (activeTab === 'Receipts') {
         const res = await api.get('/finance/vouchers?type=receipt');
+        if (request !== listId.current) return;
+        if (!Array.isArray(res.data?.data)) throw new Error('Invalid list response');
         setReceiptVouchers(res.data.data || []);
       } else if (activeTab === 'Payments') {
         const res = await api.get('/finance/vouchers?type=payment');
+        if (request !== listId.current) return;
+        if (!Array.isArray(res.data?.data)) throw new Error('Invalid list response');
         setPaymentVouchers(res.data.data || []);
       } else if (activeTab === 'Expenses') {
         const res = await api.get('/finance/expenses');
+        if (request !== listId.current) return;
+        if (!Array.isArray(res.data?.data)) throw new Error('Invalid list response');
         setExpenses(res.data.data || []);
       }
     } catch (err) {
-      console.error(`Failed to fetch ${activeTab}`, err);
-      toast.error(`Failed to load ${activeTab} data`);
+      if (request === listId.current) setListError(true);
     } finally {
-      setLoading(false);
+      if (request === listId.current) setLoading(false);
     }
   };
 
@@ -676,7 +703,7 @@ const FinanceDashboard = () => {
                   ].map(item => (
                     <div key={item.label} style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
                       <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>{item.label}</div>
-                      <div style={{ fontSize: '26px', fontWeight: 900, color: item.color }}><span className="num-en">{parseFloat(item.value || 0).toLocaleString('en-US')}</span> <span style={{ fontSize: '13px' }}>{t('common.currency', 'EGP')}</span></div>
+                      <div style={{ fontSize: '26px', fontWeight: 900, color: item.color }}><span className="num-en">{money(item.value)}</span> <span style={{ fontSize: '13px' }}>{t('common.currency', 'EGP')}</span></div>
                       <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>{item.sub}</div>
                     </div>
                   ))}
@@ -770,6 +797,11 @@ const FinanceDashboard = () => {
         </div>
       </div>
 
+      {summaryError && (<div role="alert" style={{ padding: '16px', marginBottom: '16px', border: '1px solid #fca5a5', borderRadius: '10px', background: '#fef2f2', color: '#991b1b' }}>
+        <p>{isRTL ? 'تعذر تأكيد البيانات المالية. حاول مرة أخرى.' : 'Financial data could not be confirmed. Please retry.'}</p>
+        <button type="button" className="btn-secondary" onClick={fetchSummary}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+      </div>)}
+
       {/* KPI Summary Strip — hidden on Overview tab (Overview tab renders its own full grid) */}
       {activeTab !== 'Overview' && (
       <div className="kpi-grid">
@@ -777,7 +809,7 @@ const FinanceDashboard = () => {
             <div>
                 <span className="kpi-title">{t('finance.kpi.totalCollected')}</span>
                 <div className="kpi-val num-en" style={{ color: '#10b981' }}>
-                    {parseFloat(summaryStats?.totalIncome || 0).toLocaleString('en-US')} <span style={{ fontSize: '12px' }}>{t('common.currency')}</span>
+                    {money(summaryStats?.totalIncome)} <span style={{ fontSize: '12px' }}>{t('common.currency')}</span>
                 </div>
             </div>
             <div className="kpi-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
@@ -789,7 +821,7 @@ const FinanceDashboard = () => {
             <div>
                 <span className="kpi-title">{t('finance.kpi.expenses')}</span>
                 <div className="kpi-val num-en" style={{ color: '#ef4444' }}>
-                    {parseFloat(summaryStats?.totalExpenses || 0).toLocaleString('en-US')} <span style={{ fontSize: '12px' }}>{t('common.currency')}</span>
+                    {money(summaryStats?.totalExpenses)} <span style={{ fontSize: '12px' }}>{t('common.currency')}</span>
                 </div>
             </div>
             <div className="kpi-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
@@ -801,7 +833,7 @@ const FinanceDashboard = () => {
             <div>
                 <span className="kpi-title">{t('finance.kpi.outstanding')}</span>
                 <div className="kpi-val num-en" style={{ color: '#f59e0b' }}>
-                    {parseFloat(summaryStats?.totalOutstanding || 0).toLocaleString('en-US')} <span style={{ fontSize: '12px' }}>{t('common.currency')}</span>
+                    {money(summaryStats?.totalOutstanding)} <span style={{ fontSize: '12px' }}>{t('common.currency')}</span>
                 </div>
             </div>
             <div className="kpi-icon" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
@@ -813,7 +845,7 @@ const FinanceDashboard = () => {
             <div>
                 <span className="kpi-title">{t('finance.kpi.netCashflow')}</span>
                 <div className="kpi-val num-en" style={{ color: (summaryStats?.netCashflow || 0) >= 0 ? '#3b82f6' : '#ef4444' }}>
-                    {parseFloat(summaryStats?.netCashflow || 0).toLocaleString('en-US')} <span style={{ fontSize: '12px' }}>{t('common.currency')}</span>
+                    {money(summaryStats?.netCashflow)} <span style={{ fontSize: '12px' }}>{t('common.currency')}</span>
                 </div>
             </div>
             <div className="kpi-icon" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
@@ -877,7 +909,14 @@ const FinanceDashboard = () => {
         )}
       </div>
 
-      {renderTabContent()}
+      {['Invoices', 'Quotations', 'Receipts', 'Payments', 'Expenses'].includes(activeTab) && listError ? (
+        <div role="alert" style={{ padding: '16px', marginBottom: '16px', border: '1px solid #fca5a5', borderRadius: '10px', background: '#fef2f2', color: '#991b1b' }}>
+        <p>{isRTL ? 'تعذر تأكيد البيانات المالية. حاول مرة أخرى.' : 'Financial data could not be confirmed. Please retry.'}</p>
+        <button type="button" className="btn-secondary" onClick={fetchData}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+      </div>
+      ) : ['Invoices', 'Quotations', 'Receipts', 'Payments', 'Expenses'].includes(activeTab) && loading ? (
+        <div role="status" style={{ padding: '32px' }}>{isRTL ? 'جار تأكيد البيانات...' : 'Confirming data...'}</div>
+      ) : renderTabContent()}
 
       {/* Payment Registration Modal */}
       {showPaymentModal && (
