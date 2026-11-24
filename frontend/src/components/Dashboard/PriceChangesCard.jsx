@@ -47,6 +47,7 @@ const PriceChangesCard = ({ timeFilter }) => {
                 {['up', 'down'].map(d => <span key={d} style={{ marginInlineEnd: '8px', color: COLORS[d] }}>{ARROW[d]} <span className="num-en">{(state.summary[k] || {})[d] || 0}</span></span>)}
               </span>
             </div>
+            {k === 'rent' && <div style={{ fontSize: '11px', color: '#92400e', background: '#fef3c7', borderRadius: '6px', padding: '4px 8px', marginBottom: '4px' }}>{t('priceChanges.rentBasis', 'Rent prices have no recorded period (monthly or yearly). Each change compares the same unit with itself only. Do not compare rent amounts across units or with sale prices.')}</div>}
             {groups[k].map(u => (
               <div key={u.unit_id} style={{ display: 'flex', gap: '10px', fontSize: '12px', padding: '3px 0', alignItems: 'baseline', flexWrap: 'wrap' }}>
                 <span style={{ color: COLORS[u.direction], fontWeight: 800 }}>{ARROW[u.direction]}</span>

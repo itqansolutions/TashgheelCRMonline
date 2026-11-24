@@ -22,7 +22,7 @@ export const fmtMoney = (v, currencySuffix) => {
 export const fmtDate = (v) => {
   if (!v) return '—';
   const val = String(v).split('T')[0];
-  return <span className="num-en">{val}</span>;
+  return <span className="num-en" style={{ whiteSpace: "nowrap" }}>{val}</span>;
 };
 
 export const WorkspaceHeader = ({ icon, title, subtitle, children }) => (

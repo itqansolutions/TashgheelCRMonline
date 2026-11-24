@@ -12,9 +12,12 @@ Branch feat/crm-team-rental-package (base 500dcbf7). Additive migration: ops/pro
 ## Rollback (no .sql file by design, so the migration runner cannot auto-run it)
 1. Redeploy the previous release (code only). New columns/tables are ignored by old code.
 2. Data rollback, only if required and approved: DROP TABLE re_rental_alert_deliveries, re_rental_occupancies, re_unit_events; ALTER TABLE re_units DROP marketing_* columns; ALTER TABLE deals DROP COLUMN assigned_team_id. This loses team assignments and history.
-3. Take a backup before running any live migration (Ali waived waiting for a fresh backup, not the backup setup).
+3. Backup: Ali waived waiting for a fresh backup for this package (00:49). Attempt any available non-disruptive backup within existing authority, but do not block release on it.
 
 ## Known gaps to flag
 - Existing DB-backed tests (batch_*) need DATABASE_URL_TEST and were not run; they fail identically at baseline without it.
 - Many older reports/dashboards never used row scope (pre-existing, not changed).
 - Local tests ran on PG 19 embedded; live is PG 18.
+
+- Rent price basis: units store no rent period, so rent changes are shown per unit only (old/new/delta) with an on-screen notice; sale and rent are never mixed or averaged.
+- Integrated-page layout proof: tests/crm_app_layout.browser.cjs renders the real Deals, Handover and Rentals pages with real Modal/DataTable (API and auth stubbed, synthetic data).
