@@ -148,9 +148,9 @@ function mapExternalStatus(externalStatus) {
   if (!externalStatus) return 'draft';
   const s = externalStatus.toLowerCase();
   if (s === 'live' || s === 'published' || s === 'active') return 'published';
-  if (s === 'pending' || s === 'pending_review' || s === 'under_review') return 'pending_publication';
-  if (s === 'rejected' || s === 'declined') return 'rejected';
-  if (s === 'unpublished' || s === 'archived' || s === 'inactive') return 'unpublished';
+  if (s === 'pending' || s === 'pending_review' || s === 'under_review' || s === 'pending_approval') return 'pending_publication';
+  if (s === 'rejected' || s === 'declined' || s === 'publishing_failed' || s === 'failed') return 'rejected';
+  if (s === 'unpublished' || s === 'archived' || s === 'inactive' || s === 'takendown') return 'unpublished';
   return 'draft';
 }
 
@@ -320,11 +320,17 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
 
   const seenListingIds = new Set();
   const pageLimit = Number(limit) > 0 ? Number(limit) : 50;
-  let currentPage = Math.max(1, Number(page) || 1);
+  const firstPage = Math.max(1, Number(page) || 1);
 
   try {
+    // Atlas defaults to published records. Read both non-archived streams,
+    // deduplicating by external ID across pages and streams. No provider writes.
+    for (const draft of [false, true]) {
+    if (stats.pages >= MAX_LISTING_PAGES) throw Error('LISTING_PAGE_LIMIT_REACHED_INCOMPLETE');
+    let currentPage = firstPage;
+    const streamSeen = new Set();
     while (stats.pages < MAX_LISTING_PAGES) {
-      const response = await client.getListings({ page: currentPage, perPage: pageLimit, limit: pageLimit });
+      const response = await client.getListings({ page: currentPage, perPage: pageLimit, limit: pageLimit, draft });
       const listings = PropertyFinderClient.extractListings(response);
       stats.pages++;
 
@@ -337,14 +343,15 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
             stats.skipped++;
             continue;
           }
+          if (!streamSeen.has(extId)) { streamSeen.add(extId); newListingsOnPage++; }
           if (seenListingIds.has(extId)) {
             continue;
           }
           seenListingIds.add(extId);
-          newListingsOnPage++;
           stats.totalFetched++;
 
-          const pubStatus = mapExternalStatus(listing.status);
+          const externalStatus = listing.state?.type || listing.state?.stage || listing.status || 'draft';
+          const pubStatus = mapExternalStatus(externalStatus);
           const price = extractListingPrice(listing);
           const areaSqm = Number(listing.area_sqm || listing.area || listing.size) || null;
           const rooms = Number(listing.bedrooms || listing.rooms) || 0;
@@ -419,7 +426,7 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
                    external_reference = COALESCE(NULLIF($5, ''), external_reference),
                    last_synced_at = CURRENT_TIMESTAMP, last_payload_snapshot = $6, updated_at = CURRENT_TIMESTAMP
                WHERE id = $7`,
-              [listing.status, pubStatus, listing.portal_url || existingMapping.portal_url, rejectionReason, externalReference, JSON.stringify(listing), existingMapping.id]
+              [externalStatus, pubStatus, listing.portal_url || existingMapping.portal_url, rejectionReason, externalReference, JSON.stringify(listing), existingMapping.id]
             );
 
             if (existingMapping.unit_id) {
@@ -479,7 +486,7 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
               [
                 tenantId,
                 extId,
-                listing.status || 'live',
+                externalStatus,
                 externalReference,
                 listing.portal_url || null,
                 ambReason,
@@ -560,7 +567,7 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
               targetUnitId,
               extId,
               pubStatus,
-              listing.status || 'live',
+              externalStatus,
               externalReference,
               listing.portal_url || null,
               JSON.stringify(listing)
@@ -577,11 +584,16 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
         }
       }
 
-      if (listings.length === 0 || newListingsOnPage === 0) break;
-      if (!PropertyFinderClient.hasNextPage(response, currentPage, listings.length, pageLimit)) break;
+      const hasNext = PropertyFinderClient.hasNextPage(response, currentPage, listings.length, pageLimit);
+      if (listings.length === 0 || newListingsOnPage === 0) {
+        if (hasNext) throw Error('LISTING_REPEATED_OR_EMPTY_PAGE_INCOMPLETE');
+        break;
+      }
+      if (!hasNext) break;
+      if (stats.pages >= MAX_LISTING_PAGES) throw Error('LISTING_PAGE_LIMIT_REACHED_INCOMPLETE');
       currentPage++;
     }
-
+    }
     // Update settings sync timestamps
     await db.query(
       `UPDATE property_finder_settings 

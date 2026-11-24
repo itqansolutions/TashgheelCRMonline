@@ -233,7 +233,7 @@ class PropertyFinderClient {
   /**
    * Retrieve list of properties from Property Finder with pagination.
    */
-  async getListings({ page = 1, perPage = null, limit = MAX_PER_PAGE, status = null, updatedAfter = null } = {}) {
+  async getListings({ page = 1, perPage = null, limit = MAX_PER_PAGE, status = null, updatedAfter = null, draft = false } = {}) {
     const cleanPage = Math.max(1, Number(page) || 1);
     const effectivePerPage = Math.min(MAX_PER_PAGE, Math.max(1, Number(perPage ?? limit) || MAX_PER_PAGE));
     const params = {
@@ -242,6 +242,7 @@ class PropertyFinderClient {
       limit: effectivePerPage,
       country: this.countryCode
     };
+    if (draft === true) params.draft = true;
     if (status) params.status = status;
     if (updatedAfter) params.updated_after = updatedAfter;
 

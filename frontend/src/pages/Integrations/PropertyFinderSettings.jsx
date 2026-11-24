@@ -166,10 +166,14 @@ const PropertyFinderSettings = () => {
   };
 
   const handleImportListings = async () => {
-    if(!window.confirm('سيتم استيراد الإعلانات وحفظ نسخ خاصة من صور حسابكم داخل قاعدة البيانات: حتى 20 صورة للوحدة، 5 MiB للصورة، بدون حد المساحة المؤقت للمؤسسة. قد تزيد تكلفة التخزين والنسخ الاحتياطي. الصور غير متاحة في رابط العميل. هل تؤكد امتلاك حق نسخ الصور وتوافق على الحفظ بهذه الحدود؟\nImport listings and store private photo copies in the existing database: 20 photos/unit, 5 MiB/photo, No temporary tenant storage quota. Storage/backup costs may increase. Photos stay out of the customer link. Confirm copy rights and storage?'))return;
+    if(!window.confirm('سيتم استيراد الإعلانات المنشورة وغير المنشورة دون الأرشيف، مع الحفاظ على حالة النشر، وحفظ نسخ خاصة من صور حسابكم داخل قاعدة البيانات: حتى 20 صورة للوحدة، 5 MiB للصورة، بدون حد المساحة المؤقت للمؤسسة. قد تزيد تكلفة التخزين والنسخ الاحتياطي. الصور غير متاحة في رابط العميل. هل تؤكد امتلاك حق نسخ الصور وتوافق على الحفظ بهذه الحدود؟\nImport published and non-published listings, excluding archives, preserving publication state. Store private photo copies in the existing database: 20 photos/unit, 5 MiB/photo, No temporary tenant storage quota. Storage/backup costs may increase. Photos stay out of the customer link. Confirm copy rights and storage?'))return;
     try {
       setImporting(true);
-      const res = await api.post('/propertyfinder/sync/import',{copyPhotos:true});
+      const importContext={...photoContext.current};
+      const sameImportContext=()=>{const c=photoContext.current;return c.token===importContext.token&&c.tenant===importContext.tenant&&c.branch===importContext.branch&&localStorage.getItem('token')===importContext.token&&localStorage.getItem('branch_id')===importContext.branch};
+      const res = await api.post('/propertyfinder/sync/import',{copyPhotos:true},{assertRequestContext:sameImportContext});
+      if(!sameImportContext())throw Error('Import context changed.');
+      sessionStorage.removeItem('pf-photo-cursor:'+importContext.tenant);
       const stats = res.data?.data || {};
       toast.success(
         `Import finished: ${stats.created || 0} created, ${stats.linkedExisting || 0} linked, ${stats.updated || 0} updated.`
