@@ -119,7 +119,8 @@ async function scanDueAlerts(db, { limit = 200, now = null } = {}) {
   }
   let delivered = 0, noRecipients = 0;
   for (const { id } of ids) {
-    const client = await db.connect();
+    let client;
+    try { client = await db.connect(); } catch (e) { console.warn('[RentalAlerts] connection unavailable:', e.message); break; }
     try {
       await client.query('BEGIN');
       const lock = await client.query(
@@ -159,8 +160,9 @@ async function scanDueAlerts(db, { limit = 200, now = null } = {}) {
 
 const startRentalAlertScanner = (intervalMinutes = 15) => {
   const db = require('../config/db');
-  setTimeout(() => { scanDueAlerts(db); }, 45 * 1000);
-  setInterval(() => { scanDueAlerts(db); }, intervalMinutes * 60 * 1000);
+  const run = () => scanDueAlerts(db).catch(e => console.warn('[RentalAlerts] scan failed:', e.message));
+  setTimeout(run, 45 * 1000);
+  setInterval(run, intervalMinutes * 60 * 1000);
   console.log(`[RentalAlerts] Scanner scheduled every ${intervalMinutes} minute(s).`);
 };
 

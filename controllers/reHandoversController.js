@@ -217,6 +217,11 @@ exports.updateHandoverStatus = async (req, res) => {
         }
 
         const ho = hoRes.rows[0];
+        if (status === 'Handed Over' && ho.status === 'Handed Over') {
+            // Repeat of a completed handover: idempotent, no second occupancy or unit write.
+            await client.query('ROLLBACK');
+            return res.json({ status: 'success', message: 'Handover is already completed.', already_completed: true, data: ho });
+        }
         const hoBranch = ho.branch_id || ho.deal_branch_id;
         if (branch_id && hoBranch && String(hoBranch) !== String(branch_id)) {
             await client.query('ROLLBACK');
@@ -312,7 +317,10 @@ exports.updateHandoverStatus = async (req, res) => {
             data: updateRes.rows[0]
         });
     } catch (err) {
-        await client.query('ROLLBACK');
+        await client.query('ROLLBACK').catch(() => {});
+        if (err && err.code === '23505') {
+            return res.status(409).json({ status: 'error', code: 'HANDOVER_CONFLICT', message: 'This unit already has a current rental or the handover was just completed. Refresh and retry.' });
+        }
         if (err && err.isRentalRuleError) {
             return res.status(err.status || 400).json({ status: 'error', code: err.code, message: err.message });
         }

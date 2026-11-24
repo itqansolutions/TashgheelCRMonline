@@ -83,6 +83,18 @@ const h = require('./helpers/pgHarness.cjs');
     const f2 = await mk('f2', 'admin', T2); r = await call(rc.list, { user: f2, branchId: null, body: {}, params: {}, query: {} }); assert.equal(r.body.data.length, 0); log('PASS vacancy confirmation, team-scoped visibility, tenant isolation');
     // unique current occupancy per unit
     await assert.rejects(q("INSERT INTO re_rental_occupancies(id,tenant_id,unit_id,handover_id,ends_on,reminder_lead_days) VALUES(gen_random_uuid(),$1,$2,$3,'2028-01-01',1)", [String(T), D3.unit.id, B2.ho.id]));
+    // repeated completion is idempotent (no 500, no second occupancy)
+    r = await call(hc.updateHandoverStatus, rq(admin, { status: 'Handed Over', rental_reminder_lead_days: 30 }, { id: A.ho.id })); assert.equal(r.statusCode, 200); assert.equal(r.body.already_completed, true);
+    assert.equal((await q('SELECT count(*)::int n FROM re_rental_occupancies WHERE unit_id=$1', [A.unit.id])).rows[0].n, 1);
+    // unique violation on occupancy maps to a clean 409, not a generic 500
+    const U = await base('U', emp.id);
+    await q("INSERT INTO re_rental_occupancies(id,tenant_id,unit_id,handover_id,ends_on,reminder_lead_days) VALUES(gen_random_uuid(),$1,$2,$3,'2028-01-01',1)", [String(T), U.unit.id, U.ho.id]);
+    r = await call(hc.updateHandoverStatus, rq(admin, { status: 'Handed Over', rental_reminder_lead_days: 5 }, { id: U.ho.id })); assert.ok([409].includes(r.statusCode), 'got ' + r.statusCode + JSON.stringify(r.body));
+    log('PASS repeated/conflicting handover completion is clean');
+    // scanner survives a rejected connection
+    const flaky = { query: (...a) => env.pool.query(...a), connect: async () => { throw new Error('pool exhausted'); } };
+    const res = await svc.scanDueAlerts(flaky, { now: '2030-01-01T00:00:00Z' }); assert.ok(res.processed >= 0);
+    log('PASS scanner tolerates connection rejection');
     log('ALL RENTAL TESTS PASSED');
   } finally { await env.stop(); }
 })().catch(e => { console.error('FAIL', e); process.exitCode = 1; });
