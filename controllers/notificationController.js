@@ -29,7 +29,6 @@ async function ensureSystemNotificationsTable() {
 // @route   GET /api/notifications
 // @access  Private
 exports.getNotifications = async (req, res) => {
-    await ensureSystemNotificationsTable();
     const tenant_id = req.user?.tenant_id;
     const branch_id = req.branchId || null;
     const user_id = req.user?.id != null ? String(req.user.id) : null;

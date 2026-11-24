@@ -53,6 +53,14 @@ const branchScope = async (req, res, next) => {
         if (mainBranchRes.rows.length > 0) {
           resolvedBranchId = mainBranchRes.rows[0].id;
         } else {
+          // Reads must not provision business rows while resolving request context.
+          if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+            return res.status(400).json({
+              status: 'error',
+              message: 'Branch scope unavailable. No branch assigned to organization.',
+              code: 'BRANCH_RESOLUTION_FAILED'
+            });
+          }
           // SELF-HEALING: Auto-Provision Main Branch if missing
           console.warn(`[ACL] Self-Healing: Missing main branch for tenant ${tenantId}. Creating one...`);
           const newBranchRes = await db.query(`
