@@ -15,6 +15,7 @@ router.use(branchScope);
 router.get('/', ctrl.getUnits);
 router.get('/match-customer/:customerId', ctrl.matchUnitsForCustomer);
 router.get('/match-unit/:unitId', ctrl.matchCustomersForUnit);
+router.get('/:id/stored-photos/:photoId', ctrl.getStoredUnitPhoto);
 router.get('/:id/overview', ctrl.getUnitOverview);
 router.get('/:id', ctrl.getUnitById);
 router.post('/', ctrl.createUnit);

@@ -32,7 +32,8 @@ exports.getUnits = async (req, res) => {
                 pflm.publication_status as pf_publication_status,
                 pflm.external_listing_id as pf_external_listing_id,
                 pflm.portal_url as pf_portal_url,
-                pflm.rejection_reason as pf_rejection_reason
+                pflm.rejection_reason as pf_rejection_reason,
+                (SELECT a.id FROM attachments a WHERE a.tenant_id::text=ru.tenant_id::text AND a.linked_id=ru.id::text AND a.linked_type='pf_unit_private' AND a.file_data IS NOT NULL ORDER BY a.id LIMIT 1) AS pf_cover_photo_id
             FROM re_units ru
             LEFT JOIN customers c ON ru.vendor_id::text = c.id::text
             LEFT JOIN users u ON ru.responsible_person_id::text = u.id::text
@@ -73,6 +74,19 @@ exports.getUnits = async (req, res) => {
 
         res.status(503).json({status:'error',code:'UNIT_INVENTORY_UNAVAILABLE',message:'Unit inventory could not be loaded. Please retry.'});
     }
+};
+
+// Authenticated stored-photo byte read. No provider requests or filesystem writes.
+exports.getStoredUnitPhoto = async (req,res) => {
+    const tenantId=req.user?.tenant_id;
+    if(!tenantId)return res.status(400).json({status:'error',message:'Tenant context missing'});
+    try {
+        const result=await db.query(`SELECT a.mime_type,a.file_data FROM attachments a JOIN re_units u ON u.id::text=a.linked_id AND u.tenant_id::text=a.tenant_id::text WHERE a.id::text=$1::text AND a.linked_type='pf_unit_private' AND a.tenant_id::text=$2::text AND u.id::text=$3::text AND ($4::text IS NULL OR u.status='Available' OR u.branch_id::text=$4::text OR u.branch_id IS NULL)`,[req.params.photoId,String(tenantId),req.params.id,req.branchId||req.user?.branch_id||null]);
+        const row=result.rows[0];
+        if(!row?.file_data)return res.status(404).json({status:'error',message:'Photo not found'});
+        res.set('Content-Type',row.mime_type);res.set('Cache-Control','private, no-store');res.set('X-Content-Type-Options','nosniff');
+        return res.send(Buffer.from(row.file_data,'base64'));
+    } catch(_) {return res.status(503).json({status:'error',message:'Photo unavailable'});}
 };
 
 // UUID validator helper
@@ -463,15 +477,16 @@ exports.getUnitOverview = async (req, res) => {
         let attachments = [];
         try {
             const attachRes = await db.query(`
-                SELECT id, filename, original_name, mime_type, file_path, created_at, file_data
+                SELECT id, filename, original_name, mime_type, file_path, created_at, file_data, linked_type
                 FROM attachments
-                WHERE (linked_type = 'unit' OR linked_type = 're_unit')
+                WHERE (linked_type IN ('unit', 're_unit', 'pf_unit_private'))
                   AND linked_id = $1::text
                   AND tenant_id::text = $2::text
                 ORDER BY created_at DESC
             `, [id, tenant_id]);
             attachments = (attachRes.rows || []).map(r => ({
                 ...r,
+                source: r.linked_type === 'pf_unit_private' ? 'property_finder_stored' : undefined,
                 file_path: r.file_data ? `data:${r.mime_type || 'image/png'};base64,${r.file_data}` : r.file_path
             }));
         } catch (attachErr) {
@@ -971,9 +986,9 @@ exports.getPublicUnitGallery = async (req, res) => {
                 SELECT id, filename, original_name, mime_type, file_path, file_data, created_at
                 FROM attachments
                 WHERE (linked_type = 'unit' OR linked_type = 're_unit')
-                  AND linked_id = $1::text
+                  AND linked_id = $1::text AND tenant_id::text=$2::text
                 ORDER BY created_at DESC
-            `, [id]);
+            `, [id,unit.tenant_id]);
 
             photos = (attachRes.rows || [])
                 .filter(a => a.mime_type?.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(a.file_path || a.filename || ''))

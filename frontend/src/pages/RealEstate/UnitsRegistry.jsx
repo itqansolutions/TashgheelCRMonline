@@ -1,5 +1,6 @@
 import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect, useRef } from 'react';
+import StoredUnitPhoto from '../../components/RealEstate/StoredUnitPhoto';
 import { createPortal } from 'react-dom';
 import { Building2, Building, Plus, Search, UserCheck, Trash2, CheckCircle2, XCircle, Clock, X, LayoutGrid, List, Map, Sparkles, ArrowRight, ChevronDown, ChevronUp, Layers, Phone, Mail, User, Users, Handshake, Activity, Filter, Calendar, MapPin, FileText, KeyRound, AlertTriangle, Globe, UploadCloud, ExternalLink, Image as ImageIcon, Camera, Upload, Eye, ChevronLeft, ChevronRight, MessageCircle, Copy, Check, Send, Share2 } from 'lucide-react';
 import { Navigate, useSearchParams, Link } from 'react-router-dom';
@@ -1012,6 +1013,7 @@ const UnitsRegistry = () => {
                                 style={{ padding: '0', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s', borderTop: `3px solid ${config.color}` }}
                                 onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 12px 24px rgba(0,0,0,0.1)'; }}
                                 onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = ''; }}>
+                                {u.pf_cover_photo_id && <StoredUnitPhoto unitId={u.id} photoId={u.pf_cover_photo_id} alt={u.name || 'Stored Property Finder photo'} />}
                                 <div style={{ padding: '20px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                                         <div>
@@ -1615,6 +1617,7 @@ const UnitsRegistry = () => {
                                                 </div>
                                             </div>
 
+                                            {photos.some(photo=>photo.source==='property_finder_stored') && <p role="note" style={{fontSize:12,color:'var(--text-muted)',margin:'0 0 12px'}}>{isRTL?'صور Property Finder محفوظة داخل النظام للاستخدام الداخلي فقط، ولا تظهر في رابط المعرض المشترك. الرابط يعرض الصور المرفوعة يدويًا فقط.':'Property Finder photos are stored in the system for internal use only and are not included in the shared gallery link. The link shows manually uploaded photos only.'}</p>}
                                             {photos.length === 0 ? (
                                                 <div style={{ textAlign: 'center', padding: '20px 10px', background: 'white', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
                                                     <Camera size={28} color="#94a3b8" style={{ margin: '0 auto 8px' }} />
@@ -1854,7 +1857,7 @@ const UnitsRegistry = () => {
                                                                         >
                                                                             <Eye size={15} />
                                                                         </button>
-                                                                        <button
+                                                                        {(activePhoto.source!=='property_finder_stored' || user?.role==='admin') && <button
                                                                             type="button"
                                                                             onClick={() => handleDeleteUnitPhoto(activePhoto.id, selectedUnit.id)}
                                                                             style={{
@@ -1876,7 +1879,7 @@ const UnitsRegistry = () => {
                                                                             title={t('realEstate.unitsRegistry.removePhoto') || 'Delete Photo'}
                                                                         >
                                                                             <Trash2 size={15} />
-                                                                        </button>
+                                                                        </button>}
                                                                     </div>
                                                                 </div>
                                                             </div>

@@ -151,13 +151,18 @@ const PropertyFinderSettings = () => {
   };
 
   const handleImportListings = async () => {
+    if(!window.confirm('سيتم استيراد الإعلانات وحفظ نسخ خاصة من صور حسابكم داخل قاعدة البيانات: حتى 20 صورة للوحدة، 5 MiB للصورة، و100 MiB إجمالي صور Property Finder للمؤسسة. قد تزيد تكلفة التخزين والنسخ الاحتياطي. الصور غير متاحة في رابط العميل. هل تؤكد امتلاك حق نسخ الصور وتوافق على الحفظ بهذه الحدود؟\nImport listings and store private photo copies in the existing database: 20 photos/unit, 5 MiB/photo, 100 MiB total PF photos per organization. Storage/backup costs may increase. Photos stay out of the customer link. Confirm copy rights and storage?'))return;
     try {
       setImporting(true);
-      const res = await api.post('/propertyfinder/sync/import');
+      const res = await api.post('/propertyfinder/sync/import',{copyPhotos:true});
       const stats = res.data?.data || {};
       toast.success(
         `Import finished: ${stats.created || 0} created, ${stats.linkedExisting || 0} linked, ${stats.updated || 0} updated.`
       );
+      const photos=stats.photos||[];
+      const saved=photos.reduce((n,p)=>n+(p.saved||0),0),issues=photos.reduce((n,p)=>n+(p.pending||0)+(p.errors?.length||0),0);
+      if(issues)toast.error(`Photos: ${saved} saved, ${issues} pending/failed. Open integration logs for details.`);
+      else toast.success(`Photos: ${saved} saved locally. Existing copies retained.`);
       fetchSettings();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Import failed.');
@@ -490,6 +495,7 @@ const PropertyFinderSettings = () => {
                 </div>
               ) : null}
 
+              <p style={{fontSize:12,color:'#475569'}}>حفظ صور Property Finder: نسخ خاصة داخل قاعدة البيانات، بحد 20 صورة للوحدة و5 MiB للصورة و100 MiB إجمالي للمؤسسة. لا تشملها روابط معرض العميل. / Private stored photos, not customer gallery links. Limits apply; failures are reported, not hidden.</p>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button
                   type="button"

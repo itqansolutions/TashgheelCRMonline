@@ -295,7 +295,10 @@ async function backfillUnlinkedLeadsForListing(tenantId, externalListingId, { qu
  * Paginates across all available pages, deduplicates, separates external_reference from title,
  * avoids ambiguous internal unit matches, and triggers safe lead/deal backfill.
  */
-async function importListings(tenantId, { forceRefresh = false, page = 1, limit = 50 } = {}) {
+async function importListings(tenantId, { forceRefresh = false, page = 1, limit = 50, copyPhotos = false } = {}) {
+  const photoStore=require('./propertyFinderPhotoStorage');
+  const photoBudget=photoStore.createBudget();
+  const photoResults=[];
   const { client, settings } = await getClientForTenant(tenantId);
 
   if (!settings.is_enabled) {
@@ -311,7 +314,8 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
     ambiguous: 0,
     pages: 0,
     backfilledLeads: 0,
-    errors: []
+    errors: [],
+    photos: photoResults
   };
 
   const seenListingIds = new Set();
@@ -423,6 +427,7 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
               stats.backfilledLeads += bf.repairedDeals || 0;
             }
 
+            if(copyPhotos === true && existingMapping.unit_id)photoResults.push({listingId:extId,...await photoStore.persistListingPhotos({pool:db,tenantId,unitId:existingMapping.unit_id,listingId:extId,payload:listing,budget:photoBudget})});
             stats.updated++;
             continue;
           }
@@ -562,6 +567,8 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
             ]
           );
 
+          if(copyPhotos === true)photoResults.push({listingId:extId,...await photoStore.persistListingPhotos({pool:db,tenantId,unitId:targetUnitId,listingId:extId,payload:listing,budget:photoBudget})});
+
           // 4. Backfill any leads/deals that arrived before this listing was imported
           const bf = await backfillUnlinkedLeadsForListing(tenantId, extId).catch(() => ({ repairedDeals: 0 }));
           stats.backfilledLeads += bf.repairedDeals || 0;
@@ -583,7 +590,7 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
            last_error_message = $2,
            updated_at = CURRENT_TIMESTAMP 
        WHERE tenant_id::text = $3::text`,
-      [stats.errors.length > 0 ? 'warning' : 'success', stats.errors.length > 0 ? `${stats.errors.length} listing sync errors` : null, tenantId]
+      [stats.errors.length > 0 || photoResults.some(p=>p.pending||p.errors.length) ? 'warning' : 'success', stats.errors.length > 0 ? `${stats.errors.length} listing sync errors` : null, tenantId]
     );
 
     await logIntegrationEvent(
