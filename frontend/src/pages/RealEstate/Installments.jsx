@@ -28,6 +28,9 @@ const Installments = () => {
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const listRequest = useRef(0);
+  useEffect(() => () => { listRequest.current += 1; }, []);
   const [replaceInfo, setReplaceInfo] = useState(null);
 
   const [planOpen, setPlanOpen] = useState(false);
@@ -47,20 +50,24 @@ const Installments = () => {
   useEffect(() => () => { historyRequest.current += 1; }, []);
 
   const load = async () => {
+    const request = ++listRequest.current;
     setLoading(true);
+    setLoadError(false);
     try {
       const params = new URLSearchParams();
       if (dealId) params.set('deal_id', dealId);
       if (filter === 'overdue') params.set('overdue', 'true');
       else if (filter !== 'all') params.set('status', filter);
       const res = await api.get(`/re-installments?${params.toString()}`);
+      if (request !== listRequest.current) return;
       setRows(res.data.data || []);
       setSummary(res.data.summary || null);
     } catch (err) {
-      toast.error(err.response?.data?.message || t('realEstate.installments.toastLoadError'));
+      if (request !== listRequest.current) return;
+      setLoadError(true);
       setRows([]); setSummary(null);
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
   };
 
@@ -223,13 +230,13 @@ const Installments = () => {
           {t('realEstate.installments.btnCreatePlan')}
         </button>
       </WorkspaceHeader>
-      <DealFilterBanner dealId={dealId} label={rows[0]?.deal_title} onClear={() => setSearchParams({})} />
+      <DealFilterBanner dealId={dealId} label={loading || loadError ? undefined : rows[0]?.deal_title} onClear={() => setSearchParams({})} />
       <StatCards items={[
         { label: t('realEstate.installments.statScheduled'), value: fmtMoney(summary?.total_scheduled, t('realEstate.common.currencySuffix')) },
         { label: t('realEstate.installments.statCollected'), value: fmtMoney(summary?.total_paid, t('realEstate.common.currencySuffix')), color: '#15803d' },
         { label: t('realEstate.installments.statOutstanding'), value: fmtMoney(summary?.total_remaining, t('realEstate.common.currencySuffix')), color: '#b45309' },
         { label: t('realEstate.installments.statOverdueCount'), value: summary?.overdue_count || 0, color: '#b91c1c' },
-      ]} />
+      ].map(item => ({ ...item, value: loading || loadError ? '...' : item.value }))} />
       <FilterChips value={filter} onChange={setFilter} options={[
         { value: 'all', label: t('realEstate.installments.filterAll') },
         { value: 'Pending', label: t('realEstate.installments.filterPending') },
@@ -237,13 +244,16 @@ const Installments = () => {
         { value: 'overdue', label: t('realEstate.installments.filterOverdue') },
         { value: 'Paid', label: t('realEstate.installments.filterPaid') },
       ]} />
-      <SimpleTable
+      {loadError ? <div role="alert" style={{ padding: 20, color: '#991b1b', border: '1px solid #fecaca', borderRadius: 10 }}>
+        <p>{isRTL ? 'تعذر تحميل البيانات. الأرقام غير مؤكدة، ولا يمكن اعتبار القائمة فارغة.' : 'Data could not be loaded. Totals are unconfirmed and the list cannot be treated as empty.'}</p>
+        <button type="button" onClick={load} style={{ ...fieldStyle, width: 'auto', cursor: 'pointer' }}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+      </div> : (<SimpleTable
         columns={columns}
         rows={rows}
         loading={loading}
         rowStyle={(r) => (r.is_overdue && r.status !== 'Paid' ? { background: '#fef2f2' } : r.status === 'Paid' ? { background: '#f0fdf4' } : {})}
         empty={t('realEstate.installments.empty')}
-      />
+      />)}
 
       {/* Create / split installment plan */}
       <Modal variant="form"

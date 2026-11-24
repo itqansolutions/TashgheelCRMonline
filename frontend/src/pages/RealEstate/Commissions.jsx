@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Award } from 'lucide-react';
@@ -32,6 +32,9 @@ const Commissions = () => {
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const listRequest = useRef(0);
+  useEffect(() => () => { listRequest.current += 1; }, []);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
@@ -58,19 +61,23 @@ const Commissions = () => {
   };
 
   const load = async () => {
+    const request = ++listRequest.current;
     setLoading(true);
+    setLoadError(false);
     try {
       const params = new URLSearchParams();
       if (dealId) params.set('deal_id', dealId);
       if (filter !== 'all') params.set('status', filter);
       const res = await api.get(`/re-commissions?${params.toString()}`);
+      if (request !== listRequest.current) return;
       setRows(res.data.data || []);
       setSummary(res.data.summary || null);
     } catch (err) {
-      toast.error(err.response?.data?.message || t('realEstate.commissions.toastLoadError'));
+      if (request !== listRequest.current) return;
+      setLoadError(true);
       setRows([]); setSummary(null);
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
   };
 
@@ -187,13 +194,13 @@ const Commissions = () => {
           {t('realEstate.commissions.btnAddCommission')}
         </button>
       </WorkspaceHeader>
-      <DealFilterBanner dealId={dealId} label={rows[0]?.deal_title} onClear={() => setSearchParams({})} />
+      <DealFilterBanner dealId={dealId} label={loading || loadError ? undefined : rows[0]?.deal_title} onClear={() => setSearchParams({})} />
       <StatCards items={[
         { label: t('realEstate.commissions.statTotal'), value: fmtMoney(summary?.total_commissions, t('realEstate.common.currencySuffix')) },
         { label: t('realEstate.commissions.statPaid'), value: fmtMoney(summary?.total_paid, t('realEstate.common.currencySuffix')), color: '#15803d' },
         { label: t('realEstate.commissions.statPendingPayout'), value: fmtMoney(summary?.total_pending, t('realEstate.common.currencySuffix')), color: '#b45309' },
         { label: t('realEstate.commissions.statRecords'), value: summary?.count || 0 },
-      ]} />
+      ].map(item => ({ ...item, value: loading || loadError ? '...' : item.value }))} />
       <FilterChips value={filter} onChange={setFilter} options={[
         { value: 'all', label: t('realEstate.commissions.filterAll') },
         { value: 'Pending', label: t('realEstate.commissions.filterPending') },
@@ -202,12 +209,15 @@ const Commissions = () => {
         { value: 'Paid', label: t('realEstate.commissions.filterPaid') },
         { value: 'Cancelled', label: t('realEstate.commissions.filterCancelled') },
       ]} />
-      <SimpleTable
+      {loadError ? <div role="alert" style={{ padding: 20, color: '#991b1b', border: '1px solid #fecaca', borderRadius: 10 }}>
+        <p>{isRTL ? 'تعذر تحميل البيانات. الأرقام غير مؤكدة، ولا يمكن اعتبار القائمة فارغة.' : 'Data could not be loaded. Totals are unconfirmed and the list cannot be treated as empty.'}</p>
+        <button type="button" onClick={load} style={{ ...fieldStyle, width: 'auto', cursor: 'pointer' }}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+      </div> : (<SimpleTable
         columns={columns}
         rows={rows}
         loading={loading}
         empty={t('realEstate.commissions.empty')}
-      />
+      />)}
 
       <Modal variant="form"
         isOpen={formOpen}

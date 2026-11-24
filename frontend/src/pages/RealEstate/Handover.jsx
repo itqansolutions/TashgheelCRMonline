@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Key } from 'lucide-react';
@@ -26,6 +26,9 @@ const Handover = () => {
   const [filter, setFilter] = useState('all');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const listRequest = useRef(0);
+  useEffect(() => () => { listRequest.current += 1; }, []);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState({ deal_id: '', scheduled_date: '', snagging_notes: '' });
 
@@ -46,18 +49,22 @@ const Handover = () => {
   };
 
   const load = async () => {
+    const request = ++listRequest.current;
     setLoading(true);
+    setLoadError(false);
     try {
       const params = new URLSearchParams();
       if (dealId) params.set('deal_id', dealId);
       if (filter !== 'all') params.set('status', filter);
       const res = await api.get(`/re-handovers?${params.toString()}`);
+      if (request !== listRequest.current) return;
       setRows(res.data.data || []);
     } catch (err) {
-      toast.error(err.response?.data?.message || t('realEstate.handover.toastLoadError'));
+      if (request !== listRequest.current) return;
+      setLoadError(true);
       setRows([]);
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
   };
 
@@ -156,13 +163,13 @@ const Handover = () => {
           {t('realEstate.handover.btnScheduleHandover')}
         </button>
       </WorkspaceHeader>
-      <DealFilterBanner dealId={dealId} label={rows[0]?.deal_title} onClear={() => setSearchParams({})} />
+      <DealFilterBanner dealId={dealId} label={loading || loadError ? undefined : rows[0]?.deal_title} onClear={() => setSearchParams({})} />
       <StatCards items={[
         { label: t('realEstate.handover.statScheduled'), value: count('Scheduled') },
         { label: t('realEstate.handover.statInspection'), value: count('Inspection'), color: '#1d4ed8' },
         { label: t('realEstate.handover.statReadyForDelivery'), value: count('Ready for Delivery'), color: '#b45309' },
         { label: t('realEstate.handover.statHandedOver'), value: count('Handed Over'), color: '#0f766e' },
-      ]} />
+      ].map(item => ({ ...item, value: loading || loadError ? '...' : item.value }))} />
       <FilterChips value={filter} onChange={setFilter} options={[
         { value: 'all', label: t('realEstate.handover.filterAll') },
         { value: 'Scheduled', label: t('realEstate.handover.filterScheduled') },
@@ -170,12 +177,15 @@ const Handover = () => {
         { value: 'Ready for Delivery', label: t('realEstate.handover.filterReadyForDelivery') },
         { value: 'Handed Over', label: t('realEstate.handover.filterHandedOver') },
       ]} />
-      <SimpleTable
+      {loadError ? <div role="alert" style={{ padding: 20, color: '#991b1b', border: '1px solid #fecaca', borderRadius: 10 }}>
+        <p>{isRTL ? 'تعذر تحميل البيانات. الأرقام غير مؤكدة، ولا يمكن اعتبار القائمة فارغة.' : 'Data could not be loaded. Totals are unconfirmed and the list cannot be treated as empty.'}</p>
+        <button type="button" onClick={load} style={{ ...fieldStyle, width: 'auto', cursor: 'pointer' }}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+      </div> : (<SimpleTable
         columns={columns}
         rows={rows}
         loading={loading}
         empty={t('realEstate.handover.empty')}
-      />
+      />)}
 
       <Modal variant="form"
         isOpen={formOpen}

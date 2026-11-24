@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { FileText, Download, Trash2, Paperclip } from 'lucide-react';
@@ -28,6 +28,9 @@ const Contracts = () => {
   const [contracts, setContracts] = useState([]);
   const [allContracts, setAllContracts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const listRequest = useRef(0);
+  useEffect(() => () => { listRequest.current += 1; }, []);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({});
   const [activeAttachmentContract, setActiveAttachmentContract] = useState(null);
@@ -127,18 +130,22 @@ const Contracts = () => {
   };
 
   const load = async () => {
+    const request = ++listRequest.current;
     setLoading(true);
+    setLoadError(false);
     try {
       const params = new URLSearchParams();
       if (dealId) params.set('deal_id', dealId);
       const res = await api.get(`/re-contracts?${params.toString()}`);
+      if (request !== listRequest.current) return;
       const data = res.data.data || [];
       setAllContracts(data);
     } catch (err) {
-      toast.error(err.response?.data?.message || t('realEstate.contracts.toastLoadError'));
+      if (request !== listRequest.current) return;
+      setLoadError(true);
       setAllContracts([]);
     } finally {
-      setLoading(false);
+      if (request === listRequest.current) setLoading(false);
     }
   };
 
@@ -266,13 +273,13 @@ const Contracts = () => {
         title={t('realEstate.contracts.title')}
         subtitle={t('realEstate.contracts.subtitle')}
       />
-      <DealFilterBanner dealId={dealId} label={allContracts[0]?.deal_title} onClear={() => setSearchParams({})} />
+      <DealFilterBanner dealId={dealId} label={loading || loadError ? undefined : allContracts[0]?.deal_title} onClear={() => setSearchParams({})} />
       <StatCards items={[
         { label: t('realEstate.contracts.statTotal'), value: allContracts.length },
         { label: t('realEstate.contracts.statActive'), value: count(c => c.status === 'Active'), color: '#15803d' },
         { label: t('realEstate.contracts.statExpiringSoon'), value: count(c => c.expiry_state === 'expiring_soon'), color: '#b45309' },
         { label: t('realEstate.contracts.statExpired'), value: count(c => c.expiry_state === 'expired'), color: '#b91c1c' },
-      ]} />
+      ].map(item => ({ ...item, value: loading || loadError ? '...' : item.value }))} />
       <FilterChips value={filter} onChange={setFilter} options={[
         { value: 'all', label: t('realEstate.contracts.filterAll') },
         { value: 'Draft', label: t('realEstate.contracts.filterDraft') },
@@ -283,12 +290,15 @@ const Contracts = () => {
         { value: 'Completed', label: t('realEstate.contracts.filterCompleted') },
         { value: 'Cancelled', label: t('realEstate.contracts.filterCancelled') },
       ]} />
-      <SimpleTable
+      {loadError ? <div role="alert" style={{ padding: 20, color: '#991b1b', border: '1px solid #fecaca', borderRadius: 10 }}>
+        <p>{isRTL ? 'تعذر تحميل البيانات. الأرقام غير مؤكدة، ولا يمكن اعتبار القائمة فارغة.' : 'Data could not be loaded. Totals are unconfirmed and the list cannot be treated as empty.'}</p>
+        <button type="button" onClick={load} style={{ ...fieldStyle, width: 'auto', cursor: 'pointer' }}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+      </div> : (<SimpleTable
         columns={columns}
         rows={contracts}
         loading={loading}
         empty={t('realEstate.contracts.empty')}
-      />
+      />)}
 
       <Modal variant="form"
         isOpen={!!editing}
