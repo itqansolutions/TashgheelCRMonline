@@ -340,8 +340,6 @@ exports.getInvoices = async (req, res) => {
         branch_id = null;
     }
 
-    await ensureInvoicesTable();
-
     try {
         let query = `
             SELECT 
@@ -866,7 +864,6 @@ exports.getInvoiceDetails = async (req, res) => {
     }
     const invoice_id = req.params.id;
 
-    await ensureInvoicesTable();
 
     try {
         let invQuery = `
@@ -1160,7 +1157,7 @@ exports.getVouchers = async (req, res) => {
     const { type, party_type, start_date, end_date } = req.query;
 
     try {
-        await ensureVouchersTable();
+
         let query = `
             SELECT 
                 v.*,
@@ -1328,7 +1325,6 @@ exports.getVoucherDetails = async (req, res) => {
     const voucher_id = req.params.id;
 
     try {
-        await ensureVouchersTable();
         const vRes = await db.query(`
             SELECT 
                 v.*,
@@ -1622,7 +1618,6 @@ exports.getExpenses = async (req, res) => {
     let branch_id = req.branchId || req.user?.branch_id || null;
 
     try {
-        await ensureInvoicesTable();
         const result = await db.query(
             `SELECT * FROM expenses 
              WHERE tenant_id::text = $1::text 
@@ -1669,8 +1664,6 @@ exports.getIncome = async (req, res) => {
     let branch_id = req.branchId || req.user?.branch_id || null;
 
     try {
-        await ensureInvoicesTable();
-        await ensureVouchersTable();
         const result = await db.query(`
             SELECT 
                 p.id, p.source_type, p.voucher_number,
@@ -1707,9 +1700,6 @@ exports.getSummary = async (req, res) => {
     let branch_id = req.branchId || req.user?.branch_id || null;
 
     try {
-        await ensureInvoicesTable();
-        await ensureVouchersTable();
-
         const incomeRes = await db.query(
             `SELECT COALESCE(SUM(amount), 0) as total_income 
              FROM ${collectionSource} collections
@@ -1740,22 +1730,17 @@ exports.getSummary = async (req, res) => {
 
         let receiptsCount = 0;
         let paymentsCount = 0;
-        try {
-            await ensureVouchersTable();
-            const vouchersCountRes = await db.query(`
-                SELECT 
-                    COUNT(CASE WHEN voucher_type = 'receipt' THEN 1 END) as receipts_count,
-                    COUNT(CASE WHEN voucher_type = 'payment' THEN 1 END) as payments_count
-                FROM finance_vouchers
-                WHERE tenant_id::text = $1::text 
-                  AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
-                  AND (COALESCE(status, 'active') != 'cancelled')
-            `, [tenant_id, branch_id ? String(branch_id) : null]);
-            receiptsCount = parseInt(vouchersCountRes.rows[0]?.receipts_count || 0);
-            paymentsCount = parseInt(vouchersCountRes.rows[0]?.payments_count || 0);
-        } catch (vErr) {
-            console.warn('[Finance Summary] Vouchers count fallback:', vErr.message);
-        }
+        const vouchersCountRes = await db.query(`
+            SELECT
+                COUNT(CASE WHEN voucher_type = 'receipt' THEN 1 END) as receipts_count,
+                COUNT(CASE WHEN voucher_type = 'payment' THEN 1 END) as payments_count
+            FROM finance_vouchers
+            WHERE tenant_id::text = $1::text
+              AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+              AND (COALESCE(status, 'active') != 'cancelled')
+        `, [tenant_id, branch_id ? String(branch_id) : null]);
+        receiptsCount = parseInt(vouchersCountRes.rows[0]?.receipts_count || 0);
+        paymentsCount = parseInt(vouchersCountRes.rows[0]?.payments_count || 0);
 
         const totalIncome = parseFloat(incomeRes.rows[0]?.total_income || 0);
         const totalExpenses = parseFloat(expenseRes.rows[0]?.total_expenses || 0);
@@ -1794,8 +1779,6 @@ exports.getCustomerAccounts = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     let branch_id = req.branchId || req.user?.branch_id || null;
     if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
-
-    await ensureInvoicesTable();
 
     try {
         // One query: per-customer aggregation from invoices + payments + on-account vouchers
@@ -1896,23 +1879,19 @@ exports.getCustomerAccounts = async (req, res) => {
         }, { totalReceivables: 0, totalOverdue: 0, totalInvoiced: 0, totalPaid: 0, customersWithOutstanding: 0 });
 
         // Due this month = outstanding invoices with due_date in current calendar month
-        try {
-            const monthRes = await db.query(`
-                SELECT COALESCE(SUM(i.total_amount - COALESCE(p_agg.paid, 0)), 0) AS due_this_month
-                FROM invoices i
-                LEFT JOIN (
-                    SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
-                    FROM payments WHERE tenant_id::text = $1::text AND (COALESCE(status, 'active') != 'cancelled') GROUP BY invoice_id
-                ) p_agg ON p_agg.invoice_id::text = i.id::text
-                WHERE i.tenant_id::text = $1::text
-                  AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
-                  AND i.status != 'paid'
-                  AND date_trunc('month', i.due_date) = date_trunc('month', CURRENT_DATE)
-            `, [tenant_id, branch_id ? String(branch_id) : null]);
-            kpi.dueThisMonth = parseFloat(monthRes.rows[0]?.due_this_month || 0);
-        } catch (e) {
-            kpi.dueThisMonth = 0;
-        }
+        const monthRes = await db.query(`
+            SELECT COALESCE(SUM(i.total_amount - COALESCE(p_agg.paid, 0)), 0) AS due_this_month
+            FROM invoices i
+            LEFT JOIN (
+                SELECT invoice_id, COALESCE(SUM(amount), 0) AS paid
+                FROM payments WHERE tenant_id::text = $1::text AND (COALESCE(status, 'active') != 'cancelled') GROUP BY invoice_id
+            ) p_agg ON p_agg.invoice_id::text = i.id::text
+            WHERE i.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
+              AND i.status != 'paid'
+              AND date_trunc('month', i.due_date) = date_trunc('month', CURRENT_DATE)
+        `, [tenant_id, branch_id ? String(branch_id) : null]);
+        kpi.dueThisMonth = parseFloat(monthRes.rows[0]?.due_this_month || 0);
 
         res.json({ status: 'success', data: result.rows, kpi });
     } catch (err) {
@@ -1934,7 +1913,6 @@ exports.getCustomerStatement = async (req, res) => {
     const rangeError = validateDateRange(date_from, date_to);
     if (rangeError) return res.status(400).json({ status: 'error', message: rangeError });
 
-    await ensureInvoicesTable();
 
     try {
         // 1. Customer info
@@ -2112,7 +2090,6 @@ exports.getCustomerAging = async (req, res) => {
 
     const customer_id = req.params.id;
 
-    await ensureInvoicesTable();
 
     try {
         const result = await db.query(`
@@ -2181,21 +2158,7 @@ exports.getTreasuryAccounts = async (req, res) => {
     if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
 
     try {
-        // Guard: return empty if treasury_accounts table doesn't exist yet (pre-migration)
-        try {
-            await db.query(`SELECT 1 FROM treasury_accounts LIMIT 1`);
-        } catch (tableErr) {
-            if (tableErr.message && tableErr.message.includes('does not exist')) {
-                return res.json({
-                    status: 'success',
-                    data: [],
-                    totals: { total_balance: 0, total_cash: 0, total_bank: 0, month_incoming: 0, month_outgoing: 0 },
-                    _warning: 'treasury_accounts table not yet created — run migrations/001_create_treasury_accounts.sql',
-                });
-            }
-            throw tableErr;
-        }
-
+        // Required tables are read prerequisites, never an empty-account success.
         // Get all active treasury accounts for this tenant+branch
         const accountsRes = await db.query(`
             SELECT
@@ -2455,7 +2418,7 @@ exports.getTreasuryAccountTransactions = async (req, res) => {
     if (rangeError) return res.status(400).json({ status: 'error', message: rangeError });
 
     try {
-        await ensureVouchersTable();
+
         // Ownership check
         const accRes = await db.query(`
             SELECT * FROM treasury_accounts
@@ -2648,9 +2611,6 @@ exports.getFinancialReports = async (req, res) => {
 
     const rangeError = validateDateRange(date_from, date_to);
     if (rangeError) return res.status(400).json({ status: 'error', message: rangeError });
-
-    await ensureInvoicesTable();
-    await ensureVouchersTable();
 
     try {
         const queryParams = [tenant_id, branch_id ? String(branch_id) : null];
@@ -2869,57 +2829,55 @@ exports.getFinancialReports = async (req, res) => {
         let purchasesCount = 0;
         let totalVendorPayments = 0;
 
-        try {
-            let purchaseDateFilter = '';
-            let voucherDateFilter = '';
-            if (date_from) {
-                purchaseDateFilter += ` AND pi.invoice_date >= $3::date`;
-                voucherDateFilter  += ` AND fv.voucher_date >= $3::date`;
-            }
-            if (date_to) {
-                purchaseDateFilter += ` AND pi.invoice_date <= $4::date`;
-                voucherDateFilter  += ` AND fv.voucher_date <= $4::date`;
-            }
+        let purchaseDateFilter = '';
+        let voucherDateFilter = '';
+        if (date_from) {
+            purchaseDateFilter += ` AND pi.invoice_date >= $3::date`;
+            voucherDateFilter  += ` AND fv.voucher_date >= $3::date`;
+        }
+        if (date_to) {
+            purchaseDateFilter += ` AND pi.invoice_date <= $${date_from ? 4 : 3}::date`;
+            voucherDateFilter  += ` AND fv.voucher_date <= $${date_from ? 4 : 3}::date`;
+        }
 
-            const pinvRes = await db.query(`
-                SELECT
-                    COUNT(pi.id)::int                                               AS count,
-                    COALESCE(SUM(pi.total_amount), 0)                              AS total_purchases,
-                    COALESCE(SUM(CASE WHEN pi.status != 'paid' THEN pi.total_amount - COALESCE(pi.paid_amount, 0) ELSE 0 END), 0) AS total_payables,
-                    COALESCE(SUM(
-                        CASE 
-                            WHEN pi.status != 'paid' AND pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE 
-                            THEN pi.total_amount - COALESCE(pi.paid_amount, 0) 
-                            ELSE 0 
-                        END
-                    ), 0)                                                           AS total_overdue_payables
-                FROM purchase_invoices pi
-                WHERE pi.tenant_id::text = $1::text
-                  AND ($2::text IS NULL OR pi.branch_id::text = $2::text OR pi.branch_id IS NULL)
-                  ${purchaseDateFilter}
-            `, queryParams);
+        const pinvRes = await db.query(`
+            SELECT
+                COUNT(pi.id)::int                                               AS count,
+                COALESCE(SUM(pi.total_amount), 0)                              AS total_purchases,
+                COALESCE(SUM(CASE WHEN pi.status != 'paid' THEN pi.total_amount - COALESCE(pi.paid_amount, 0) ELSE 0 END), 0) AS total_payables,
+                COALESCE(SUM(
+                    CASE
+                        WHEN pi.status != 'paid' AND pi.due_date IS NOT NULL AND pi.due_date < CURRENT_DATE
+                        THEN pi.total_amount - COALESCE(pi.paid_amount, 0)
+                        ELSE 0
+                    END
+                ), 0)                                                           AS total_overdue_payables
+            FROM purchase_invoices pi
+            WHERE pi.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR pi.branch_id::text = $2::text OR pi.branch_id IS NULL)
+              ${purchaseDateFilter}
+        `, queryParams);
 
-            if (pinvRes.rows.length > 0) {
-                purchasesCount = parseInt(pinvRes.rows[0].count || 0);
-                totalPurchases = parseFloat(pinvRes.rows[0].total_purchases || 0);
-                totalPayables  = parseFloat(pinvRes.rows[0].total_payables || 0);
-                totalOverduePayables = parseFloat(pinvRes.rows[0].total_overdue_payables || 0);
-            }
+        if (pinvRes.rows.length > 0) {
+            purchasesCount = parseInt(pinvRes.rows[0].count || 0);
+            totalPurchases = parseFloat(pinvRes.rows[0].total_purchases || 0);
+            totalPayables  = parseFloat(pinvRes.rows[0].total_payables || 0);
+            totalOverduePayables = parseFloat(pinvRes.rows[0].total_overdue_payables || 0);
+        }
 
-            const vpmtRes = await db.query(`
-                SELECT COALESCE(SUM(amount), 0) AS total_vendor_payments
-                FROM finance_vouchers fv
-                WHERE fv.tenant_id::text = $1::text
-                  AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
-                  AND fv.voucher_type = 'payment'
-                  AND fv.party_type = 'vendor'
-                  ${voucherDateFilter}
-            `, queryParams);
+        const vpmtRes = await db.query(`
+            SELECT COALESCE(SUM(amount), 0) AS total_vendor_payments
+            FROM finance_vouchers fv
+            WHERE fv.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+              AND fv.voucher_type = 'payment'
+              AND fv.party_type = 'vendor'
+              ${voucherDateFilter}
+        `, queryParams);
 
-            if (vpmtRes.rows.length > 0) {
-                totalVendorPayments = parseFloat(vpmtRes.rows[0].total_vendor_payments || 0);
-            }
-        } catch (_) {}
+        if (vpmtRes.rows.length > 0) {
+            totalVendorPayments = parseFloat(vpmtRes.rows[0].total_vendor_payments || 0);
+        }
 
         // 6. CASH FLOW (Inflow vs Outflow, Net, and by Treasury Account)
         const totalInflow = parseFloat(collSummary.total_collected || 0);
@@ -2927,59 +2885,55 @@ exports.getFinancialReports = async (req, res) => {
         const totalOutflow = operatingExpenses + totalVendorPayments;
         const netCashflow = totalInflow - totalOutflow;
 
-        // Cashflow by Treasury Account (if table exists)
+        // Cashflow by Treasury Account (required report prerequisite)
         let treasuryCashflow = [];
-        try {
-            let voucherFilterForTreasury = '';
-            if (date_from) voucherFilterForTreasury += ` AND fv.voucher_date >= $3::date`;
-            if (date_to)   voucherFilterForTreasury += ` AND fv.voucher_date <= $${date_from ? 4 : 3}::date`;
+        let voucherFilterForTreasury = '';
+        if (date_from) voucherFilterForTreasury += ` AND fv.voucher_date >= $3::date`;
+        if (date_to)   voucherFilterForTreasury += ` AND fv.voucher_date <= $${date_from ? 4 : 3}::date`;
 
-            const taRes = await db.query(`
-                SELECT
-                    ta.id, ta.name, ta.type, ta.bank_name,
-                    COALESCE((
-                        SELECT SUM(p.amount) FROM ${collectionSource} p
-                        WHERE p.treasury_account_id = ta.id
-                          AND p.tenant_id::text = ta.tenant_id::text
-                          AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
-                          AND (COALESCE(p.status, 'active') != 'cancelled')
-                          ${paymentDateFilter}
-                    ), 0) AS total_inflow,
-                    COALESCE((
-                        SELECT SUM(e.amount) FROM expenses e
-                        WHERE e.treasury_account_id = ta.id
-                          AND e.tenant_id::text = ta.tenant_id::text
-                          AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
-                          ${expenseDateFilter}
-                    ), 0) +
-                    COALESCE((
-                        SELECT SUM(fv.amount) FROM finance_vouchers fv
-                        WHERE fv.treasury_account_id = ta.id
-                          AND fv.tenant_id::text = ta.tenant_id::text
-                          AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
-                          AND fv.voucher_type = 'payment'
-                          AND fv.party_type = 'vendor'
-                          AND (COALESCE(fv.status, 'active') != 'cancelled')
-                          ${voucherFilterForTreasury}
-                    ), 0) AS total_outflow
-                FROM treasury_accounts ta
-                WHERE ta.tenant_id::text = $1::text
-                  AND ($2::text IS NULL OR ta.branch_id::text = $2::text OR ta.branch_id IS NULL)
-                  AND ta.is_active = true
-            `, queryParams);
+        const taRes = await db.query(`
+            SELECT
+                ta.id, ta.name, ta.type, ta.bank_name,
+                COALESCE((
+                    SELECT SUM(p.amount) FROM ${collectionSource} p
+                    WHERE p.treasury_account_id = ta.id
+                      AND p.tenant_id::text = ta.tenant_id::text
+                      AND ($2::text IS NULL OR p.branch_id::text = $2::text OR p.branch_id IS NULL)
+                      AND (COALESCE(p.status, 'active') != 'cancelled')
+                      ${paymentDateFilter}
+                ), 0) AS total_inflow,
+                COALESCE((
+                    SELECT SUM(e.amount) FROM expenses e
+                    WHERE e.treasury_account_id = ta.id
+                      AND e.tenant_id::text = ta.tenant_id::text
+                      AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
+                      ${expenseDateFilter}
+                ), 0) +
+                COALESCE((
+                    SELECT SUM(fv.amount) FROM finance_vouchers fv
+                    WHERE fv.treasury_account_id = ta.id
+                      AND fv.tenant_id::text = ta.tenant_id::text
+                      AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                      AND fv.voucher_type = 'payment'
+                      AND fv.party_type = 'vendor'
+                      AND (COALESCE(fv.status, 'active') != 'cancelled')
+                      ${voucherFilterForTreasury}
+                ), 0) AS total_outflow
+            FROM treasury_accounts ta
+            WHERE ta.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR ta.branch_id::text = $2::text OR ta.branch_id IS NULL)
+              AND ta.is_active = true
+        `, queryParams);
 
-            treasuryCashflow = taRes.rows.map(r => ({
-                id: r.id,
-                name: r.name,
-                type: r.type,
-                bank_name: r.bank_name,
-                inflow: parseFloat(r.total_inflow || 0),
-                outflow: parseFloat(r.total_outflow || 0),
-                net: parseFloat(r.total_inflow || 0) - parseFloat(r.total_outflow || 0),
-            }));
-        } catch (_) {
-            treasuryCashflow = [];
-        }
+        treasuryCashflow = taRes.rows.map(r => ({
+            id: r.id,
+            name: r.name,
+            type: r.type,
+            bank_name: r.bank_name,
+            inflow: parseFloat(r.total_inflow || 0),
+            outflow: parseFloat(r.total_outflow || 0),
+            net: parseFloat(r.total_inflow || 0) - parseFloat(r.total_outflow || 0),
+        }));
 
         const totalReceivables = parseFloat(invSummary.total_outstanding || 0);
         const netPosition = totalReceivables - totalPayables; // لينا ناقص علينا
@@ -3063,12 +3017,6 @@ exports.getVendorAccounts = async (req, res) => {
     if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
 
     try {
-        await ensureInvoicesTable();
-        await ensureVouchersTable();
-        const { ensurePurchasesSchema } = require('./purchasesController');
-        if (ensurePurchasesSchema) await ensurePurchasesSchema();
-        await db.query(`ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS due_date DATE;`).catch(() => {});
-
         const result = await db.query(`
             SELECT
                 v.id                                                        AS vendor_id,
@@ -3152,19 +3100,15 @@ exports.getVendorAccounts = async (req, res) => {
         }, { totalPayables: 0, totalOverdue: 0, totalPurchases: 0, totalPaid: 0, vendorsWithOutstanding: 0 });
 
         // Due this month = outstanding purchase invoices with due_date in current month
-        try {
-            const monthRes = await db.query(`
-                SELECT COALESCE(SUM(pi.total_amount - COALESCE(pi.paid_amount, 0)), 0) AS due_this_month
-                FROM purchase_invoices pi
-                WHERE pi.tenant_id::text = $1::text
-                  AND ($2::text IS NULL OR pi.branch_id::text = $2::text OR pi.branch_id IS NULL)
-                  AND pi.status != 'paid'
-                  AND date_trunc('month', pi.due_date) = date_trunc('month', CURRENT_DATE)
-            `, [tenant_id, branch_id ? String(branch_id) : null]);
-            kpi.dueThisMonth = parseFloat(monthRes.rows[0]?.due_this_month || 0);
-        } catch (_) {
-            kpi.dueThisMonth = 0;
-        }
+        const monthRes = await db.query(`
+            SELECT COALESCE(SUM(pi.total_amount - COALESCE(pi.paid_amount, 0)), 0) AS due_this_month
+            FROM purchase_invoices pi
+            WHERE pi.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR pi.branch_id::text = $2::text OR pi.branch_id IS NULL)
+              AND pi.status != 'paid'
+              AND date_trunc('month', pi.due_date) = date_trunc('month', CURRENT_DATE)
+        `, [tenant_id, branch_id ? String(branch_id) : null]);
+        kpi.dueThisMonth = parseFloat(monthRes.rows[0]?.due_this_month || 0);
 
         res.json({ status: 'success', data: result.rows, kpi });
     } catch (err) {

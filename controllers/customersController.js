@@ -81,9 +81,6 @@ exports.getCustomers = async (req, res) => {
     }
   }
 
-  // Run column guard (best-effort – errors are swallowed inside run())
-  await ensureCustomerColumns();
-
   // Declare query OUTSIDE try so the catch block can log it
   let query = `
     SELECT

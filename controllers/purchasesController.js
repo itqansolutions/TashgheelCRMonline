@@ -280,8 +280,6 @@ exports.getVendorStatement = async (req, res) => {
     const vendorId = req.params.id;
 
     try {
-        await ensurePurchasesSchema();
-
         // 1. Get vendor details
         const vRes = await db.query(
             `SELECT id, name, phone, address, tax_no, reg_no, created_at FROM vendors WHERE id = $1 AND tenant_id::text = $2::text`,
