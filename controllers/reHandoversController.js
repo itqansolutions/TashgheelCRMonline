@@ -59,6 +59,8 @@ exports.getHandovers = async (req, res) => {
                 rcon.contract_value,
                 ru.unit_number,
                 ru.project_name,
+                ru.transaction_type as unit_transaction_type,
+                to_char(rcon.end_date, 'YYYY-MM-DD') as contract_end_date,
                 c.name as customer_name,
                 COALESCE((SELECT SUM(paid_amount) FROM re_installments WHERE contract_id = rh.contract_id), 0) as total_paid,
                 COALESCE((SELECT COUNT(*) FROM re_installments WHERE contract_id = rh.contract_id AND status != 'Paid' AND due_date < CURRENT_DATE), 0) as overdue_installments_count

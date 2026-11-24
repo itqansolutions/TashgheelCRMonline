@@ -99,7 +99,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   // Real Estate-only workspaces
   const isReOnly = [
     '/units-registry', '/my-units',
-    '/reservations', '/contracts', '/installments', '/commissions', '/handover',
+    '/reservations', '/contracts', '/installments', '/commissions', '/handover', '/rentals',
     '/integrations/property-finder'
   ].some(prefix => checkPath.startsWith(prefix));
 

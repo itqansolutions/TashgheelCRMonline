@@ -1,3 +1,4 @@
+import UnitPricingPanel from './UnitPricingPanel';
 import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect, useRef } from 'react';
 import StoredUnitPhoto from '../../components/RealEstate/StoredUnitPhoto';
@@ -1086,7 +1087,7 @@ const UnitsRegistry = () => {
                                         <td style={{ padding: '14px 16px', fontSize: '13px', fontWeight: 700 }}><span className="num-en">{u.area_sqm}</span> m²</td>
                                         <td style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--primary)' }}><span className="num-en">{Number(u.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></td>
                                         <td style={{ padding: '14px 16px' }}>
-                                            <span style={{ background: config.bg, color: config.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 900 }}>{u.status}</span>
+                                            <span style={{ background: config.bg, color: config.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 900 }}>{u.status}</span>{u.marketing_active === false && <span style={{ marginInlineStart: '6px', background: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '20px', fontSize: '10px', fontWeight: 900 }}>{t('unitPricing.inactiveShort', 'Inactive')}</span>}
                                         </td>
                                         <td style={{ padding: '14px 16px', fontSize: '13px', color: 'var(--text-muted)', fontWeight: 600 }}>
                                             {u.assigned_to_name || users.find(em => String(em.id) === String(u.assigned_to))?.name || <span style={{ fontStyle: 'italic' }}>{t('realEstate.unitsRegistry.unassigned')}</span>}
@@ -1528,6 +1529,7 @@ const UnitsRegistry = () => {
                                     </div>
                                     
                                     <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+                                        <UnitPricingPanel unit={selectedUnit} onChanged={(u) => { if (u) setSelectedUnit(prev => ({ ...prev, ...u })); fetchUnits(); }} />
                                         {/* Core Specs Grid */}
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' }}>
                                             <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>

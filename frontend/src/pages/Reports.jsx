@@ -107,6 +107,7 @@ const Reports = () => {
       <div className="page-header" style={{ marginBottom: '24px' }}>
         <h2 style={{ fontSize: '24px', fontWeight: '800' }}>{t('reportsHub.title')}</h2>
         <p style={{ color: 'var(--text-muted)' }}>{t('reportsHub.subtitle')}</p>
+        <a href="/reports/deal-activity" style={{ display: 'inline-block', marginTop: '8px', fontSize: '13px', fontWeight: 700, color: 'var(--primary)' }}>{t('dealActivity.title', 'Salesperson activity on deals')}</a>
       </div>
 
       <div className="stats-summary">

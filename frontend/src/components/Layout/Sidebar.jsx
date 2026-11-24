@@ -190,13 +190,14 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { name: 'Targets',        labelKey: 'sidebar.targets',       icon: <Award size={18} />,        path: '/sales/target' },
     ...(isRealEstate ? [
       { name: 'Commissions',  labelKey: 'sidebar.commissions',   icon: <DollarSign size={18} />,   path: '/commissions' },
-      { name: 'Handover',     labelKey: 'sidebar.handover',      icon: <Key size={18} />,          path: '/handover' }
+      { name: 'Handover',     labelKey: 'sidebar.handover',      icon: <Key size={18} />,          path: '/handover' },
+      { name: 'Rentals',      labelKey: 'sidebar.rentals',       icon: <Key size={18} />,          path: '/rentals' }
     ] : [])
   ];
   const salesItems = filterByAllowed(rawSalesItems).filter(item => {
     if(item.roleGuard && !item.roleGuard.includes(user?.role))return false;
     if (['/customers','/deals','/tasks','/sales/management','/finance?tab=Quotations'].includes(item.path)) return hasCrm;
-    if (['/commissions','/handover','/units-registry'].includes(item.path)) return hasRealEstate;
+    if (['/commissions','/handover','/rentals','/units-registry'].includes(item.path)) return hasRealEstate;
     return hasSales;
   });
   const dailyPaths = ['/customers', '/deals', '/tasks', '/units-registry'];

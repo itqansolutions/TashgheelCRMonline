@@ -15,7 +15,7 @@ export const WORKSPACE_DEFINITIONS = [
     defaultPath: '/deals',
     module: 'sales',
     checkModule: (can) => can('sales') !== false && (can('sales') === true || can('crm') === true),
-    routePrefixes: ['/deals', '/tasks', '/customers', '/sales', '/commissions', '/handover', '/quotations']
+    routePrefixes: ['/deals', '/tasks', '/customers', '/sales', '/commissions', '/handover', '/rentals', '/quotations']
   },
   {
     id: 'contacts',

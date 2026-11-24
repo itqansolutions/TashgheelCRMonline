@@ -143,7 +143,7 @@ async function scanDueAlerts(db, { limit = 200, now = null } = {}) {
           [occ.tenant_id, occ.branch_id || null, u.id,
            `الإيجار ينتهي قريبًا / Rental ending soon: ${label}`,
            `إيجار الوحدة ${label} ينتهي في ${occ.ends_txt}. أكد الإخلاء أو مدد العقد. / Rental of unit ${label} ends on ${occ.ends_txt}. Confirm vacancy or extend.`,
-           '/real-estate/rentals', JSON.stringify({ occupancy_id: occ.id, unit_id: occ.unit_id, revision: occ.revision, ends_on: occ.ends_txt, internal_only: true })]);
+           '/rentals', JSON.stringify({ occupancy_id: occ.id, unit_id: occ.unit_id, revision: occ.revision, ends_on: occ.ends_txt, internal_only: true })]);
         await client.query(`UPDATE re_rental_alert_deliveries SET delivered_at = NOW(), notification_id = $2 WHERE id = $1::uuid`, [ins.rows[0].id, n.rows[0].id]);
         delivered++;
       }

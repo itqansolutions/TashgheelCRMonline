@@ -45,6 +45,8 @@ import Contracts from './pages/RealEstate/Contracts';
 import Installments from './pages/RealEstate/Installments';
 import Commissions from './pages/RealEstate/Commissions';
 import Handover from './pages/RealEstate/Handover';
+import DealActivityReport from './pages/DealActivityReport';
+import Rentals from './pages/RealEstate/Rentals';
 import Shifts from './pages/HR/Shifts';
 import AttendanceDevices from './pages/HR/AttendanceDevices';
 import InventoryControl from './pages/Inventory/InventoryControl';
@@ -182,6 +184,7 @@ function App() {
                   <Route path="installments" element={<Installments />} />
                   <Route path="commissions" element={<Commissions />} />
                   <Route path="handover" element={<Handover />} />
+                  <Route path="rentals" element={<Rentals />} />
                   <Route path="finance" element={<Invoices />} />
                   <Route path="quotations" element={<Navigate to="/finance?tab=Quotations" replace />} />
                   <Route path="lead-sources" element={<Navigate to="/integrations/meta-forms" replace />} />
@@ -410,6 +413,7 @@ function App() {
                   />
                   <Route path="files" element={<Files />} />
                   <Route path="reports" element={<Reports />} />
+                  <Route path="reports/deal-activity" element={<DealActivityReport />} />
                   <Route 
                     path="logs" 
                     element={

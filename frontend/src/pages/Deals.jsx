@@ -124,6 +124,14 @@ const Deals = () => {
     return <Icon size={12} />;
   };
   
+  const [salesTeams, setSalesTeams] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  useEffect(() => {
+    let live = true;
+    api.get('/sales-teams').then(r => { if (live) setSalesTeams((r.data?.data || []).filter(x => x.is_active)); }).catch(() => { if (live) setSalesTeams([]); });
+    return () => { live = false; };
+  }, []);
+
   const [formData, setFormData] = useState({
     title: '',
     value: 0,
@@ -131,6 +139,7 @@ const Deals = () => {
     client_id: '',
     product_id: '',
     assigned_to: '',
+    assigned_team_id: '',
     unit_id: '',
     probability: 0,
     expected_close_date: '',
@@ -427,6 +436,7 @@ const Deals = () => {
         client_id: deal.client_id || '',
         product_id: deal.product_id || '',
         assigned_to: deal.assigned_to || '',
+        assigned_team_id: deal.assigned_team_id || '',
         unit_id: deal.unit_id || '',
         probability: deal.probability || 0,
         expected_close_date: deal.expected_close_date ? deal.expected_close_date.split('T')[0] : '',
@@ -460,6 +470,7 @@ const Deals = () => {
         client_id: '', 
         product_id: '', 
         assigned_to: user?.id || '',
+        assigned_team_id: '',
         unit_id: '',
         probability: 0,
         expected_close_date: '',
@@ -631,6 +642,15 @@ const Deals = () => {
       toast.error(err.response?.data?.message || t('deals.failedToSave', 'Failed to update deal stage'));
     }
   };
+
+  useEffect(() => {
+    let live = true;
+    if (!formData.assigned_team_id) { setTeamMembers([]); return undefined; }
+    api.get(`/sales-teams/${formData.assigned_team_id}`)
+      .then(r => { if (live) setTeamMembers(r.data?.data?.members || []); })
+      .catch(() => { if (live) setTeamMembers([]); });
+    return () => { live = false; };
+  }, [formData.assigned_team_id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -929,10 +949,11 @@ const Deals = () => {
     { 
       key: 'assigned_to_name', 
       label: t('deals.dealOwner', 'Deal Owner'),
-      render: (val) => (
+      render: (val, item) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <User size={14} style={{ opacity: 0.6 }} />
-          <span>{val || t('deals.unassigned', 'Unassigned')}</span>
+          <span>{val || (item.assigned_team_name ? t('deals.wholeTeam', 'Whole team') : t('deals.unassigned', 'Unassigned'))}</span>
+          {item.assigned_team_name && <span style={{ fontSize: '11px', opacity: 0.7 }}>· {item.assigned_team_name}</span>}
         </div>
       )
     },
@@ -1404,14 +1425,32 @@ const Deals = () => {
                 </div>
 
                 <div className="form-group">
-                  <label>{t('deals.dealOwner', 'Deal Owner')}</label>
+                  <label>{t('deals.assignedTeam', 'Team')}</label>
+                  <select
+                    value={formData.assigned_team_id || ''}
+                    disabled={isReassignDisabled}
+                    onChange={(e) => {
+                      const teamId = e.target.value;
+                      setFormData({ ...formData, assigned_team_id: teamId, assigned_to: teamId ? '' : (user?.id || '') });
+                    }}
+                  >
+                    <option value="">{t('deals.noTeamOption', '-- No team (individual owner) --')}</option>
+                    {salesTeams.map(tm => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>{formData.assigned_team_id ? t('deals.teamEmployeeOptional', 'Employee (optional)') : t('deals.dealOwner', 'Deal Owner')}</label>
                   <select 
                     value={formData.assigned_to}
                     disabled={isReassignDisabled}
                     onChange={(e) => setFormData({...formData, assigned_to: e.target.value})}
                   >
-                    <option value="">{t('deals.unassignedOption', '-- Unassigned --')}</option>
-                    {(users || []).map(u => (
+                    <option value="">{formData.assigned_team_id ? t('deals.wholeTeamOption', '-- Whole team --') : t('deals.unassignedOption', '-- Unassigned --')}</option>
+                    {(formData.assigned_team_id
+                      ? teamMembers.map(m => ({ id: m.user_id, name: m.name, role: m.role }))
+                      : (users || [])
+                    ).map(u => (
                       <option key={u.id} value={u.id}>
                         {u.name} {user && String(u.id) === String(user.id) ? `(${t('deals.currentUserBadge', 'Current User / Me')})` : `(${u.role})`}
                       </option>

@@ -31,6 +31,8 @@ const Handover = () => {
   useEffect(() => () => { listRequest.current += 1; }, []);
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState({ deal_id: '', scheduled_date: '', snagging_notes: '' });
+  // Rental units need staff-chosen notice timing when handed over.
+  const [rental, setRental] = useState(null); // { row, ends_on, lead_days }
 
   const getStatusLabel = (s) => {
     switch (s) {
@@ -89,10 +91,15 @@ const Handover = () => {
     }
   };
 
-  const transition = async (h, status) => {
-    if (status === 'Handed Over' && !window.confirm(t('realEstate.handover.confirmComplete'))) return;
+  const transition = async (h, status, extra = {}) => {
+    if (status === 'Handed Over' && h.unit_transaction_type === 'rent' && !extra.rental_reminder_lead_days && extra.rental_reminder_lead_days !== 0) {
+      setRental({ row: h, ends_on: h.contract_end_date || '', lead_days: '' });
+      return;
+    }
+    if (status === 'Handed Over' && !extra.rental_confirmed && !window.confirm(t('realEstate.handover.confirmComplete'))) return;
     try {
-      const res = await api.patch(`/re-handovers/${h.id}/status`, { status });
+      const { rental_confirmed, ...payload } = extra;
+      const res = await api.patch(`/re-handovers/${h.id}/status`, { status, ...payload });
       toast.success(res.data.message || t('realEstate.handover.toastStatusSuccess', { status: getStatusLabel(status) }));
       load();
     } catch (err) {
@@ -186,6 +193,42 @@ const Handover = () => {
         loading={loading}
         empty={t('realEstate.handover.empty')}
       />)}
+
+      <Modal variant="form"
+        isOpen={!!rental}
+        onClose={() => setRental(null)}
+        title={t('realEstate.handover.rentalTitle', 'Rental handover: end date and notice')}
+        footer={<>
+          <button onClick={() => setRental(null)} style={{ background: '#f1f5f9', padding: '10px 20px', borderRadius: '8px', fontWeight: 600 }}>
+            {t('realEstate.common.cancel')}
+          </button>
+          <button
+            disabled={!rental || !rental.ends_on || rental.lead_days === '' || Number(rental.lead_days) < 0}
+            onClick={async () => {
+              const r = rental; setRental(null);
+              await transition(r.row, 'Handed Over', { rental_ends_on: r.ends_on, rental_reminder_lead_days: Number(r.lead_days), rental_confirmed: true });
+            }}
+            style={{ background: 'var(--primary)', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, opacity: (!rental || !rental.ends_on || rental.lead_days === '') ? 0.5 : 1 }}>
+            {t('realEstate.handover.btnComplete')}
+          </button>
+        </>}
+      >
+        {rental && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            <div style={{ gridColumn: 'span 2', fontSize: '13px', color: '#475569' }}>
+              {t('realEstate.handover.rentalHelp', 'An internal alert is sent to the team manager and the unit responsible employee (or the whole team) at 9:00 AM Cairo time, this many days before the rental ends.')}
+            </div>
+            <div>
+              <label style={labelStyle}>{t('realEstate.handover.rentalEndDate', 'Rental end date')}</label>
+              <input type="date" style={fieldStyle} value={rental.ends_on} onChange={e => setRental({ ...rental, ends_on: e.target.value })} />
+            </div>
+            <div>
+              <label style={labelStyle}>{t('realEstate.handover.rentalLeadDays', 'Alert days before end')}</label>
+              <input type="number" min="0" max="365" step="1" style={fieldStyle} value={rental.lead_days} onChange={e => setRental({ ...rental, lead_days: e.target.value })} />
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal variant="form"
         isOpen={formOpen}

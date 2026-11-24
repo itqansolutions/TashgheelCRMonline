@@ -5,6 +5,7 @@ import {
   Clock, CheckCircle2, ChevronRight,
   TrendingUp, Layers
 } from 'lucide-react';
+import PriceChangesCard from '../components/Dashboard/PriceChangesCard';
 import KPICard from '../components/Dashboard/KPICard';
 import EmptyState from '../components/Dashboard/EmptyState';
 import { safeArray } from '../utils/dataUtils';
@@ -113,7 +114,7 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
           value={unitsOverview.available}
           icon={<Building2 size={20} />}
           color="success"
-          subtitle={t('dashboard.availableUnitsSub', { total: unitsOverview.total })}
+          subtitle={`${t('dashboard.availableUnitsSub', { total: unitsOverview.total })}${unitsOverview.marketing_inactive ? ` · ${unitsOverview.marketing_inactive} ${t('dashboard.inactiveUnits', 'inactive')}` : ''}`}
           onClick={() => navigate('/units-registry')}
         />
         <KPICard 
@@ -161,6 +162,8 @@ const RealEstateDashboard = ({ data, timeFilter, setTimeFilter, modules }) => {
           </>
         )}
       </div>
+
+      <PriceChangesCard timeFilter={timeFilter} />
 
       {/* SECTION B & C: UNIT STATUS + REAL ESTATE SALES PIPELINE */}
       <div className="dashboard-row-split">
