@@ -43,4 +43,13 @@ async function install({pool,schemaDirectory}) {
   await c.query('COMMIT');return{status:'installed',digest};
  }catch(error){await c.query('ROLLBACK');throw error;}finally{c.release();}
 }
-module.exports={install};
+// Read-only startup compatibility, never invokes installer or schema repair.
+async function verifyInstalledCore(client){
+ const parts=['whatsapp-claims-proposal.sql','all-writer-guard-proposal.sql','whatsapp-delivery-journal.sql','whatsapp-inbox-proposal.sql','whatsapp-inbox-events-proposal.sql','whatsapp-event-work-proposal.sql','whatsapp-consumer-sidecar-proposal.sql','whatsapp-contact-state-proposal.sql'].map(f=>fs.readFileSync(path.join(__dirname,'../ops/proposals',f),'utf8'));
+ const digest=createHash('sha256').update(parts.join('\n')).digest('hex');
+ const present=await client.query("SELECT to_regclass('public.whatsapp_ownership_schema_version') IS NOT NULL AS present");
+ if(!present.rows[0]?.present)throw Error('CORE_SCHEMA_UNVERIFIED');
+ const prior=await client.query('SELECT digest,artifact_fingerprint FROM public.whatsapp_ownership_schema_version WHERE id=1');
+ if(prior.rows[0]?.digest!==digest||prior.rows[0]?.artifact_fingerprint!==await fingerprint(client))throw Error('CORE_SCHEMA_UNVERIFIED');
+}
+module.exports={install,verifyInstalledCore};

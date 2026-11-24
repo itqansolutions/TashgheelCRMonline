@@ -16,7 +16,14 @@ exports.validateGroup=async(db,group)=>{
   const indexes=(await c.query("SELECT tablename,indexname,indexdef FROM pg_indexes WHERE schemaname='public' AND tablename=ANY($1::text[])",[tables])).rows;
   for(const e of required.indexes)if(!indexes.some(r=>r.tablename===e.tablename&&(normalize(r.indexdef)===normalize(e.indexdef)||normalize(r.indexdef)===normalize((require('./index-deparser-allowlist.json')[e.indexname]||'')))))throw Error('Prerequisite '+group+': required index');
   const triggers=await c.query("SELECT cl.relname,t.tgname FROM pg_trigger t JOIN pg_class cl ON cl.oid=t.tgrelid JOIN pg_namespace n ON n.oid=cl.relnamespace WHERE n.nspname='public' AND cl.relname=ANY($1::text[]) AND NOT t.tgisinternal",[tables]);
-  if(triggers.rowCount)throw Error('Prerequisite '+group+': trigger requires review');
+  if(triggers.rowCount){
+   // Approved ownership core adds binding guards to existing WhatsApp tables.
+   // Match exact table/name, then verify complete installed source/catalog digest.
+   const reviewed={whatsapp_settings:'whatsapp_settings_binding_candidate',whatsapp_accounts:'whatsapp_accounts_binding_candidate'};
+   if(triggers.rows.some(t=>reviewed[t.relname]!==t.tgname))throw Error('Prerequisite '+group+': trigger requires review');
+   await c.query('SET LOCAL search_path=public,pg_catalog');
+   await require('../services/whatsappOwnershipInstaller').verifyInstalledCore(c);
+  }
   // Trigger/RLS effects can change behavior; do not claim vetted if present on these scoped paths.
   const rls=await c.query("SELECT cl.relname FROM pg_class cl JOIN pg_namespace n ON n.oid=cl.relnamespace WHERE n.nspname='public' AND cl.relname=ANY($1::text[]) AND cl.relrowsecurity",[tables]);
   if(rls.rowCount)throw Error('Prerequisite '+group+': RLS requires review');
