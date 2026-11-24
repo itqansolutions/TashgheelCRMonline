@@ -20,7 +20,8 @@ const Rentals = () => {
     try { const r = await api.get('/re-rentals'); setRows(r.data?.data || []); }
     catch (e) { toast.error(e.response?.data?.message || t('rentals.loadFailed', 'Failed to load rentals')); }
     finally { setLoading(false); }
-  }, [t]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => { load(); }, [load]);
 
   const act = async (fn, ok) => {

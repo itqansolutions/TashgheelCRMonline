@@ -25,7 +25,8 @@ const DealActivityReport = () => {
       .then(r => { if (live) setState({ loading: false, error: '', rows: r.data?.data || [] }); })
       .catch(e => { if (live) setState({ loading: false, error: e.response?.data?.message || t('dealActivity.error', 'Could not load the report'), rows: [] }); });
     return () => { live = false; };
-  }, [from, to, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to]);
 
   const cell = { padding: '10px 12px', textAlign: 'center', fontSize: '13px' };
   return (
