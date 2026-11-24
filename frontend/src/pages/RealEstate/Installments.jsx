@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { CreditCard } from 'lucide-react';
@@ -41,6 +41,10 @@ const Installments = () => {
   const [paySaving, setPaySaving] = useState(false);
   const [historyFor, setHistoryFor] = useState(null);
   const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(false);
+  const historyRequest = useRef(0);
+  useEffect(() => () => { historyRequest.current += 1; }, []);
 
   const load = async () => {
     setLoading(true);
@@ -133,14 +137,26 @@ const Installments = () => {
     } finally { setPaySaving(false); }
   };
 
+  const closeHistory = () => {
+    historyRequest.current += 1;
+    setHistoryFor(null);
+  };
+
   const openHistory = async (inst) => {
+    const request = ++historyRequest.current;
     setHistoryFor(inst);
     setHistory([]);
+    setHistoryError(false);
+    setHistoryLoading(true);
     try {
       const res = await api.get(`/re-installments/${inst.id}/payments`);
+      if (request !== historyRequest.current) return;
       setHistory(res.data.data || []);
     } catch (err) {
-      toast.error(err.response?.data?.message || t('realEstate.installments.toastHistoryError'));
+      if (request !== historyRequest.current) return;
+      setHistoryError(true);
+    } finally {
+      if (request === historyRequest.current) setHistoryLoading(false);
     }
   };
 
@@ -375,10 +391,15 @@ const Installments = () => {
       {/* Payment history (finance_vouchers) */}
       <Modal
         isOpen={!!historyFor}
-        onClose={() => setHistoryFor(null)}
+        onClose={closeHistory}
         title={historyFor ? t('realEstate.installments.historyModalTitle', { contract: historyFor.contract_number, number: historyFor.installment_number }) : ''}
       >
-        <SimpleTable
+        {historyLoading ? <p role="status">{isRTL ? 'جارٍ تحميل سجل السداد...' : 'Loading payment history...'}</p> : historyError ? (
+          <div role="alert" style={{ color: '#991b1b' }}>
+            <p>{isRTL ? 'تعذر تحميل سجل السداد. لا يمكن تأكيد وجود أو عدم وجود دفعات.' : 'Payment history could not be loaded. Payments cannot be confirmed as present or absent.'}</p>
+            <button type="button" onClick={() => openHistory(historyFor)} style={{ ...fieldStyle, width: 'auto', cursor: 'pointer' }}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button>
+          </div>
+        ) : <SimpleTable
           columns={[
             { key: 'voucher_number', label: t('realEstate.installments.colVoucherNumber'), render: (v) => <span className="num-en">{v}</span> },
             { key: 'voucher_date', label: t('realEstate.installments.colVoucherDate'), render: fmtDate },
@@ -388,7 +409,7 @@ const Installments = () => {
           ]}
           rows={history}
           empty={t('realEstate.installments.noPaymentsRecorded')}
-        />
+        />}
       </Modal>
     </div>
   );

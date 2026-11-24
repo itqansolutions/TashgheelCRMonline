@@ -118,8 +118,11 @@ exports.submitLeave = async (req, res) => {
     if (!validDate(start_date) || !validDate(end_date) || end_date < start_date) {
         return res.status(400).json({ status: 'error', message: 'Provide valid leave dates with end date on or after start date.' });
     }
+    let client;
     try {
-        await db.query('BEGIN');
+        client = await db.connect();
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))', ['leave:' + String(tenant_id) + ':' + String(user_id)]);
 
         // Security Guard: No Retroactive Leaves
         const today = new Date().toISOString().split('T')[0];
@@ -129,12 +132,12 @@ exports.submitLeave = async (req, res) => {
 
         // 1. Leave Conflict Detection Engine (Game Changer Feature)
         // Ensure the employee does not have an overlapping leave that is pending/approved
-        const conflictRes = await db.query(`
+        const conflictRes = await client.query(`
             SELECT id, status, start_date, end_date FROM hr_leaves
-            WHERE user_id = $1 AND status != 'rejected'
+            WHERE user_id = $1 AND tenant_id::text = $4::text AND status != 'rejected'
             AND (start_date <= $3 AND end_date >= $2)
             FOR UPDATE
-        `, [user_id, start_date, end_date]);
+        `, [user_id, start_date, end_date, tenant_id]);
 
         if (conflictRes.rows.length > 0) {
             throw new Error('Conflict Detective: You already have an active leave request during this period.');
@@ -149,19 +152,23 @@ exports.submitLeave = async (req, res) => {
         if (days <= 0) throw new Error('Invalid date range.');
 
         // 3. Insert Leave
-        const insertRes = await db.query(`
+        const insertRes = await client.query(`
             INSERT INTO hr_leaves (user_id, tenant_id, branch_id, type, start_date, end_date, days, reason)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
         `, [user_id, tenant_id, branch_id, type, start_date, end_date, days, reason]);
 
-        await db.query('COMMIT');
+        await client.query('COMMIT');
 
         res.status(201).json({ status: 'success', message: 'Leave request submitted successfully.', data: insertRes.rows[0] });
 
     } catch (err) {
-        await db.query('ROLLBACK');
+        if (client) {
+            try { await client.query('ROLLBACK'); } catch (rollbackError) { console.error('Leave rollback failed:', rollbackError.message); }
+        }
         console.error('submitLeave Error:', err.message);
         res.status(400).json({ status: 'error', message: err.message });
+    } finally {
+        if (client) client.release();
     }
 };
 

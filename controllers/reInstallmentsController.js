@@ -672,20 +672,16 @@ exports.getInstallmentPayments = async (req, res) => {
         if (req.user?.role !== 'admin' && branch_id && instBranch && String(instBranch) !== String(branch_id)) {
             return res.status(404).json({ status: 'error', message: 'Installment not found or unauthorized.' });
         }
-        let rows = [];
-        try {
-            const v = await db.query(`
+        const v = await db.query(`
                 SELECT id, voucher_number, amount, payment_method, notes, voucher_date, created_at
                 FROM finance_vouchers
                 WHERE installment_id::text = $1::text AND tenant_id::text = $2::text
                 ORDER BY voucher_date DESC, id DESC
             `, [id, tenant_id]);
-            rows = v.rows;
-        } catch (e) { /* installment_id column not yet created → no payments */ }
-        res.json({ status: 'success', data: rows });
+        res.json({ status: 'success', data: v.rows });
     } catch (err) {
         console.error('[Get Installment Payments Error]:', err.message);
-        res.status(500).json({ status: 'error', message: err.message });
+        res.status(503).json({ status: 'error', code: 'INSTALLMENT_HISTORY_UNAVAILABLE', message: 'Payment history is unavailable. Please retry.' });
     }
 };
 
