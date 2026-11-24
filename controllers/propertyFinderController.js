@@ -566,3 +566,10 @@ exports.handleWebhook = async (req, res) => {
     return res.status(500).json({ status: 'error', message: 'Failed to process webhook event.' });
   }
 };
+
+// Photo-only continuation, explicit operator request, no listing reimport.
+exports.continuePhotoImport=async(req,res)=>{
+ if(req.body?.confirmed!==true)return res.status(400).json({status:'error',message:'Explicit photo storage confirmation required'});
+ try{const data=await require('../services/propertyFinderPhotoContinuation').continuePhotos({pool:db,tenantId:req.user?.tenant_id,cursor:req.body?.cursor||''});return res.json({status:'success',data});}
+ catch(_){return res.status(503).json({status:'error',message:'Photo continuation failed; saved photos are retained. Retry from the displayed cursor.'})}
+};

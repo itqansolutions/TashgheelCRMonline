@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import {
@@ -12,6 +12,21 @@ import { useAuth } from '../../context/AuthContext';
 const PropertyFinderSettings = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [photoProgress,setPhotoProgress]=useState(null),[copyingPhotos,setCopyingPhotos]=useState(false);
+  const photoStop=useRef(false),photoContext=useRef(null);
+  photoContext.current={token:localStorage.getItem('token'),tenant:user?.tenant_id,branch:localStorage.getItem('branch_id')};
+  useEffect(()=>()=>{photoStop.current=true},[]);
+  const continueStoredPhotos=async()=>{
+    if(!window.confirm('استكمال حفظ صور الإعلانات داخل النظام فقط. حد المساحة المؤقت ملغي، وقد تزيد تكلفة التخزين. حتى 20 صورة للوحدة و5 MiB للصورة. لن يعاد استيراد الإعلانات أو تعديل الصفقات. متابعة؟ / Continue private photo copies with metered storage, no temporary tenant quota?'))return;
+    const initial={...photoContext.current};
+    const sameContext=()=>{const c=photoContext.current;return c.token===initial.token&&c.tenant===initial.tenant&&c.branch===initial.branch&&localStorage.getItem('token')===initial.token&&localStorage.getItem('branch_id')===initial.branch};
+    photoStop.current=false;setCopyingPhotos(true);
+    const key='pf-photo-cursor:'+user?.tenant_id;let cursor=sessionStorage.getItem(key)||'',saved=0,issues=0,pendingTotal=0;
+    try{while(!photoStop.current){if(!sameContext())throw Error('Account or branch changed; continuation stopped.');const res=await api.post('/propertyfinder/photos/continue',{confirmed:true,cursor},{assertRequestContext:sameContext});if(!sameContext())throw Error('Account or branch changed; continuation stopped.');const r=res.data?.data;if(!r)throw Error('Missing photo progress');if(r.done){sessionStorage.removeItem(key);setPhotoProgress({done:true,saved,issues,pending:pendingTotal});break;}saved+=r.photos?.saved||0;issues+=(r.photos?.errors?.length||0);if(!r.retry)pendingTotal+=r.photos?.pending||0;cursor=r.cursor;sessionStorage.setItem(key,cursor);setPhotoProgress({cursor,listing:r.listingId,saved,issues,pending:pendingTotal+(r.retry?(r.photos?.pending||0):0),done:false});if(issues){photoStop.current=true;}}}
+    catch(e){setPhotoProgress(p=>({...p,error:e.response?.data?.message||'Photo continuation stopped. Saved photos are retained.'}));}
+    finally{setCopyingPhotos(false);}
+  };
+
   const [saving, setSaving] = useState(false);
   const [savingSync, setSavingSync] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -151,7 +166,7 @@ const PropertyFinderSettings = () => {
   };
 
   const handleImportListings = async () => {
-    if(!window.confirm('سيتم استيراد الإعلانات وحفظ نسخ خاصة من صور حسابكم داخل قاعدة البيانات: حتى 20 صورة للوحدة، 5 MiB للصورة، و100 MiB إجمالي صور Property Finder للمؤسسة. قد تزيد تكلفة التخزين والنسخ الاحتياطي. الصور غير متاحة في رابط العميل. هل تؤكد امتلاك حق نسخ الصور وتوافق على الحفظ بهذه الحدود؟\nImport listings and store private photo copies in the existing database: 20 photos/unit, 5 MiB/photo, 100 MiB total PF photos per organization. Storage/backup costs may increase. Photos stay out of the customer link. Confirm copy rights and storage?'))return;
+    if(!window.confirm('سيتم استيراد الإعلانات وحفظ نسخ خاصة من صور حسابكم داخل قاعدة البيانات: حتى 20 صورة للوحدة، 5 MiB للصورة، بدون حد المساحة المؤقت للمؤسسة. قد تزيد تكلفة التخزين والنسخ الاحتياطي. الصور غير متاحة في رابط العميل. هل تؤكد امتلاك حق نسخ الصور وتوافق على الحفظ بهذه الحدود؟\nImport listings and store private photo copies in the existing database: 20 photos/unit, 5 MiB/photo, No temporary tenant storage quota. Storage/backup costs may increase. Photos stay out of the customer link. Confirm copy rights and storage?'))return;
     try {
       setImporting(true);
       const res = await api.post('/propertyfinder/sync/import',{copyPhotos:true});
@@ -495,7 +510,14 @@ const PropertyFinderSettings = () => {
                 </div>
               ) : null}
 
-              <p style={{fontSize:12,color:'#475569'}}>حفظ صور Property Finder: نسخ خاصة داخل قاعدة البيانات، بحد 20 صورة للوحدة و5 MiB للصورة و100 MiB إجمالي للمؤسسة. لا تشملها روابط معرض العميل. / Private stored photos, not customer gallery links. Limits apply; failures are reported, not hidden.</p>
+              <p style={{fontSize:13,color:"#1d4ed8",fontWeight:700}}>تم إلغاء حد مساحة الصور المؤقت. / Temporary photo storage quota removed.</p>
+              <div role="status" style={{padding:12,marginBottom:12,background:'#eff6ff',borderRadius:8}}>
+                <button type="button" style={{padding:"10px 18px",borderRadius:8,border:"none",background:copyingPhotos?"#94a3b8":"#2563eb",color:"white",fontWeight:600,cursor:copyingPhotos?"not-allowed":"pointer",maxWidth:"100%"}} disabled={copyingPhotos} onClick={continueStoredPhotos}>استكمال الصور فقط / Continue photos only</button>
+                {copyingPhotos&&<button type="button" style={{padding:"8px 12px",marginTop:8,borderRadius:8,border:"1px solid #cbd5e1",background:"white",color:"#334155"}} onClick={()=>{photoStop.current=true}}>إيقاف بعد الدفعة الحالية / Stop</button>}
+                {photoProgress&&<p>{photoProgress.done?'اكتمل المرور على الإعلانات / Listing scan complete':'جاري الحفظ / Saving'}: {photoProgress.saved||0} صور جديدة / new photos. {photoProgress.issues||0} أخطاء / errors. {photoProgress.pending||0} صور لم تُحفظ بسبب الحدود / photos not copied due to limits. {photoProgress.error||''}</p>}
+                <small>الحفظ على دفعات متتابعة؛ الصور المحفوظة لا تتكرر. صور تتجاوز 20 للوحدة تبقى معلقة. يمكن الإيقاف والرجوع للاستكمال. / Sequential batches, stored photos deduplicated; max20 per unit. Stop and resume available.</small>
+              </div>
+              <p style={{fontSize:12,color:'#475569'}}>حفظ صور Property Finder: نسخ خاصة داخل قاعدة البيانات، بحد 20 صورة للوحدة و5 MiB للصورة وبدون حد المساحة المؤقت للمؤسسة. لا تشملها روابط معرض العميل. / Private stored photos, not customer gallery links. Limits apply; failures are reported, not hidden.</p>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button
                   type="button"

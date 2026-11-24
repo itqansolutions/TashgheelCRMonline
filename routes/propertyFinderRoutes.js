@@ -40,6 +40,8 @@ router.post(
   propertyFinderController.disconnect
 );
 
+router.post('/photos/continue',authMiddleware,roleGuard(['admin','manager']),propertyFinderController.continuePhotoImport);
+
 // Listing Import Synchronization
 router.post(
   '/sync/import',

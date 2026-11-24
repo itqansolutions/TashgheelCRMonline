@@ -33,15 +33,16 @@ function createBudget(maxBytes=MAX_RUN_BYTES){if(!Number.isInteger(maxBytes)||ma
 // All writes are explicit import work, never triggered by a GET or page render.
 async function persistListingPhotos({pool,tenantId,unitId,listingId,payload,budget=createBudget(),download=downloadImage}){
  if(!tenantId||!unitId||!listingId)throw Error('PHOTO_CONTEXT_REQUIRED');
- const summary={available:0,saved:0,duplicates:0,pending:0,downloadedBytes:0,errors:[]};
+ const summary={available:0,saved:0,duplicates:0,pending:0,retryablePending:0,downloadedBytes:0,errors:[]};
  const refs=extractPhotos(payload);summary.available=refs.length;
  const own=await pool.query('SELECT u.id FROM re_units u JOIN property_finder_listing_mappings p ON p.unit_id=u.id AND p.tenant_id::text=u.tenant_id::text WHERE u.id::text=$1::text AND u.tenant_id::text=$2::text AND p.external_listing_id=$3',[String(unitId),String(tenantId),String(listingId)]);
  if(!own.rows.length)throw Error('PHOTO_MAPPING_NOT_AUTHORIZED');
  for(let i=0;i<refs.length;i++){
-  if(i>=MAX_IMAGES_PER_UNIT||budget.remaining<1||budget.attempts>=100||Date.now()>budget.deadline){summary.pending++;continue;}
   const source=hash(refs[i].url).slice(0,32),prefix='pf-'+source+'-';
   const prev=await pool.query('SELECT id FROM attachments WHERE tenant_id::text=$1::text AND linked_type=$2 AND linked_id=$3 AND filename LIKE $4 LIMIT 1',[String(tenantId),LINK_TYPE,String(unitId),prefix+'%']);
   if(prev.rows.length){summary.duplicates++;continue;}
+  if(i>=MAX_IMAGES_PER_UNIT){summary.pending++;continue;}
+  if(budget.remaining<1||budget.attempts>=100||Date.now()>budget.deadline){summary.pending++;summary.retryablePending++;continue;}
   try{
    // Reserve worst case before fetch; don't run parallel requests against one budget.
    const remaining=Math.min(MAX_IMAGE_BYTES,budget.remaining);budget.remaining-=remaining;budget.attempts++;
@@ -62,8 +63,6 @@ async function persistListingPhotos({pool,tenantId,unitId,listingId,payload,budg
     else {
     const unitCount=await client.query('SELECT count(*)::int AS n FROM attachments WHERE tenant_id::text=$1::text AND linked_type=$2 AND linked_id=$3',[String(tenantId),LINK_TYPE,String(unitId)]);
     if(unitCount.rows[0].n>=MAX_IMAGES_PER_UNIT)throw Error('PHOTO_UNIT_STORAGE_LIMIT');
-    const usage=await client.query("SELECT COALESCE(sum(octet_length(file_data))*3/4,0)::bigint AS bytes FROM attachments WHERE tenant_id::text=$1::text AND linked_type=$2",[String(tenantId),LINK_TYPE]);
-    if(Number(usage.rows[0].bytes)+image.bytes.length>MAX_RUN_BYTES)throw Error('PHOTO_TENANT_STORAGE_LIMIT');
     await client.query('INSERT INTO attachments(filename,original_name,mime_type,file_path,linked_type,linked_id,tenant_id,branch_id,file_data) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[filename,'Property Finder photo '+(i+1),image.mime,'uploads/'+tenantId+'/pf/'+filename,LINK_TYPE,String(unitId),String(tenantId),check.rows[0].branch_id||null,image.bytes.toString('base64')]);summary.saved++;}
     await client.query('COMMIT');
    }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
