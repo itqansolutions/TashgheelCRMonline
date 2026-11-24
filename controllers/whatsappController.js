@@ -1589,6 +1589,12 @@ exports.handleWebhookVerification = async (req, res) => {
 // @desc    Meta Webhook Event Ingestion (Real-Time Inbound Messages & Monotonic Statuses)
 // @route   POST /api/whatsapp/webhook
 exports.handleWebhookEvent = async (req, res) => {
+  // Emergency containment: do not acknowledge or process deliveries while paused.
+  if (process.env.WHATSAPP_WEBHOOK_PROCESSING_SUSPENDED === 'true') {
+    res.set('Retry-After', '300');
+    return res.status(503).send('WEBHOOK_PROCESSING_SUSPENDED');
+  }
+
   await ensureWhatsAppTable();
 
   // Acknowledge Meta immediately with 200 OK to prevent duplicate retries
