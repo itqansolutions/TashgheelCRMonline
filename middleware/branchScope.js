@@ -54,7 +54,7 @@ const branchScope = async (req, res, next) => {
           resolvedBranchId = mainBranchRes.rows[0].id;
         } else {
           // Reads must not provision business rows while resolving request context.
-          if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+          if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || req.originalUrl?.startsWith('/api/whatsapp/coexistence/verified/')) {
             return res.status(400).json({
               status: 'error',
               message: 'Branch scope unavailable. No branch assigned to organization.',

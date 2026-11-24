@@ -313,6 +313,7 @@ exports.createCustomer = async (req, res) => {
         const { triggerGreetingIfConfigured } = require('../services/chatbotRunnerService');
         triggerGreetingIfConfigured({
           tenantId: tenant_id,
+          branchId: branch_id,
           customerId: result.rows[0].id,
           phone,
           name,

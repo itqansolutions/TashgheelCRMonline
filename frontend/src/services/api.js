@@ -13,6 +13,11 @@ const api = axios.create({
 // Interceptor to add JWT token to requests
 api.interceptors.request.use(
   (config) => {
+    // Attempt-scoped callers can reject an auth/branch switch at dispatch,
+    // inside the same synchronous interceptor turn that selects headers.
+    if (config.assertRequestContext && !config.assertRequestContext()) {
+      throw new axios.CanceledError('Request context changed; restart the operation.');
+    }
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

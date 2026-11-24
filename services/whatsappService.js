@@ -17,6 +17,12 @@ const db = require('../config/db');
 const WA_API_VERSION = 'v21.0';
 const WA_BASE_URL = `https://graph.facebook.com/${WA_API_VERSION}`;
 
+async function requireVerifiedSender({tenantId,phoneNumberId,accessToken,branchId}) {
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING!=='true')return;
+  if(!tenantId)throw Error('VERIFIED_SENDER_TENANT_REQUIRED');
+  return require('./whatsappVerifiedBindingReader').createVerifiedBindingReader({pool:db.pool})({tenantId:String(tenantId),phoneId:String(phoneNumberId||'').trim(),token:accessToken,appId:process.env.META_APP_ID,branchId});
+}
+
 // ---------------------------------------------------------------------------
 // Phone Normalisation
 // ---------------------------------------------------------------------------
@@ -270,7 +276,8 @@ const templateVariantCache = new Map();
  * @param {string} opts.tenantId        Optional tenant UUID for auto-updating settings
  * @returns {Promise<{success: boolean, messageId: string|null, error: string|null, resolvedPhoneId?: string}>}
  */
-async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateName, languageCode, components = [], tenantId = null }) {
+async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateName, languageCode, components = [], tenantId = null, branchId }) {
+  await requireVerifiedSender({tenantId,phoneNumberId,accessToken,branchId});
   const targetPhoneId = (phoneNumberId || '').trim();
   const cacheKey = `${tenantId || 'global'}:${(templateName || '').trim()}`;
   const cachedVariant = templateVariantCache.get(cacheKey);
@@ -324,6 +331,12 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
   } catch (err) {
     const rawError = err.response?.data?.error;
     const apiError = rawError?.message || err.message;
+
+    if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'){
+      // An uncertain outcome must never trigger parameter/language/phone retries.
+      // Explicit Meta error response is a rejection, transport/no response is unknown.
+      return {success:false,deliveryUnknown:!rawError,messageId:null,error:rawError?'Provider rejected template request.':'Provider outcome unknown; do not retry automatically.'};
+    }
 
     // 1. Check if error is parameter mismatch (Code 132000 or "number of parameters does not match")
     // e.g. Variable is in HEADER instead of BODY (like: أهلاً / {{1}}), or no variables
@@ -435,8 +448,8 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
     // 3. Check if error is "Unsupported post request" (Object ID is a WABA ID, App ID, or invalid)
     if (apiError.includes('Unsupported post request') || (rawError?.code === 100 && rawError?.error_subcode === 33)) {
       console.warn(`⚠️ [WhatsApp] ID '${targetPhoneId}' rejected by Meta as not supporting /messages. Checking if it's a WABA ID...`);
-      const resolved = await resolveActualPhoneNumberId(targetPhoneId, accessToken);
-      if (resolved && resolved.phoneNumberId && resolved.phoneNumberId !== targetPhoneId) {
+      const resolved = process.env.WHATSAPP_VERIFIED_ONBOARDING==='true' ? null : await resolveActualPhoneNumberId(targetPhoneId, accessToken);
+      if (process.env.WHATSAPP_VERIFIED_ONBOARDING !== 'true' && resolved && resolved.phoneNumberId && resolved.phoneNumberId !== targetPhoneId) {
         console.log(`🔄 [WhatsApp] Retrying message send with resolved Phone Number ID: ${resolved.phoneNumberId}`);
         try {
           const retryRes = await sendRequest(resolved.phoneNumberId);
@@ -514,8 +527,14 @@ async function callWhatsAppApi({ phoneNumberId, accessToken, toPhone, templateNa
  * @param {string} opts.tenantId     UUID of the tenant
  * @returns {Promise<{sent: boolean, results: Array}>}
  */
-async function sendWelcomeMessage({ phone, customerName, tenantId, templateName = null, components = null, languageCode = null }) {
-  const settings = await getWhatsAppSettings(tenantId);
+async function sendWelcomeMessage({ phone, customerName, tenantId, branchId, templateName = null, components = null, languageCode = null }) {
+  let selectedAccountId=null;
+  let settings = await getWhatsAppSettings(tenantId);
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'){
+    const sender=await require('./whatsappVerifiedSenderResolver').createVerifiedSenderResolver({pool:db.pool,appId:process.env.META_APP_ID})({tenantId,branchId});
+    selectedAccountId=sender.accountId;
+    settings={...(settings||{}),phone_number_id:sender.phoneNumberId,access_token:sender.accessToken};
+  }
 
   if (!settings) {
     console.log('[WhatsApp] No active WhatsApp settings for tenant', tenantId, '— skipping.');
@@ -544,43 +563,52 @@ async function sendWelcomeMessage({ phone, customerName, tenantId, templateName 
   const effectiveTemplateName = (templateName && templateName.trim()) || settings.template_name;
 
   const results = [];
+  const send=async(args)=>{
+    if(process.env.WHATSAPP_VERIFIED_ONBOARDING!=='true')return callWhatsAppApi(args);
+    const mirror=require('./whatsappVerifiedMessageMirror').createVerifiedMessageMirror({pool:db.pool});
+    return require('./whatsappVerifiedDelivery').createVerifiedDelivery({pool:db.pool,mirror}).deliver({tenantId,branchId,accountId:selectedAccountId,recipientPhone:e164,body:'[Welcome: '+effectiveTemplateName+']',templateName:effectiveTemplateName},()=>callWhatsAppApi(args));
+  };
+
 
   // If a specific languageCode was explicitly requested (e.g. per-form setting)
   if (languageCode) {
-    const res = await callWhatsAppApi({
+    const res = await send({
       phoneNumberId: settings.phone_number_id,
       accessToken: settings.access_token,
       toPhone: e164,
       templateName: effectiveTemplateName,
       languageCode: languageCode.trim(),
       tenantId,
+      branchId,
       components: effectiveComponents
     });
     results.push({ language: languageCode, ...res });
   } else {
     // Arabic template
     if (settings.send_arabic && settings.template_language_ar) {
-      const res = await callWhatsAppApi({
+      const res = await send({
         phoneNumberId: settings.phone_number_id,
         accessToken: settings.access_token,
         toPhone: e164,
         templateName: effectiveTemplateName,
         languageCode: settings.template_language_ar,
         tenantId,
+        branchId,
         components: effectiveComponents
       });
       results.push({ language: settings.template_language_ar, ...res });
     }
 
     // English template
-    if (settings.send_english && settings.template_language_en) {
-      const res = await callWhatsAppApi({
+    if (!results.some(r=>r.deliveryUnknown) && settings.send_english && settings.template_language_en) {
+      const res = await send({
         phoneNumberId: settings.phone_number_id,
         accessToken: settings.access_token,
         toPhone: e164,
         templateName: effectiveTemplateName,
         languageCode: settings.template_language_en,
         tenantId,
+        branchId,
         components: effectiveComponents
       });
       results.push({ language: settings.template_language_en, ...res });
@@ -588,7 +616,7 @@ async function sendWelcomeMessage({ phone, customerName, tenantId, templateName 
   }
 
   const sent = results.length > 0 && results.some(r => r.success);
-  return { sent, results };
+  return { sent, results,deliveryUnknown:results.some(r=>r.deliveryUnknown),historyPending:results.filter(r=>r.historyPending) };
 }
 
 /**
@@ -605,7 +633,7 @@ async function sendWelcomeMessage({ phone, customerName, tenantId, templateName 
  * @param {string} opts.tenantId
  * @returns {Promise<{success: boolean, messageId: string|null, error: string|null, resolvedPhoneId?: string}>}
  */
-async function sendTestMessage({ phoneNumberId, accessToken, templateName, languageCode, toPhone, customerName = null, defaultCountryCode = '20', tenantId = null }) {
+async function sendTestMessage({ phoneNumberId, accessToken, templateName, languageCode, toPhone, customerName = null, defaultCountryCode = '20', tenantId = null, branchId }) {
   const e164 = normalisePhone(toPhone, defaultCountryCode);
   if (!e164) {
     return { success: false, messageId: null, error: 'Invalid phone number — could not convert to E.164 format' };
@@ -631,6 +659,7 @@ async function sendTestMessage({ phoneNumberId, accessToken, templateName, langu
     templateName,
     languageCode: effectiveLang,
     tenantId,
+    branchId,
     components
   });
 }
@@ -910,6 +939,7 @@ async function diagnoseWhatsAppConnection(tenantId) {
  */
 async function broadcastWhatsAppCampaign({
   tenantId,
+  branchId,
   campaignId,
   templateName,
   languageCode,
@@ -917,7 +947,13 @@ async function broadcastWhatsAppCampaign({
   customParam = null,
   userId = null
 }) {
-  const settings = await getWhatsAppSettings(tenantId);
+  let selectedSender=null;
+  let settings = await getWhatsAppSettings(tenantId);
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'){
+    const sender=await require('./whatsappVerifiedSenderResolver').createVerifiedSenderResolver({pool:db.pool,appId:process.env.META_APP_ID})({tenantId,branchId});
+    selectedSender=sender;
+    settings={...(settings||{}),phone_number_id:sender.phoneNumberId,access_token:sender.accessToken};
+  }
   if (!settings) {
     throw new Error('WhatsApp settings not configured for this organization');
   }
@@ -928,8 +964,8 @@ async function broadcastWhatsAppCampaign({
   }
 
   // Resolve active/default account_id for proper chat association
-  let resolvedAccountId = null;
-  try {
+  let resolvedAccountId = selectedSender?.accountId||null;
+  if(!selectedSender)try {
     const accRes = await db.query(`
       SELECT id FROM whatsapp_accounts
       WHERE tenant_id::text = $1::text 
@@ -993,27 +1029,50 @@ async function broadcastWhatsAppCampaign({
     }
 
     try {
-      const result = await callWhatsAppApi({
+      const context={campaignId,tenantId,branchId,accountId:resolvedAccountId,recipientPhone:normPhone,body:'[Campaign: '+templateName+']',templateName,customerId:recipient.customerId||null,contactName:recipient.name||null,userId};
+      const delivery=selectedSender?require('./whatsappVerifiedDelivery').createVerifiedDelivery({pool:db.pool,mirror:require('./whatsappVerifiedMessageMirror').createVerifiedMessageMirror({pool:db.pool})}):null;
+      const result=delivery?await delivery.deliver(context,()=>callWhatsAppApi({
         phoneNumberId: phone_number_id,
         accessToken: access_token,
         toPhone: normPhone,
         templateName,
         languageCode: effectiveLang,
         tenantId,
+        branchId,
+        components
+      })):await callWhatsAppApi({
+        phoneNumberId: phone_number_id,
+        accessToken: access_token,
+        toPhone: normPhone,
+        templateName,
+        languageCode: effectiveLang,
+        tenantId,
+        branchId,
         components
       });
 
       if (result.success) {
         successCount++;
         const messageId = result.messageId || null;
+        if(!selectedSender){
+        try{
         await db.query(`
           INSERT INTO whatsapp_campaign_recipients 
             (campaign_id, customer_id, customer_name, phone, status, message_id, sent_at)
           VALUES ($1, $2, $3, $4, 'sent', $5, NOW())
         `, [campaignId, recipient.customerId || null, recipient.name || '', normPhone, messageId]);
+        }catch(logError){
+          if(!selectedSender)throw logError;
+          logs.push({status:'sent_history_pending',repairId:result.repairId,recipientLogPending:true});
+        }
+        }
 
         // Mirror campaign message into WhatsApp Chat Conversation
         try {
+          if(selectedSender){
+            if(result.acceptanceReconciliationRequired)logs.push({status:'acceptance_reconciliation_required',repairId:result.repairId});
+            if(result.historyPending)logs.push({status:'sent_history_pending',repairId:result.repairId});
+          }else{
           const rawStr = String(rawPhone || '').trim();
           const phoneVariants = Array.from(new Set([
             normPhone,
@@ -1029,9 +1088,10 @@ async function broadcastWhatsAppCampaign({
             SELECT id, contact_name, customer_id FROM whatsapp_conversations
             WHERE tenant_id::text = $1::text 
               AND phone_number = ANY($2::text[])
+              AND ($3::boolean=false OR (account_id=$4 AND branch_id IS NOT DISTINCT FROM $5))
             ORDER BY last_message_at DESC NULLS LAST
             LIMIT 1
-          `, [tenantId, phoneVariants]);
+          `, [tenantId, phoneVariants,Boolean(selectedSender),resolvedAccountId,branchId||null]);
 
           const campaignMsgBody = `[Campaign: ${templateName}]`;
 
@@ -1046,16 +1106,16 @@ async function broadcastWhatsAppCampaign({
                   customer_id = COALESCE(whatsapp_conversations.customer_id, $3),
                   contact_name = COALESCE(whatsapp_conversations.contact_name, $4),
                   updated_at = NOW()
-              WHERE id = $5
-            `, [campaignMsgBody, resolvedAccountId, recipient.customerId || null, recipient.name || null, convId]);
+              WHERE id = $5 AND tenant_id::text=$6::text AND ($7::boolean=false OR (account_id=$2 AND branch_id IS NOT DISTINCT FROM $8))
+            `, [campaignMsgBody, resolvedAccountId, recipient.customerId || null, recipient.name || null, convId,tenantId,Boolean(selectedSender),branchId||null]);
           } else {
             const newConv = await db.query(`
               INSERT INTO whatsapp_conversations (
-                tenant_id, account_id, phone_number, contact_name, customer_id,
+                tenant_id, account_id, phone_number, contact_name, customer_id, branch_id,
                 last_message_body, last_message_at, last_message_direction,
                 unread_count, created_at, updated_at
               )
-              VALUES ($1, $2, $3, $4, $5, $6, NOW(), 'outbound', 0, NOW(), NOW())
+              VALUES ($1, $2, $3, $4, $5, $7, $6, NOW(), 'outbound', 0, NOW(), NOW())
               RETURNING id
             `, [
               tenantId,
@@ -1063,7 +1123,8 @@ async function broadcastWhatsAppCampaign({
               normPhone,
               recipient.name || normPhone,
               recipient.customerId || null,
-              campaignMsgBody
+              campaignMsgBody,
+              branchId||null
             ]);
             convId = newConv.rows[0]?.id;
           }
@@ -1086,9 +1147,13 @@ async function broadcastWhatsAppCampaign({
               templateName
             ]);
           }
+          }
         } catch (chatErr) {
           console.warn('[WhatsApp Campaign Chat Mirror Error]:', chatErr.message);
+          if(selectedSender)logs.push({phone:normPhone,status:'sent_history_pending',error_message:'Provider accepted; history requires reconciliation.'});
         }
+      } else if(result.deliveryUnknown){
+        logs.push({status:'delivery_unknown',repairId:result.repairId});
       } else {
         failedCount++;
         await db.query(`
@@ -1124,7 +1189,10 @@ async function broadcastWhatsAppCampaign({
     success: true,
     total: recipients.length,
     successfulCount: successCount,
-    failedCount
+    failedCount,
+    historyPending: logs.filter(x=>x.status==='sent_history_pending'),
+    deliveryUnknown: logs.filter(x=>x.status==='delivery_unknown'),
+    acceptanceReconciliationRequired:logs.filter(x=>x.status==='acceptance_reconciliation_required')
   };
 }
 
@@ -1143,7 +1211,10 @@ async function broadcastWhatsAppCampaign({
  * @param {string} params.text
  * @returns {Promise<{success: boolean, messageId?: string, code?: string|number, error?: string}>}
  */
-async function sendDirectTextMessage({ phoneNumberId, accessToken, toPhone, text }) {
+async function sendDirectTextMessage({ phoneNumberId, accessToken, toPhone, text, tenantId = null, branchId, signal, assertHeld }) {
+  assertHeld?.();
+  await requireVerifiedSender({tenantId,phoneNumberId,accessToken,branchId});
+  assertHeld?.();
   if (!phoneNumberId || !accessToken || !toPhone || !text) {
     return { success: false, error: 'Missing required parameters for direct WhatsApp message' };
   }
@@ -1166,17 +1237,20 @@ async function sendDirectTextMessage({ phoneNumberId, accessToken, toPhone, text
   };
 
   try {
+    assertHeld?.();
     const res = await axios.post(url, payload, {
       headers: {
         Authorization: `Bearer ${accessToken.trim()}`,
         'Content-Type': 'application/json'
       },
+      signal,
       timeout: 15000
     });
 
     const messageId = res.data?.messages?.[0]?.id || null;
     return { success: true, messageId };
   } catch (err) {
+    if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'&&!err.response?.data?.error)return{success:false,deliveryUnknown:true,error:'Provider outcome unknown; do not retry automatically.'};
     const metaError = err.response?.data?.error;
     const errorCode = metaError?.code;
     const errorMessage = metaError?.message || err.message;
@@ -1224,8 +1298,15 @@ async function sendInteractiveButtonsOrList({
   options = [],
   headerText = null,
   footerText = null,
-  listButtonLabel = 'Select Option'
+  listButtonLabel = 'Select Option',
+  tenantId = null,
+  branchId,
+  signal,
+  assertHeld
 }) {
+  assertHeld?.();
+  await requireVerifiedSender({tenantId,phoneNumberId,accessToken,branchId});
+  assertHeld?.();
   if (!phoneNumberId || !accessToken || !toPhone || !text) {
     return { success: false, error: 'Missing required parameters for interactive WhatsApp message' };
   }
@@ -1246,6 +1327,10 @@ async function sendInteractiveButtonsOrList({
       phoneNumberId,
       accessToken,
       toPhone: normPhone,
+      tenantId,
+      branchId,
+      signal,
+      assertHeld,
       text: fallbackBody
     });
   };
@@ -1326,17 +1411,23 @@ async function sendInteractiveButtonsOrList({
   };
 
   try {
+    assertHeld?.();
     const res = await axios.post(url, payload, {
       headers: {
         Authorization: `Bearer ${accessToken.trim()}`,
         'Content-Type': 'application/json'
       },
+      signal,
       timeout: 15000
     });
 
     const messageId = res.data?.messages?.[0]?.id || null;
     return { success: true, messageId, mode };
   } catch (err) {
+    if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'){
+      const providerError=err.response?.data?.error;
+      return{success:false,deliveryUnknown:!providerError,error:providerError?'Provider rejected interactive request.':'Provider outcome unknown; do not retry automatically.'};
+    }
     const metaError = err.response?.data?.error;
     const errorCode = metaError?.code;
     const errorMessage = metaError?.message || err.message;

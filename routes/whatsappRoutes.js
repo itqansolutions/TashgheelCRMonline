@@ -3,6 +3,22 @@ const router = express.Router();
 const whatsappController = require('../controllers/whatsappController');
 const { authorize } = require('../middleware/roleMiddleware');
 
+// New buyer onboarding remains OFF unless explicitly activated after migration.
+// Legacy POST /coexistence/onboard is blocked when this path is selected.
+const verifiedOnboardingEnabled = () => process.env.WHATSAPP_VERIFIED_ONBOARDING === 'true' && process.env.ENABLE_WHATSAPP_COEXISTENCE === 'true';
+const { createOnboardingRouter } = require('../services/whatsappOnboardingRouter');
+let verifiedWorkflow;
+const workflow = new Proxy({}, { get: (_, method) => (...args) => {
+  if (!verifiedWorkflow) verifiedWorkflow = require('../services/whatsappOnboardingRuntime').createRuntime({db:require('../config/db'),axios:require('axios'),env:process.env});
+  return verifiedWorkflow[method](...args);
+} });
+router.use('/coexistence/verified', createOnboardingRouter({express,workflow,pool:require('../config/db').pool,enabled:verifiedOnboardingEnabled}));
+router.use('/coexistence/verified/operations',require('../services/whatsappVerifiedInboundOperations').createInboundOperationsRouter({express,pool:require('../config/db').pool,enabled:verifiedOnboardingEnabled}));
+router.post('/coexistence/onboard', (req,res,next) => {
+  if (verifiedOnboardingEnabled()) return res.status(409).json({code:'USE_VERIFIED_ONBOARDING_ATTEMPT'});
+  next();
+});
+
 // ===========================================================================
 // WHATSAPP CHAT & MESSAGING (Accessible by all agents & managers)
 // ===========================================================================

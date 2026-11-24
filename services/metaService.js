@@ -146,7 +146,13 @@ async function ensureCustomerMetaColumns() {
  *  - Dispatching WhatsApp welcome message and tracking delivery
  */
 async function ingestLead({ lead, formRecord, tenantId, branchId, reqUser = null }) {
-  await ensureCustomerMetaColumns();
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'){
+    if(!tenantId || (formRecord.tenant_id && String(formRecord.tenant_id)!==String(tenantId)))throw Error('META_FORM_TENANT_CONTEXT_INVALID');
+    if(branchId && branchId!=='default-branch'){
+      const owned=await db.query('SELECT id FROM branches WHERE id::text=$1::text AND tenant_id::text=$2::text',[branchId,tenantId]);
+      if(owned.rows.length!==1)throw Error('META_SOURCE_BRANCH_NOT_OWNED');
+    }
+  }else await ensureCustomerMetaColumns();
 
   const metaLeadId = String(lead.id || '').trim();
   const parsed = parseFieldData(lead.field_data);
@@ -378,8 +384,8 @@ async function resolveTemplateVariables({ formRecord, targetCustomer, lead = {},
   if (branchId && branchId !== 'default-branch') {
     try {
       const bRes = await db.query(
-        'SELECT id, name, address, phone FROM branches WHERE id::text = $1::text LIMIT 1',
-        [branchId]
+        'SELECT id, name, address, phone FROM branches WHERE id::text = $1::text AND tenant_id::text=$2::text LIMIT 1',
+        [branchId,tenantId]
       );
       if (bRes.rows.length > 0) branch = bRes.rows[0];
     } catch (bErr) {
@@ -542,7 +548,9 @@ async function resolveTemplateVariables({ formRecord, targetCustomer, lead = {},
       });
 
       const { triggerGreetingIfConfigured } = require('./chatbotRunnerService');
+      const sourceBranch=process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'?targetCustomer.branch_id:(targetCustomer.branch_id||formRecord?.branch_id);
       const greetResult = await triggerGreetingIfConfigured({
+        branchId:sourceBranch,
         phone: targetCustomer.phone,
         name: customerDisplayName,
         customerId: targetCustomer.id,
@@ -553,15 +561,18 @@ async function resolveTemplateVariables({ formRecord, targetCustomer, lead = {},
         customLanguage: resolved.languageCode
       });
 
-      if (greetResult.sent) {
+      if(greetResult.deliveryUnknown){
+        console.warn('[WhatsApp] Provider outcome unknown; fallback suppressed, journal requires reconciliation.');
+      } else if (greetResult.sent) {
         whatsappSent = true;
         await db.query(
-          `UPDATE customers SET whatsapp_welcome_sent = TRUE, whatsapp_welcome_sent_at = NOW() WHERE id = $1`,
-          [targetCustomer.id]
+          `UPDATE customers SET whatsapp_welcome_sent = TRUE, whatsapp_welcome_sent_at = NOW() WHERE id = $1 AND tenant_id::text=$2::text`,
+          [targetCustomer.id,tenantId]
         ).catch(() => {});
         console.log(`📱 [WhatsApp] Auto-greeting successfully sent to Meta lead #${targetCustomer.id} (${customerDisplayName}) with ${resolved.components[0].parameters.length} variable(s)`);
       } else {
         const waResult = await sendWelcomeMessage({
+          branchId:sourceBranch,
           phone: targetCustomer.phone,
           customerName: customerDisplayName,
           tenantId,
@@ -573,8 +584,8 @@ async function resolveTemplateVariables({ formRecord, targetCustomer, lead = {},
         if (waResult.sent) {
           whatsappSent = true;
           await db.query(
-            `UPDATE customers SET whatsapp_welcome_sent = TRUE, whatsapp_welcome_sent_at = NOW() WHERE id = $1`,
-            [targetCustomer.id]
+            `UPDATE customers SET whatsapp_welcome_sent = TRUE, whatsapp_welcome_sent_at = NOW() WHERE id = $1 AND tenant_id::text=$2::text`,
+            [targetCustomer.id,tenantId]
           ).catch(() => {});
           console.log(`📱 [WhatsApp] Welcome message successfully sent to customer #${targetCustomer.id} (${customerDisplayName}) with ${resolved.components[0].parameters.length} variable(s)`);
         }

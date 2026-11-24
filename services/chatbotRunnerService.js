@@ -37,6 +37,7 @@ async function triggerGreetingIfConfigured({
   customComponents = null,
   customLanguage = null
 }) {
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true')return {sent:false,reason:'bot_deferred_onboarding_release'};
   try {
     const sRes = await db.query(`
       SELECT 
@@ -386,6 +387,7 @@ async function handleInboundBotInteraction({
   interactiveData = null,
   contactProfileName = null
 }) {
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true')return {handled:false,action:'bot_deferred_onboarding_release',noLegacyEffects:true};
   try {
     const text = (messageText || '').trim();
     if (!text && !interactiveData) return { handled: false, reason: 'empty_text' };

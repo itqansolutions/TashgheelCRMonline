@@ -1,4 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useBranch } from '../../context/BranchContext';
+import { useAuth } from '../../context/AuthContext';
+import WhatsAppInboundOperations from '../../components/WhatsAppInboundOperations';
+import { createSignupAttempt } from '../../utils/whatsappSignupSession';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
@@ -11,6 +15,9 @@ import IntegrationsSubNav from '../../components/Integrations/IntegrationsSubNav
 
 const WhatsAppSettings = () => {
   const navigate = useNavigate();
+  const {currentBranch}=useBranch();
+  const {user}=useAuth();
+  const operationsContext=JSON.stringify([user?.id,user?.tenant_id,currentBranch?.id]);
   const [settings, setSettings] = useState({
     phone_number_id: '',
     waba_id: '',
@@ -55,7 +62,12 @@ const WhatsAppSettings = () => {
   const [embeddedSignupConfigId, setEmbeddedSignupConfigId] = useState('');
   const [coexistenceEnabled, setCoexistenceEnabled] = useState(false);
   const [isConnectingCoexistence, setIsConnectingCoexistence] = useState(false);
-  const [coexistenceSession, setCoexistenceSession] = useState({ phoneNumberId: '', wabaId: '' });
+  const signupAttempt = useRef(null);
+  const [numberPreview,setNumberPreview]=useState(null);
+  const previewResolver=useRef(null);
+  const confirmNumber=preview=>new Promise(resolve=>{previewResolver.current=resolve;setNumberPreview(preview);});
+  const settleNumberPreview=approved=>{const resolve=previewResolver.current;previewResolver.current=null;setNumberPreview(null);resolve?.(approved);};
+  useEffect(()=>()=>{previewResolver.current?.(false);previewResolver.current=null;},[]);
   const [syncContactsOptIn, setSyncContactsOptIn] = useState(false);
   const [syncHistoryOptIn, setSyncHistoryOptIn] = useState(false);
 
@@ -102,37 +114,23 @@ const WhatsAppSettings = () => {
     }
   }, [metaAppId]);
 
-  // Listen for Meta Embedded Signup session messages
+  // Each SDK callback is tied to its own attempt object, not React state snapshots.
   useEffect(() => {
-    const handleMessage = (event) => {
-      if (typeof event.origin === 'string' && !event.origin.endsWith('facebook.com') && !event.origin.endsWith('meta.com')) {
-        return;
-      }
-      try {
-        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        if (data && data.type === 'WA_EMBEDDED_SIGNUP') {
-          // The WhatsApp Business app (Coexistence) flow finishes with
-          // FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING; completion payloads carry
-          // phone_number_id and waba_id per Meta's Embedded Signup docs.
-          if (data.event === 'FINISH' || data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING' || data.data?.phone_number_id) {
-            setCoexistenceSession(prev => ({
-              ...prev,
-              phoneNumberId: data.data?.phone_number_id || prev.phoneNumberId,
-              wabaId: data.data?.waba_id || prev.wabaId
-            }));
-          } else if (data.event === 'CANCEL') {
-            setIsConnectingCoexistence(false);
-            toast('تم إلغاء نافذة ربط Meta من قبل المستخدم');
-          }
-        }
-      } catch {
-        // Ignore non-json messages
-      }
+    const handleMessage = event => signupAttempt.current?.message?.(event);
+    const cancelChangedContext = event => {
+      if (event.key === null || ['token', 'branch_id'].includes(event.key)) {signupAttempt.current?.stop('context');settleNumberPreview(false);}
     };
-
+    window.addEventListener('storage', cancelChangedContext);
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', cancelChangedContext);
+      signupAttempt.current?.dispose();
+      signupAttempt.current = null;
+    };
   }, []);
+
+  useEffect(()=>{settleNumberPreview(false);},[operationsContext]);
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -361,7 +359,7 @@ const WhatsAppSettings = () => {
   // -------------------------------------------------------------------
   // Connect WhatsApp Business Coexistence (Mobile App + Cloud API)
   // -------------------------------------------------------------------
-  const handleConnectCoexistence = () => {
+  const handleConnectCoexistence = async () => {
     if (!coexistenceEnabled) {
       toast.error('ميزة Coexistence معطلة حالياً (Feature Flag: ENABLE_WHATSAPP_COEXISTENCE=false). قم بتفعيلها في متغيرات البيئة بـ Staging.', { duration: 6000 });
       return;
@@ -379,17 +377,55 @@ const WhatsAppSettings = () => {
       return;
     }
 
+    if(syncContactsOptIn || syncHistoryOptIn){toast.error('مزامنة السجل وجهات الاتصال غير متاحة في مسار الربط الآمن الحالي. ألغِ الاختيار للمتابعة.');return;}
+    // A ref locks synchronously, including before React commits a re-render.
+    if (signupAttempt.current) return;
+    const startingToken = localStorage.getItem('token');
+    const startingBranch = localStorage.getItem('branch_id');
+    const assertRequestContext = () => Boolean(startingToken) && localStorage.getItem('token') === startingToken && localStorage.getItem('branch_id') === startingBranch;
+    const starting = { dispose() {}, stop() { signupAttempt.current=null;setIsConnectingCoexistence(false); } };
+    signupAttempt.current=starting;
+    setIsConnectingCoexistence(true);
+    // Session key scoped to authenticated JWT subject/tenant and branch, not raw token.
+    let subject;
+    try{const claims=JSON.parse(atob(startingToken.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));subject=String(claims.user?.tenant_id)+':'+String(claims.user?.id);}catch{subject='unparsed';}
+    const pendingKey='whatsapp_pending_attempt:'+subject+':'+String(startingBranch);
+    const pendingId=sessionStorage.getItem(pendingKey);
+    if(pendingId){
+      completeCoexistenceOnboarding(null,starting,{},assertRequestContext,pendingId,pendingKey);
+      return;
+    }
+    let serverAttempt;
+    try {
+      const result=await api.post('/whatsapp/coexistence/verified/attempts', {app_id:metaAppId,config_id:embeddedSignupConfigId}, {assertRequestContext});
+      if(signupAttempt.current!==starting)return;
+      serverAttempt=result.data?.data?.attemptId;
+      if(!serverAttempt)throw Error('Missing server attempt');
+      sessionStorage.setItem(pendingKey,serverAttempt);
+    } catch {
+      if(signupAttempt.current===starting){signupAttempt.current=null;setIsConnectingCoexistence(false);toast.error('تعذر بدء ربط آمن. أعد تسجيل الدخول وحاول مرة أخرى.');}
+      return;
+    }
+    const attempt = createSignupAttempt({
+      selfWindow: window,
+      onReady: payload => completeCoexistenceOnboarding(payload, attempt, {
+        sync_contacts: syncContactsOptIn,
+        sync_history: syncHistoryOptIn
+      }, assertRequestContext, serverAttempt,pendingKey),
+      onStop: reason => {
+        if (signupAttempt.current !== attempt) return;
+        api.post('/whatsapp/coexistence/verified/attempts/'+encodeURIComponent(serverAttempt)+'/cancel',{}, {assertRequestContext}).then(()=>sessionStorage.removeItem(pendingKey)).catch(()=>{});
+        signupAttempt.current = null;
+        setIsConnectingCoexistence(false);
+        if (reason === 'cancel') toast('تم إلغاء نافذة ربط Meta من قبل المستخدم');
+        else toast.error('لم تكتمل بيانات ربط Meta بشكل آمن. أغلق نوافذ الربط القديمة ثم أعد المحاولة.');
+      }
+    });
+    signupAttempt.current = attempt;
     setIsConnectingCoexistence(true);
     try {
-      window.FB.login((response) => {
-        if (response.authResponse?.code) {
-          completeCoexistenceOnboarding(response.authResponse.code);
-        } else if (response.authResponse?.accessToken) {
-          completeCoexistenceOnboarding(null, response.authResponse.accessToken);
-        } else {
-          setIsConnectingCoexistence(false);
-          toast.error('لم يتم إكمال تفويض حساب Meta بنجاح');
-        }
+      window.FB.login(response => {
+        if (signupAttempt.current === attempt) attempt.login(response);
       }, {
         config_id: embeddedSignupConfigId,
         response_type: 'code',
@@ -406,33 +442,47 @@ const WhatsAppSettings = () => {
         }
       });
     } catch (err) {
-      setIsConnectingCoexistence(false);
-      toast.error(err.message || 'فشل فتح نافذة Meta Embedded Signup');
+      attempt.stop('sdk');
     }
   };
 
-  const completeCoexistenceOnboarding = async (code, accessToken = null) => {
+  const completeCoexistenceOnboarding = async (payload, attempt, syncOptions, assertRequestContext, serverAttempt,pendingKey) => {
     try {
-      if (!coexistenceSession?.phoneNumberId) {
-        throw new Error('لم تصل بيانات الرقم من Meta. أكمل نافذة الربط حتى النهاية ثم أعد المحاولة.');
-      }
       toast.loading('جاري التحقق من الحساب وتسجيل Coexistence...', { id: 'coex-onboard' });
-      const payload = {
-        code,
-        access_token: accessToken,
-        phone_number_id: coexistenceSession?.phoneNumberId,
-        waba_id: coexistenceSession?.wabaId,
-        sync_contacts: syncContactsOptIn,
-        sync_history: syncHistoryOptIn
-      };
-      const res = await api.post('/whatsapp/coexistence/onboard', payload);
+      let res = payload ? await api.post('/whatsapp/coexistence/verified/attempts/'+encodeURIComponent(serverAttempt)+'/complete', payload, { assertRequestContext }) : await api.get('/whatsapp/coexistence/verified/attempts/'+encodeURIComponent(serverAttempt),{assertRequestContext});
+      if (signupAttempt.current !== attempt) return;
+      for(let check=0;res.data?.data?.status==='processing' && check<10;check++){
+        await new Promise(resolve=>setTimeout(resolve,1000));
+        if(signupAttempt.current!==attempt || !assertRequestContext())return;
+        res=await api.get('/whatsapp/coexistence/verified/attempts/'+encodeURIComponent(serverAttempt),{assertRequestContext});
+      }
+      if(res.data?.data?.status==='confirmation_required'){
+        const preview=res.data.data;
+        if(!preview.displayPhoneNumber || (payload && preview.phoneId!==payload.phone_number_id))throw Error('بيانات معاينة الرقم غير مكتملة.');
+        if(!(await confirmNumber(preview))){await api.post('/whatsapp/coexistence/verified/attempts/'+encodeURIComponent(serverAttempt)+'/cancel',{}, {assertRequestContext});sessionStorage.removeItem(pendingKey);return;}
+        if(signupAttempt.current!==attempt||!assertRequestContext())throw Error('سياق الربط تغير. أعد المحاولة.');
+        res=await api.post('/whatsapp/coexistence/verified/attempts/'+encodeURIComponent(serverAttempt)+'/confirm',{phone_number_id:preview.phoneId},{assertRequestContext});
+        if(signupAttempt.current!==attempt)return;
+      }
+      if(res.data?.data?.status==='open'){await api.post('/whatsapp/coexistence/verified/attempts/'+encodeURIComponent(serverAttempt)+'/cancel',{}, {assertRequestContext});sessionStorage.removeItem(pendingKey);throw Error('أعد الضغط لبدء تفويض جديد.');}
+      if(res.data?.data?.status==='reserved'){res=await api.post('/whatsapp/coexistence/verified/attempts/'+encodeURIComponent(serverAttempt)+'/resume',{}, {assertRequestContext});}
+      if(['expired','failed','cancelled'].includes(res.data?.data?.status)){sessionStorage.removeItem(pendingKey);throw Error('انتهت محاولة الربط. اضغط الربط لبدء محاولة جديدة.');}
+      if(res.data?.data?.status!=='linked')throw Error('الربط قيد التحقق ولم يتم تفعيله بعد.');
+      sessionStorage.removeItem(pendingKey);
       toast.success(res.data?.message || 'تم ربط رقم WhatsApp Business بنجاح في وضع Coexistence!', { id: 'coex-onboard' });
       fetchAccounts();
       fetchSettings();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message || 'فشل إتمام ربط Coexistence مع Meta', { id: 'coex-onboard', duration: 8000 });
+      if (signupAttempt.current !== attempt) return;
+      if(err.response?.data?.code==='ONBOARDING_CONTEXT_REJECTED')sessionStorage.removeItem(pendingKey);
+      toast.error(err.response?.data?.message || err.message || 'تعذر إكمال الربط الآن. اضغط الربط مجدداً لاستكمال المحاولة المحفوظة. فشل إتمام ربط Coexistence مع Meta', { id: 'coex-onboard', duration: 8000 });
     } finally {
-      setIsConnectingCoexistence(false);
+      if (signupAttempt.current === attempt) {
+        attempt.dispose();
+        signupAttempt.current = null;
+        setIsConnectingCoexistence(false);
+      }
+      toast.dismiss('coex-onboard');
     }
   };
 
@@ -464,7 +514,10 @@ const WhatsAppSettings = () => {
   // -------------------------------------------------------------------
   return (
     <div className="whatsapp-settings-page" style={{ padding: '24px', maxWidth: 800 }}>
+      <style>{`.whatsapp-settings-page,.whatsapp-settings-page *{box-sizing:border-box}.whatsapp-settings-page{width:100%;min-width:0}.whatsapp-settings-page input,.whatsapp-settings-page select{max-width:100%}@media(max-width:600px){.whatsapp-settings-page{padding:16px!important}.whatsapp-settings-page [style*="grid-template-columns"]{grid-template-columns:minmax(0,1fr)!important}.whatsapp-settings-page [style*="min-width: 220px"]{min-width:0!important}.whatsapp-settings-page [style*="display: flex"]{flex-wrap:wrap}.whatsapp-settings-page *{min-width:0!important;overflow-wrap:anywhere}.whatsapp-settings-page .whatsapp-variable-row{max-width:100%;width:100%}.whatsapp-settings-page .whatsapp-variable-row input,.whatsapp-settings-page .whatsapp-variable-row select{width:100%;flex-basis:100%!important}.whatsapp-settings-page button{max-width:100%}.whatsapp-settings-page table{table-layout:fixed;width:100%}}`}</style>
       <IntegrationsSubNav />
+      {numberPreview && <div role="dialog" aria-modal="true" tabIndex={-1} onKeyDown={event=>{if(event.key==='Escape')settleNumberPreview(false);if(event.key==='Tab'){event.preventDefault();const buttons=[...event.currentTarget.querySelectorAll('button')];buttons[(buttons.indexOf(document.activeElement)+1)%buttons.length]?.focus();}}} aria-label="تأكيد ربط رقم واتساب" style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(0,0,0,.45)',display:'grid',placeItems:'center',padding:16}}><div dir="rtl" style={{background:'white',borderRadius:12,padding:20,width:'min(100%,420px)',maxHeight:'85vh',overflowY:'auto'}}><h2 style={{fontSize:20}}>تأكيد ربط رقم واتساب</h2><p>راجع الرقم قبل ربطه بالشركة والفرع الحاليين.</p><p dir="ltr" style={{fontSize:22,fontWeight:700,overflowWrap:'anywhere'}}>{numberPreview.displayPhoneNumber}</p><p>{numberPreview.verifiedName}</p><p>لن يتم الربط إذا اخترت إلغاء.</p><div style={{display:'flex',gap:12}}><button type="button" style={{minHeight:44,padding:'10px 14px'}} onClick={()=>settleNumberPreview(true)}>تأكيد ربط الرقم</button><button type="button" autoFocus style={{minHeight:44,padding:'10px 14px'}} onClick={()=>settleNumberPreview(false)}>إلغاء الربط</button></div></div></div>}
+
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
@@ -478,7 +531,7 @@ const WhatsAppSettings = () => {
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>WhatsApp Integration</h2>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
-            Automatically send a welcome message when a new Meta lead is created
+            ربط أرقام واتساب لكل شركة. تشغيل البوت مؤجل في هذا الإصدار.
           </p>
         </div>
         {/* Active badge */}
@@ -511,10 +564,7 @@ const WhatsAppSettings = () => {
       }}>
         <Info size={18} color="#2563eb" style={{ flexShrink: 0, marginTop: 2 }} />
         <div style={{ fontSize: 13, color: '#1e40af', lineHeight: 1.6 }}>
-          <strong>How it works:</strong> When a new lead arrives from Meta (via real-time webhook or manual sync),
-          the CRM will automatically send a WhatsApp template message to the customer's phone number.
-          You must create a <strong>pre-approved template</strong> in your Meta Business account first,
-          then enter its name below.
+          البوت ومزامنة جهات الاتصال والسجل القديم مؤجلة، ولا تبدأ بمجرد ربط الرقم.
         </div>
       </div>
 
@@ -538,7 +588,7 @@ const WhatsAppSettings = () => {
             <button
               type="button"
               onClick={handleSyncAccounts}
-              disabled={syncingAccounts}
+              disabled={syncingAccounts || coexistenceEnabled}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px',
                 background: '#f0fdf4', color: '#16a34a', border: '1px solid #86efac',
@@ -546,7 +596,7 @@ const WhatsAppSettings = () => {
               }}
             >
               <RefreshCw size={14} className={syncingAccounts ? 'animate-spin' : ''} />
-              {syncingAccounts ? 'Syncing...' : 'Sync Numbers from Meta'}
+              {coexistenceEnabled ? 'استخدم الربط المؤكد أدناه' : syncingAccounts ? 'Syncing...' : 'Sync Numbers from Meta'}
             </button>
 
             <button
@@ -572,7 +622,7 @@ const WhatsAppSettings = () => {
           <div style={{ padding: '24px', textAlign: 'center', background: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
             <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: '#475569' }}>No WhatsApp numbers synced yet</p>
             <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>
-              Ensure your WABA credentials are saved below, then click "Sync Numbers from Meta" to import all attached numbers automatically.
+              لإضافة رقم جديد، استخدم Connect WhatsApp Business ثم راجع الرقم وأكد ربطه.
             </p>
           </div>
         ) : (
@@ -681,6 +731,7 @@ const WhatsAppSettings = () => {
                 ))}
               </tbody>
             </table></div>
+            {coexistenceEnabled&&accounts.filter(a=>a.connection_type==='coexistence').map(a=><WhatsAppInboundOperations key={a.id} accountId={a.id} accountLabel={a.display_phone_number||a.phone_number_id} requestContext={operationsContext}/>)}
           </div>
         )}
       </div>
@@ -744,14 +795,14 @@ const WhatsAppSettings = () => {
                 padding: '10px 12px', marginBottom: 16, fontSize: 12, color: '#475569'
               }}>
                 <div style={{ fontWeight: 600, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Info size={14} color="#0284c7" /> حالة الجاهزية (Meta Readiness):
+                  <Info size={14} color="#0284c7" /> إعدادات الربط المحلية (ليست تحققًا من Meta):
                 </div>
                 <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.5 }}>
                   <li>
-                    Meta App ID: {metaAppId ? <span style={{ color: '#16a34a', fontWeight: 600 }}>جاهز ({metaAppId})</span> : <span style={{ color: '#dc2626', fontWeight: 600 }}>غير مضبوط في البيئة</span>}
+                    Meta App ID: {metaAppId ? <span style={{ color: '#16a34a', fontWeight: 600 }}>تم إدخاله ({metaAppId})</span> : <span style={{ color: '#dc2626', fontWeight: 600 }}>غير مضبوط في البيئة</span>}
                   </li>
                   <li>
-                    Config ID: {embeddedSignupConfigId ? <span style={{ color: '#16a34a', fontWeight: 600 }}>جاهز</span> : <span style={{ color: '#dc2626', fontWeight: 600 }}>غير مضبوط في البيئة</span>}
+                    Config ID: {embeddedSignupConfigId ? <span style={{ color: '#16a34a', fontWeight: 600 }}>تم إدخاله</span> : <span style={{ color: '#dc2626', fontWeight: 600 }}>غير مضبوط في البيئة</span>}
                   </li>
                   <li>
                     Feature Flag: {coexistenceEnabled ? <span style={{ color: '#16a34a', fontWeight: 600 }}>مفعّل</span> : <span style={{ color: '#eab308', fontWeight: 600 }}>معطّل افتراضياً لحماية الإنتاج</span>}
@@ -764,10 +815,11 @@ const WhatsAppSettings = () => {
               background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
               padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#475569'
             }}>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>خيارات المزامنة بعد الربط (اختيارية):</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>مزامنة جهات الاتصال والسجل القديم مؤجلة:</div>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
+                  disabled
                   checked={syncContactsOptIn}
                   onChange={(e) => setSyncContactsOptIn(e.target.checked)}
                   style={{ marginTop: 2 }}
@@ -777,6 +829,7 @@ const WhatsAppSettings = () => {
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
                 <input
                   type="checkbox"
+                  disabled
                   checked={syncHistoryOptIn}
                   onChange={(e) => setSyncHistoryOptIn(e.target.checked)}
                   style={{ marginTop: 2 }}
@@ -1029,7 +1082,7 @@ const WhatsAppSettings = () => {
                     <span>التوكن محفوظ ونشط في قاعدة البيانات ({settings.token_preview || '••••••••••••••••'})</span>
                   </div>
                   <span style={{ fontSize: 11, background: '#d1fae5', color: '#047857', padding: '3px 10px', borderRadius: 6, fontWeight: 700 }}>
-                    جاهز للاستخدام ✅
+                    تم إدخاله للاستخدام ✅
                   </span>
                 </div>
               ) : (
@@ -1599,7 +1652,7 @@ const WhatsAppSettings = () => {
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginBottom: 28 }}>
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || coexistenceEnabled}
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
               padding: '10px 24px', borderRadius: 8,

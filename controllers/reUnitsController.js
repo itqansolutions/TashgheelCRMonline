@@ -1154,6 +1154,8 @@ exports.sendUnitGalleryWhatsApp = async (req, res) => {
 
         // 5. Send via Meta WhatsApp Cloud API
         const sendResult = await sendDirectTextMessage({
+            branchId: req.branchId,
+            tenantId: tenant_id,
             phoneNumberId,
             accessToken,
             toPhone: normPhone,

@@ -55,8 +55,10 @@ class NotificationWorkerService {
         let succeeded = 0;
         let failed = 0;
         let retried = 0;
+        const pendingReconciliation=[];
 
         for (const job of jobs) {
+            let providerAttempted=false;
             try {
                 // Job was atomically claimed as processing by the selection statement.
                 // 2. Dry-Run Mode (Safe testing & simulated environments)
@@ -86,7 +88,13 @@ class NotificationWorkerService {
                 }
 
                 // 3. Real Dispatch via Meta Cloud API
-                const settings = await getWhatsAppSettings(job.tenant_id);
+                let selectedAccountId=null;
+                let settings=await getWhatsAppSettings(job.tenant_id);
+                if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'){
+                    const selected=await require('./whatsappVerifiedSenderResolver').createVerifiedSenderResolver({pool:db.pool,appId:process.env.META_APP_ID})({tenantId:job.tenant_id,branchId:job.branch_id,accountId:null});
+                    selectedAccountId=selected.accountId;
+                    settings={...(settings||{}),phone_number_id:selected.phoneNumberId,access_token:selected.accessToken};
+                }
                 if (!settings || !settings.phone_number_id || !settings.access_token) {
                     const errMsg = 'WhatsApp Cloud API credentials not configured or inactive for organization';
                     await this._markJobFailed(job, errMsg, 'NOT_CONFIGURED');
@@ -97,9 +105,12 @@ class NotificationWorkerService {
                 const payload = typeof job.payload === 'string' ? JSON.parse(job.payload) : (job.payload || {});
                 let sendResult = null;
 
+                const dispatch=async()=>{
+                providerAttempted=true;
                 if (payload.templateName) {
                     // Pre-approved template dispatch
                     sendResult = await callWhatsAppApi({
+                        branchId: job.branch_id,
                         phoneNumberId: settings.phone_number_id,
                         accessToken: settings.access_token,
                         toPhone: job.recipient_phone,
@@ -111,6 +122,8 @@ class NotificationWorkerService {
                 } else if (payload.messageText) {
                     // Direct free-form text dispatch (within 24h customer window or employee internal test)
                     sendResult = await sendDirectTextMessage({
+                        branchId: job.branch_id,
+                        tenantId: job.tenant_id,
                         phoneNumberId: settings.phone_number_id,
                         accessToken: settings.access_token,
                         toPhone: job.recipient_phone,
@@ -120,6 +133,7 @@ class NotificationWorkerService {
                     // Fallback to tenant default template if configured
                     const defaultTemplate = settings.template_name || 'hello_world';
                     sendResult = await callWhatsAppApi({
+                        branchId: job.branch_id,
                         phoneNumberId: settings.phone_number_id,
                         accessToken: settings.access_token,
                         toPhone: job.recipient_phone,
@@ -133,6 +147,30 @@ class NotificationWorkerService {
                     });
                 }
 
+                return sendResult;
+                };
+                if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'){
+                    const mirror=require('./whatsappVerifiedMessageMirror').createVerifiedMessageMirror({pool:db.pool});
+                    const delivery=require('./whatsappVerifiedDelivery').createVerifiedDelivery({pool:db.pool,mirror});
+                    sendResult=await delivery.deliver({notificationJobId:job.id,tenantId:job.tenant_id,branchId:job.branch_id,accountId:selectedAccountId,recipientPhone:job.recipient_phone,body:payload.messageText||'[Notification: '+(payload.templateName||settings.template_name||'hello_world')+']',templateName:payload.messageText?null:(payload.templateName||settings.template_name||'hello_world'),messageType:payload.messageText?'text':'template'},dispatch);
+                }else sendResult=await dispatch();
+                if(sendResult?.deliveryUnknown){
+                    await this._markJobFailed(job,'Provider outcome unknown. Manual reconciliation required, never auto-resend. Journal '+sendResult.repairId,'DELIVERY_UNKNOWN');
+                    failed++;continue;
+                }
+                if(sendResult?.success && (sendResult.historyPending||sendResult.acceptanceReconciliationRequired)){
+                    const code=sendResult.acceptanceReconciliationRequired?'ACCEPTANCE_RECONCILIATION_REQUIRED':'HISTORY_PENDING';
+                    const detail=code+' journal='+sendResult.repairId+'; provider accepted, never resend.';
+                    await db.query("UPDATE notification_jobs SET status='completed',processed_at=now(),meta_message_id=$1,error_message=$2,updated_at=now() WHERE id=$3 AND tenant_id=$4",[sendResult.messageId||null,detail,job.id,job.tenant_id]);
+                    await db.query("UPDATE notification_logs SET delivery_status='sent',meta_message_id=$1,error_code=$2,error_message=$3,updated_at=now() WHERE job_id=$4",[sendResult.messageId||null,code,detail,job.id]);
+                    if(sendResult.historyPending){
+                        try{
+                            const mirror=require('./whatsappVerifiedMessageMirror').createVerifiedMessageMirror({pool:db.pool});
+                            await require('./whatsappVerifiedDelivery').createVerifiedDelivery({pool:db.pool,mirror}).repair(sendResult.repairId);
+                        }catch{}
+                    }
+                    succeeded++;pendingReconciliation.push({jobId:job.id,repairId:sendResult.repairId,outcome:code});continue;
+                }
                 if (sendResult && sendResult.success) {
                     const metaMessageId = sendResult.messageId || null;
 
@@ -182,6 +220,10 @@ class NotificationWorkerService {
                 }
             } catch (jobErr) {
                 console.error(`❌ [NotificationWorker] Exception on Job ${job.id}:`, jobErr.message);
+                if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'&&providerAttempted){
+                    await this._markJobFailed(job,'Provider may have accepted. Manual reconciliation required, never auto-resend.','DELIVERY_UNKNOWN');
+                    failed++;continue;
+                }
                 const newAttempts = (job.attempts || 0) + 1;
                 if (newAttempts >= job.max_attempts) {
                     await this._markJobFailed(job, jobErr.message, 'UNHANDLED_EXCEPTION');
@@ -206,7 +248,8 @@ class NotificationWorkerService {
             processed: jobs.length,
             succeeded,
             failed,
-            retried
+            retried,
+            pendingReconciliation
         };
     }
 

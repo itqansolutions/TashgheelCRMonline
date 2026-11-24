@@ -28,6 +28,8 @@ let tableReady = false;
 let tableEnsuringPromise = null;
 
 async function ensureWhatsAppTable() {
+  // Verified path has explicit migration, never request-time DDL.
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true')return;
   if (tableReady) return;
   if (tableEnsuringPromise) return tableEnsuringPromise;
 
@@ -423,7 +425,7 @@ exports.getWhatsAppSettings = async (req, res) => {
         token_preview: tokenPreview,
         meta_app_id: metaAppId,
         embedded_signup_config_id: embeddedSignupConfigId,
-        coexistence_feature_enabled: coexistenceFeatureEnabled
+        coexistence_feature_enabled: coexistenceFeatureEnabled && process.env.WHATSAPP_VERIFIED_ONBOARDING === 'true'
       }
     });
   } catch (err) {
@@ -436,6 +438,7 @@ exports.getWhatsAppSettings = async (req, res) => {
 // POST /api/whatsapp/settings
 // ---------------------------------------------------------------------------
 exports.updateWhatsAppSettings = async (req, res) => {
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true')return res.status(409).json({status:'error',code:'USE_VERIFIED_ONBOARDING_ATTEMPT',message:'Identity changes require verified onboarding.'});
   await ensureWhatsAppTable();
   const tenantId = req.user.tenant_id;
 
@@ -615,6 +618,7 @@ exports.sendTestWhatsApp = async (req, res) => {
     }
 
     const result = await sendTestMessage({
+      branchId: req.branchId,
       phoneNumberId: s.phone_number_id,
       accessToken: s.access_token,
       templateName: targetTemplate,
@@ -896,6 +900,7 @@ exports.sendCampaign = async (req, res) => {
 
     const broadcastResult = await broadcastWhatsAppCampaign({
       tenantId,
+      branchId:req.branchId,
       campaignId,
       templateName: template_name.trim(),
       languageCode: language_code.trim(),
@@ -951,6 +956,7 @@ exports.getWhatsAppAccounts = async (req, res) => {
 // @desc    Sync phone numbers from Meta WABA for tenant
 // @route   POST /api/whatsapp/accounts/sync
 exports.syncWhatsAppAccounts = async (req, res) => {
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true')return res.status(409).json({status:'error',code:'USE_VERIFIED_ONBOARDING_ATTEMPT',message:'Identity changes require verified onboarding.'});
   const tenantId = req.user.tenant_id;
   await ensureWhatsAppTable();
 
@@ -970,6 +976,11 @@ exports.syncWhatsAppAccounts = async (req, res) => {
 // @desc    Set primary default WhatsApp account
 // @route   POST /api/whatsapp/accounts/:id/default
 exports.setDefaultWhatsAppAccount = async (req, res) => {
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'){
+    if(req.user?.role!=='admin')return res.status(403).json({code:'INTEGRATION_ADMIN_REQUIRED'});
+    try{const data=await require('../services/whatsappVerifiedAccountManagement').createVerifiedAccountManagement({pool:db.pool})({tenantId:String(req.user.tenant_id),branchId:req.branchId,accountId:req.params.id,operation:'default'});return res.json({status:'success',data});}
+    catch{return res.status(409).json({code:'VERIFIED_ACCOUNT_NOT_MANAGEABLE'});}
+  }
   const tenantId = req.user.tenant_id;
   const accountId = req.params.id;
   await ensureWhatsAppTable();
@@ -1009,6 +1020,11 @@ exports.setDefaultWhatsAppAccount = async (req, res) => {
 // @desc    Toggle account active status (soft-disable/enable)
 // @route   PATCH /api/whatsapp/accounts/:id/toggle
 exports.toggleWhatsAppAccount = async (req, res) => {
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'){
+    if(req.user?.role!=='admin')return res.status(403).json({code:'INTEGRATION_ADMIN_REQUIRED'});
+    try{const data=await require('../services/whatsappVerifiedAccountManagement').createVerifiedAccountManagement({pool:db.pool})({tenantId:String(req.user.tenant_id),branchId:req.branchId,accountId:req.params.id,operation:'toggle'});return res.json({status:'success',data});}
+    catch{return res.status(409).json({code:'VERIFIED_ACCOUNT_NOT_MANAGEABLE'});}
+  }
   const tenantId = req.user.tenant_id;
   const accountId = req.params.id;
   await ensureWhatsAppTable();
@@ -1130,8 +1146,8 @@ exports.getMessages = async (req, res) => {
       LEFT JOIN whatsapp_accounts a ON c.account_id::text = a.id::text
       LEFT JOIN users u ON c.assigned_user_id::text = u.id::text
       LEFT JOIN customers cust ON c.customer_id::text = cust.id::text
-      WHERE c.id::text = $1::text AND c.tenant_id::text = $2::text
-    `, [conversationId, tenantId]);
+      WHERE c.id::text = $1::text AND c.tenant_id::text = $2::text AND ($3::boolean=false OR c.branch_id IS NOT DISTINCT FROM $4)
+    `, [conversationId, tenantId,process.env.WHATSAPP_VERIFIED_ONBOARDING==='true',req.branchId?String(req.branchId):null]);
 
     if (convRes.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Conversation not found' });
@@ -1224,6 +1240,7 @@ exports.sendMessage = async (req, res) => {
       }
 
       sendResult = await callWhatsAppApi({
+        branchId: req.branchId,
         phoneNumberId,
         accessToken,
         toPhone: conv.phone_number,
@@ -1243,6 +1260,8 @@ exports.sendMessage = async (req, res) => {
       }
 
       sendResult = await sendDirectTextMessage({
+        branchId: req.branchId,
+        tenantId,
         phoneNumberId,
         accessToken,
         toPhone: conv.phone_number,
@@ -1593,6 +1612,10 @@ exports.handleWebhookEvent = async (req, res) => {
   if (process.env.WHATSAPP_WEBHOOK_PROCESSING_SUSPENDED === 'true') {
     res.set('Retry-After', '300');
     return res.status(503).send('WEBHOOK_PROCESSING_SUSPENDED');
+  }
+
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true'){
+    return require('../services/whatsappVerifiedWebhookHandler').createVerifiedWebhookHandler({pool:db.pool,env:process.env})(req,res);
   }
 
   await ensureWhatsAppTable();
@@ -2060,6 +2083,7 @@ exports.handleWebhookEvent = async (req, res) => {
 // @route   POST /api/whatsapp/coexistence/onboard
 // @access  Private (Admin)
 exports.onboardCoexistenceAccount = async (req, res) => {
+  if(process.env.WHATSAPP_VERIFIED_ONBOARDING==='true')return res.status(409).json({status:'error',code:'USE_VERIFIED_ONBOARDING_ATTEMPT',message:'Identity changes require verified onboarding.'});
   await ensureWhatsAppTable();
   const tenantId = req.user.tenant_id;
   const { isCoexistenceEnabled, onboardCoexistenceAccount } = require('../services/whatsappCoexistenceService');
