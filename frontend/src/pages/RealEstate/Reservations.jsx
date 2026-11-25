@@ -5,6 +5,7 @@ import { CheckCircle2 } from 'lucide-react';
 import api from '../../services/api';
 import { useData } from '../../context/DataContext';
 import { useLanguage } from '../../context/LanguageContext';
+import CancelReservationDialog from '../../components/Deals/CancelReservationDialog';
 import { WorkspaceHeader, StatCards, FilterChips, SimpleTable, Badge, ActionButton, fmtMoney } from '../../components/RealEstate/WorkspaceKit';
 
 /**
@@ -20,6 +21,7 @@ const Reservations = () => {
   const { t, isRTL } = useLanguage();
   const { deals, fetchDeals, loading } = useData();
   const [filter, setFilter] = useState('all');
+  const [cancelTarget, setCancelTarget] = useState(null);
 
   useEffect(() => { fetchDeals(); }, []);
 
@@ -144,6 +146,9 @@ const Reservations = () => {
           <ActionButton color="#0d9488" onClick={() => extend(d.id, 48)}>
             <span dir="ltr" style={{ display: 'inline-block', unicodeBidi: 'isolate' }}><span className="num-en">+48</span>h</span>
           </ActionButton>
+          <ActionButton outline color="#dc2626" onClick={() => setCancelTarget(d)}>
+            إلغاء الحجز
+          </ActionButton>
           <ActionButton outline color="#2563eb" onClick={() => navigate('/deals')}>
             {t('realEstate.reservations.btnDeal')}
           </ActionButton>
@@ -174,6 +179,11 @@ const Reservations = () => {
         rows={rows}
         loading={loading}
         empty={t('realEstate.reservations.empty')}
+      />
+      <CancelReservationDialog
+        deal={cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        onDone={() => { setCancelTarget(null); fetchDeals(false); }}
       />
     </div>
   );

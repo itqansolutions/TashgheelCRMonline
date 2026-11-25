@@ -49,6 +49,11 @@ router.delete('/:id', requireDealPermission('deal.delete'), dealsController.dele
 // @access  Private (deal.edit_details)
 router.post('/:id/reserve-unit', requireDealPermission('deal.edit_details'), dealsController.reserveDealUnit);
 
+// @route   POST api/deals/:id/cancel-reservation
+// @desc    Cancel only the reservation (unit back to Available, deal stays open)
+// @access  Private (deal.edit_details)
+router.post('/:id/cancel-reservation', requireDealPermission('deal.edit_details'), dealsController.cancelDealReservation);
+
 // @route   POST api/deals/:id/extend-reservation
 // @desc    Extend reservation for deal's linked unit
 // @access  Private (deal.extend_sla)

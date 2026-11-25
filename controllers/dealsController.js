@@ -786,7 +786,10 @@ exports.updateDeal = async (req, res) => {
       return res.status(400).json({
         status: 'error',
         code: 'UNIT_ALREADY_LINKED',
-        message: 'Cannot change a linked property unit after the deal has been reserved or closed.'
+        sub_code: isExplicitlyReservingDeal(oldData) && !isFinalStage(oldData.pipeline_stage) ? 'UNIT_RESERVED_RELEASE_FIRST' : 'DEAL_CLOSED_UNIT_LOCKED',
+        message: isExplicitlyReservingDeal(oldData) && !isFinalStage(oldData.pipeline_stage)
+          ? 'The current unit is reserved for this deal. Cancel the reservation first, then change the unit.'
+          : 'Cannot change a linked property unit after the deal has been reserved or closed.'
       });
     }
     const isLinkingUnit = (!oldData.unit_id && Boolean(requestedUnitId)) || isChangingUnit;
@@ -1630,6 +1633,93 @@ exports.reserveDealUnit = async (req, res) => {
     await client.query('ROLLBACK').catch(() => {});
     console.error('[Reserve Deal Unit Error]:', err.message);
     res.status(err.statusCode || 500).json({ status: 'error', message: err.message || 'Failed to reserve unit' });
+  } finally {
+    client.release();
+  }
+};
+
+// @desc    Cancel ONLY the reservation of a deal's linked unit (deal stays alive, unit goes back to Available)
+// @route   POST /api/deals/:id/cancel-reservation
+// @access  Private (deal.edit_details)
+exports.cancelDealReservation = async (req, res) => {
+  const tenant_id = req.user.tenant_id;
+  const branch_id = req.branchId || req.user?.branch_id || null;
+  const reason = String(req.body?.reason || '').trim();
+  if (reason.length < 3) {
+    return res.status(400).json({ status: 'error', code: 'REASON_REQUIRED', message: 'A cancellation reason is required.' });
+  }
+  if (reason.length > 500) {
+    return res.status(400).json({ status: 'error', code: 'REASON_TOO_LONG', message: 'Cancellation reason is too long (max 500 characters).' });
+  }
+  const client = db.connect ? await db.connect() : await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const scope = await accessScopeService.buildScopePredicate({ user: req.user, tableAlias: 'deals', assigneeCol: 'assigned_to', paramIndex: 4 });
+    let chkWhere = 'id::text = $1::text AND tenant_id::text = $2::text AND ($3::text IS NULL OR branch_id::text = $3::text OR branch_id IS NULL)';
+    const chkParams = [req.params.id, tenant_id, branch_id];
+    if (scope.sql && scope.sql !== '1=1') { chkWhere += ` AND ${scope.sql}`; chkParams.push(...scope.params); }
+    const dealRes = await client.query(`SELECT * FROM deals WHERE ${chkWhere} FOR UPDATE`, chkParams);
+    if (dealRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
+    }
+    const deal = dealRes.rows[0];
+    const stageLc = String(deal.pipeline_stage || '').trim().toLowerCase();
+    if (!deal.unit_id || isFinalStage(deal.pipeline_stage) || ['lost', 'cancelled'].includes(stageLc)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ status: 'error', code: 'NO_ACTIVE_RESERVATION', message: 'This deal has no active unit reservation to cancel.' });
+    }
+    const unitRes = await client.query(
+      `SELECT id, status FROM re_units WHERE id::text = $1::text AND tenant_id::text = $2::text FOR UPDATE`,
+      [String(deal.unit_id), String(tenant_id)]
+    );
+    if (unitRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ status: 'error', message: 'Linked unit not found.' });
+    }
+    if (String(unitRes.rows[0].status || '').trim().toLowerCase() !== 'reserved' || !isExplicitlyReservingDeal(deal)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ status: 'error', code: 'NO_ACTIVE_RESERVATION', message: 'This deal does not hold an active reservation on its unit.' });
+    }
+    // Any non-cancelled contract on this deal blocks a reservation-only cancel.
+    const contractRes = await client.query(
+      `SELECT 1 FROM re_contracts WHERE deal_id::text = $1::text AND tenant_id::text = $2::text
+         AND LOWER(COALESCE(status,'')) NOT IN ('cancelled','canceled','void','voided') LIMIT 1`,
+      [String(deal.id), String(tenant_id)]
+    );
+    if (contractRes.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ status: 'error', code: 'CONTRACT_EXISTS', message: 'This deal already has a contract. Use the deal cancellation workflow instead.' });
+    }
+    await client.query(
+      `UPDATE re_units SET status = 'Available', reservation_expires_at = NULL, reservation_extended_at = NULL,
+         reservation_extended_by = NULL, reservation_extension_count = 0, updated_at = CURRENT_TIMESTAMP
+       WHERE id::text = $1::text AND tenant_id::text = $2::text AND LOWER(status) = 'reserved'`,
+      [String(deal.unit_id), String(tenant_id)]
+    );
+    const nextCf = {
+      ...(deal.custom_fields && typeof deal.custom_fields === 'object' ? deal.custom_fields : {}),
+      is_unit_reservation: false,
+      reservation_cancelled_at: new Date().toISOString(),
+      reservation_cancelled_by: req.user.id,
+      reservation_cancel_reason: reason
+    };
+    const nextStage = isReservationStage(deal.pipeline_stage) ? 'negotiation' : deal.pipeline_stage;
+    const updDeal = await client.query(
+      `UPDATE deals SET pipeline_stage = $1, custom_fields = $2, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3 AND tenant_id::text = $4::text RETURNING *`,
+      [nextStage, nextCf, deal.id, String(tenant_id)]
+    );
+    await client.query('COMMIT');
+    try {
+      logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: deal.unit_id,
+        details: { deal_id: deal.id, status_change: 'Available (reservation cancelled)', reason, previous_stage: deal.pipeline_stage, new_stage: nextStage } });
+    } catch (_) {}
+    res.json({ status: 'success', data: updDeal.rows[0], message: 'Reservation cancelled. The unit is available again and the deal stays open.' });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[Cancel Deal Reservation Error]:', err.message);
+    res.status(err.statusCode || 500).json({ status: 'error', message: err.message || 'Failed to cancel reservation' });
   } finally {
     client.release();
   }

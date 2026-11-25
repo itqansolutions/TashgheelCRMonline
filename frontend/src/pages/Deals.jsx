@@ -9,6 +9,7 @@ import DataTable from '../components/Common/DataTable';
 import KanbanBoard from '../components/Deals/KanbanBoard';
 import DealPricePanel, { BelowUnitPriceWarning } from '../components/Deals/DealPricePanel';
 import Modal from '../components/Common/Modal';
+import CancelReservationDialog from '../components/Deals/CancelReservationDialog';
 import ActivityTimeline from '../components/Common/ActivityTimeline';
 import { useAuth } from '../context/AuthContext';
 
@@ -661,6 +662,8 @@ const Deals = () => {
     return () => { live = false; };
   }, [formData.assigned_team_id]);
 
+  const [cancelResOpen, setCancelResOpen] = useState(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.client_id) return toast.error(t('deals.selectCustomerReq', 'Please select a customer'));
@@ -680,7 +683,14 @@ const Deals = () => {
       if (isRealEstate) fetchReUnits(); // Refresh availability
       handleCloseModal();
     } catch (err) {
-      toast.error(err.response?.data?.message || t('deals.failedToSave', 'Failed to save deal'));
+      const d = err.response?.data;
+      if (isRTL && d?.code === 'UNIT_ALREADY_LINKED') {
+        toast.error(d.sub_code === 'UNIT_RESERVED_RELEASE_FIRST'
+          ? 'الوحدة الحالية محجوزة للصفقة دي. الغي الحجز الأول وبعدين غيّر الوحدة.'
+          : 'مينفعش تغيّر الوحدة بعد ما الصفقة اتحجزت أو اتقفلت.', { duration: 6000 });
+      } else {
+        toast.error(d?.message || t('deals.failedToSave', 'Failed to save deal'));
+      }
     }
   };
 
@@ -1780,6 +1790,11 @@ const Deals = () => {
                           </option>
                         ))}
                       </select>
+                      {Boolean(editingDeal?.unit_id && String(editingDeal?.unit_status || '').toLowerCase() === 'reserved' && editingDeal?.custom_fields?.is_unit_reservation) && (
+                        <p style={{ fontSize: '11px', color: '#b45309', marginTop: '6px', fontWeight: 700 }}>
+                          {isRTL ? 'الوحدة محجوزة للصفقة دي، فمينفعش تتغير. الغي الحجز الأول (زرار إلغاء الحجز تحت) وبعدين غيّر الوحدة.' : 'This unit is reserved for this deal and cannot be changed. Cancel the reservation first, then change the unit.'}
+                        </p>
+                      )}
                       <p style={{ fontSize: '11px', color: '#0284c7', marginTop: '6px' }}>
                         {isRTL 
                           ? 'ربط الوحدة يحدد قيمة الصفقة تلقائياً ويتيح التنافس بين عدة صفقات وعملاء دون تجميدها إلا عند الحجز الصريح.'
@@ -1871,6 +1886,13 @@ const Deals = () => {
                                   style={{ padding: '6px 14px', background: '#0d9488', color: 'white', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
                                 >
                                   {t('deals.extend48h', 'Extend +48h')}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setCancelResOpen(true)}
+                                  style={{ padding: '6px 14px', background: 'white', color: '#dc2626', border: '1px solid #dc2626', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                  إلغاء الحجز
                                 </button>
                               </>
                             )}
@@ -2321,6 +2343,13 @@ const Deals = () => {
           </form>
         </div>
       </Modal>
+      {cancelResOpen && editingDeal && (
+        <CancelReservationDialog
+          deal={editingDeal}
+          onClose={() => setCancelResOpen(false)}
+          onDone={() => { setCancelResOpen(false); fetchDeals(false); if (isRealEstate) fetchReUnits(); handleCloseModal(); }}
+        />
+      )}
       </div>
     </div>
   );
