@@ -197,7 +197,7 @@ const SalesManagement = () => {
       setLoadingDistribution(true);
       setDistributionLoadError('');
       const [leadsRes, teamsRes] = await Promise.all([
-        api.get('/customers?unassigned=true&limit=50').catch((e) => { setDistributionLoadError(e?.response?.data?.message || 'Failed to load unassigned customers'); return { data: { data: [] } }; }),
+        api.get('/customers?unassigned=true&limit=50').catch((e) => { console.warn('Unassigned customers load failed:', e?.response?.status); setDistributionLoadError('failed'); return { data: { data: [] } }; }),
         api.get('/sales-teams').catch(() => ({ data: { data: [] } }))
       ]);
       const leads = leadsRes.data?.data || leadsRes.data || [];
@@ -1163,7 +1163,6 @@ const SalesManagement = () => {
                         <p className="font-bold text-sm text-red-600">
                           {t('salesManagement.distributionTab.loadFailed', 'Could not load the unassigned customers. Please try again.')}
                         </p>
-                        <p className="text-xs text-slate-400">{distributionLoadError}</p>
                       </td>
                     </tr>
                   )}
