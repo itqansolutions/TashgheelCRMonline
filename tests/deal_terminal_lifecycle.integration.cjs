@@ -3,7 +3,7 @@
 const assert = require('assert/strict');
 const h = require('./helpers/pgHarness.cjs');
 (async () => {
-  const env = await h.start(); const q = (...a) => env.pool.query(...a);
+  const env = await h.start(); const q = (...a) => env.pool.query(...a); await env.pool.query(require('fs').readFileSync(require('path').join(__dirname, '../ops/proposals/deal_price_workflow.sql'), 'utf8'));
   const log = console.log;
   try {
     const T = (await q("INSERT INTO tenants(name,slug) VALUES('t1','t1') RETURNING id")).rows[0].id;
