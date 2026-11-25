@@ -167,7 +167,10 @@ const h = require('./helpers/pgHarness.cjs');
           await new Promise(r => setTimeout(r, 600));
           assert.equal(reqSettled, false, name + ': request writer must stay blocked while the close holds the deal lock after its pending check');
         } finally {
-          gateRes(); await closer; await reqPromise; await c1.query('COMMIT').catch(() => {}); c1.release();
+          // If the request writer already got through (the failure case), free its lock first so the paused closer can finish
+          // and the failed assertion is reported immediately. If it is still blocked (expected), the closer must finish first.
+          if (reqSettled) await c1.query('ROLLBACK').catch(() => {});
+          gateRes(); await closer; await reqPromise; if (!reqSettled) await c1.query('COMMIT').catch(() => {}); c1.release();
           priceS.hasPendingRequest = realHas;
         }
       }
