@@ -96,8 +96,8 @@ class AccessScopeService {
       const p3 = paramIndex + 2;
       const col = tableAlias ? `${tableAlias}.${assigneeCol}` : assigneeCol;
 
-      const sql = `(${col}::text = $${p1}::text OR ${col} IN (
-        SELECT id FROM users 
+      const sql = `(${col}::text = $${p1}::text OR ${col}::text IN (
+        SELECT id::text FROM users 
         WHERE department_id = ANY($${p2}::int[]) 
           AND tenant_id::text = $${p3}::text
       ))`;

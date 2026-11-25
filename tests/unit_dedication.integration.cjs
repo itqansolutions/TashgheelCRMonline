@@ -21,9 +21,11 @@ const h = require('./helpers/pgHarness.cjs');
     const B = (await q("INSERT INTO branches(name,tenant_id) VALUES('b',$1) RETURNING id", [T])).rows[0].id;
     const D = (await q("INSERT INTO departments(name,tenant_id) VALUES('d',$1) RETURNING id", [T])).rows[0].id;
     const mkU = async (name, role, dept) => (await q("INSERT INTO users(name,email,password_hash,role,tenant_id,branch_id,department_id) VALUES($1,$2,'x',$3,$4,$5,$6) RETURNING *", [name, name + '@x.io', role, T, B, dept])).rows[0];
-    const repA = await mkU('repA', 'sales', null);
+    const repA = await mkU('repA', 'sales', D);              // in department D
     const repB = await mkU('repB', 'sales', null);
     const mgr = await mkU('mgr', 'manager', null);            // team manager of repA only, NO department
+    const dmgr = await mkU('dmgr', 'manager', D);             // DEPARTMENT manager of D
+    await q('UPDATE departments SET manager_id=$1 WHERE id=$2', [dmgr.id, D]);
     const admin = await mkU('admin', 'admin', null);
     const team = (await q("INSERT INTO sales_teams(tenant_id,branch_id,department_id,name,manager_id) VALUES($1,$2,$3,'team',$4) RETURNING id", [T, B, D, mgr.id])).rows[0].id;
     await q("INSERT INTO sales_team_members(tenant_id,team_id,user_id) VALUES($1,$2,$3)", [T, team, repA.id]);
@@ -95,6 +97,16 @@ const h = require('./helpers/pgHarness.cjs');
       const putOwn = await call(units.updateUnit, asReqBody(repB, { id: String(uB) }, { name: 'unit-B' }));
       assert.equal(putOwn.statusCode, 200, 'owner PUT must 200: ' + JSON.stringify(putOwn.body).slice(0, 200)); }
     log('PASS unit writes: invisible-unit PUT/extend 404, owner PUT 200');
+
+    // 8. Department manager (live-verify catch: dept branch of the scope predicate on varchar assigned_to)
+    { const gA = await call(units.getUnitById, asReq(dmgr, { id: String(uA) }));
+      assert.equal(gA.statusCode, 200, 'dept manager must see dept member unit, got ' + gA.statusCode);
+      const gB = await call(units.getUnitById, asReq(dmgr, { id: String(uB) }));
+      assert.equal(gB.statusCode, 404, 'dept manager must NOT see outside-dept unit');
+      const r = await call(units.getUnits, asReq(dmgr));
+      const ids = r.body.data.map(x => String(x.id));
+      assert.ok(ids.includes(String(uA)) && !ids.includes(String(uB)), 'dept manager list wiring'); }
+    log('PASS department manager wiring (varchar assignee, dept branch)');
 
     console.log('ALL UNIT DEDICATION TESTS PASSED');
   } finally { await env.stop(); }
