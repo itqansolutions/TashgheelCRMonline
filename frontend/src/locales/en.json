@@ -3783,6 +3783,7 @@
       "distributeBtn": "Execute Distribution",
       "distributing": "Distributing...",
       "noUnassignedLeads": "All leads are currently assigned! No unassigned leads waiting.",
+      "loadFailed": "Could not load the unassigned customers. Please try again.",
       "customerName": "Customer Name",
       "phone": "Phone",
       "branch": "Branch",

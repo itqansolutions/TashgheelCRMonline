@@ -51,6 +51,7 @@ const SalesManagement = () => {
 
   // Bulk Assign State
   const [unassignedLeads, setUnassignedLeads] = useState([]);
+  const [distributionLoadError, setDistributionLoadError] = useState('');
   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
   const [assignTargetUserId, setAssignTargetUserId] = useState('');
   const [assignTeamId, setAssignTeamId] = useState('');
@@ -194,8 +195,9 @@ const SalesManagement = () => {
   const fetchDistributionData = async () => {
     try {
       setLoadingDistribution(true);
+      setDistributionLoadError('');
       const [leadsRes, teamsRes] = await Promise.all([
-        api.get('/customers?unassigned=true&limit=50').catch(() => ({ data: { data: [] } })),
+        api.get('/customers?unassigned=true&limit=50').catch((e) => { setDistributionLoadError(e?.response?.data?.message || 'Failed to load unassigned customers'); return { data: { data: [] } }; }),
         api.get('/sales-teams').catch(() => ({ data: { data: [] } }))
       ]);
       const leads = leadsRes.data?.data || leadsRes.data || [];
@@ -1155,7 +1157,17 @@ const SalesManagement = () => {
                     );
                   })}
 
-                  {!loadingDistribution && unassignedLeads.length === 0 && (
+                  {!loadingDistribution && unassignedLeads.length === 0 && distributionLoadError && (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center">
+                        <p className="font-bold text-sm text-red-600">
+                          {t('salesManagement.distributionTab.loadFailed', 'Could not load the unassigned customers. Please try again.')}
+                        </p>
+                        <p className="text-xs text-slate-400">{distributionLoadError}</p>
+                      </td>
+                    </tr>
+                  )}
+                  {!loadingDistribution && unassignedLeads.length === 0 && !distributionLoadError && (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-500">
                         <div className="max-w-sm mx-auto space-y-2">
