@@ -256,6 +256,22 @@ class PropertyFinderClient {
   /**
    * Retrieve single listing by Property Finder external ID.
    */
+  /**
+   * Resolve a location id to {id, name, type, tree}. GET only.
+   * Property Finder resolves by id only through the filter[id] parameter.
+   */
+  async getLocation(locationId) {
+    if (locationId === undefined || locationId === null || String(locationId).trim() === '') return null;
+    const response = await this.request({
+      method: 'GET',
+      endpoint: '/locations',
+      params: { 'filter[id]': String(locationId).trim() },
+      retries: 2
+    });
+    const rows = Array.isArray(response?.data) ? response.data : [];
+    return rows.find((r) => String(r.id) === String(locationId).trim()) || null;
+  }
+
   async getListing(listingId) {
     if (!listingId) throw new Error('Listing ID is required.');
     return this.request({

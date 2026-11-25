@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const PropertyFinderClient = require('./propertyFinderClient');
+const { resolveListingLocation } = require('./propertyFinderLocations');
 const { encrypt, decrypt } = require('../utils/encryption');
 const JobEngine = require('../src/infrastructure/jobs/JobEngine');
 
@@ -319,6 +320,7 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
   };
 
   const seenListingIds = new Set();
+  const locationCache = new Map();
   const pageLimit = Number(limit) > 0 ? Number(limit) : 50;
   const firstPage = Math.max(1, Number(page) || 1);
 
@@ -356,14 +358,19 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
           const areaSqm = Number(listing.area_sqm || listing.area || listing.size) || null;
           const rooms = Number(listing.bedrooms || listing.rooms) || 0;
           const unitType = normalizePropertyType(listing.property_type || listing.type);
-          const projectName = listing.location?.community || listing.location?.city || listing.project_name || 'Imported Property';
+          let projectName = listing.location?.community || listing.location?.city || listing.project_name || 'Imported Property';
           const listingTitle = extractListingTitle(listing);
           const extRef = String(listing.reference || listing.external_reference || '').trim();
           const rawUnitNumber = String(listing.unit_number || '').trim();
           const unitCode = rawUnitNumber || extRef || `PF-${extId}`;
           const externalReference = extRef || rawUnitNumber || unitCode;
           const unitName = listingTitle || `PF Unit ${unitCode}`;
-          const locationText = [listing.location?.sub_community, listing.location?.community, listing.location?.city].filter(Boolean).join(', ') || 'Egypt';
+          let locationText = [listing.location?.sub_community, listing.location?.community, listing.location?.city].filter(Boolean).join(', ') || 'Egypt';
+          // PF sends location as an id only; resolve it to readable names (GET /locations). Falls back to the defaults above.
+          if (projectName === 'Imported Property' && locationText === 'Egypt') {
+            const resolvedLoc = await resolveListingLocation(client, listing, locationCache);
+            if (resolvedLoc) { projectName = resolvedLoc.projectName; locationText = resolvedLoc.locationText; }
+          }
           const rawOfferType = String(
             listing.offering_type || listing.offeringType || listing.category || listing.price?.type || ''
           ).toLowerCase();
