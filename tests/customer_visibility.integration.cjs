@@ -13,7 +13,7 @@ const h = require('./helpers/pgHarness.cjs');
   const log = console.log;
   try {
     // Apply the shipped migration (validates it executes; harness schema predates the column)
-    const mig = fs.readFileSync(path.join(__dirname, '..', 'ops', 'proposals', 'customer_visibility_mode.sql'), 'utf8');
+    const mig = fs.readFileSync(path.join(__dirname, '..', 'ops', 'proposals', 'customer_visibility_mode.sql'), 'utf8').split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
     for (const stmt of mig.split(';').map(s => s.trim()).filter(s => /^(ALTER|CREATE|INSERT|UPDATE)\b/i.test(s))) {
       await q(stmt);
     }
@@ -98,6 +98,29 @@ const h = require('./helpers/pgHarness.cjs');
       assert.equal(got.body.data.customer_visibility_mode, 'shared', 'GET must reflect saved mode');
       await q("UPDATE tenants SET customer_visibility_mode='scoped' WHERE id=$1", [T]); }
     log('PASS admin setting endpoints: 400 invalid, 403 non-admin, persist + readback');
+
+    // 7. SCOPED writes (reviewer blocker): repA PUT/DELETE on repB's customer = 404, row untouched;
+    //    owner and admin still write; shared mode allows cross-owner write
+    { await q("UPDATE tenants SET customer_visibility_mode='scoped' WHERE id=$1", [T]);
+      const asReqBody = (u, params, body) => ({ user: { ...u, tenant_id: T }, branchId: B, body, params, query: {}, headers: {}, ip: '127.0.0.1' });
+      const put = await call(custs.updateCustomer, asReqBody(repA, { id: String(cB) }, { name: 'HACKED', phone: '000' }));
+      assert.equal(put.statusCode, 404, 'scoped: cross-owner PUT must 404, got ' + put.statusCode);
+      const del = await call(custs.deleteCustomer, asReqBody(repA, { id: String(cB) }, {}));
+      assert.equal(del.statusCode, 404, 'scoped: cross-owner DELETE must 404, got ' + del.statusCode);
+      const row = (await q('SELECT name, phone FROM customers WHERE id=$1', [cB])).rows[0];
+      assert.equal(row.name, 'cust-B', 'blocked PUT must not change the row');
+      const ownPut = await call(custs.updateCustomer, asReqBody(repB, { id: String(cB) }, { name: 'cust-B2' }));
+      assert.equal(ownPut.statusCode, 200, 'owner PUT must 200: ' + JSON.stringify(ownPut.body).slice(0, 200));
+      const adminPut = await call(custs.updateCustomer, asReqBody(admin, { id: String(cB) }, { name: 'cust-B' }));
+      assert.equal(adminPut.statusCode, 200, 'admin PUT must 200');
+      const cTmp = await mkCust('cust-tmp', repB.id);
+      const adminDel = await call(custs.deleteCustomer, asReqBody(admin, { id: String(cTmp) }, {}));
+      assert.equal(adminDel.statusCode, 200, 'admin DELETE must 200');
+      await q("UPDATE tenants SET customer_visibility_mode='shared' WHERE id=$1", [T]);
+      const sharedPut = await call(custs.updateCustomer, asReqBody(repA, { id: String(cB) }, { name: 'cust-B', phone: '111' }));
+      assert.equal(sharedPut.statusCode, 200, 'shared: cross-owner PUT must 200');
+      await q("UPDATE tenants SET customer_visibility_mode='scoped' WHERE id=$1", [T]); }
+    log('PASS scoped writes: cross-owner PUT/DELETE 404 + row untouched, owner/admin OK, shared allows');
 
     console.log('ALL CUSTOMER VISIBILITY TESTS PASSED');
   } finally { await env.stop(); }

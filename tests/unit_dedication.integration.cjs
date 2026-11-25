@@ -84,6 +84,18 @@ const h = require('./helpers/pgHarness.cjs');
       assert.equal(m.statusCode, 404, 'matchCustomersForUnit on invisible unit must 404'); }
     log('PASS match-for-unit: invisible unit 404');
 
+    // 7. Writes (reviewer follow-up): PUT and extend-reservation on an invisible unit = 404
+    { const asReqBody = (u, params, body) => ({ user: { ...u, tenant_id: T }, branchId: B, body, params, query: {}, headers: {}, ip: '127.0.0.1' });
+      const put = await call(units.updateUnit, asReqBody(repA, { id: String(uB) }, { name: 'HACKED' }));
+      assert.equal(put.statusCode, 404, 'PUT on invisible unit must 404, got ' + put.statusCode);
+      const row = (await q('SELECT name FROM re_units WHERE id=$1', [uB])).rows[0];
+      assert.equal(row.name, 'unit-B', 'blocked PUT must not change the row');
+      const ext = await call(units.extendUnitReservation, asReqBody(repA, { id: String(uB) }, { extension_hours: 24 }));
+      assert.equal(ext.statusCode, 404, 'extend-reservation on invisible unit must 404, got ' + ext.statusCode);
+      const putOwn = await call(units.updateUnit, asReqBody(repB, { id: String(uB) }, { name: 'unit-B' }));
+      assert.equal(putOwn.statusCode, 200, 'owner PUT must 200: ' + JSON.stringify(putOwn.body).slice(0, 200)); }
+    log('PASS unit writes: invisible-unit PUT/extend 404, owner PUT 200');
+
     console.log('ALL UNIT DEDICATION TESTS PASSED');
   } finally { await env.stop(); }
 })().catch(e => { console.error('FAIL', e.message); process.exit(1); });

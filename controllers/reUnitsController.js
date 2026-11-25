@@ -247,6 +247,21 @@ exports.updateUnit = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const branch_id = req.branchId || req.user?.branch_id || null;
 
+    // Dedication visibility: a unit the user cannot see cannot be written either (404 like detail)
+    if (isUuid(id)) {
+        const visWrite = await buildUnitVisibilityPredicate(req.user, 4, '');
+        if (visWrite.sql !== '1=1') {
+            const chk = await db.query(
+                `SELECT 1 FROM re_units WHERE id = $1::uuid AND tenant_id::text = $2::text
+                   AND ($3::text IS NULL OR status = 'Available' OR branch_id::text = $3::text OR branch_id IS NULL)
+                   AND ${visWrite.sql} LIMIT 1`,
+                [id, tenant_id, branch_id ? String(branch_id) : null, ...visWrite.params]);
+            if (chk.rows.length === 0) {
+                return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+            }
+        }
+    }
+
     // Dynamic PATCH: only update fields that were explicitly sent in the request body
     // NOTE: 'status' is deliberately EXCLUDED from allowedFields to prevent direct manual tampering
     const allowedFields = [
@@ -1029,6 +1044,20 @@ exports.extendUnitReservation = async (req, res) => {
     const branch_id = String(req.branchId || req.user?.branch_id || '');
 
     try {
+        // Dedication visibility: a unit the user cannot see cannot be extended either (404 like detail)
+        if (isUuid(id)) {
+            const visExtend = await buildUnitVisibilityPredicate(req.user, 4, '');
+            if (visExtend.sql !== '1=1') {
+                const chk = await db.query(
+                    `SELECT 1 FROM re_units WHERE id = $1::uuid AND tenant_id::text = $2::text
+                       AND ($3::text IS NULL OR status = 'Available' OR branch_id::text = $3::text OR branch_id IS NULL)
+                       AND ${visExtend.sql} LIMIT 1`,
+                    [id, tenant_id, branch_id ? String(branch_id) : null, ...visExtend.params]);
+                if (chk.rows.length === 0) {
+                    return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+                }
+            }
+        }
         const { extendReservation } = require('../services/reservationService');
         const result = await extendReservation({
             unitId: id,

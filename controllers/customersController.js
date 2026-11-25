@@ -420,6 +420,11 @@ exports.updateCustomer = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id;
   try {
+    // Scoped visibility mode: a rep cannot write a customer he cannot see (404 like detail)
+    if ((await getCustomerVisibilityMode(tenant_id)) === 'scoped'
+        && !(await canAccessCustomerScoped(req.user, tenant_id, branch_id, req.params.id))) {
+      return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized' });
+    }
     await ensureCustomerColumns();
     // 1. Get old data for diffing & security check (Triple Isolation)
     const oldResult = await db.query('SELECT * FROM customers WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text', [req.params.id, tenant_id, branch_id]);
@@ -528,6 +533,11 @@ exports.deleteCustomer = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId;
   try {
+    // Scoped visibility mode: a rep cannot delete a customer he cannot see (404 like detail)
+    if ((await getCustomerVisibilityMode(tenant_id)) === 'scoped'
+        && !(await canAccessCustomerScoped(req.user, tenant_id, branch_id, req.params.id))) {
+      return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized' });
+    }
     const result = await db.query('DELETE FROM customers WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *', [req.params.id, tenant_id, branch_id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized for this branch' });
