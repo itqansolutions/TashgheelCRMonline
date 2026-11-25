@@ -1,6 +1,28 @@
 const db = require('../config/db');
 const { countUnitLinks } = require('../services/reDeletionGuard');
 const { logDelete } = require('../services/loggerService');
+const accessScopeService = require('../services/accessScopeService');
+
+// Unit dedication visibility (Ali 2026-11-25, permissions package item 2):
+// a unit dedicated to an employee (re_units.assigned_to set) is visible only to that
+// employee, that employee's managers (department tree / managed sales teams), and admin.
+// Unassigned units (NULL or '') stay shared with everyone in the tenant/branch.
+// Detail reads on an invisible unit return 404, same as deals.
+const buildUnitVisibilityPredicate = async (user, paramIndex, tableAlias = 'ru') => {
+    const scope = await accessScopeService.buildScopePredicate({
+        user,
+        tableAlias,
+        assigneeCol: 'assigned_to',
+        paramIndex
+    });
+    if (!scope.sql || scope.sql === '1=1') return scope; // admin / unrestricted
+    const col = tableAlias ? `${tableAlias}.assigned_to` : 'assigned_to';
+    return {
+        sql: `(${col} IS NULL OR ${col} = '' OR ${scope.sql})`,
+        params: scope.params,
+        nextParamIndex: scope.nextParamIndex
+    };
+};
 
 /**
  * Real Estate Units Controller
@@ -63,6 +85,13 @@ exports.getUnits = async (req, res) => {
         if (building_id) {
             params.push(building_id);
             query += ` AND ru.building_id::text = $${params.length}::text`;
+        }
+
+        // Dedication visibility: employee-dedicated units only to that employee/managers/admin
+        const vis = await buildUnitVisibilityPredicate(req.user, params.length + 1, 'ru');
+        if (vis.sql && vis.sql !== '1=1') {
+            query += ` AND ${vis.sql}`;
+            params.push(...vis.params);
         }
 
         query += ` ORDER BY COALESCE(proj.name, ru.project_name) DESC, ru.unit_number ASC, ru.name ASC`;
@@ -410,10 +439,12 @@ exports.getUnitEvents = async (req, res) => {
     if (!tenantId) return res.status(400).json({ status: 'error', message: 'Tenant context missing' });
     if (!isUuid(req.params.id)) return res.status(400).json({ status: 'error', message: 'Invalid unit ID format' });
     try {
+        const visEvents = await buildUnitVisibilityPredicate(req.user, 4, '');
         const unit = await db.query(
             `SELECT id FROM re_units WHERE id = $1::uuid AND tenant_id::text = $2::text
-               AND ($3::text IS NULL OR status = 'Available' OR branch_id::text = $3::text OR branch_id IS NULL)`,
-            [req.params.id, String(tenantId), branchId ? String(branchId) : null]);
+               AND ($3::text IS NULL OR status = 'Available' OR branch_id::text = $3::text OR branch_id IS NULL)
+               AND ${visEvents.sql}`,
+            [req.params.id, String(tenantId), branchId ? String(branchId) : null, ...visEvents.params]);
         if (unit.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
         const r = await db.query(
             `SELECT id, event_type, previous_data, new_data, actor_user_id, actor_snapshot, source, created_at
@@ -436,6 +467,7 @@ exports.getPriceChanges = async (req, res) => {
         return res.status(400).json({ status: 'error', code: 'INVALID_PERIOD', message: 'from and to must be valid YYYY-MM-DD dates with from <= to.' });
     }
     try {
+        const visPrices = await buildUnitVisibilityPredicate(req.user, 5, 'u');
         const r = await db.query(
             `SELECT e.unit_id, e.created_at, e.previous_data, e.new_data, e.actor_snapshot,
                     u.name, u.unit_number, u.project_name, u.status, u.transaction_type
@@ -444,8 +476,9 @@ exports.getPriceChanges = async (req, res) => {
                AND e.created_at >= ($2::date)::timestamp AT TIME ZONE 'Africa/Cairo'
                AND e.created_at <  (($3::date) + 1)::timestamp AT TIME ZONE 'Africa/Cairo'
                AND ($4::text IS NULL OR u.status = 'Available' OR u.branch_id::text = $4::text OR u.branch_id IS NULL)
+               AND ${visPrices.sql}
              ORDER BY e.unit_id, e.created_at, e.id`,
-            [String(tenantId), from, to, branchId ? String(branchId) : null]);
+            [String(tenantId), from, to, branchId ? String(branchId) : null, ...visPrices.params]);
         const units = new Map();
         for (const row of r.rows) {
             const prevP = row.previous_data?.price, newP = row.new_data?.price;
@@ -481,6 +514,7 @@ exports.getUnitById = async (req, res) => {
     const branch_id = req.branchId || req.user?.branch_id || null;
 
     try {
+        const visById = await buildUnitVisibilityPredicate(req.user, 4, 'ru');
         const result = await db.query(`
             SELECT
                 ru.*,
@@ -494,7 +528,8 @@ exports.getUnitById = async (req, res) => {
             WHERE ru.id = $1::uuid
               AND ru.tenant_id::text = $2::text
               AND ($3::text IS NULL OR ru.status = 'Available' OR ru.branch_id::text = $3::text OR ru.branch_id IS NULL)
-        `, [id, tenant_id, branch_id ? String(branch_id) : null]);
+              AND ${visById.sql}
+        `, [id, tenant_id, branch_id ? String(branch_id) : null, ...visById.params]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
@@ -525,6 +560,7 @@ exports.getUnitOverview = async (req, res) => {
 
     try {
         // 1. Fetch Unit Details with Hierarchy & Property Finder Listing Mapping
+        const visOverview = await buildUnitVisibilityPredicate(req.user, 4, 'ru');
         const unitRes = await db.query(`
             SELECT
                 ru.*,
@@ -552,8 +588,9 @@ exports.getUnitOverview = async (req, res) => {
             WHERE ru.id = $1::uuid
               AND ru.tenant_id::text = $2::text
               AND ($3::text IS NULL OR ru.status = 'Available' OR ru.branch_id::text = $3::text OR ru.branch_id IS NULL)
+              AND ${visOverview.sql}
             LIMIT 1
-        `, [id, tenant_id, branch_id ? String(branch_id) : null]);
+        `, [id, tenant_id, branch_id ? String(branch_id) : null, ...visOverview.params]);
 
         if (unitRes.rows.length === 0) {
             return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
@@ -993,6 +1030,20 @@ exports.matchUnitsForCustomer = async (req, res) => {
             includeAllStatus: include_all === 'true' || include_all === '1',
             minScore: (req.query.min_score === undefined || Number.isNaN(parseInt(req.query.min_score))) ? undefined : parseInt(req.query.min_score)
         });
+        // Dedication visibility: drop matches pointing at units dedicated to someone else
+        const visMatch = await buildUnitVisibilityPredicate(req.user, 2, 'ru');
+        if (visMatch.sql !== '1=1' && result && Array.isArray(result.matches) && result.matches.length > 0) {
+            const ids = result.matches.map(m => m.unit && m.unit.id).filter(Boolean);
+            if (ids.length > 0) {
+                const visible = await db.query(
+                    `SELECT id FROM re_units ru WHERE ru.tenant_id::text = $1::text AND ru.id = ANY($2::uuid[]) AND ${visMatch.sql}`,
+                    [tenant_id, ids, ...visMatch.params]
+                );
+                const keep = new Set(visible.rows.map(r => String(r.id)));
+                result.matches = result.matches.filter(m => keep.has(String(m.unit.id)));
+                result.matches_count = result.matches.length;
+            }
+        }
         res.json({ status: 'success', data: result });
     } catch (err) {
         console.error('[Unit Match Customer Error]:', err.message);
@@ -1010,6 +1061,18 @@ exports.matchCustomersForUnit = async (req, res) => {
     const branch_id = req.branchId || req.user?.branch_id || null;
 
     try {
+        // Dedication visibility: a unit dedicated to someone else is 404 here, like detail
+        const visForUnit = await buildUnitVisibilityPredicate(req.user, 4, '');
+        if (isUuid(unitId)) {
+            const chk = await db.query(
+                `SELECT 1 FROM re_units WHERE id = $1::uuid AND tenant_id::text = $2::text
+                   AND ($3::text IS NULL OR status = 'Available' OR branch_id::text = $3::text OR branch_id IS NULL)
+                   AND ${visForUnit.sql} LIMIT 1`,
+                [unitId, tenant_id, branch_id ? String(branch_id) : null, ...visForUnit.params]);
+            if (chk.rows.length === 0) {
+                return res.status(404).json({ status: 'error', message: 'Unit not found or unauthorized' });
+            }
+        }
         const { matchCustomersForUnit } = require('../services/reMatchingService');
         const result = await matchCustomersForUnit({
             tenantId: tenant_id,
