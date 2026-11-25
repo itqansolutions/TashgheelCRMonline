@@ -1260,6 +1260,13 @@ const UnitsRegistry = () => {
                                     <h4 style={{ fontSize: '12px', fontWeight: 900, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t('realEstate.unitsRegistry.secTechSpecs')}</h4>
                                 </div>
                                 <div className="ap-form-group">
+                                    <label className="ap-label">{t('realEstate.unitsRegistry.lblTransactionType', 'Offer type')}</label>
+                                    <select className="ap-input" value={formData.transaction_type} onChange={e => setFormData({...formData, transaction_type: e.target.value})}>
+                                        <option value="sale">{t('realEstate.unitsRegistry.optSale', 'For sale')}</option>
+                                        <option value="rent">{t('realEstate.unitsRegistry.optRent', 'For rent')}</option>
+                                    </select>
+                                </div>
+                                <div className="ap-form-group">
                                     <label className="ap-label">{t('realEstate.unitsRegistry.lblPropertyType')}</label>
                                     <select className="ap-input" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
                                         <option value="Apartment">Luxury Apartment</option>

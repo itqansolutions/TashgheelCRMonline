@@ -2549,6 +2549,9 @@
       "rentalLeadDays": "أيام التنبيه قبل النهاية"
     },
     "unitsRegistry": {
+      "lblTransactionType": "نوع العرض",
+      "optSale": "للبيع",
+      "optRent": "للإيجار",
       "title": "سجل الوحدات العقارية",
       "subtitle": "مخزون الأصول العقارية •",
       "unitsTracked": "{{count}} وحدة مسجلة",
