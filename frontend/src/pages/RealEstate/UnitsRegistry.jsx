@@ -51,6 +51,7 @@ const UnitsRegistry = () => {
     // Team dedication (Ali 2026-11-25): dedicate a unit to a sales team, next to employee assignment
     const [assigningTeam, setAssigningTeam] = useState('');
     const [salesTeams, setSalesTeams] = useState([]);
+    const [responsiblePerson, setResponsiblePerson] = useState('');
 
     // Unit Photos state
     const [unitPhotos, setUnitPhotos] = useState([]);
@@ -234,6 +235,7 @@ const UnitsRegistry = () => {
         if (selectedUnit) {
             setAssigningEmployee(selectedUnit.assigned_to || '');
             setAssigningTeam(selectedUnit.assigned_team_id || '');
+            setResponsiblePerson(selectedUnit.responsible_person_id || '');
             fetchUnitOverview(selectedUnit.id);
         } else {
             overviewRequest.current++;
@@ -755,6 +757,17 @@ const UnitsRegistry = () => {
         }
     };
 
+    const handleSetResponsible = async (unitId, userId) => {
+        try {
+            await api.put(`/re-units/${unitId}`, { responsible_person_id: userId || null });
+            toast.success(t('realEstate.unitsRegistry.toastResponsibleSaved'));
+            fetchUnits();
+            setSelectedUnit(prev => ({ ...prev, responsible_person_id: userId || null, responsible_person_name: (users || []).find(u => String(u.id) === String(userId))?.name || null }));
+        } catch (err) {
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastResponsibleError'));
+        }
+    };
+
     const handleDelete = async (id) => {
         const targetUnit = units.find(u => u.id === id);
         if (targetUnit && (targetUnit.vendor_id || targetUnit.status?.toLowerCase() !== 'available')) {
@@ -1263,6 +1276,13 @@ const UnitsRegistry = () => {
                                     <label className="ap-label">{t('realEstate.unitsRegistry.lblAssignedEmployee')}</label>
                                     <select className="ap-input" value={formData.assigned_to} onChange={e => setFormData({...formData, assigned_to: e.target.value})}>
                                         <option value="">{t('realEstate.unitsRegistry.optSystemDecide')}</option>
+                                        {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="ap-form-group">
+                                    <label className="ap-label">{t('realEstate.unitsRegistry.lblResponsiblePerson')}</label>
+                                    <select className="ap-input" value={formData.responsible_person_id} onChange={e => setFormData({...formData, responsible_person_id: e.target.value})}>
+                                        <option value="">{t('realEstate.unitsRegistry.optNoResponsiblePerson')}</option>
                                         {(users || []).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                     </select>
                                 </div>
@@ -2329,6 +2349,32 @@ const UnitsRegistry = () => {
                                                     {isRTL ? 'الموظف المسند له أولوية على الفريق (الأكثر تحديدا)' : 'The assigned employee takes precedence over the team (most specific)'}
                                                 </div>
                                             )}
+                                        </div>
+
+                                        {/* Responsible Person (rental alerts) */}
+                                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <UserCheck size={13}/> {t('realEstate.unitsRegistry.lblResponsiblePerson')}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                <select
+                                                    value={responsiblePerson}
+                                                    onChange={e => setResponsiblePerson(e.target.value)}
+                                                    style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600, background: 'white', cursor: 'pointer' }}
+                                                >
+                                                    <option value="">{t('realEstate.unitsRegistry.optNoResponsiblePerson')}</option>
+                                                    {(users || []).map(u => (
+                                                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    onClick={() => handleSetResponsible(selectedUnit.id, responsiblePerson)}
+                                                    style={{ padding: '10px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: 800, fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                                >
+                                                    {t('realEstate.common.save')}
+                                                </button>
+                                            </div>
+                                            <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>{t('realEstate.unitsRegistry.responsibleHint')}</div>
                                         </div>
 
                                         {/* Property Finder Integration Panel */}

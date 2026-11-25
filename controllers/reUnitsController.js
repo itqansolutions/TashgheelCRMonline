@@ -46,6 +46,16 @@ const buildUnitVisibilityPredicate = async (user, paramIndex, tableAlias = 'ru')
 
 // @desc    Get all units for tenant
 // @route   GET /api/re-units
+
+// The responsible person receives rental-end alerts; it must be a user of the same tenant.
+async function responsibleUserInvalid(rawId, tenantId) {
+    if (rawId === undefined || rawId === null) return false;
+    const v = String(rawId).trim();
+    if (v === '' || v === 'null') return false;
+    const r = await db.query('SELECT 1 FROM users WHERE id::text = $1::text AND tenant_id::text = $2::text LIMIT 1', [v, String(tenantId)]);
+    return r.rows.length === 0;
+}
+
 exports.getUnits = async (req, res) => {
     const tenant_id = req.user?.tenant_id ? String(req.user.tenant_id) : null;
     const branch_id = req.branchId || req.user?.branch_id || null;
@@ -158,6 +168,10 @@ exports.createUnit = async (req, res) => {
     const cleanVendorId = (vendor_id !== undefined && vendor_id !== null && String(vendor_id).trim() !== '' && String(vendor_id) !== 'null') ? String(vendor_id).trim() : null;
     const cleanAssignedTo = (assigned_to !== undefined && assigned_to !== null && String(assigned_to).trim() !== '' && String(assigned_to) !== 'null') ? String(assigned_to).trim() : null;
     const cleanResponsibleId = (responsible_person_id !== undefined && responsible_person_id !== null && String(responsible_person_id).trim() !== '' && String(responsible_person_id) !== 'null') ? String(responsible_person_id).trim() : null;
+
+    if (await responsibleUserInvalid(cleanResponsibleId, tenant_id)) {
+        return res.status(400).json({ status: 'error', code: 'INVALID_RESPONSIBLE_PERSON', message: 'Responsible person must be a user of this organization.' });
+    }
 
     // Developer & Project hierarchy IDs (validate UUID format so invalid values never crash Postgres)
     const cleanDevId = (developer_id && isUuid(developer_id)) ? developer_id : null;
@@ -309,6 +323,10 @@ exports.updateUnit = async (req, res) => {
     let isDisputeTransition = false;
     let disputeDetails = null;
     let currentUnit = null;
+
+    if (req.body.hasOwnProperty('responsible_person_id') && await responsibleUserInvalid(req.body.responsible_person_id, tenant_id)) {
+        return res.status(400).json({ status: 'error', code: 'INVALID_RESPONSIBLE_PERSON', message: 'Responsible person must be a user of this organization.' });
+    }
 
     if (req.body.hasOwnProperty('status')) {
         const targetStatus = req.body.status;
