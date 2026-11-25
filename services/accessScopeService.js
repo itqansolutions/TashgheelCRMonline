@@ -103,15 +103,38 @@ class AccessScopeService {
       ))`;
 
       const params = [String(user.id), accessibleDeptIds, String(user.tenant_id)];
-      return this._withTeam({ sql, params, nextParamIndex: paramIndex + 3 }, { user, tableAlias, teamCol });
+      const withMembers = this._withManagedMembers({ sql, params, nextParamIndex: paramIndex + 3 }, { user, tableAlias, assigneeCol });
+      return this._withTeam(withMembers, { user, tableAlias, teamCol });
     }
 
-    // Regular Employee: Strictly own assigned records
+    // Regular Employee: Strictly own assigned records (+ team members' records for sales-team managers/leaders)
     const p1 = paramIndex;
     const col = tableAlias ? `${tableAlias}.${assigneeCol}` : assigneeCol;
     const sql = `(${col}::text = $${p1}::text)`;
     const params = [String(user.id)];
-    return this._withTeam({ sql, params, nextParamIndex: paramIndex + 1 }, { user, tableAlias, teamCol });
+    const withMembers = this._withManagedMembers({ sql, params, nextParamIndex: paramIndex + 1 }, { user, tableAlias, assigneeCol });
+    return this._withTeam(withMembers, { user, tableAlias, teamCol });
+  }
+
+  // Sales-team manager/leader visibility: records personally assigned to members of
+  // teams the user manages or leads become visible (Ali 2026-11-25: "a team manager
+  // sees all his people's work directly"). Applies to every entity using this service.
+  _withManagedMembers(base, { user, tableAlias, assigneeCol }) {
+    const col = tableAlias ? `${tableAlias}.${assigneeCol}` : assigneeCol;
+    const pUser = base.nextParamIndex;
+    const pTenant = base.nextParamIndex + 1;
+    const memberSql = `${col}::text IN (
+      SELECT stm.user_id::text FROM sales_team_members stm
+      JOIN sales_teams st ON st.id = stm.team_id AND st.tenant_id::text = stm.tenant_id::text
+      WHERE st.tenant_id::text = $${pTenant}::text
+        AND st.is_active IS NOT FALSE AND stm.is_active IS NOT FALSE
+        AND (st.manager_id::text = $${pUser}::text OR st.leader_id::text = $${pUser}::text)
+    )`;
+    return {
+      sql: `(${base.sql} OR ${memberSql})`,
+      params: [...base.params, String(user.id), String(user.tenant_id)],
+      nextParamIndex: base.nextParamIndex + 2
+    };
   }
 
   _withTeam(base, { user, tableAlias, teamCol }) {
