@@ -11,6 +11,12 @@ const h = require('./helpers/pgHarness.cjs');
   const env = await h.start(); const q = (...a) => env.pool.query(...a);
   const log = console.log;
   try {
+    // Team-dedication column ships in the same package; apply it so the predicate resolves
+    const fs = require('fs'); const path = require('path');
+    const mig = fs.readFileSync(path.join(__dirname, '..', 'ops', 'proposals', 're_units_team_dedication.sql'), 'utf8').split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
+    for (const stmt of mig.split(';').map(s => s.trim()).filter(s => /^(ALTER|CREATE|INSERT|UPDATE)\b/i.test(s))) {
+      await q(stmt);
+    }
     const T = (await q("INSERT INTO tenants(name,slug,template_name) VALUES('t1','t1','real_estate') RETURNING id")).rows[0].id;
     const B = (await q("INSERT INTO branches(name,tenant_id) VALUES('b',$1) RETURNING id", [T])).rows[0].id;
     const D = (await q("INSERT INTO departments(name,tenant_id) VALUES('d',$1) RETURNING id", [T])).rows[0].id;

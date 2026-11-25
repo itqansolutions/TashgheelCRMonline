@@ -48,6 +48,9 @@ const UnitsRegistry = () => {
     const [selectedUnit, setSelectedUnit] = useState(null);
     const [viewMode, setViewMode] = useState('map'); // 'map' | 'cards' | 'list'
     const [assigningEmployee, setAssigningEmployee] = useState('');
+    // Team dedication (Ali 2026-11-25): dedicate a unit to a sales team, next to employee assignment
+    const [assigningTeam, setAssigningTeam] = useState('');
+    const [salesTeams, setSalesTeams] = useState([]);
 
     // Unit Photos state
     const [unitPhotos, setUnitPhotos] = useState([]);
@@ -230,6 +233,7 @@ const UnitsRegistry = () => {
     useEffect(() => {
         if (selectedUnit) {
             setAssigningEmployee(selectedUnit.assigned_to || '');
+            setAssigningTeam(selectedUnit.assigned_team_id || '');
             fetchUnitOverview(selectedUnit.id);
         } else {
             overviewRequest.current++;
@@ -318,6 +322,7 @@ const UnitsRegistry = () => {
         fetchHierarchy();
         if (users.length === 0) fetchUsers();
         if (customers.length === 0) fetchCustomers();
+        api.get('/sales-teams').then(res => setSalesTeams(res.data?.data || [])).catch(() => setSalesTeams([]));
     }, []);
 
     useEffect(()=>()=>{unitsRequest.current++;hierarchyRequest.current++;overviewRequest.current++;},[]);
@@ -733,6 +738,20 @@ const UnitsRegistry = () => {
             setSelectedUnit(prev => ({ ...prev, assigned_to: employeeId || null }));
         } catch(err) {
             toast.error(t('realEstate.unitsRegistry.toastAssignError'));
+        }
+    };
+
+    // Team dedication (Ali 2026-11-25): visible to team members + manager + admin.
+    // An assigned employee always wins over the team (most specific).
+    const handleAssignTeam = async (unitId, teamId) => {
+        try {
+            const res = await api.put(`/re-units/${unitId}`, { assigned_team_id: teamId || null });
+            const teamName = (salesTeams.find(tm => String(tm.id) === String(teamId)) || {}).name || null;
+            toast.success(teamId ? (isRTL ? 'تم إسناد الوحدة للفريق' : 'Unit dedicated to team') : t('realEstate.unitsRegistry.toastAssignmentCleared'));
+            fetchUnits();
+            setSelectedUnit(prev => ({ ...prev, assigned_team_id: teamId || null, assigned_team_name: teamName }));
+        } catch(err) {
+            toast.error(err.response?.data?.message || t('realEstate.unitsRegistry.toastAssignError'));
         }
     };
 
@@ -2271,6 +2290,43 @@ const UnitsRegistry = () => {
                                             {selectedUnit.assigned_to && (
                                                 <div style={{ marginTop: '8px', fontSize: '12px', color: '#16a34a', fontWeight: 600 }}>
                                                     {t('realEstate.unitsRegistry.currentlyAssigned', { name: selectedUnit.assigned_to_name || users.find(u => String(u.id) === String(selectedUnit.assigned_to))?.name || t('realEstate.common.confirmed') })}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Team Dedication (Ali 2026-11-25) */}
+                                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <Users size={13}/> {isRTL ? 'إسناد الوحدة لفريق' : 'Team Dedication'}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                <select
+                                                    value={assigningTeam}
+                                                    onChange={e => setAssigningTeam(e.target.value)}
+                                                    style={{ flex: 1, padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600, background: 'white', cursor: 'pointer' }}
+                                                >
+                                                    <option value="">{isRTL ? 'بدون فريق (مشتركة)' : 'No team (shared)'}</option>
+                                                    {(salesTeams || []).map(tm => (
+                                                        <option key={tm.id} value={tm.id}>{tm.name}</option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    onClick={() => handleAssignTeam(selectedUnit.id, assigningTeam)}
+                                                    style={{ padding: '10px 16px', borderRadius: '8px', background: 'var(--primary)', color: 'white', border: 'none', fontWeight: 800, fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                                >
+                                                    Save
+                                                </button>
+                                            </div>
+                                            {selectedUnit.assigned_team_id && (
+                                                <div style={{ marginTop: '8px', fontSize: '12px', color: '#0369a1', fontWeight: 600 }}>
+                                                    {isRTL
+                                                        ? `مخصصة حاليا لفريق: ${selectedUnit.assigned_team_name || salesTeams.find(tm => String(tm.id) === String(selectedUnit.assigned_team_id))?.name || ''}`
+                                                        : `Currently dedicated to team: ${selectedUnit.assigned_team_name || salesTeams.find(tm => String(tm.id) === String(selectedUnit.assigned_team_id))?.name || ''}`}
+                                                </div>
+                                            )}
+                                            {selectedUnit.assigned_to && selectedUnit.assigned_team_id && (
+                                                <div style={{ marginTop: '6px', fontSize: '11px', color: '#b45309', fontWeight: 600 }}>
+                                                    {isRTL ? 'الموظف المسند له أولوية على الفريق (الأكثر تحديدا)' : 'The assigned employee takes precedence over the team (most specific)'}
                                                 </div>
                                             )}
                                         </div>

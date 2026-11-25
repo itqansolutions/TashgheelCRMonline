@@ -17,10 +17,25 @@ const buildUnitVisibilityPredicate = async (user, paramIndex, tableAlias = 'ru')
     });
     if (!scope.sql || scope.sql === '1=1') return scope; // admin / unrestricted
     const col = tableAlias ? `${tableAlias}.assigned_to` : 'assigned_to';
+    const tcol = tableAlias ? `${tableAlias}.assigned_team_id` : 'assigned_team_id';
+    // Team dedication (Ali 2026-11-25, item 5): when no employee is assigned but a team is,
+    // the unit is visible to that team's active members + manager/leader (+ admin above).
+    // When BOTH an employee and a team are set, the employee wins (most specific).
+    const pUser = scope.nextParamIndex;
+    const pTenant = scope.nextParamIndex + 1;
+    const teamSql = `EXISTS (
+        SELECT 1 FROM sales_teams st
+        WHERE st.id = ${tcol} AND st.tenant_id::text = $${pTenant}::text AND st.is_active IS NOT FALSE
+          AND (st.manager_id::text = $${pUser}::text OR st.leader_id::text = $${pUser}::text
+               OR EXISTS (SELECT 1 FROM sales_team_members stm
+                          WHERE stm.team_id = st.id AND stm.tenant_id::text = $${pTenant}::text
+                            AND stm.user_id::text = $${pUser}::text AND stm.is_active IS NOT FALSE))
+    )`;
     return {
-        sql: `(${col} IS NULL OR ${col} = '' OR ${scope.sql})`,
-        params: scope.params,
-        nextParamIndex: scope.nextParamIndex
+        sql: `(( ${col} IS NOT NULL AND ${col} <> '' AND ${scope.sql} )
+            OR ( (${col} IS NULL OR ${col} = '') AND (${tcol} IS NULL OR ${teamSql}) ))`,
+        params: [...scope.params, String(user.id), String(user.tenant_id)],
+        nextParamIndex: scope.nextParamIndex + 2
     };
 };
 
@@ -47,6 +62,7 @@ exports.getUnits = async (req, res) => {
                 c.name as vendor_name,
                 u.name as responsible_person_name,
                 u_assigned.name as assigned_to_name,
+                rut.name as assigned_team_name,
                 dev.name as developer_name,
                 COALESCE(proj.name, ru.project_name) as project_name,
                 phase.name as phase_name,
@@ -60,6 +76,7 @@ exports.getUnits = async (req, res) => {
             LEFT JOIN customers c ON ru.vendor_id::text = c.id::text
             LEFT JOIN users u ON ru.responsible_person_id::text = u.id::text
             LEFT JOIN users u_assigned ON ru.assigned_to::text = u_assigned.id::text
+            LEFT JOIN sales_teams rut ON rut.id = ru.assigned_team_id AND rut.tenant_id::text = ru.tenant_id::text
             LEFT JOIN re_developers dev ON ru.developer_id::text = dev.id::text AND dev.tenant_id::text = ru.tenant_id::text
             LEFT JOIN re_projects proj ON ru.project_id::text = proj.id::text AND proj.tenant_id::text = ru.tenant_id::text
             LEFT JOIN re_phases phase ON ru.phase_id::text = phase.id::text AND phase.tenant_id::text = ru.tenant_id::text
@@ -236,10 +253,10 @@ exports.updateUnit = async (req, res) => {
         'name', 'project_name', 'unit_number', 'type', 'floor',
         'area_sqm', 'price', 'vendor_id', 'assigned_to',
         'responsible_person_id', 'transaction_type', 'rooms', 'location',
-        'developer_id', 'project_id', 'phase_id', 'building_id'
+        'developer_id', 'project_id', 'phase_id', 'building_id', 'assigned_team_id'
     ];
 
-    const fkFields = ['vendor_id', 'assigned_to', 'responsible_person_id', 'developer_id', 'project_id', 'phase_id', 'building_id'];
+    const fkFields = ['vendor_id', 'assigned_to', 'responsible_person_id', 'developer_id', 'project_id', 'phase_id', 'building_id', 'assigned_team_id'];
 
     const setClauses = [];
     const values = [];
@@ -253,6 +270,20 @@ exports.updateUnit = async (req, res) => {
                 val = null;
             } else if (['developer_id', 'project_id', 'phase_id', 'building_id'].includes(field) && val && !isUuid(val)) {
                 val = null;
+            } else if (field === 'assigned_team_id' && val !== null) {
+                // Team dedication: must reference an active sales team in this tenant (Ali 2026-11-25, item 5)
+                const tid = parseInt(val, 10);
+                if (!Number.isInteger(tid)) {
+                    return res.status(400).json({ status: 'error', code: 'INVALID_TEAM', message: 'assigned_team_id must be a sales team id.' });
+                }
+                const teamRes = await db.query(
+                    'SELECT 1 FROM sales_teams WHERE id = $1 AND tenant_id::text = $2::text AND is_active IS NOT FALSE',
+                    [tid, tenant_id]
+                );
+                if (teamRes.rows.length === 0) {
+                    return res.status(400).json({ status: 'error', code: 'TEAM_NOT_FOUND', message: 'Sales team not found in this tenant.' });
+                }
+                val = tid;
             }
             setClauses.push(`${field} = $${paramIdx}`);
             values.push(val);
@@ -520,11 +551,13 @@ exports.getUnitById = async (req, res) => {
                 ru.*,
                 c.name as vendor_name,
                 u.name as responsible_person_name,
-                emp.name as assigned_to_name
+                emp.name as assigned_to_name,
+                rut.name as assigned_team_name
             FROM re_units ru
             LEFT JOIN customers c ON ru.vendor_id::text = c.id::text
             LEFT JOIN users u ON ru.responsible_person_id::text = u.id::text
             LEFT JOIN users emp ON ru.assigned_to::text = emp.id::text
+            LEFT JOIN sales_teams rut ON rut.id = ru.assigned_team_id AND rut.tenant_id::text = ru.tenant_id::text
             WHERE ru.id = $1::uuid
               AND ru.tenant_id::text = $2::text
               AND ($3::text IS NULL OR ru.status = 'Available' OR ru.branch_id::text = $3::text OR ru.branch_id IS NULL)
