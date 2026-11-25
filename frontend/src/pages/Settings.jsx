@@ -80,6 +80,34 @@ const Settings = () => {
   const [logFilterEvent, setLogFilterEvent] = useState('');
   const [logFilterStatus, setLogFilterStatus] = useState('');
 
+  // Customer visibility mode (per-tenant, admin-only) — Ali 2026-11-25
+  const [customerVisibility, setCustomerVisibility] = useState('scoped');
+  const [savingVisibility, setSavingVisibility] = useState(false);
+
+  const fetchCustomerVisibility = async () => {
+    try {
+      const res = await api.get('/tenants/my/customer-visibility');
+      const mode = res.data?.data?.customer_visibility_mode;
+      if (mode === 'shared' || mode === 'scoped') setCustomerVisibility(mode);
+    } catch (err) {
+      console.error('Failed to load customer visibility mode', err);
+    }
+  };
+
+  const saveCustomerVisibility = async (mode) => {
+    setSavingVisibility(true);
+    try {
+      const res = await api.put('/tenants/my/customer-visibility', { customer_visibility_mode: mode });
+      const saved = res.data?.data?.customer_visibility_mode;
+      if (saved === 'shared' || saved === 'scoped') setCustomerVisibility(saved);
+      toast.success(mode === 'shared' ? 'كله يشوف العملاء' : 'تم التفعيل: كل واحد يشوف عملاءه');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل حفظ إعداد رؤية العملاء');
+    } finally {
+      setSavingVisibility(false);
+    }
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
@@ -93,6 +121,7 @@ const Settings = () => {
     fetchTaskStatuses();
     fetchNotificationRules();
     fetchDeliveryLogs('', '');
+    fetchCustomerVisibility();
   }, []);
 
   const fetchNotificationRules = async () => {
@@ -865,6 +894,34 @@ const Settings = () => {
                       </button>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Visibility Mode (per-tenant, admin) — Ali 2026-11-25 */}
+            <div className="settings-card">
+              <div className="card-header">
+                <h3><ShieldCheck size={16} color="#0ea5e9" /> رؤية العملاء</h3>
+              </div>
+              <div className="card-body">
+                <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '14px', lineHeight: 1.6 }}>
+                  من يقدر يشوف بيانات العملاء في الشركة؟
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', padding: '12px', borderRadius: '8px', border: `1.5px solid ${customerVisibility === 'scoped' ? '#0ea5e9' : '#e2e8f0'}`, background: customerVisibility === 'scoped' ? '#f0f9ff' : 'white' }}>
+                    <input type="radio" name="customer_visibility_mode" checked={customerVisibility === 'scoped'} onChange={() => !savingVisibility && saveCustomerVisibility('scoped')} disabled={savingVisibility} style={{ marginTop: '3px' }} />
+                    <span>
+                      <span style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>كل واحد يشوف عملاءه</span>
+                      <span style={{ display: 'block', fontSize: '12px', color: '#64748b', marginTop: '2px' }}>الموظف يشوف عملاءه بس، ومدير كل فريق يشوف حاجات التيم بتاعه، والأدمن يشوف الكل. (الوضع الافتراضي)</span>
+                    </span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', padding: '12px', borderRadius: '8px', border: `1.5px solid ${customerVisibility === 'shared' ? '#0ea5e9' : '#e2e8f0'}`, background: customerVisibility === 'shared' ? '#f0f9ff' : 'white' }}>
+                    <input type="radio" name="customer_visibility_mode" checked={customerVisibility === 'shared'} onChange={() => !savingVisibility && saveCustomerVisibility('shared')} disabled={savingVisibility} style={{ marginTop: '3px' }} />
+                    <span>
+                      <span style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>كله يشوف العملاء</span>
+                      <span style={{ display: 'block', fontSize: '12px', color: '#64748b', marginTop: '2px' }}>كل مستخدمي الشركة يقدروا يشوفوا كل العملاء.</span>
+                    </span>
+                  </label>
                 </div>
               </div>
             </div>

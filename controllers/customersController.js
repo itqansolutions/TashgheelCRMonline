@@ -6,6 +6,40 @@ const { logAction, logCreate, logUpdate, logDelete, ACTIONS, LOG_LEVELS } = requ
 const { logActivity } = require('../utils/activityLogger');
 const crypto = require('crypto');
 
+// Customer visibility mode (tenants.customer_visibility_mode; migration
+// ops/proposals/customer_visibility_mode.sql). Ali 2026-11-25:
+//   'scoped' (default): ownership rules enforced on customer detail reads too
+//     (404 like deals) - rep sees own, team/department manager sees his people's, admin all.
+//   'shared': every user in the tenant/branch can read any customer (list + detail).
+// Fail closed to 'scoped' when the column is unreadable (e.g. mid-deploy).
+const getCustomerVisibilityMode = async (tenantId) => {
+  try {
+    const r = await db.query('SELECT customer_visibility_mode FROM tenants WHERE id::text = $1::text', [String(tenantId)]);
+    return r.rows[0] && r.rows[0].customer_visibility_mode === 'shared' ? 'shared' : 'scoped';
+  } catch (e) {
+    return 'scoped';
+  }
+};
+
+// Scoped-mode access check for customer-by-id reads. Uses the same
+// accessScopeService ownership rules as the list endpoint, so list and detail
+// stay consistent (invisible in list => 404 by direct id).
+const canAccessCustomerScoped = async (user, tenantId, branchId, customerId) => {
+  if (user.role === 'admin') return true;
+  const scope = await accessScopeService.buildScopePredicate({
+    user,
+    tableAlias: 'c',
+    assigneeCol: 'assigned_to',
+    paramIndex: 4
+  });
+  if (!scope.sql || scope.sql === '1=1') return true;
+  const r = await db.query(
+    `SELECT 1 FROM customers c WHERE c.id::text = $1::text AND c.tenant_id::text = $2::text AND c.branch_id::text = $3::text AND (${scope.sql}) LIMIT 1`,
+    [String(customerId), String(tenantId), String(branchId), ...scope.params]
+  );
+  return r.rows.length > 0;
+};
+
 // Ensure customer columns exist to prevent missing-column 500 crashes
 // NOTE: node-postgres (pg) does NOT support multiple SQL statements in one
 // db.query() call — each ALTER TABLE must be a separate await.
@@ -139,7 +173,8 @@ exports.getCustomers = async (req, res) => {
     assigneeCol: 'assigned_to',
     paramIndex: paramIdx
   });
-  if (scope.sql && scope.sql !== '1=1') {
+  const visibilityMode = await getCustomerVisibilityMode(tenant_id);
+  if (visibilityMode !== 'shared' && scope.sql && scope.sql !== '1=1') {
     query += ` AND ${scope.sql}`;
     params.push(...scope.params);
     paramIdx = scope.nextParamIndex;
@@ -230,6 +265,10 @@ exports.getCustomerById = async (req, res) => {
   await ensureCustomerColumns();
 
   try {
+    if ((await getCustomerVisibilityMode(tenant_id)) === 'scoped'
+        && !(await canAccessCustomerScoped(req.user, tenant_id, branch_id, req.params.id))) {
+      return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized' });
+    }
     const result = await db.query(`
       SELECT
         c.*,
@@ -513,6 +552,10 @@ exports.getCustomerStatement = async (req, res) => {
   const customer_id = req.params.id;
 
   try {
+    if ((await getCustomerVisibilityMode(tenant_id)) === 'scoped'
+        && !(await canAccessCustomerScoped(req.user, tenant_id, branch_id, customer_id))) {
+      return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized' });
+    }
     // 1. Verify customer belongs to this tenant/branch
     const custResult = await db.query(
       'SELECT * FROM customers WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text',
@@ -625,6 +668,10 @@ exports.getCustomer360 = async (req, res) => {
   await ensureCustomerColumns();
 
   try {
+    if ((await getCustomerVisibilityMode(tenant_id)) === 'scoped'
+        && !(await canAccessCustomerScoped(req.user, tenant_id, branch_id, customer_id))) {
+      return res.status(404).json({ status: 'error', message: 'Customer not found or unauthorized' });
+    }
     // 1. Fetch customer with strict tenant and branch isolation
     const custResult = await db.query(`
       SELECT

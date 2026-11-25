@@ -3,6 +3,56 @@ const bcrypt = require('bcrypt');
 const { logAction, logUpdate, ACTIONS } = require('../services/loggerService');
 
 const SYSTEM_DEFAULT_TENANT = '00000000-0000-0000-0000-000000000000';
+
+// @desc    Get customer visibility mode for the current tenant
+// @route   GET /api/tenants/my/customer-visibility
+// @access  Private (Admin)
+exports.getCustomerVisibility = async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ status: 'error', message: 'Not authorized: admins only' });
+  }
+  try {
+    const r = await db.query('SELECT customer_visibility_mode FROM tenants WHERE id::text = $1::text', [String(req.user.tenant_id)]);
+    const mode = (r.rows[0] && r.rows[0].customer_visibility_mode === 'shared') ? 'shared' : 'scoped';
+    res.json({ status: 'success', data: { customer_visibility_mode: mode } });
+  } catch (err) {
+    console.error('[getCustomerVisibility]', err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// @desc    Set customer visibility mode ('scoped' | 'shared') for the current tenant
+// @route   PUT /api/tenants/my/customer-visibility
+// @access  Private (Admin) - Ali 2026-11-25: admin-controlled option, default scoped
+exports.updateCustomerVisibility = async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ status: 'error', message: 'Not authorized: admins only' });
+  }
+  const mode = String(req.body?.customer_visibility_mode || '').trim().toLowerCase();
+  if (!['scoped', 'shared'].includes(mode)) {
+    return res.status(400).json({ status: 'error', code: 'INVALID_MODE', message: "customer_visibility_mode must be 'scoped' or 'shared'." });
+  }
+  try {
+    const r = await db.query(
+      'UPDATE tenants SET customer_visibility_mode = $1 WHERE id::text = $2::text RETURNING customer_visibility_mode',
+      [mode, String(req.user.tenant_id)]
+    );
+    if (r.rows.length === 0) {
+      return res.status(404).json({ status: 'error', message: 'Tenant not found' });
+    }
+    try {
+      await logAction({
+        tenantId: req.user.tenant_id, userId: req.user.id, action: ACTIONS?.UPDATE || 'UPDATE',
+        entityType: 'tenant_settings', entityId: String(req.user.tenant_id),
+        details: `customer_visibility_mode set to ${mode}`
+      });
+    } catch (e) { /* audit logging must not block the setting change */ }
+    res.json({ status: 'success', data: { customer_visibility_mode: r.rows[0].customer_visibility_mode } });
+  } catch (err) {
+    console.error('[updateCustomerVisibility]', err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
  
 // @desc    Get current user's tenant details
 // @route   GET /api/tenants/my
