@@ -775,6 +775,34 @@
       "filterOverdue": "Overdue Deals (>48h)",
       "allDeals": "All Deals",
       "overdueNotice": "No impactful client interaction (call, meeting, completed task) recorded in the last 48 hours."
+    },
+    "price": {
+      "belowWarning": "This price is lower than the unit price ({unit}). Saving will send a request to the manager, and the deal price will not change until they approve.",
+      "pendingTitle": "Price change waiting for approval",
+      "pendingBody": "Requested price {requested} (unit price {unit}). The deal stays at {current} until the request is decided.",
+      "requestedBy": "Requested by",
+      "approver": "Approver",
+      "adminPool": "Admin",
+      "approve": "Approve",
+      "reject": "Reject",
+      "approved": "Price request approved",
+      "rejected": "Price request rejected",
+      "decideFailed": "Could not save the decision",
+      "historyTitle": "Price history",
+      "noHistory": "No price changes recorded yet.",
+      "source_create": "Initial price",
+      "source_edit": "Edited",
+      "source_approval": "Approved by manager",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "statusCancelled": "Replaced",
+      "statusStale": "Out of date",
+      "requestsTitle": "Price requests",
+      "from": "from",
+      "to": "to",
+      "by": "by",
+      "pendingSaved": "The price is lower than the unit price, so it was sent to the manager for approval. The deal price did not change."
     }
   },
   "finance": {
@@ -1757,8 +1785,8 @@
       "distribution": "Lead Distribution"
     },
     "orders": {
-        "accessDenied": "Sales orders are not available with this account access.",
-        "loadFailed": "Sales orders could not be loaded. Please retry.",
+      "accessDenied": "Sales orders are not available with this account access.",
+      "loadFailed": "Sales orders could not be loaded. Please retry.",
       "remaining": "remaining",
       "confirmRetry": "Delivery draft saved. Retry to confirm this same draft.",
       "title": "Sales Orders & Fulfillment Cycle",

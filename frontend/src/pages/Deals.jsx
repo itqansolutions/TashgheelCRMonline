@@ -7,6 +7,7 @@ import api from '../services/api';
 import { Plus, Handshake, DollarSign, Calendar, Target, User, Receipt, ArrowRight, MapPin, Coins, Ruler, Building2, Layers, Zap, Clock, AlertCircle, FileText, CheckCircle2, XCircle, CreditCard, Award, Key, ExternalLink } from 'lucide-react';
 import DataTable from '../components/Common/DataTable';
 import KanbanBoard from '../components/Deals/KanbanBoard';
+import DealPricePanel, { BelowUnitPriceWarning } from '../components/Deals/DealPricePanel';
 import Modal from '../components/Common/Modal';
 import ActivityTimeline from '../components/Common/ActivityTimeline';
 import { useAuth } from '../context/AuthContext';
@@ -89,6 +90,7 @@ const Deals = () => {
   // Batch F: Deal SLA Management
   const [isOverdueOnly, setIsOverdueOnly] = useState(false);
   const [dealSla, setDealSla] = useState(null);
+  const [priceRefresh, setPriceRefresh] = useState(0);
   const [slaLoading, setSlaLoading] = useState(false);
   const [extendingSla, setExtendingSla] = useState(false);
   const [showReassignModal, setShowReassignModal] = useState(false);
@@ -661,11 +663,13 @@ const Deals = () => {
 
     try {
       if (editingDeal) {
-        await api.put(`/deals/${editingDeal.id}`, formData);
+        const res = await api.put(`/deals/${editingDeal.id}`, formData);
         toast.success(t('deals.dealUpdated', 'Deal updated'));
+        if (res.data?.price_approval?.status === 'pending') toast(t('deals.price.pendingSaved', ''), { icon: '⏳', duration: 6000 });
       } else {
-        await api.post('/deals', formData);
+        const res = await api.post('/deals', formData);
         toast.success(t('deals.dealCreated', 'Deal created'));
+        if (res.data?.price_approval?.status === 'pending') toast(t('deals.price.pendingSaved', ''), { icon: '⏳', duration: 6000 });
       }
       fetchDeals(false);
       if (isRealEstate) fetchReUnits(); // Refresh availability
@@ -1185,6 +1189,8 @@ const Deals = () => {
                   </div>
                 )}
 
+                {editingDeal && <DealPricePanel dealId={editingDeal.id} refreshKey={priceRefresh} onDecided={() => { fetchDeals(false); setPriceRefresh(k => k + 1); }} />}
+
                 {/* Deal SLA Status Card */}
                 {editingDeal && dealSla && (
                   <div style={{
@@ -1416,6 +1422,7 @@ const Deals = () => {
                     onChange={(e) => setFormData({...formData, value: e.target.value})}
                     disabled={isDetailsDisabled}
                   />
+                  <BelowUnitPriceWarning value={formData.value} unitPrice={editingDeal ? editingDeal.unit_price : ((reUnits || []).find(u => String(u.id) === String(formData.unit_id)) || {}).price} disabled={isDetailsDisabled} />
                   {editingDeal && Number(formData.value || 0) === 0 && (editingDeal.unit_price || editingDeal.unit_price === 0) && (
                     <div style={{ marginTop: '6px', fontSize: '11px', color: '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '4px 8px', borderRadius: '6px' }}>
                       <span>{t('deals.unitPriceNotice', 'Listed Unit Price')}: <strong className="num-en">{Number(editingDeal.unit_price).toLocaleString('en-US')}</strong> {t('common.currency', 'EGP')}</span>

@@ -107,6 +107,7 @@ async function notifyApprover({ tenantId, branchId, approverUserId, dealId, deal
 class PriceError extends Error { constructor(status, code, message) { super(message); this.status = status; this.code = code; } }
 
 function canDecide(user, approval) {
+  if (approval.requested_by && String(approval.requested_by) === String(user.id) && user.role !== 'admin') return false;
   if (approval.approver_user_id) return String(approval.approver_user_id) === String(user.id);
   return user.role === 'admin';
 }
