@@ -60,7 +60,10 @@ const PayrollEngine = () => {
             toast.success(t('hr.payrollEngine.generateSuccess', 'Payroll Slip Generated Successfully.'));
             fetchPayrolls();
         } catch (err) {
-            toast.error(err.response?.data?.message || t('hr.payrollEngine.generateFailed', 'Failed to generate payroll.'));
+            const serverMsg = err.response?.data?.message || '';
+            const known = /^No base salary is set/.test(serverMsg) ? t('hr.payrollEngine.noSalary')
+                : /^Base salary is zero/.test(serverMsg) ? t('hr.payrollEngine.zeroSalary') : null;
+            toast.error(known || serverMsg || t('hr.payrollEngine.generateFailed', 'Failed to generate payroll.'));
         } finally {
             setIsGenerating(false);
         }

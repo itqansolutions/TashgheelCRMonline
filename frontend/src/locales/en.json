@@ -2839,7 +2839,10 @@
       "activityDefinition": "Activity Definition",
       "activityBalance": "Activity Balance",
       "shifts": "Shifts & Rules",
-      "devices": "ZkTeco Devices"
+      "devices": "ZkTeco Devices",
+      "shiftsRules": "Shifts & Rules",
+      "payrollEngine": "Payroll Engine",
+      "zktecoDevices": "ZkTeco Devices"
     },
     "attendance": {
       "loadFailed": "Attendance could not be loaded. Please retry.",
@@ -3264,7 +3267,9 @@
       "loggedWorkingHours": "Logged Working Hours: {{hours}} H",
       "baseSalary": "Base Salary",
       "netPayout": "NET PAYOUT",
-      "draftWarning": "This payroll is in Draft Mode. Recalculating now will overwrite it. Finalize it to lock it permanently."
+      "draftWarning": "This payroll is in Draft Mode. Recalculating now will overwrite it. Finalize it to lock it permanently.",
+      "noSalary": "No base salary is set for this employee. Open the employee form, enter the base salary, save, then run payroll again.",
+      "zeroSalary": "Base salary is zero for this employee. Set a base salary in the employee form first."
     },
     "myPayroll": {
       "title": "My Payroll",
