@@ -37,9 +37,21 @@ async function ensureDealColumns() {
 // cannot leave the final stage and cannot be deleted. The only exit path is
 // the audited Cancellation workflow (/api/re-cancellations).
 const dealPriceService = require('../services/dealPriceService');
-const { normalizeStageKey, isWonStage, isLostStage } = require('../services/stageSemantics');
+const { normalizeStageKey, isWonStage, isLostStage, CANONICAL_STAGE_KEYS } = require('../services/stageSemantics');
 // Final (won-side) stage guard: normalized alias-safe check, see services/stageSemantics.js
 const isFinalStage = isWonStage;
+
+// Write-time stage policy: a stage value is accepted only when its normalized key is a
+// canonical stage or a stage defined in the tenant's pipeline configuration. Unknown
+// strings (e.g. UI display labels typed into the API) are rejected, never stored.
+async function getAllowedStageKeys(tenantId) {
+  const cfg = await getTenantTemplate(tenantId);
+  const keys = new Set(CANONICAL_STAGE_KEYS);
+  (Array.isArray(cfg.pipeline) ? cfg.pipeline : []).forEach(s => keys.add(normalizeStageKey(s)));
+  return keys;
+}
+const isAllowedStageWrite = (stage, allowedKeys) => allowedKeys.has(normalizeStageKey(stage));
+const INVALID_STAGE_BODY = { status: 'error', code: 'INVALID_STAGE', message: 'Unknown pipeline stage. Use one of the pipeline stages configured for this workspace.' };
 
 const RESERVATION_STAGES = new Set(['reserved', 'reservation', 'حجز']);
 const isReservationStage = (stage) => RESERVATION_STAGES.has(String(stage || '').trim().toLowerCase());
@@ -527,6 +539,14 @@ exports.createDeal = async (req, res) => {
       isReservationStage(pipeline_stage)
     );
 
+    // Write-time stage policy: reject unknown stage strings (canonical stages or the tenant's configured pipeline only)
+    if (pipeline_stage && String(pipeline_stage).trim() !== '') {
+      const allowed = await getAllowedStageKeys(tenant_id);
+      if (!isAllowedStageWrite(pipeline_stage, allowed)) {
+        return res.status(400).json(INVALID_STAGE_BODY);
+      }
+    }
+
     try {
       await client.query('BEGIN');
 
@@ -963,6 +983,13 @@ exports.updateDeal = async (req, res) => {
       }
     }
     const effectiveNextStage = pipeline_stage || oldData.pipeline_stage;
+    if (changesStage && String(pipeline_stage || '').trim() !== ''
+        && normalizeStageKey(pipeline_stage) !== normalizeStageKey(oldData.pipeline_stage)) {
+      const allowed = await getAllowedStageKeys(tenant_id);
+      if (!isAllowedStageWrite(pipeline_stage, allowed)) {
+        return res.status(400).json(INVALID_STAGE_BODY);
+      }
+    }
     if (priceWorkflowReady && changesStage && isWonStage(effectiveNextStage)
         && (priceRequest || await dealPriceService.hasPendingRequest(db, oldData.id, tenant_id))) {
       return res.status(409).json({ status: 'error', code: 'PRICE_APPROVAL_PENDING', message: 'A price approval request is pending for this deal. It cannot be closed until the manager decides.' });
@@ -1198,6 +1225,15 @@ exports.updateDealStatus = async (req, res) => {
       }
     }
 
+    if (String(oldStage || '').toLowerCase() !== cleanStage.toLowerCase()
+        && normalizeStageKey(cleanStage) !== normalizeStageKey(oldStage)) {
+      const allowed = await getAllowedStageKeys(tenant_id);
+      if (!isAllowedStageWrite(cleanStage, allowed)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json(INVALID_STAGE_BODY);
+      }
+    }
+
     if (isWonStage(cleanStage) && String(oldStage || '').toLowerCase() !== cleanStage.toLowerCase()
         && await dealPriceService.tablesReady(client) && await dealPriceService.hasPendingRequest(client, req.params.id, tenant_id)) {
       await client.query('ROLLBACK');
@@ -1400,12 +1436,15 @@ exports.deleteDeal = async (req, res) => {
     if (existing.rows.length === 0) {
       return res.status(404).json({ status: 'error', message: 'Deal not found or unauthorized' });
     }
-    const lock = await getDealLockState(db, existing.rows[0], tenant_id);
+    let lock = await getDealLockState(db, existing.rows[0], tenant_id);
+    if (!lock.locked) {
+      lock = (await getTerminalLostLock(db, existing.rows[0], tenant_id)) || lock;
+    }
     if (lock.locked) {
       return res.status(409).json({
         status: 'error',
         code: 'DEAL_LOCKED',
-        message: `${lock.reason}. Closed or contracted deals cannot be deleted. Use the Cancellation workflow instead.`
+        message: `${lock.reason}. Closed, lost or cancelled deals cannot be deleted so their history is retained. Use the Cancellation workflow to reverse a closed deal.`
       });
     }
 

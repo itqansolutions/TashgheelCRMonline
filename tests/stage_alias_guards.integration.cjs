@@ -9,7 +9,7 @@ const h = require('./helpers/pgHarness.cjs');
   const env = await h.start(); const q = (...a) => env.pool.query(...a); await env.pool.query(require('fs').readFileSync(require('path').join(__dirname, '../ops/proposals/deal_price_workflow.sql'), 'utf8'));
   const log = console.log;
   try {
-    const T = (await q("INSERT INTO tenants(name,slug) VALUES('t1','t1') RETURNING id")).rows[0].id;
+    const T = (await q("INSERT INTO tenants(name,slug,template_name) VALUES('t1','t1','real_estate') RETURNING id")).rows[0].id;
     const B = (await q("INSERT INTO branches(name,tenant_id) VALUES('b',$1) RETURNING id", [T])).rows[0].id;
     const admin = (await q("INSERT INTO users(name,email,password_hash,role,tenant_id,branch_id) VALUES('admin','a@x.io','x','admin',$1,$2) RETURNING *", [T, B])).rows[0];
     const cust = (await q("INSERT INTO customers(name,tenant_id,branch_id) VALUES('c1',$1,$2) RETURNING id", [T, B])).rows[0].id;

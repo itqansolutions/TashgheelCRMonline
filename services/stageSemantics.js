@@ -27,11 +27,16 @@ const WON_STAGE_SQL_VARIANTS = ['won', 'closed', 'closed won', 'closed_won', 'cl
 const LOST_STAGE_SQL_VARIANTS = ['lost', 'closed lost', 'closed_lost', 'closed-lost', 'cancelled'];
 const TERMINAL_STAGE_SQL_VARIANTS = [...WON_STAGE_SQL_VARIANTS, ...LOST_STAGE_SQL_VARIANTS];
 
+// Canonical stage keys accepted on write, in normalized form. Tenants ADD
+// their configured pipeline stages on top of this (see getAllowedStageKeys).
+const CANONICAL_STAGE_KEYS = new Set([...WON_STAGE_KEYS, ...LOST_STAGE_KEYS]);
+
 module.exports = {
   normalizeStageKey,
   isWonStage,
   isLostStage,
   isTerminalStage,
+  CANONICAL_STAGE_KEYS,
   WON_STAGE_SQL_VARIANTS,
   LOST_STAGE_SQL_VARIANTS,
   TERMINAL_STAGE_SQL_VARIANTS

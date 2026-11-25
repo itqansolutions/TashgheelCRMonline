@@ -45,7 +45,7 @@ const h = require('./helpers/pgHarness.cjs');
     assert.equal((await call(deals.getDealById, asReq(a, {}, { id: String(teamOnly) }))).statusCode, 200);
     assert.equal((await call(deals.getDealById, asReq(a, {}, { id: String(indiv) }))).statusCode, 404); log('PASS visibility: member/manager see, non-member does not');
     // status change does not auto-assign actor on team-only deal
-    r = await call(deals.updateDealStatus, asReq(a, { pipeline_stage: 'qualified' }, { id: String(teamOnly) }));
+    r = await call(deals.updateDealStatus, asReq(a, { pipeline_stage: 'Discovery' }, { id: String(teamOnly) }));
     assert.equal(r.statusCode, 200, JSON.stringify(r.body));
     assert.equal((await q('SELECT assigned_to FROM deals WHERE id=$1', [teamOnly])).rows[0].assigned_to, null); log('PASS stage update leaves team-only owner empty');
     // update: set employee to nonmember rejected; to member ok; clear team requires employee
