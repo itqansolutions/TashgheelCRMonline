@@ -60,6 +60,6 @@ async function transact({tenant,branch,user,mode,instant=new Date(),stamp,ip,loc
     WHERE id=$6 AND tenant_id::text=$7::text AND branch_id::text=$8::text RETURNING *`,[first,last,hours,l.status,l.late,row.id,tenant,branch]);
   }
   await client.query('COMMIT');return {row:saved.rows[0],timezone:zone,attendance_date:day};
- } catch(e) {await client.query('ROLLBACK');throw e;} finally {client.release();}
+ } catch(e) {await client.query('ROLLBACK');if(locationRequest&&e&&typeof e.code==='string'&&e.code.startsWith('GEO_'))await require('./attendanceRejectLog').recordReject({tenant,branch,user,mode,err:e});throw e;} finally {client.release();}
 }
 module.exports={localParts,timezoneFor,deviceInstant,transact};

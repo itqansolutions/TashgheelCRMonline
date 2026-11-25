@@ -12,6 +12,7 @@ router.use(branchScope);
 const policy=require('../controllers/hrAttendancePolicyController');
 router.get('/attendance-policy',policy.get);
 router.put('/attendance-policy',roleGuard(['admin']),policy.save);
+router.get('/attendance-policy/rejects',roleGuard(['admin']),policy.rejects);
 
 // --- Employee Self-Service ---
 // @route   POST api/hr/attendance/check-in
