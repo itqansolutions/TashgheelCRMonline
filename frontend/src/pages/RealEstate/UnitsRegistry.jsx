@@ -1023,7 +1023,7 @@ const UnitsRegistry = () => {
                                                 {u.name || (String(u.unit_number).length > 15 ? u.unit_number : t('realEstate.unitsRegistry.unitPrefix', { number: u.unit_number }))}
                                             </div>
                                         </div>
-                                        <span style={{ background: config.bg, color: config.color, padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 900 }}>{u.status}</span>
+                                        <span style={{ background: config.bg, color: config.color, padding: '4px 10px', borderRadius: '20px', fontSize: '10px', fontWeight: 900 }}>{u.status}</span>{u.marketing_active === false && <span style={{ marginInlineStart: '6px', background: '#fee2e2', color: '#991b1b', padding: '4px 8px', borderRadius: '20px', fontSize: '10px', fontWeight: 900 }}>{t('unitPricing.inactiveShort', 'Inactive')}</span>}
                                     </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                                         <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '10px' }}>
@@ -1523,8 +1523,13 @@ const UnitsRegistry = () => {
                                                 <X size={20}/>
                                             </button>
                                             <div style={{ background: 'white', color: config.color, padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 900, boxShadow: '0 2px 4px rgba(0,0,0,0.05)', whiteSpace: 'nowrap' }}>
-                                                {selectedUnit.status || 'Available'}
+                                                {t('unitPricing.lifecycle', 'Unit status')}: {selectedUnit.status || 'Available'}
                                             </div>
+                                            {selectedUnit.marketing_active === false && (
+                                                <div style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 900, whiteSpace: 'nowrap' }}>
+                                                    {t('unitPricing.notMarketed', 'Not for sale here')}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     

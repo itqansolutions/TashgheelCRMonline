@@ -24,6 +24,7 @@ const h = require('./helpers/pgHarness.cjs');
     assert.equal(ev[0].previous_data.price, '1000000.00'.replace('.00', '') === '1000000' ? ev[0].previous_data.price : '');
     assert.equal(Number(ev[0].previous_data.price), 1000000); assert.equal(Number(ev[0].new_data.price), 1200000); assert.equal(Number(ev[1].new_data.price), 1100000);
     assert.equal(ev[0].actor_user_id, admin.id); log('PASS price edits record old/new once, atomic with update, no event on unchanged');
+    r = await call(units.createUnit, rq(admin, { name: 'neg', unit_number: 'NEG1', price: -1 })); assert.equal(r.statusCode, 400); assert.equal(r.body.code, 'INVALID_PRICE');
     r = await call(units.updateUnit, rq(admin, { price: -5 }, { id: sale.id })); assert.equal(r.statusCode, 400); assert.equal(r.body.code, 'INVALID_PRICE');
     r = await call(units.updateUnit, rq(admin, { price: 'abc' }, { id: sale.id })); assert.equal(r.statusCode, 400);
     assert.equal(Number((await q('SELECT price FROM re_units WHERE id=$1', [sale.id])).rows[0].price), 1100000); log('PASS invalid price rejected without write');

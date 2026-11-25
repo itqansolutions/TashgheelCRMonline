@@ -3873,7 +3873,9 @@
     "confirm": "تأكيد",
     "historyNote": "يبدأ السجل من يوم إطلاق هذه الميزة.",
     "noHistory": "لا توجد تغييرات مسجلة بعد",
-    "inactiveShort": "غير نشطة"
+    "inactiveShort": "غير نشطة",
+    "lifecycle": "حالة الوحدة",
+    "notMarketed": "غير متاحة للبيع هنا"
   },
   "priceChanges": {
     "rent": "إيجار",

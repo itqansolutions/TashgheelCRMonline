@@ -104,6 +104,10 @@ exports.createUnit = async (req, res) => {
     const tenant_id = String(req.user.tenant_id);
     const branch_id = req.branchId || req.user?.branch_id || null;
 
+    if (price !== undefined && price !== null && price !== '' && (!Number.isFinite(Number(price)) || Number(price) < 0)) {
+        return res.status(400).json({ status: 'error', code: 'INVALID_PRICE', message: 'Price must be a non-negative number.' });
+    }
+
     // Sanitize string/numeric IDs to handle both integer (e.g. 26) and UUID types
     const cleanVendorId = (vendor_id !== undefined && vendor_id !== null && String(vendor_id).trim() !== '' && String(vendor_id) !== 'null') ? String(vendor_id).trim() : null;
     const cleanAssignedTo = (assigned_to !== undefined && assigned_to !== null && String(assigned_to).trim() !== '' && String(assigned_to) !== 'null') ? String(assigned_to).trim() : null;
