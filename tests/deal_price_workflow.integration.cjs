@@ -127,6 +127,35 @@ const h = require('./helpers/pgHarness.cjs');
     r = await call(fin.createInvoiceFromDeal, asReq(admin, {}, { dealId: String(dI) })); assert.equal(r.statusCode, 409, JSON.stringify(r.body)); assert.equal(r.body.code, 'PRICE_APPROVAL_PENDING');
     assert.equal((await q("SELECT pipeline_stage FROM deals WHERE id=$1", [dI])).rows[0].pipeline_stage.toLowerCase() === 'won', false); assert.equal((await q("SELECT count(*)::int n FROM invoices WHERE deal_id=$1", [dI])).rows[0].n, 0);
     log('PASS finance and sales invoice-close writers blocked while pending');
+    // 14. concurrency: a request committed while a close writer waits on the deal row lock must still block the close
+    const racePending = async (label, dealIdx, writer) => {
+      const ur = await mkUnit('R-' + label, 1000000);
+      const dr = (await call(deals.createDeal, asReq(admin, { title: 'race-' + label, client_id: cust, unit_id: ur, value: 1000000, assigned_team_id: team, assigned_to: rep.id }))).body.data;
+      assert.equal((await q("SELECT count(*)::int n FROM deal_price_approvals WHERE deal_id=$1 AND status='pending'", [dr.id])).rows[0].n, 0);
+      const c1 = await env.pool.connect();
+      try {
+        await c1.query('BEGIN'); await c1.query('SELECT id FROM deals WHERE id=$1 FOR UPDATE', [dr.id]);
+        const racer = writer(dr.id);                                  // starts, waits for the lock (or passes its early check)
+        await new Promise(r => setTimeout(r, 400));
+        const full = (await c1.query('SELECT * FROM deals WHERE id=$1', [dr.id])).rows[0];
+        await priceS.createPriceRequest(c1, { tenantId: T, branchId: B, deal: full, requestedValue: 500000, unitPrice: 1000000, requestedBy: rep.id });
+        await c1.query('COMMIT');
+        const out = await racer;
+        return { out, dr };
+      } finally { c1.release(); }
+    };
+    {
+      const salesService2 = require('../services/salesService'); const fin2 = require('../controllers/financeController');
+      let x = await racePending('sales', 0, (id) => salesService2.convertDealToInvoice(id, T).then(() => 'invoiced', e => e.code || e.message));
+      assert.equal(x.out, 'PRICE_APPROVAL_PENDING'); assert.equal((await q("SELECT count(*)::int n FROM invoices WHERE deal_id=$1", [x.dr.id])).rows[0].n, 0);
+      x = await racePending('finance', 0, async (id) => { const rs = await call(fin2.createInvoiceFromDeal, asReq(admin, {}, { dealId: String(id) })); return rs.body.code || rs.statusCode; });
+      assert.equal(x.out, 'PRICE_APPROVAL_PENDING'); assert.equal((await q("SELECT count(*)::int n FROM invoices WHERE deal_id=$1", [x.dr.id])).rows[0].n, 0);
+      x = await racePending('put', 0, async (id) => { const rs = await call(deals.updateDeal, asReq(rep, { pipeline_stage: 'Closed' }, { id: String(id) })); return rs.body.code || rs.statusCode; });
+      assert.equal(x.out, 'PRICE_APPROVAL_PENDING'); assert.notEqual((await q("SELECT pipeline_stage FROM deals WHERE id=$1", [x.dr.id])).rows[0].pipeline_stage.toLowerCase(), 'closed');
+      x = await racePending('status', 0, async (id) => { const rs = await call(deals.updateDealStatus, asReq(rep, { pipeline_stage: 'Closed' }, { id: String(id) })); return rs.body.code || rs.statusCode; });
+      assert.equal(x.out, 'PRICE_APPROVAL_PENDING'); assert.notEqual((await q("SELECT pipeline_stage FROM deals WHERE id=$1", [x.dr.id])).rows[0].pipeline_stage.toLowerCase(), 'closed');
+      log('PASS concurrent request vs close: sales invoice, finance invoice, PUT and status all serialize behind the deal lock and stay blocked');
+    }
     log('ALL PASS');
   } catch (e) { console.error('FAIL', e); process.exitCode = 1; } finally { await env.stop(); }
 })();

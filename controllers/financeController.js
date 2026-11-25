@@ -504,16 +504,18 @@ exports.createInvoiceFromDeal = async (req, res) => {
     const branch_id = req.branchId;
     const deal_id = req.params.dealId;
 
+    // Dedicated connection: BEGIN, the deal row lock, the pending-request check and the writes must share one transaction.
+    const c = await db.connect();
     try {
-        await db.query('BEGIN');
+        await c.query('BEGIN');
 
-        const dealRes = await db.query('SELECT * FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text FOR UPDATE', [deal_id, tenant_id, branch_id]);
+        const dealRes = await c.query('SELECT * FROM deals WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text FOR UPDATE', [deal_id, tenant_id, branch_id]);
         if (dealRes.rows.length === 0) throw new Error('Deal not found or unauthorized');
         
         const deal = dealRes.rows[0];
 
         // Idempotency check: Return existing active invoice for this deal if one already exists
-        const existingInv = await db.query(
+        const existingInv = await c.query(
             `SELECT * FROM invoices 
              WHERE deal_id::text = $1::text 
                AND tenant_id::text = $2::text 
@@ -523,7 +525,7 @@ exports.createInvoiceFromDeal = async (req, res) => {
         );
 
         if (existingInv.rows.length > 0) {
-            await db.query('COMMIT');
+            await c.query('COMMIT');
             return res.status(200).json({
                 status: 'success',
                 message: 'Invoice already exists for this deal',
@@ -534,14 +536,14 @@ exports.createInvoiceFromDeal = async (req, res) => {
         // A pending price-approval request blocks invoicing and closing the deal (invoice marks it won).
         {
             const dealPriceService = require('../services/dealPriceService');
-            if (await dealPriceService.tablesReady(db) && await dealPriceService.hasPendingRequest(db, deal.id, tenant_id)) {
-                await db.query('ROLLBACK');
+            if (await dealPriceService.tablesReady(c) && await dealPriceService.hasPendingRequest(c, deal.id, tenant_id)) {
+                await c.query('ROLLBACK');
                 return res.status(409).json({ status: 'error', code: 'PRICE_APPROVAL_PENDING', message: 'A price approval request is pending for this deal. It cannot be invoiced or closed until the manager decides.' });
             }
         }
 
         const invoiceNumber = await generateInvoiceNumber(tenant_id, branch_id);
-        const invRes = await db.query(`
+        const invRes = await c.query(`
             INSERT INTO invoices (invoice_number, total_amount, status, tenant_id, branch_id, deal_id, client_id)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
@@ -550,19 +552,19 @@ exports.createInvoiceFromDeal = async (req, res) => {
         const newInvoiceId = invRes.rows[0].id;
 
         let product_id = deal.product_id;
-        await db.query(`
+        await c.query(`
             INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price, subtotal, tenant_id, branch_id, description)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         `, [newInvoiceId, product_id, 1, deal.value, deal.value, tenant_id, branch_id, deal.title]);
 
-        await db.query(`UPDATE deals SET pipeline_stage = 'won' WHERE id = $1`, [deal.id]);
+        await c.query(`UPDATE deals SET pipeline_stage = 'won' WHERE id = $1`, [deal.id]);
 
         // Finance records the invoice and financial transaction. Unit status is governed by Real Estate contracts/handovers.
         if (deal.unit_id && String(deal.unit_id).length > 10) {
             try {
-                const payCheck = await db.query('SELECT id FROM re_payments_mvp WHERE deal_id::text = $1::text AND tenant_id::text = $2::text', [deal.id, tenant_id]);
+                const payCheck = await c.query('SELECT id FROM re_payments_mvp WHERE deal_id::text = $1::text AND tenant_id::text = $2::text', [deal.id, tenant_id]);
                 if (payCheck.rows.length === 0) {
-                    await db.query(`
+                    await c.query(`
                         INSERT INTO re_payments_mvp (tenant_id, branch_id, deal_id, total_amount, status)
                         VALUES ($1, $2, $3, $4, 'Pending')
                     `, [tenant_id, branch_id, deal.id, deal.value]);
@@ -572,14 +574,16 @@ exports.createInvoiceFromDeal = async (req, res) => {
             }
         }
 
-        await db.query('COMMIT');
+        await c.query('COMMIT');
         logCreate(req, 'Invoice (from Deal)', newInvoiceId, { invoiceNumber, deal_id });
 
         res.status(201).json({ status: 'success', data: invRes.rows[0] });
     } catch (err) {
-        await db.query('ROLLBACK');
+        await c.query('ROLLBACK').catch(() => {});
         console.error('createInvoiceFromDeal Error:', err.message);
         res.status(500).json({ status: 'error', message: err.message });
+    } finally {
+        c.release();
     }
 };
 

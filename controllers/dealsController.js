@@ -1022,6 +1022,12 @@ exports.updateDeal = async (req, res) => {
     try {
       await updClient.query('BEGIN');
       await updClient.query('SELECT id FROM deals WHERE id = $1 AND tenant_id::text = $2::text FOR UPDATE', [req.params.id, tenant_id]);
+      // Re-check under the deal row lock: a request created by someone else after the early check must still block the close.
+      if (priceWorkflowReady && changesStage && ['closed', 'won', 'closed won'].includes(String(effectiveNextStage || '').trim().toLowerCase())
+          && !priceRequest && await dealPriceService.hasPendingRequest(updClient, oldData.id, tenant_id)) {
+        await updClient.query('ROLLBACK');
+        return res.status(409).json({ status: 'error', code: 'PRICE_APPROVAL_PENDING', message: 'A price approval request is pending for this deal. It cannot be closed until the manager decides.' });
+      }
       if (newTeamId && (changesTeam || normScalar(cleanAssignedTo) !== normScalar(oldData.assigned_to))) {
         await dealTeam.validateTeamAssignment(updClient, { tenantId: tenant_id, branchId: oldData.branch_id || branch_id, teamId: newTeamId, employeeId: cleanAssignedTo });
       }

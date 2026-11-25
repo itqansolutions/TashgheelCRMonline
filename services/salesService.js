@@ -307,8 +307,25 @@ exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id, clientOverr
  * @returns {Promise<object>} The new invoice
  */
 exports.convertDealToInvoice = async (dealId, tenant_id) => {
+  // One dedicated connection and one transaction: the deal row lock, the pending-price-request check,
+  // the invoice insert and the stage update are atomic, so a request created or decided meanwhile cannot slip between them.
+  const c = await db.connect();
+  try {
+    await c.query('BEGIN');
+    const result = await convertDealToInvoiceTx(c, dealId, tenant_id);
+    await c.query('COMMIT');
+    return result;
+  } catch (err) {
+    await c.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    c.release();
+  }
+};
+
+async function convertDealToInvoiceTx(c, dealId, tenant_id) {
   // 1. Get deal details with unit metadata if applicable, locking the deal row
-  const dealResult = await db.query(`
+  const dealResult = await c.query(`
     SELECT d.*, c.name as client_name,
            u.project_name, u.unit_number, u.floor, u.area, u.type as unit_type
     FROM deals d
@@ -322,7 +339,7 @@ exports.convertDealToInvoice = async (dealId, tenant_id) => {
   const deal = dealResult.rows[0];
 
   // Idempotency check: Return existing active invoice for this deal if one already exists
-  const existingInv = await db.query(
+  const existingInv = await c.query(
     `SELECT * FROM invoices
      WHERE deal_id::text = $1::text
        AND tenant_id::text = $2::text
@@ -347,7 +364,7 @@ exports.convertDealToInvoice = async (dealId, tenant_id) => {
   // A pending price-approval request blocks invoicing and closing the deal.
   {
     const dealPriceService = require('./dealPriceService');
-    if (await dealPriceService.tablesReady(db) && await dealPriceService.hasPendingRequest(db, deal.id, tenant_id)) {
+    if (await dealPriceService.tablesReady(c) && await dealPriceService.hasPendingRequest(c, deal.id, tenant_id)) {
       const err = new Error('A price approval request is pending for this deal. It cannot be invoiced or closed until the manager decides.');
       err.statusCode = 409; err.code = 'PRICE_APPROVAL_PENDING';
       throw err;
@@ -356,7 +373,7 @@ exports.convertDealToInvoice = async (dealId, tenant_id) => {
 
   // 3. Create Invoice with tenant context
   const invoiceNumber = `INV-${Date.now()}`;
-  const invoiceResult = await db.query(
+  const invoiceResult = await c.query(
     'INSERT INTO invoices (invoice_number, client_id, total_amount, due_date, status, notes, tenant_id, branch_id, deal_id) VALUES ($1, $2, $3, CURRENT_DATE + INTERVAL \'15 days\', \'unpaid\', $4, $5, $6, $7) RETURNING *',
     [invoiceNumber, deal.client_id, deal.value, invoiceNotes, tenant_id, deal.branch_id, deal.id]
   );
@@ -364,10 +381,10 @@ exports.convertDealToInvoice = async (dealId, tenant_id) => {
   const invoice = invoiceResult.rows[0];
 
   // 4. Update Deal Stage with isolation
-  await db.query("UPDATE deals SET pipeline_stage = 'won' WHERE id = $1 AND tenant_id = $2", [dealId, tenant_id]);
+  await c.query("UPDATE deals SET pipeline_stage = 'won' WHERE id = $1 AND tenant_id = $2", [dealId, tenant_id]);
 
   return invoice;
-};
+}
 
 /**
  * Checks for expired quotations and updates their status per tenant (if triggered)
