@@ -22,9 +22,15 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   const currentPath = location.pathname;
-  const checkPath = currentPath === '/' ? '/dashboard' : currentPath;
+  const checkPath = currentPath === '/' ? '/deals' : currentPath;
   const allowed = safeArray(user?.allowedPages);
-  const safeFallback = (allowed.includes('/dashboard')) ? '/dashboard' : '/my-profile';
+  // Landing chain (Ali 2026-11-25: "تمام يتحول على الصفقات"):
+  // Deals when permitted, else the first permitted work page, else /my-profile.
+  const isLandingAllowed = (p) => {
+    if (user?.role === 'admin' || user?.role === 'super_admin') return true;
+    return allowed.includes(p) || (p === '/deals' && allowed.includes('/my-deals'));
+  };
+  const safeFallback = ['/deals', '/customers', '/tasks', '/dashboard'].find(isLandingAllowed) || '/my-profile';
 
   // Module Entitlement Enforcement (applies to ALL roles including tenant admin)
   if (checkPath.startsWith('/inventory') || checkPath.startsWith('/products')) {

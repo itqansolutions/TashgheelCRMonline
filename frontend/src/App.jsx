@@ -161,7 +161,7 @@ function App() {
                     </ProtectedRoute>
                   }
                 >
-                  <Route index element={<Navigate to="/dashboard" replace />} />
+                  <Route index element={<Navigate to="/deals" replace />} />
                   <Route path="dashboard" element={<Dashboard />} />
                   <Route path="my-profile" element={<MyProfile />} />
                   <Route path="inventory" element={<Navigate to="/inventory/movements" replace />} />
