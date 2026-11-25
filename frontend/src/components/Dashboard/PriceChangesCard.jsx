@@ -52,7 +52,7 @@ const PriceChangesCard = ({ timeFilter }) => {
               <div key={u.unit_id} style={{ display: 'flex', gap: '10px', fontSize: '12px', padding: '3px 0', alignItems: 'baseline', flexWrap: 'wrap' }}>
                 <span style={{ color: COLORS[u.direction], fontWeight: 800 }}>{ARROW[u.direction]}</span>
                 <span style={{ minWidth: '110px' }}>{u.project_name ? `${u.project_name} · ` : ''}{u.unit_number || u.name}</span>
-                <span className="num-en">{u.period_old_price == null ? '—' : fmt(u.period_old_price)} → {u.period_new_price == null ? '—' : fmt(u.period_new_price)}</span>
+                <span>{t('priceChanges.from', 'From')} <bdi className="num-en" dir="ltr">{u.period_old_price == null ? '—' : fmt(u.period_old_price)}</bdi> {t('priceChanges.to', 'to')} <bdi className="num-en" dir="ltr">{u.period_new_price == null ? '—' : fmt(u.period_new_price)}</bdi></span>
                 {u.net_delta != null && <span className="num-en" style={{ color: COLORS[u.direction], fontWeight: 700 }}>{u.net_delta > 0 ? '+' : ''}{fmt(u.net_delta)}{u.net_percent != null ? ` (${u.net_percent > 0 ? '+' : ''}${u.net_percent.toFixed(1)}%)` : ''}</span>}
               </div>
             ))}

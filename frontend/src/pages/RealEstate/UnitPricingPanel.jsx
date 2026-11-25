@@ -7,6 +7,11 @@ import { useLanguage } from '../../context/LanguageContext';
 const box = { background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '16px' };
 const inp = { padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit' };
 const btn = (bg) => ({ background: bg, color: 'white', padding: '8px 14px', borderRadius: '8px', fontWeight: 700, fontSize: '12px', border: 0, cursor: 'pointer' });
+const cairoTime = (v) => {
+  const d = new Date(v); if (isNaN(d.getTime())) return '';
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d).map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day} ${p.hour === '24' ? '00' : p.hour}:${p.minute}`;
+};
 const fmt = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
 const UnitPricingPanel = ({ unit, onChanged }) => {
@@ -38,7 +43,7 @@ const UnitPricingPanel = ({ unit, onChanged }) => {
 
   const describe = (ev) => {
     const p = ev.previous_data || {}, n = ev.new_data || {};
-    if (ev.event_type === 'price_changed') return `${t('unitPricing.price', 'Price')}: ${fmt(p.price)} → ${fmt(n.price)}`;
+    if (ev.event_type === 'price_changed') return `${t('unitPricing.price', 'Price')}: ${t('unitPricing.from', 'from')} \u2066${fmt(p.price)}\u2069 ${t('unitPricing.to', 'to')} \u2066${fmt(n.price)}\u2069`;
     if (ev.event_type === 'marketing_deactivated') return `${t('unitPricing.deactivated', 'Deactivated')} (${n.reason === 'sold_elsewhere' ? t('unitPricing.soldElsewhere', 'Sold elsewhere') : t('unitPricing.other', 'Other')}${n.note ? `: ${n.note}` : ''})`;
     if (ev.event_type === 'marketing_activated') return t('unitPricing.activated', 'Re-activated');
     return ev.event_type;
@@ -77,8 +82,8 @@ const UnitPricingPanel = ({ unit, onChanged }) => {
         : <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '4px' }}>
             {events.slice(0, 20).map(ev => (
               <li key={ev.id} style={{ fontSize: '12px', display: 'flex', gap: '10px' }}>
-                <span className="num-en" style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{String(ev.created_at).replace('T', ' ').slice(0, 16)}</span>
-                <span>{describe(ev)}</span>
+                <span className="num-en" style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{cairoTime(ev.created_at)}</span>
+                <span dir="auto" style={{ unicodeBidi: 'plaintext' }}>{describe(ev)}</span>
               </li>
             ))}
           </ul>}
