@@ -767,6 +767,8 @@
       "lastExtendedBy": "آخر تمديد بواسطة: {name}",
       "extendSlaBtn": "تمديد +48 ساعة",
       "extendReasonPrompt": "أدخل سبب تمديد مهلة الـ 48 ساعة:",
+      "extendReasonPlaceholder": "سبب التمديد (اختياري)...",
+      "extendConfirmBtn": "تأكيد التمديد",
       "extendSuccess": "تم تمديد مهلة المتابعة بنجاح بمقدار 48 ساعة إضافية.",
       "reassignBtn": "إعادة إسناد الصفقة",
       "reassignModalTitle": "إعادة إسناد الصفقة لمندوب آخر",
