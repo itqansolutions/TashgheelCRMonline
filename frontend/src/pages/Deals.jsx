@@ -98,10 +98,11 @@ const Deals = () => {
   const [reassignReason, setReassignReason] = useState('');
   const [showExtendPanel, setShowExtendPanel] = useState(false);
   const [extendReason, setExtendReason] = useState('');
-  // Deal Lock (mirrors backend): final stage (Closed/won) or a live contract freezes core commercial fields
-  const isFinalDealStage = ['closed', 'won'].includes(String(editingDeal?.pipeline_stage || '').toLowerCase());
+  // Deal Lock (mirrors backend services/stageSemantics.js): alias-safe normalized stage keys
+  const normStageKey = (s) => String(s || '').trim().toLowerCase().replace(/[\s_-]+/g, ' ');
+  const isFinalDealStage = ['won', 'closed', 'closed won', 'contracted'].includes(normStageKey(editingDeal?.pipeline_stage));
   // Lost/cancelled deals are terminal and read-only, like won/closed deals (mirrors backend getTerminalLostLock)
-  const isTerminalLostDeal = !!editingDeal && (['lost', 'closed lost', 'cancelled'].includes(String(editingDeal?.pipeline_stage || '').trim().toLowerCase()) || !!cancellationRecord);
+  const isTerminalLostDeal = !!editingDeal && (['lost', 'closed lost', 'cancelled'].includes(normStageKey(editingDeal?.pipeline_stage)) || !!cancellationRecord);
   const isDealLocked = !!editingDeal && (isFinalDealStage || isTerminalLostDeal || (dealContract && dealContract.status !== 'Cancelled'));
 
   // Deal Permissions checks

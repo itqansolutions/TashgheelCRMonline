@@ -37,8 +37,9 @@ async function ensureDealColumns() {
 // cannot leave the final stage and cannot be deleted. The only exit path is
 // the audited Cancellation workflow (/api/re-cancellations).
 const dealPriceService = require('../services/dealPriceService');
-const FINAL_DEAL_STAGES = ['closed', 'won'];
-const isFinalStage = (stage) => FINAL_DEAL_STAGES.includes(String(stage || '').trim().toLowerCase());
+const { normalizeStageKey, isWonStage, isLostStage } = require('../services/stageSemantics');
+// Final (won-side) stage guard: normalized alias-safe check, see services/stageSemantics.js
+const isFinalStage = isWonStage;
 
 const RESERVATION_STAGES = new Set(['reserved', 'reservation', 'حجز']);
 const isReservationStage = (stage) => RESERVATION_STAGES.has(String(stage || '').trim().toLowerCase());
@@ -119,8 +120,8 @@ async function releaseUnitIfReservedByDeal(queryable, { unitId, dealRow, tenantI
 // A deal is terminal-lost when its stage is Lost/Closed Lost/Cancelled or it has a
 // re_cancellations row (audited Cancellation workflow). Only used by the edit and stage
 // endpoints; deletion rules are unchanged.
-const TERMINAL_LOST_STAGES = ['lost', 'closed lost', 'cancelled'];
-const isTerminalLostStage = (stage) => TERMINAL_LOST_STAGES.includes(String(stage || '').trim().toLowerCase());
+// Terminal lost-side guard: normalized alias-safe check, see services/stageSemantics.js
+const isTerminalLostStage = isLostStage;
 async function isDealCancelled(queryable, dealId, tenantId) {
   try {
     const r = await queryable.query(
@@ -238,7 +239,7 @@ exports.getDeals = async (req, res) => {
     }
 
     if (req.query.overdue === 'true') {
-      whereClause += ` AND LOWER(COALESCE(d.pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost')
+      whereClause += ` AND LOWER(COALESCE(d.pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed_won', 'closed-won', 'contracted', 'closed lost', 'closed_lost', 'closed-lost')
         AND (
           CURRENT_TIMESTAMP > COALESCE(
             NULLIF(d.custom_fields->>'sla_extended_until', '')::timestamptz,
@@ -286,7 +287,7 @@ exports.getDeals = async (req, res) => {
         rp.status as payment_status,
         COALESCE(fv.actual_paid, rp.paid_amount, 0) as paid_amount,
         rp.total_amount as payment_total,
-        (d.pipeline_stage NOT IN ('won', 'lost', 'cancelled', 'closed')
+        (d.pipeline_stage NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed_won', 'closed-won', 'contracted', 'closed lost', 'closed_lost', 'closed-lost')
          AND CURRENT_TIMESTAMP > COALESCE(
             NULLIF(d.custom_fields->>'sla_extended_until', '')::timestamptz,
             GREATEST(
@@ -897,7 +898,7 @@ exports.updateDeal = async (req, res) => {
       if (stableJson(cleanCustomFields) !== stableJson(oldData.custom_fields)) violations.push('commercial terms');
       const newStage = pipeline_stage ? String(pipeline_stage).trim().toLowerCase() : String(oldData.pipeline_stage || '').toLowerCase();
       const oldStageLc = String(oldData.pipeline_stage || '').toLowerCase();
-      if (newStage !== oldStageLc && (isFinalStage(oldStageLc) || newStage === 'lost' || lock.cancelled)) violations.push('stage');
+      if (newStage !== oldStageLc && (isFinalStage(oldStageLc) || isLostStage(newStage) || lock.cancelled)) violations.push('stage');
       if (violations.length > 0) {
         return res.status(409).json({
           status: 'error',
@@ -962,11 +963,11 @@ exports.updateDeal = async (req, res) => {
       }
     }
     const effectiveNextStage = pipeline_stage || oldData.pipeline_stage;
-    if (priceWorkflowReady && changesStage && ['closed', 'won', 'closed won'].includes(String(effectiveNextStage || '').trim().toLowerCase())
+    if (priceWorkflowReady && changesStage && isWonStage(effectiveNextStage)
         && (priceRequest || await dealPriceService.hasPendingRequest(db, oldData.id, tenant_id))) {
       return res.status(409).json({ status: 'error', code: 'PRICE_APPROVAL_PENDING', message: 'A price approval request is pending for this deal. It cannot be closed until the manager decides.' });
     }
-    const isMovingToLost = changesStage && ['lost', 'closed lost'].includes(String(effectiveNextStage || '').trim().toLowerCase());
+    const isMovingToLost = changesStage && isLostStage(effectiveNextStage);
     const isMovingToSiteVisit = changesStage && String(effectiveNextStage || '').trim().toLowerCase() === 'site visit';
     const isRequestingReserve = Boolean(
       req.body.reserve_unit === true ||
@@ -1023,7 +1024,7 @@ exports.updateDeal = async (req, res) => {
       await updClient.query('BEGIN');
       await updClient.query('SELECT id FROM deals WHERE id = $1 AND tenant_id::text = $2::text FOR UPDATE', [req.params.id, tenant_id]);
       // Re-check under the deal row lock: a request created by someone else after the early check must still block the close.
-      if (priceWorkflowReady && changesStage && ['closed', 'won', 'closed won'].includes(String(effectiveNextStage || '').trim().toLowerCase())
+      if (priceWorkflowReady && changesStage && isWonStage(effectiveNextStage)
           && !priceRequest && await dealPriceService.hasPendingRequest(updClient, oldData.id, tenant_id)) {
         await updClient.query('ROLLBACK');
         return res.status(409).json({ status: 'error', code: 'PRICE_APPROVAL_PENDING', message: 'A price approval request is pending for this deal. It cannot be closed until the manager decides.' });
@@ -1043,7 +1044,7 @@ exports.updateDeal = async (req, res) => {
       if (priceRequest) {
         priceRequest.created = await dealPriceService.createPriceRequest(updClient, { tenantId: tenant_id, branchId: oldData.branch_id || branch_id, deal: result.rows[0], requestedValue: priceRequest.requestedValue, unitPrice: priceRequest.unitPrice, requestedBy: req.user.id });
       }
-      if (cleanUnitId && String(oldData.pipeline_stage || '') !== String(effectiveNextStage || '') && ['closed', 'won', 'closed won'].includes(String(effectiveNextStage || '').trim().toLowerCase())) {
+      if (cleanUnitId && String(oldData.pipeline_stage || '') !== String(effectiveNextStage || '') && isWonStage(effectiveNextStage)) {
         // Same as PATCH /status: a failure here rolls the whole close back (no silent close without the registry row).
         await ensurePendingPaymentRecord(updClient, { tenantId: tenant_id, branchId: branch_id, dealId: req.params.id });
       }
@@ -1187,7 +1188,7 @@ exports.updateDealStatus = async (req, res) => {
       if (!lock.locked) {
         lock = (await getTerminalLostLock(client, { id: req.params.id, pipeline_stage: oldStage }, tenant_id)) || lock;
       }
-      if (lock.locked && (isFinalStage(oldStage) || lock.cancelled || cleanStage.toLowerCase() === 'lost')) {
+      if (lock.locked && (isFinalStage(oldStage) || lock.cancelled || isLostStage(cleanStage))) {
         await client.query('ROLLBACK');
         return res.status(409).json({
           status: 'error',
@@ -1197,7 +1198,7 @@ exports.updateDealStatus = async (req, res) => {
       }
     }
 
-    if (['closed', 'won', 'closed won'].includes(cleanStage.toLowerCase()) && String(oldStage || '').toLowerCase() !== cleanStage.toLowerCase()
+    if (isWonStage(cleanStage) && String(oldStage || '').toLowerCase() !== cleanStage.toLowerCase()
         && await dealPriceService.tablesReady(client) && await dealPriceService.hasPendingRequest(client, req.params.id, tenant_id)) {
       await client.query('ROLLBACK');
       return res.status(409).json({ status: 'error', code: 'PRICE_APPROVAL_PENDING', message: 'A price approval request is pending for this deal. It cannot be closed until the manager decides.' });
@@ -1280,10 +1281,10 @@ exports.updateDealStatus = async (req, res) => {
                 );
                 if (result.rows[0]) result.rows[0].custom_fields = nextCf;
               }
-          } else if (lowerStage === 'closed' || lowerStage === 'won' || lowerStage === 'closed won') {
+          } else if (isWonStage(cleanStage)) {
               // Create Payment Registry (idempotent, shared with PUT /deals/:id)
               await ensurePendingPaymentRecord(client, { tenantId: tenant_id, branchId: branch_id, dealId: req.params.id });
-          } else if (lowerStage === 'lost' || lowerStage === 'closed lost') {
+          } else if (isLostStage(cleanStage)) {
               await releaseUnitIfReservedByDeal(client, {
                 unitId: unit_id,
                 dealRow: {
@@ -1318,7 +1319,7 @@ exports.updateDealStatus = async (req, res) => {
           level: LOG_LEVELS.INFO
         });
 
-        if (unit_id && (lowerStage === 'won' || lowerStage === 'closed won')) {
+        if (unit_id && ['won', 'closed won'].includes(normalizeStageKey(cleanStage))) {
           logAction({ req, action: ACTIONS.AUTOMATION, entityType: 'Unit', entityId: unit_id, details: { deal_id: req.params.id, status_change: 'Sold (Deal Won)' } });
         }
 

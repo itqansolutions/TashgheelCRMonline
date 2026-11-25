@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { isTerminalStage } = require('./stageSemantics');
 const notificationService = require('./notificationService');
 const { logActivity } = require('../utils/activityLogger');
 
@@ -33,9 +34,7 @@ function calculateDealSla(deal, activities = [], tasks = [], now = new Date()) {
     ? deal.custom_fields 
     : {};
 
-  const isTerminal = ['won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost'].includes(
-    String(deal?.pipeline_stage || '').toLowerCase().trim()
-  );
+  const isTerminal = isTerminalStage(deal?.pipeline_stage);
 
   // 1. Determine latest impactful activity date
   let latestActivityDate = null;
@@ -370,7 +369,7 @@ async function scanAndAlertOverdueDeals({ tenantId = null, queryable = db } = {}
     const dealsRes = await runner.query(`
       SELECT d.* 
       FROM deals d
-      WHERE LOWER(COALESCE(d.pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost')
+      WHERE LOWER(COALESCE(d.pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed_won', 'closed-won', 'contracted', 'closed lost', 'closed_lost', 'closed-lost')
         AND ($1::text IS NULL OR d.tenant_id::text = $1::text)
       ORDER BY d.created_at ASC
       LIMIT 100
@@ -504,7 +503,7 @@ async function scanAndAlertOverdueDeals({ tenantId = null, queryable = db } = {}
  */
 async function getOverdueDeals(tenantId, branchId = null, queryable = db) {
   let where = [
-    `LOWER(COALESCE(d.pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed lost')`,
+    `LOWER(COALESCE(d.pipeline_stage, '')) NOT IN ('won', 'lost', 'cancelled', 'closed', 'closed won', 'closed_won', 'closed-won', 'contracted', 'closed lost', 'closed_lost', 'closed-lost')`,
     `d.tenant_id::text = $1::text`
   ];
   let params = [String(tenantId)];

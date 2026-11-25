@@ -12,8 +12,8 @@ const db = require('../config/db');
 
 const uuid = () => crypto.randomUUID();
 const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
-const FINAL = ['closed', 'won', 'closed won', 'closed_won', 'contracted', 'lost', 'closed lost', 'closed_lost', 'cancelled'];
-const isTerminalStage = (s) => FINAL.includes(String(s || '').trim().toLowerCase());
+// Alias-safe terminal-stage semantics shared across deal guards, see services/stageSemantics.js
+const { isTerminalStage } = require('./stageSemantics');
 
 let _ready = false;
 // Skip the workflow safely if the migration has not been applied yet (never abort a deal save).

@@ -150,7 +150,7 @@ class WorkflowEngine {
                 SELECT u.id, u.name, COUNT(d.id) as open_deals
                 FROM users u
                 LEFT JOIN deals d ON d.assigned_to = u.id 
-                    AND d.pipeline_stage NOT IN ('won', 'lost')
+                    AND d.pipeline_stage NOT IN ('won', 'lost', 'closed', 'closed won', 'closed_won', 'closed-won', 'contracted', 'closed lost', 'closed_lost', 'closed-lost', 'cancelled')
                     AND d.tenant_id = $1
                 WHERE u.tenant_id = $1 AND u.role = 'employee'
                 AND EXISTS (SELECT 1 FROM user_branches ub WHERE ub.user_id::text = u.id::text AND ub.branch_id::text = $2::text)
