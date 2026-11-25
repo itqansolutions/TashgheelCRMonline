@@ -499,7 +499,7 @@ exports.createInvoice = async (req, res) => {
     } catch (err) {
         await db.query('ROLLBACK');
         console.error('createInvoice Error:', err);
-        if (err.status === 409 && err.code) return res.status(409).json({ status: 'error', code: err.code, message: err.message });
+        if (err.status === 409 && err.code) return res.status(409).json({ status: 'error', code: err.code, message: err.message, product_name: err.product_name, available: err.available, requested: err.requested });
         res.status(500).json({ status: 'error', message: err.message || 'Failed to create invoice.' });
     }
 };

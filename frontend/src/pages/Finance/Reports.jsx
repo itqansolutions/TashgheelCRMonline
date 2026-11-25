@@ -1,3 +1,4 @@
+import DateInput from '../../components/Common/DateInput';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../services/api';
 import { isInvalidDateRange } from '../../utils/dateRange';
@@ -161,15 +162,15 @@ const Reports = ({ onSelectCustomer }) => {
 
           {/* Custom Date Pickers */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <input
-              type="date"
+            <DateInput
+              
               value={dateFrom}
               onChange={(e) => { setDatePreset('custom'); setDateFrom(e.target.value); }}
               style={inputStyle}
             />
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>–</span>
-            <input
-              type="date"
+            <DateInput
+              
               value={dateTo}
               onChange={(e) => { setDatePreset('custom'); setDateTo(e.target.value); }}
               style={inputStyle}

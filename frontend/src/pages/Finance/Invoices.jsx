@@ -1,3 +1,4 @@
+import DateInput from '../../components/Common/DateInput';
 import { useBranch } from '../../context/BranchContext';
 import Modal from '../../components/Common/Modal';
 import TreasuryEmptyNotice from '../../components/Finance/TreasuryEmptyNotice';
@@ -286,7 +287,12 @@ const FinanceDashboard = () => {
       });
     } catch (err) {
       console.error('Action failed', err);
-      toast.error(err.response?.data?.message || 'Operation failed');
+      {
+        const d = err.response?.data;
+        toast.error(d?.code === 'INSUFFICIENT_STOCK' && isRTL
+          ? `المخزون غير كافي للصنف "${d.product_name || ''}": المتاح ${d.available ?? ''} والمطلوب ${d.requested ?? ''}`
+          : (d?.message || 'Operation failed'), { duration: 6000 });
+      }
     } finally {
       quickSubmitLock.current = false;
       setIsSubmitting(false);
@@ -1087,8 +1093,8 @@ const FinanceDashboard = () => {
                                   </div>
                                   <div>
                                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.voucherDate')}</label>
-                                      <input
-                                          type="date"
+                                      <DateInput
+                                          
                                           required
                                           value={formData.date}
                                           onChange={e => setFormData({ ...formData, date: e.target.value })}
@@ -1282,8 +1288,8 @@ const FinanceDashboard = () => {
                                       </div>
                                       <div>
                                           <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.date')}</label>
-                                          <input
-                                              type="date"
+                                          <DateInput
+                                              
                                               required
                                               value={formData.date}
                                               onChange={e => setFormData({...formData, date: e.target.value})}
@@ -1296,8 +1302,8 @@ const FinanceDashboard = () => {
                               {(quickActionType === 'Invoice' || quickActionType === 'Quotation') && (
                                 <div style={{ marginBottom: '16px' }}>
                                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.quickAction.dueDate')}</label>
-                                    <input
-                                        type="date"
+                                    <DateInput
+                                        
                                         required
                                         value={formData.date}
                                         onChange={e => setFormData({...formData, date: e.target.value})}

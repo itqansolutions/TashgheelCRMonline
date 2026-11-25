@@ -1,3 +1,4 @@
+import DateInput from '../../components/Common/DateInput';
 import { useBranch } from '../../context/BranchContext';
 import Modal from '../../components/Common/Modal';
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
@@ -437,9 +438,9 @@ const Treasury = () => {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...inputStyle, width: '130px', fontSize: '12px' }} />
+                <DateInput  value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ ...inputStyle, width: '130px', fontSize: '12px' }} />
                 <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>–</span>
-                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...inputStyle, width: '130px', fontSize: '12px' }} />
+                <DateInput  value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ ...inputStyle, width: '130px', fontSize: '12px' }} />
                 <button onClick={() => fetchTransactions(selected.id)} style={{ ...btnStyle, padding: '7px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Filter size={12} /> {t('finance.treasury.transactions.filter')}
                 </button>

@@ -1,3 +1,4 @@
+import DateInput from '../../components/Common/DateInput';
 import { useBranch } from '../../context/BranchContext';
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import api from '../../services/api';
@@ -209,12 +210,12 @@ const StatementDrawer = ({ customerId, onClose }) => {
           <div className="statement-filters" style={{ display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
               <Calendar size={14} style={{ color: 'var(--text-muted)' }} />
-              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              <DateInput  value={dateFrom} onChange={e => setDateFrom(e.target.value)}
                 style={inputStyle} placeholder={t('finance.customerAccounts.drawer.from')} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
               <Calendar size={14} style={{ color: 'var(--text-muted)' }} />
-              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              <DateInput  value={dateTo} onChange={e => setDateTo(e.target.value)}
                 style={inputStyle} placeholder={t('finance.customerAccounts.drawer.to')} />
             </div>
             <button onClick={load} style={{ ...btnStyle, background: 'rgba(99,102,241,0.1)', color: 'var(--primary)' }}>
