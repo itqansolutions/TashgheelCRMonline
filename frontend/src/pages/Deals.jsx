@@ -1113,7 +1113,7 @@ const Deals = () => {
         footer={
           <>
             <button label="cancel addition" className="btn-cancel" onClick={handleCloseModal}>{t('common.cancel', 'Cancel')}</button>
-            <button label="save addition" className="btn-save" onClick={handleSubmit} disabled={!canSaveModal} style={{ opacity: canSaveModal ? 1 : 0.5, cursor: canSaveModal ? 'pointer' : 'not-allowed' }}>
+            <button label="save addition" className="btn-save" onClick={handleSubmit} disabled={!canSaveModal || (!!editingDeal && isTerminalLostDeal)} style={{ opacity: (canSaveModal && !(editingDeal && isTerminalLostDeal)) ? 1 : 0.5, cursor: (canSaveModal && !(editingDeal && isTerminalLostDeal)) ? 'pointer' : 'not-allowed' }}>
               {editingDeal ? t('deals.updateDeal', 'Update Deal') : t('deals.createDeal', 'Create Deal')}
             </button>
           </>
@@ -1231,7 +1231,7 @@ const Deals = () => {
                             {t('deals.sla.extendSlaBtn', '+48h Extend SLA')}
                           </button>
                         )}
-                        {canReassign && (
+                        {canReassign && !dealSla.isTerminal && !isTerminalLostDeal && !isFinalDealStage && (
                           <button
                             type="button"
                             onClick={() => setShowReassignModal(!showReassignModal)}

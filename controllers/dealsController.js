@@ -1593,6 +1593,19 @@ async function teamDealGate(req, dealId, queryable) {
   if (ok.rows.length === 0) { const e = new Error('Deal not found or unauthorized.'); e.statusCode = 404; throw e; }
 }
 
+// Won/closed and Lost/cancelled deals are terminal: no SLA extension and no reassignment
+// (owner is a locked field on terminal deals, so reassign must not bypass the lock).
+async function assertDealNotTerminal(req, dealId, queryable) {
+  const tenantId = req.user.tenant_id;
+  const d = await queryable.query('SELECT id, pipeline_stage FROM deals WHERE id::text = $1::text AND tenant_id::text = $2::text', [String(dealId), String(tenantId)]);
+  if (d.rows.length === 0) return;
+  const deal = d.rows[0];
+  if (isFinalStage(deal.pipeline_stage) || (await getTerminalLostLock(queryable, deal, tenantId))) {
+    const e = new Error('Deal is closed or lost and read-only. It cannot be reassigned or have its SLA extended.');
+    e.statusCode = 409; e.code = 'DEAL_LOCKED'; throw e;
+  }
+}
+
 // @desc    Extend deal SLA by +48h (unlimited extensions permitted, idempotent via key)
 // @route   POST /api/deals/:id/extend-sla
 // @access  Private (deal.extend_sla)
@@ -1603,6 +1616,7 @@ exports.extendDealSla = async (req, res) => {
 
   try {
     await teamDealGate(req, req.params.id, db);
+    await assertDealNotTerminal(req, req.params.id, db);
     const result = await dealSlaService.extendDealSla({
       dealId: req.params.id,
       tenantId: tenant_id,
@@ -1613,7 +1627,7 @@ exports.extendDealSla = async (req, res) => {
     res.json({ status: 'success', ...result });
   } catch (err) {
     console.error('[Extend Deal SLA Error]:', err.message);
-    res.status(400).json({ status: 'error', message: err.message });
+    res.status(err.statusCode || 400).json({ status: 'error', ...(err.code ? { code: err.code } : {}), message: err.message });
   }
 };
 
@@ -1634,6 +1648,7 @@ exports.reassignDeal = async (req, res) => {
     tx = db.connect ? await db.connect() : await db.pool.connect();
     await tx.query('BEGIN');
     await teamDealGate(req, req.params.id, tx);
+    await assertDealNotTerminal(req, req.params.id, tx);
     const result = await dealSlaService.reassignDeal({
       dealId: req.params.id,
       tenantId: tenant_id,

@@ -65,6 +65,16 @@ const h = require('./helpers/pgHarness.cjs');
     const d6 = await mkDeal('open', null);
     r = await call(deals.updateDeal, asReq({ title: 'renamed', client_id: cust2 }, { id: String(d6) })); assert.equal(r.statusCode, 200, JSON.stringify(r.body));
     r = await call(deals.updateDeal, asReq({ pipeline_stage: 'Negotiation' }, { id: String(d6) })); assert.equal(r.statusCode, 200);
-    log('PASS open deal editing unchanged'); log('ALL PASS');
+    log('PASS open deal editing unchanged');
+    // 8. reassign / extend-SLA cannot bypass the lock on closed, lost or cancelled deals; open deal still works
+    for (const id of [d1, d3, d5]) {
+      const ownerBefore = (await q('SELECT assigned_to, custom_fields FROM deals WHERE id=$1', [id])).rows[0];
+      r = await call(deals.reassignDeal, asReq({ target_user_id: admin.id, reason: 'x' }, { id: String(id) })); assert.equal(r.statusCode, 409, JSON.stringify(r.body)); assert.equal(r.body.code, 'DEAL_LOCKED');
+      r = await call(deals.extendDealSla, asReq({ reason: 'x' }, { id: String(id) })); assert.equal(r.statusCode, 409, JSON.stringify(r.body));
+      const ownerAfter = (await q('SELECT assigned_to, custom_fields FROM deals WHERE id=$1', [id])).rows[0];
+      assert.deepEqual(ownerAfter, ownerBefore);
+    }
+    r = await call(deals.extendDealSla, asReq({ reason: 'ok' }, { id: String(d6) })); assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+    log('PASS reassign and extend-SLA blocked on closed/cancelled/lost, open deal extend still works'); log('ALL PASS');
   } catch (e) { console.error('FAIL', e); process.exitCode = 1; } finally { await env.stop(); }
 })();
