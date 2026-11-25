@@ -91,6 +91,16 @@ const h = require('./helpers/pgHarness.cjs');
     await q('ALTER TABLE re_cancellations RENAME COLUMN deal_id_x TO deal_id');
     r = await call(deals.extendDealSla, asReq({ reason: 'ok' }, { id: String(d10) })); assert.equal(r.statusCode, 200, JSON.stringify(r.body));
     log('PASS contract-only lock blocks reassign/extend; cancellation check fails closed on DB error');
+    // 10. delete lock: active contract blocks delete (409 DEAL_LOCKED); after contract cancellation the record is deletable; open deal delete unaffected
+    const dC10 = await mkDeal('contracted-delete', null);
+    await q("INSERT INTO re_contracts (deal_id, tenant_id, contract_number, status) VALUES ($1,$2,'C-10','Active')", [dC10, T]);
+    r = await call(deals.deleteDeal, asReq({}, { id: String(dC10) })); assert.equal(r.statusCode, 409, JSON.stringify(r.body)); assert.equal(r.body.code, 'DEAL_LOCKED');
+    assert.equal((await q("SELECT count(*)::int n FROM deals WHERE id=$1", [dC10])).rows[0].n, 1); log('PASS delete blocked on active contract (DEAL_LOCKED), row kept');
+    await q("UPDATE re_contracts SET status='Cancelled' WHERE deal_id=$1", [dC10]);
+    r = await call(deals.deleteDeal, asReq({}, { id: String(dC10) })); assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+    assert.equal((await q("SELECT count(*)::int n FROM deals WHERE id=$1", [dC10])).rows[0].n, 0); log('PASS cancelled contract releases the delete lock');
+    const dO11 = await mkDeal('open-delete', null);
+    r = await call(deals.deleteDeal, asReq({}, { id: String(dO11) })); assert.equal(r.statusCode, 200, JSON.stringify(r.body)); log('PASS open deal delete still works');
     log('ALL PASS');
   } catch (e) { console.error('FAIL', e); process.exitCode = 1; } finally { await env.stop(); }
 })();
