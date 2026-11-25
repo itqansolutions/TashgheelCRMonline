@@ -129,7 +129,10 @@ async function isDealCancelled(queryable, dealId, tenantId) {
     );
     return r.rows.length > 0;
   } catch (e) {
-    return false; // re_cancellations may not exist for General tenants
+    // Only a missing table (General tenants have no re_cancellations) means "not cancelled".
+    // Any other error must not be read as "not cancelled": fail closed and let the caller fail.
+    if (e && e.code === '42P01') return false;
+    throw e;
   }
 }
 async function getTerminalLostLock(queryable, deal, tenantId) {
@@ -1666,6 +1669,12 @@ async function assertDealNotTerminal(req, dealId, queryable) {
   const deal = d.rows[0];
   if (isFinalStage(deal.pipeline_stage) || (await getTerminalLostLock(queryable, deal, tenantId))) {
     const e = new Error('Deal is closed or lost and read-only. It cannot be reassigned or have its SLA extended.');
+    e.statusCode = 409; e.code = 'DEAL_LOCKED'; throw e;
+  }
+  // A live contract freezes the owner field on PUT; reassign and SLA extension must not bypass that.
+  const contractLock = await getDealLockState(queryable, deal, tenantId);
+  if (contractLock.locked) {
+    const e = new Error(`${contractLock.reason}. The deal is locked by its contract and cannot be reassigned or have its SLA extended.`);
     e.statusCode = 409; e.code = 'DEAL_LOCKED'; throw e;
   }
 }

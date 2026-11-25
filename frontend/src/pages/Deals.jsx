@@ -1237,7 +1237,7 @@ const Deals = () => {
                             {t('deals.sla.extendSlaBtn', '+48h Extend SLA')}
                           </button>
                         )}
-                        {canReassign && !dealSla.isTerminal && !isTerminalLostDeal && !isFinalDealStage && (
+                        {canReassign && !dealSla.isTerminal && !isTerminalLostDeal && !isFinalDealStage && !isDealLocked && (
                           <button
                             type="button"
                             onClick={() => setShowReassignModal(!showReassignModal)}

@@ -75,6 +75,22 @@ const h = require('./helpers/pgHarness.cjs');
       assert.deepEqual(ownerAfter, ownerBefore);
     }
     r = await call(deals.extendDealSla, asReq({ reason: 'ok' }, { id: String(d6) })); assert.equal(r.statusCode, 200, JSON.stringify(r.body));
-    log('PASS reassign and extend-SLA blocked on closed/cancelled/lost, open deal extend still works'); log('ALL PASS');
+    log('PASS reassign and extend-SLA blocked on closed/cancelled/lost, open deal extend still works');
+    // 9. hardening: a deal locked only by an ACTIVE CONTRACT cannot be reassigned or have SLA extended; cancellation check fails closed on DB errors
+    const d9 = await mkDeal('contract-only', null);
+    await q("INSERT INTO re_contracts (deal_id, tenant_id, contract_number, status) VALUES ($1,$2,'C-9','Active')", [d9, T]);
+    const own9 = (await q('SELECT assigned_to FROM deals WHERE id=$1', [d9])).rows[0];
+    r = await call(deals.reassignDeal, asReq({ target_user_id: admin.id, reason: 'x' }, { id: String(d9) })); assert.equal(r.statusCode, 409, JSON.stringify(r.body)); assert.equal(r.body.code, 'DEAL_LOCKED');
+    r = await call(deals.extendDealSla, asReq({ reason: 'x' }, { id: String(d9) })); assert.equal(r.statusCode, 409, JSON.stringify(r.body));
+    assert.deepEqual((await q('SELECT assigned_to FROM deals WHERE id=$1', [d9])).rows[0], own9);
+    await q("UPDATE re_contracts SET status='Cancelled' WHERE deal_id=$1", [d9]);
+    r = await call(deals.extendDealSla, asReq({ reason: 'ok' }, { id: String(d9) })); assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+    const d10 = await mkDeal('err-swallow', null);
+    await q('ALTER TABLE re_cancellations RENAME COLUMN deal_id TO deal_id_x');
+    r = await call(deals.extendDealSla, asReq({ reason: 'x' }, { id: String(d10) })); assert.notEqual(r.statusCode, 200, 'a broken cancellation check must not read as "not cancelled"');
+    await q('ALTER TABLE re_cancellations RENAME COLUMN deal_id_x TO deal_id');
+    r = await call(deals.extendDealSla, asReq({ reason: 'ok' }, { id: String(d10) })); assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+    log('PASS contract-only lock blocks reassign/extend; cancellation check fails closed on DB error');
+    log('ALL PASS');
   } catch (e) { console.error('FAIL', e); process.exitCode = 1; } finally { await env.stop(); }
 })();
