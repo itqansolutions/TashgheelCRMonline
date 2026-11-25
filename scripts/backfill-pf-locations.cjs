@@ -2,9 +2,11 @@
 // One-off, tenant-scoped backfill of project_name/location from PF location ids.
 // Usage: BACKFILL_APPLY=1 to write; default is a dry run. Updates only rows still
 // at the import defaults (project_name 'Imported Property' AND location 'Egypt').
-// Updates project_name and location only. No deletes. Secrets stay in env/db.
+// Step 2 (after migration 030): fills description_ar/description_en/bathrooms/furnishing only where still NULL.
+// Updates those columns only. No deletes. Secrets stay in env/db.
 const { Pool } = require('pg');
 const PropertyFinderClient = require('../services/propertyFinderClient');
+const { mapListingDetails, FILL_SQL } = require('../services/propertyFinderDetails');
 const { resolveListingLocation, DEFAULT_PROJECT, DEFAULT_LOCATION } = require('../services/propertyFinderLocations');
 const T = process.env.BACKFILL_TENANT || '113160f4-7e28-4a4e-a940-1e892f4e3e81';
 const APPLY = process.env.BACKFILL_APPLY === '1';
@@ -33,5 +35,23 @@ const APPLY = process.env.BACKFILL_APPLY === '1';
   }
   console.log('candidates', rows.length, 'distinct ids', cache.size, APPLY ? 'updated' : 'would update', updated, 'unresolved', unresolved, 'noLocationId', noId, 'skippedChangedMeanwhile', skipped);
   console.log('AFTER', JSON.stringify(await count()));
+  // Step 2: listing details, only if migration 030 columns exist; COALESCE never overwrites a non-null value.
+  const hasCols = (await pool.query("select count(*)::int n from information_schema.columns where table_name='re_units' and column_name in ('description_ar','description_en','bathrooms','furnishing')")).rows[0].n === 4;
+  if (!hasCols) {
+    console.log('DETAILS skipped: migration 030 columns not present');
+  } else {
+    const dc = async () => (await pool.query("select count(description_ar)::int ar, count(description_en)::int en, count(bathrooms)::int bath, count(furnishing)::int furn from re_units where tenant_id::text=$1", [T])).rows[0];
+    console.log('DETAILS BEFORE', JSON.stringify(await dc()));
+    const maps = (await pool.query("select m.unit_id, m.last_payload_snapshot snap from property_finder_listing_mappings m join re_units u on u.id=m.unit_id and u.tenant_id::text=m.tenant_id::text where m.tenant_id::text=$1", [T])).rows;
+    let touched = 0;
+    for (const m of maps) {
+      const d = mapListingDetails(m.snap);
+      if (!APPLY) { touched++; continue; }
+      const r = await pool.query(FILL_SQL, [d.description_ar, d.description_en, d.bathrooms, d.furnishing, m.unit_id, T]);
+      touched += r.rowCount;
+    }
+    console.log('details rows', maps.length, APPLY ? 'processed' : 'would process', touched);
+    console.log('DETAILS AFTER', JSON.stringify(await dc()));
+  }
   await pool.end();
 })().catch((e) => { console.log('ERR', String(e.message).replace(/postgres[^ ]*/g, '[url]')); process.exit(1); });

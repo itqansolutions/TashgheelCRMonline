@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const PropertyFinderClient = require('./propertyFinderClient');
 const { resolveListingLocation } = require('./propertyFinderLocations');
+const { mapListingDetails, FILL_SQL: FILL_DETAILS_SQL } = require('./propertyFinderDetails');
 const { encrypt, decrypt } = require('../utils/encryption');
 const JobEngine = require('../src/infrastructure/jobs/JobEngine');
 
@@ -552,6 +553,15 @@ async function importListings(tenantId, { forceRefresh = false, page = 1, limit 
             );
             targetUnitId = unitInsert.rows[0].id;
             stats.created++;
+          }
+
+          // Fill description/bathrooms/furnishing only where still empty. Best effort: never blocks the import
+          // (also covers the window before migration 030 is applied).
+          try {
+            const det = mapListingDetails(listing);
+            await db.query(FILL_DETAILS_SQL, [det.description_ar, det.description_en, det.bathrooms, det.furnishing, targetUnitId, tenantId]);
+          } catch (detErr) {
+            console.warn('[PF import] listing detail fill skipped:', detErr.message);
           }
 
           // 3. Create mapping record (preserving true external_reference separately from title)
