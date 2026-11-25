@@ -1,6 +1,8 @@
--- PREPARATION ONLY. Separate live execution approval required. No branch is configured here.
+-- REFERENCE ONLY. This table ALREADY EXISTS in production (verified read-only, Nov 25 2026).
+-- Kept outside database/migrations on purpose: the startup runner executes every numbered file there.
+-- Use for new/empty environments only. No rows are inserted; each branch is configured by an admin.
 BEGIN;
-CREATE TABLE hr_branch_attendance_policy (
+CREATE TABLE IF NOT EXISTS hr_branch_attendance_policy (
  branch_id UUID PRIMARY KEY REFERENCES branches(id),
  tenant_id UUID NOT NULL REFERENCES tenants(id),
  center_lat DOUBLE PRECISION NOT NULL CHECK(center_lat BETWEEN -90 AND 90),

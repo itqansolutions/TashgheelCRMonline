@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Clock, CheckCircle, XCircle, AlertCircle, History, Coffee } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { geofenceMessage } from '../../utils/geofenceMessages';
 import { useLanguage } from '../../context/LanguageContext';
 
 const Attendance = () => {
@@ -61,7 +62,7 @@ const Attendance = () => {
       toast.success(res.data.message || t('hr.attendance.toastCheckInSuccess', 'Checked in successfully!'));
       await fetchAttendance();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message || t('hr.attendance.toastCheckInError', 'Failed to check in'));
+      toast.error(geofenceMessage(err, isRTL, t('hr.attendance.toastCheckInError', 'Failed to check in')), { duration: 6000 });
     } finally {
       busy.current=false;setIsProcessing(false);
     }
@@ -75,7 +76,7 @@ const Attendance = () => {
       toast.success(res.data.message || t('hr.attendance.toastCheckOutSuccess', 'Checked out successfully!'));
       await fetchAttendance();
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message || t('hr.attendance.toastCheckOutError', 'Failed to check out'));
+      toast.error(geofenceMessage(err, isRTL, t('hr.attendance.toastCheckOutError', 'Failed to check out')), { duration: 6000 });
     } finally {
       busy.current=false;setIsProcessing(false);
     }
