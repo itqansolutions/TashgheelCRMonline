@@ -1265,15 +1265,15 @@ const Deals = () => {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '8px', fontSize: '11px', color: '#475569' }}>
                       <div>
                         <span style={{ color: '#64748b' }}>{t('deals.sla.effectiveDeadline', 'Deadline: {date}').split(':')[0]}: </span>
-                        <strong><span className="num-en">{new Date(dealSla.effectiveDeadline).toLocaleString('en-GB')}</span></strong>
+                        <strong><span className="num-en">{dealSla.effectiveDeadline ? new Date(dealSla.effectiveDeadline).toLocaleString('en-GB') : '—'}</span></strong>
                       </div>
                       <div>
                         <span style={{ color: '#64748b' }}>{t('deals.sla.lastFollowUp', 'Last follow-up: {date}').split(':')[0]}: </span>
-                        <strong><span className="num-en">{new Date(dealSla.effectiveAnchor).toLocaleString('en-GB')}</span></strong>
+                        <strong><span className="num-en">{dealSla.effectiveAnchor ? new Date(dealSla.effectiveAnchor).toLocaleString('en-GB') : '—'}</span></strong>
                       </div>
                       <div>
-                        <span style={{ color: '#64748b' }}>{t('deals.sla.extensionsCount', 'Extensions: {count}').split(':')[0]}: </span>
-                        <strong>{dealSla.extensionCount > 0 ? t('deals.sla.extensionsCount', 'Extended {count} time(s)').replace('{count}', dealSla.extensionCount) : 0}</strong>
+                        <span style={{ color: '#64748b' }}>{t('deals.sla.extensionsLabel', 'Extensions')}: </span>
+                        <strong>{dealSla.extensionCount > 0 ? t('deals.sla.extensionsCount', 'Extended {count} time(s)', { count: dealSla.extensionCount }) : 0}</strong>
                       </div>
                       {dealSla.lastExtendedBy && (
                         <div>

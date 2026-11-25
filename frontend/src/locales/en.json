@@ -762,6 +762,7 @@
       "terminalStatus": "Deal Finalized (SLA Inactive)",
       "effectiveDeadline": "Deadline: {date}",
       "lastFollowUp": "Last impactful follow-up: {date}",
+      "extensionsLabel": "Extensions",
       "extensionsCount": "Extended {count} time(s)",
       "lastExtendedBy": "Last extended by: {name}",
       "extendSlaBtn": "+48h Extend SLA",

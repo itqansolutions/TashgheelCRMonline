@@ -763,6 +763,7 @@
       "terminalStatus": "صفقة مغلقة/منتهية (متابعة الـ SLA غير نشطة)",
       "effectiveDeadline": "الموعد النهائي: {date}",
       "lastFollowUp": "آخر متابعة فعلية: {date}",
+      "extensionsLabel": "التمديدات",
       "extensionsCount": "تم التمديد {count} مرة",
       "lastExtendedBy": "آخر تمديد بواسطة: {name}",
       "extendSlaBtn": "تمديد +48 ساعة",
