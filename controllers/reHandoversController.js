@@ -217,15 +217,16 @@ exports.updateHandoverStatus = async (req, res) => {
         }
 
         const ho = hoRes.rows[0];
-        if (status === 'Handed Over' && ho.status === 'Handed Over') {
-            // Repeat of a completed handover: idempotent, no second occupancy or unit write.
-            await client.query('ROLLBACK');
-            return res.json({ status: 'success', message: 'Handover is already completed.', already_completed: true, data: ho });
-        }
         const hoBranch = ho.branch_id || ho.deal_branch_id;
         if (branch_id && hoBranch && String(hoBranch) !== String(branch_id)) {
             await client.query('ROLLBACK');
             return res.status(404).json({ status: 'error', message: 'Handover record not found or unauthorized.' });
+        }
+
+        if (status === 'Handed Over' && ho.status === 'Handed Over') {
+            // Repeat of a completed handover: idempotent, no second occupancy or unit write.
+            await client.query('ROLLBACK');
+            return res.json({ status: 'success', message: 'Handover is already completed.', already_completed: true, data: ho });
         }
 
         let isRentalUnit = false;

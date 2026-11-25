@@ -86,6 +86,11 @@ const h = require('./helpers/pgHarness.cjs');
     // repeated completion is idempotent (no 500, no second occupancy)
     r = await call(hc.updateHandoverStatus, rq(admin, { status: 'Handed Over', rental_reminder_lead_days: 30 }, { id: A.ho.id })); assert.equal(r.statusCode, 200); assert.equal(r.body.already_completed, true);
     assert.equal((await q('SELECT count(*)::int n FROM re_rental_occupancies WHERE unit_id=$1', [A.unit.id])).rows[0].n, 1);
+    // same-tenant, different-branch caller must get 404 and no row on a completed handover (no early-return bypass)
+    const BX = (await q("INSERT INTO branches(name,tenant_id) VALUES('bx',$1) RETURNING id", [T])).rows[0].id;
+    const other = (await q("INSERT INTO users(name,email,password_hash,role,tenant_id,branch_id,department_id,is_working) VALUES('ob','ob@x.io','x','manager',$1,$2,$3,true) RETURNING *", [T, BX, D])).rows[0];
+    r = await call(hc.updateHandoverStatus, rq(other, { status: 'Handed Over', rental_reminder_lead_days: 30 }, { id: A.ho.id })); assert.equal(r.statusCode, 404); assert.equal(r.body.data, undefined); assert.equal(r.body.already_completed, undefined);
+    r = await call(hc.updateHandoverStatus, rq(admin, { status: 'Handed Over', rental_reminder_lead_days: 30 }, { id: A.ho.id })); assert.equal(r.statusCode, 200); assert.equal(r.body.already_completed, true);
     // unique violation on occupancy maps to a clean 409, not a generic 500
     const U = await base('U', emp.id);
     await q("INSERT INTO re_rental_occupancies(id,tenant_id,unit_id,handover_id,ends_on,reminder_lead_days) VALUES(gen_random_uuid(),$1,$2,$3,'2028-01-01',1)", [String(T), U.unit.id, U.ho.id]);
