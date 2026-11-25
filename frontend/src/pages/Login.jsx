@@ -22,13 +22,14 @@ const Login = () => {
       const allowed = Array.isArray(loggedInUser?.allowedPages) ? loggedInUser.allowedPages : [];
       const isAdmin = loggedInUser?.role === 'admin' || loggedInUser?.role === 'super_admin';
 
-      let target = '/dashboard';
+      let target;
       if (requestedPath && requestedPath !== '/login') {
         target = requestedPath;
-      } else if (isAdmin || allowed.includes('/dashboard')) {
-        target = '/dashboard';
       } else {
-        target = '/my-profile';
+        // Landing chain (Ali 2026-11-25: "تمام يتحول على الصفقات"):
+        // Deals when permitted, else the first permitted work page, else /my-profile.
+        const isLandingAllowed = (p) => isAdmin || allowed.includes(p) || (p === '/deals' && allowed.includes('/my-deals'));
+        target = ['/deals', '/customers', '/tasks', '/dashboard'].find(isLandingAllowed) || '/my-profile';
       }
 
       navigate(target, { replace: true });
