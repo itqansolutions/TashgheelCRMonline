@@ -1,3 +1,4 @@
+const { parseSalary, saveSalary } = require('../services/hrProfileService');
 const db = require('../config/db');
 const logger = require('../utils/logger');
 const bcrypt = require('bcrypt');
@@ -14,6 +15,7 @@ exports.getUsers = async (req, res) => {
       SELECT u.id, u.name, u.email, u.phone, u.role, u.department_id, d.name as department_name,
              u.national_id, u.insurance_no, u.marital_status, u.gender, u.birth_date,
              u.hire_date, u.job_title_id, jt.name as job_title_name, u.is_working,
+             ${['admin', 'manager'].includes(req.user?.role) ? 'u.salary,' : ''}
              u.created_at 
       FROM users u 
       LEFT JOIN departments d ON u.department_id = d.id 
@@ -41,13 +43,16 @@ exports.getUsers = async (req, res) => {
 // @route   PUT /api/users/:id/role
 // @access  Private (Admin)
 exports.updateUserRole = async (req, res) => {
-  const { name, email, password, role, department_id, job_title_id, national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working, phone } = req.body;
+  const { name, email, password, role, department_id, job_title_id, national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working, phone, salary } = req.body;
   // Parse id as integer to avoid type mismatch with SERIAL columns
   const userId = parseInt(req.params.id, 10);
   const cleanDeptId = (department_id && department_id !== '' && department_id !== 'null') ? parseInt(department_id) : null;
   const cleanJobTitleId = (job_title_id && job_title_id !== '' && job_title_id !== 'null') ? parseInt(job_title_id) : null;
   const cleanBirthDate = (birth_date && String(birth_date).trim() !== '') ? birth_date : null;
   const cleanHireDate = (hire_date && String(hire_date).trim() !== '') ? hire_date : null;
+  const salaryParsed = parseSalary(salary);
+  if (!salaryParsed.ok) return res.status(400).json({ status: 'error', message: 'Invalid salary amount' });
+  const canSetSalary = ['admin', 'manager'].includes(req.user?.role);
   // Only update email if actually provided and non-empty
   const cleanEmail = (email && email.trim() !== '') ? email.trim().toLowerCase() : null;
   // Only update password if a non-empty new password was provided
@@ -178,6 +183,10 @@ exports.updateUserRole = async (req, res) => {
     }
 
     const updatedUser = result.rows[0];
+    if (canSetSalary && salaryParsed.value !== undefined) {
+      await saveSalary(db, { userId: updatedUser.id, tenantId: req.user.tenant_id, branchId: updatedUser.branch_id, salary: salaryParsed.value, hireDate: cleanHireDate });
+      updatedUser.salary = salaryParsed.value;
+    }
     if (updatedUser.branch_id) {
       await db.query(
         'INSERT INTO user_branches (user_id, branch_id) VALUES ($1, $2) ON CONFLICT (user_id, branch_id) DO NOTHING',
@@ -290,7 +299,7 @@ exports.updateUserPermissions = async (req, res) => {
 // @route   POST /api/users
 // @access  Private (Admin)
 exports.createUser = async (req, res) => {
-  let { name, email, password, phone, role, department_id, job_title_id, national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working } = req.body;
+  let { name, email, password, phone, role, department_id, job_title_id, national_id, insurance_no, marital_status, gender, birth_date, hire_date, is_working, salary } = req.body;
   const bcrypt = require('bcrypt');
 
   if (!name || !name.trim()) {
@@ -308,6 +317,9 @@ exports.createUser = async (req, res) => {
   const cleanJobTitleId = (job_title_id && job_title_id !== '' && job_title_id !== 'null') ? parseInt(job_title_id) : null;
   const cleanBirthDate = (birth_date && String(birth_date).trim() !== '') ? birth_date : null;
   const cleanHireDate = (hire_date && String(hire_date).trim() !== '') ? hire_date : null;
+  const salaryParsed = parseSalary(salary);
+  if (!salaryParsed.ok) return res.status(400).json({ status: 'error', message: 'Invalid salary amount' });
+  const canSetSalary = ['admin', 'manager'].includes(req.user?.role);
 
   try {
     // Check if user already exists
@@ -372,6 +384,10 @@ exports.createUser = async (req, res) => {
     );
 
     const newUser = result.rows[0];
+    if (canSetSalary && salaryParsed.value !== undefined) {
+      await saveSalary(db, { userId: newUser.id, tenantId: tenant_id, branchId: branch_id, salary: salaryParsed.value, hireDate: cleanHireDate });
+      newUser.salary = salaryParsed.value;
+    }
 
     // Grant default access pages based on role
     const defaultPages = (role === 'admin')

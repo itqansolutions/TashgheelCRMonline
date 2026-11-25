@@ -207,7 +207,7 @@ const PayrollEngine = () => {
                         className="payroll-detail-dialog"
                         isOpen={isDetailsOpen} 
                         onClose={() => setIsDetailsOpen(false)}
-                        title={t('hr.payrollEngine.salaryBreakdownTitle', { name: selectedPayroll.employee_name, defaultValue: `Salary Breakdown: ${selectedPayroll.employee_name}` })}
+                        title={t('hr.payrollEngine.salaryBreakdownTitle', { name: selectedPayroll.employee_name })}
                         footer={
                             <>
                                <button style={{ background: 'transparent', color: 'var(--text-muted)', border: 'none', padding: '10px 16px', fontWeight: 600, cursor: 'pointer' }} onClick={() => setIsDetailsOpen(false)}>{t('hr.payrollEngine.close', 'Close')}</button>
@@ -224,7 +224,7 @@ const PayrollEngine = () => {
                                 <div style={{ fontSize: '12px', color: '#6b7280', textTransform: 'uppercase', fontWeight: 700 }}>{t('hr.payrollEngine.cycleOverview', 'Cycle Overview')}</div>
                                 <div style={{ fontSize: '24px', fontWeight: 900 }} className="num-en">{selectedPayroll.payroll_month} - {selectedPayroll.payroll_year}</div>
                                 <div style={{ fontSize: '14px', color: '#4b5563', marginTop: '4px' }}>
-                                    {t('hr.payrollEngine.loggedWorkingHours', { hours: selectedPayroll.total_work_hours, defaultValue: `Logged Working Hours: ${selectedPayroll.total_work_hours} H` })}
+                                    {t('hr.payrollEngine.loggedWorkingHours', { hours: selectedPayroll.total_work_hours })}
                                 </div>
                             </div>
 

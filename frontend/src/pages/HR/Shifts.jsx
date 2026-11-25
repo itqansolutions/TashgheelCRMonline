@@ -246,7 +246,7 @@ const Shifts = () => {
               marginBottom: '-2px', display: 'flex', alignItems: 'center', gap: '8px'
             }}
           >
-            <Clock size={16} /> {t('hr.shifts.tabConfiguredShifts', { count: shifts.length, defaultValue: `Configured Shifts (${shifts.length})` })}
+            <Clock size={16} /> {t('hr.shifts.tabConfiguredShifts', { count: shifts.length })}
           </button>
           <button
             onClick={() => setActiveTab('assignments')}
@@ -281,7 +281,7 @@ const Shifts = () => {
                         <div>
                           <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#1e293b' }}>{s.name}</h3>
                           <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-                            👥 {t('hr.shifts.employeesAssigned', { count: s.employee_count || 0, defaultValue: `${s.employee_count || 0} employees assigned` })}
+                            👥 {t('hr.shifts.employeesAssigned', { count: s.employee_count || 0 })}
                           </span>
                         </div>
                         <span style={{
@@ -300,7 +300,7 @@ const Shifts = () => {
                         <div>
                           <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700, display: 'block' }}>{t('hr.shifts.gracePeriod', 'Grace Period')}</span>
                           <span style={{ fontSize: '14px', fontWeight: 800, color: '#06b6d4' }}>
-                            <span className="num-en">{s.grace_minutes}</span> {t('hr.shifts.graceMins', { mins: s.grace_minutes, defaultValue: `${s.grace_minutes} Mins` }).replace(/[0-9]/g, '').trim()}
+                            <span className="num-en">{s.grace_minutes}</span> {t('hr.shifts.graceMins', { mins: s.grace_minutes }).replace(/[0-9]/g, '').trim()}
                           </span>
                         </div>
                       </div>
@@ -329,8 +329,8 @@ const Shifts = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {(s.deduction_rules || []).map((r, i) => (
                             <div key={i} style={{ fontSize: '12px', background: '#fffbeb', color: '#b45309', padding: '4px 10px', borderRadius: '6px', fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
-                              <span>{t('hr.shifts.lateRange', { from: r.from_min, to: r.to_min, defaultValue: `Late ${r.from_min} to ${r.to_min} Mins` })}</span>
-                              <span>{t('hr.shifts.deductDays', { days: r.deduct_days, defaultValue: `Deduct: ${r.deduct_days} Day(s)` })}</span>
+                              <span>{t('hr.shifts.lateRange', { from: r.from_min, to: r.to_min })}</span>
+                              <span>{t('hr.shifts.deductDays', { days: r.deduct_days })}</span>
                             </div>
                           ))}
                         </div>

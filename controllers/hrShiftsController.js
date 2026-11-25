@@ -203,24 +203,46 @@ exports.assignUserShift = async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Shift not found in your organization' });
     }
 
-    // Close any existing open assignment for this employee
-    await db.query(
-      `UPDATE hr_user_shifts SET effective_to = $1
-       WHERE user_id = $2 AND effective_to IS NULL AND tenant_id::text = $3::text`,
-      [effective_from || new Date().toISOString().split('T')[0], parseInt(user_id, 10), tenant_id]
-    );
-    const result = await db.query(`
-      INSERT INTO hr_user_shifts (user_id, shift_id, effective_from, effective_to, tenant_id)
-      VALUES ($1,$2,$3,$4,$5)
-      ON CONFLICT (user_id, effective_from) DO UPDATE SET shift_id = EXCLUDED.shift_id
-      WHERE hr_user_shifts.tenant_id::text = EXCLUDED.tenant_id::text
-      RETURNING *
-    `, [
-      parseInt(user_id, 10), parseInt(shift_id, 10),
-      effective_from || new Date().toISOString().split('T')[0],
-      effective_to || null,
-      tenant_id
-    ]);
+    // The live table has no unique (user_id, effective_from) index, so ON CONFLICT cannot be used.
+    // Do the same work explicitly inside one transaction.
+    const uid = parseInt(user_id, 10);
+    const sid = parseInt(shift_id, 10);
+    const from = effective_from || new Date().toISOString().split('T')[0];
+    const client = await db.pool.connect();
+    let result;
+    try {
+      await client.query('BEGIN');
+      // Serialize concurrent assignments for the same employee
+      await client.query('SELECT id FROM users WHERE id = $1 AND tenant_id::text = $2::text FOR UPDATE', [uid, tenant_id]);
+      // Close any other open assignment that started before this one
+      await client.query(
+        `UPDATE hr_user_shifts SET effective_to = $1
+         WHERE user_id = $2 AND effective_to IS NULL AND effective_from < $1::date AND tenant_id::text = $3::text`,
+        [from, uid, tenant_id]
+      );
+      const same = await client.query(
+        `SELECT id FROM hr_user_shifts WHERE user_id = $1 AND effective_from = $2::date AND tenant_id::text = $3::text ORDER BY id LIMIT 1`,
+        [uid, from, tenant_id]
+      );
+      if (same.rows.length) {
+        result = await client.query(
+          `UPDATE hr_user_shifts SET shift_id = $1, effective_to = $2 WHERE id = $3 AND tenant_id::text = $4::text RETURNING *`,
+          [sid, effective_to || null, same.rows[0].id, tenant_id]
+        );
+      } else {
+        result = await client.query(
+          `INSERT INTO hr_user_shifts (user_id, shift_id, effective_from, effective_to, tenant_id)
+           VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+          [uid, sid, from, effective_to || null, tenant_id]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (txErr) {
+      try { await client.query('ROLLBACK'); } catch (_) { /* connection may be gone */ }
+      throw txErr;
+    } finally {
+      client.release();
+    }
     res.status(201).json({ status: 'success', data: result.rows[0] });
   } catch (err) {
     console.error('[assignUserShift]', err.message);

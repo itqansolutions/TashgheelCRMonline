@@ -282,6 +282,7 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
     gender: emp?.gender || 'male',
     birth_date: emp?.birth_date ? emp.birth_date.split('T')[0] : '',
     hire_date: emp?.hire_date ? emp.hire_date.split('T')[0] : '',
+    salary: emp?.salary !== undefined && emp?.salary !== null ? String(emp.salary) : '',
     job_title_id: emp?.job_title_id || '',
     department_id: emp?.department_id || '',
     role: emp?.role || 'employee',
@@ -474,6 +475,11 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
                 <div>
                   <label style={labelStyle}>{t('hr.contactsEmployees.lblHireDate')}</label>
                   <input type="date" value={form.hire_date} onChange={e => set('hire_date', e.target.value)} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>{t('hr.contactsEmployees.lblSalary')}</label>
+                  <input type="number" min="0" step="0.01" inputMode="decimal" dir="ltr" value={form.salary} onChange={e => set('salary', e.target.value)} placeholder={t('hr.contactsEmployees.salaryPlaceholder')} style={inputStyle} />
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{t('hr.contactsEmployees.salaryHint')}</div>
                 </div>
                 <div>
                   <label style={labelStyle}>{t('hr.contactsEmployees.lblJobTitle')}</label>

@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { ensureProfileFromUser } = require('../services/hrProfileService');
 
 /**
  * HR ATTENDANCE ENGINE (Enterprise Logic)
@@ -267,10 +268,12 @@ exports.generatePayroll = async (req, res) => {
 
         // 1. Fetch Employee Profile
         const profileRes = await client.query(`SELECT * FROM hr_profiles WHERE user_id = $1 AND tenant_id::text = $2::text`, [user_id, tenant_id]);
-        if (profileRes.rows.length === 0) throw new Error('Employee profile not found or unauthorized.');
-
-        const profile = profileRes.rows[0];
+        let profile = profileRes.rows[0];
+        // Employees saved before payroll profiles existed: build the profile from users.salary when it is set.
+        if (!profile) profile = await ensureProfileFromUser(client, { userId: user_id, tenantId: tenant_id });
+        if (!profile) throw new Error('No base salary is set for this employee. Open the employee form, enter the base salary, save, then run payroll again.');
         const base_salary = parseFloat(profile.salary) || 0;
+        if (base_salary <= 0) throw new Error('Base salary is zero for this employee. Set a base salary in the employee form first.');
 
         // Ensure payroll for this month doesn't already exist
         const existRes = await client.query(`
