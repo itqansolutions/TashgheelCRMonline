@@ -96,6 +96,8 @@ const Deals = () => {
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [reassignTargetId, setReassignTargetId] = useState('');
   const [reassignReason, setReassignReason] = useState('');
+  const [showExtendPanel, setShowExtendPanel] = useState(false);
+  const [extendReason, setExtendReason] = useState('');
   // Deal Lock (mirrors backend): final stage (Closed/won) or a live contract freezes core commercial fields
   const isFinalDealStage = ['closed', 'won'].includes(String(editingDeal?.pipeline_stage || '').toLowerCase());
   // Lost/cancelled deals are terminal and read-only, like won/closed deals (mirrors backend getTerminalLostLock)
@@ -381,13 +383,15 @@ const Deals = () => {
   };
 
   const handleExtendSla = async (dealId) => {
-    const reason = window.prompt(t('deals.sla.extendReasonPrompt', 'Enter reason for extending the 48h SLA deadline:'));
-    if (reason === null) return;
+    // In-page reason field instead of a native prompt (native dialogs block the page and cannot be answered by assistive/automation tools).
+    const reason = extendReason.trim();
     const idempotencyKey = `sla_ext_${dealId}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     setExtendingSla(true);
     try {
       const res = await api.post(`/deals/${dealId}/extend-sla`, { reason, idempotencyKey });
       toast.success(res.data?.message || t('deals.sla.extendSuccess', 'SLA extended by 48 hours.'));
+      setShowExtendPanel(false);
+      setExtendReason('');
       setDealSla(res.data?.sla || null);
       fetchDeals(false, isOverdueOnly ? { overdue: 'true' } : {});
     } catch (err) {
@@ -1218,7 +1222,7 @@ const Deals = () => {
                           <button
                             type="button"
                             disabled={extendingSla}
-                            onClick={() => handleExtendSla(editingDeal.id)}
+                            onClick={() => setShowExtendPanel(v => !v)}
                             style={{
                               padding: '5px 12px',
                               borderRadius: '6px',
@@ -1290,6 +1294,38 @@ const Deals = () => {
                     )}
 
                     {/* Reassign Sub-Panel */}
+                    {showExtendPanel && canExtendSla && !dealSla.isTerminal && (
+                      <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e293b' }}>
+                          {t('deals.sla.extendReasonPrompt', 'Enter reason for extending the 48h SLA deadline:')}
+                        </span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            maxLength={300}
+                            placeholder={t('deals.sla.extendReasonPlaceholder', 'Reason (optional)...')}
+                            value={extendReason}
+                            onChange={(e) => setExtendReason(e.target.value)}
+                            style={{ flex: '1 1 180px', minWidth: 0, padding: '6px', fontSize: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                          />
+                          <button
+                            type="button"
+                            disabled={extendingSla}
+                            onClick={() => handleExtendSla(editingDeal.id)}
+                            style={{ padding: '6px 14px', background: '#0284c7', color: 'white', borderRadius: '6px', border: 'none', fontSize: '12px', fontWeight: 700, cursor: extendingSla ? 'wait' : 'pointer' }}
+                          >
+                            {t('deals.sla.extendConfirmBtn', 'Confirm extension')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setShowExtendPanel(false); setExtendReason(''); }}
+                            style={{ padding: '6px 14px', background: 'white', color: '#475569', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            {t('common.cancel', 'Cancel')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {showReassignModal && (
                       <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <span style={{ fontSize: '12px', fontWeight: 800, color: '#1e293b' }}>
