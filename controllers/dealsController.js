@@ -36,6 +36,7 @@ async function ensureDealColumns() {
 // non-cancelled contract. Locked deals cannot change core commercial data,
 // cannot leave the final stage and cannot be deleted. The only exit path is
 // the audited Cancellation workflow (/api/re-cancellations).
+const dealPriceService = require('../services/dealPriceService');
 const FINAL_DEAL_STAGES = ['closed', 'won'];
 const isFinalStage = (stage) => FINAL_DEAL_STAGES.includes(String(stage || '').trim().toLowerCase());
 
@@ -513,6 +514,8 @@ exports.createDeal = async (req, res) => {
     // ── ATOMIC TRANSACTION FOR RESERVATION & DEAL CREATION ──
     const client = await db.connect();
     let newDeal;
+    let createPriceReq = null;
+    let createUnitPrice = null;
     let reservationHours = 48;
     const shouldReserveOnCreate = Boolean(
       req.body.reserve_unit === true ||
@@ -599,12 +602,28 @@ exports.createDeal = async (req, res) => {
         await dealTeam.validateTeamAssignment(client, { tenantId: tenant_id, branchId: branch_id, teamId: cleanTeamId, employeeId: assigned_to });
       }
 
+      // Price rule: below the unit price needs the manager's approval; the deal is stored at the unit price until then.
+      createUnitPrice = null;
+      if (cleanUnitId && await dealPriceService.tablesReady(client)) {
+        createUnitPrice = await dealPriceService.getUnitPrice(client, cleanUnitId, tenant_id);
+        if (createUnitPrice && cleanValue > 0 && cleanValue < createUnitPrice) {
+          createPriceReq = { requestedValue: cleanValue, unitPrice: createUnitPrice };
+          cleanValue = createUnitPrice;
+        }
+      }
+
       // 2. Insert Deal inside transaction
       const result = await client.query(
         'INSERT INTO deals (title, value, pipeline_stage, client_id, product_id, project_id, assigned_to, tenant_id, branch_id, custom_fields, unit_id, probability, expected_close_date, next_action, source_type, source_id, assigned_team_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *',
         [String(title).trim(), cleanValue, pipeline_stage || 'discovery', cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, tenant_id, branch_id, cleanCustomFields, cleanUnitId, cleanProbability, cleanExpectedDate, next_action || '', cleanSourceType, cleanSourceId, cleanTeamId]
       );
       newDeal = result.rows[0];
+      if (createUnitPrice !== null && cleanValue > 0) {
+        await dealPriceService.recordPriceChange(client, { tenantId: tenant_id, branchId: branch_id, dealId: newDeal.id, oldValue: null, newValue: cleanValue, unitPrice: createUnitPrice, changedBy: req.user.id, source: 'create' });
+      }
+      if (createPriceReq) {
+        createPriceReq.created = await dealPriceService.createPriceRequest(client, { tenantId: tenant_id, branchId: branch_id, deal: newDeal, requestedValue: createPriceReq.requestedValue, unitPrice: createPriceReq.unitPrice, requestedBy: req.user.id });
+      }
 
       // Auto Transition Task if converted (inside transaction)
       if (cleanSourceType === 'task' && cleanSourceId) {
@@ -687,7 +706,10 @@ exports.createDeal = async (req, res) => {
       }).catch(e => console.warn('[Deal Assignment Notification Warning]:', e.message));
     }
 
-    res.status(201).json({ status: 'success', data: newDeal });
+    if (createPriceReq && createPriceReq.created) {
+      dealPriceService.notifyApprover({ tenantId: tenant_id, branchId: branch_id, approverUserId: createPriceReq.created.approverUserId, dealId: newDeal.id, dealTitle: newDeal.title, requestedValue: createPriceReq.requestedValue, unitPrice: createPriceReq.unitPrice, requesterName: req.user.name });
+    }
+    res.status(201).json({ status: 'success', data: newDeal, ...(createPriceReq ? { price_approval: { status: 'pending', requested_value: createPriceReq.requestedValue, unit_price: createPriceReq.unitPrice } } : {}) });
 
   } catch (err) {
     console.error('[Deal Create Error]', err);
@@ -917,7 +939,22 @@ exports.updateDeal = async (req, res) => {
       }
     }
 
+    // Price rule: a lower-than-unit-price value is a pending request; deals.value stays as it was until a manager approves.
+    let priceRequest = null;
+    let priceUnitPrice = null;
+    const priceWorkflowReady = cleanUnitId ? await dealPriceService.tablesReady(db) : false;
+    if (priceWorkflowReady) {
+      priceUnitPrice = await dealPriceService.getUnitPrice(db, cleanUnitId, tenant_id);
+      if (priceUnitPrice && Number(cleanValue || 0) !== Number(oldData.value || 0) && Number(cleanValue) > 0 && Number(cleanValue) < priceUnitPrice) {
+        priceRequest = { requestedValue: Number(cleanValue), unitPrice: priceUnitPrice };
+        cleanValue = oldData.value;
+      }
+    }
     const effectiveNextStage = pipeline_stage || oldData.pipeline_stage;
+    if (priceWorkflowReady && changesStage && ['closed', 'won', 'closed won'].includes(String(effectiveNextStage || '').trim().toLowerCase())
+        && (priceRequest || await dealPriceService.hasPendingRequest(db, oldData.id, tenant_id))) {
+      return res.status(409).json({ status: 'error', code: 'PRICE_APPROVAL_PENDING', message: 'A price approval request is pending for this deal. It cannot be closed until the manager decides.' });
+    }
     const isMovingToLost = changesStage && ['lost', 'closed lost'].includes(String(effectiveNextStage || '').trim().toLowerCase());
     const isMovingToSiteVisit = changesStage && String(effectiveNextStage || '').trim().toLowerCase() === 'site visit';
     const isRequestingReserve = Boolean(
@@ -983,6 +1020,12 @@ exports.updateDeal = async (req, res) => {
          WHERE id = $14 AND tenant_id::text = $15::text AND ($16::text IS NULL OR branch_id::text = $16::text OR branch_id IS NULL) RETURNING *`,
         [cleanTitle, cleanValue, effectiveNextStage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, cleanCustomFields, cleanProbability, cleanExpectedDate, next_action !== undefined ? next_action : (oldData.next_action || ''), cleanSourceType, cleanSourceId, req.params.id, tenant_id, branch_id, cleanUnitId, newTeamId]
       );
+      if (priceWorkflowReady && Number(cleanValue || 0) !== Number(oldData.value || 0)) {
+        await dealPriceService.recordPriceChange(updClient, { tenantId: tenant_id, branchId: oldData.branch_id || branch_id, dealId: oldData.id, oldValue: oldData.value, newValue: cleanValue, unitPrice: priceUnitPrice, changedBy: req.user.id, source: 'edit' });
+      }
+      if (priceRequest) {
+        priceRequest.created = await dealPriceService.createPriceRequest(updClient, { tenantId: tenant_id, branchId: oldData.branch_id || branch_id, deal: result.rows[0], requestedValue: priceRequest.requestedValue, unitPrice: priceRequest.unitPrice, requestedBy: req.user.id });
+      }
       if (cleanUnitId && String(oldData.pipeline_stage || '') !== String(effectiveNextStage || '') && ['closed', 'won', 'closed won'].includes(String(effectiveNextStage || '').trim().toLowerCase())) {
         // Same as PATCH /status: a failure here rolls the whole close back (no silent close without the registry row).
         await ensurePendingPaymentRecord(updClient, { tenantId: tenant_id, branchId: branch_id, dealId: req.params.id });
@@ -1065,7 +1108,10 @@ exports.updateDeal = async (req, res) => {
       }).catch(e => console.warn('[Deal Reassignment Notification Warning]:', e.message));
     }
 
-    res.json({ status: 'success', data: result.rows[0] });
+    if (priceRequest && priceRequest.created) {
+      dealPriceService.notifyApprover({ tenantId: tenant_id, branchId: branch_id, approverUserId: priceRequest.created.approverUserId, dealId: oldData.id, dealTitle: result.rows[0]?.title || oldData.title, requestedValue: priceRequest.requestedValue, unitPrice: priceRequest.unitPrice, requesterName: req.user.name });
+    }
+    res.json({ status: 'success', data: result.rows[0], ...(priceRequest ? { price_approval: { status: 'pending', requested_value: priceRequest.requestedValue, unit_price: priceRequest.unitPrice, kept_value: Number(oldData.value) } } : {}) });
   } catch (err) {
     console.error('[Deal Update Error]', err);
     res.status(500).json({ status: 'error', message: err.message || 'Server error' });
@@ -1132,6 +1178,12 @@ exports.updateDealStatus = async (req, res) => {
           message: `${lock.reason}. Stage cannot be changed. Use the Cancellation workflow to reverse a closed deal.`
         });
       }
+    }
+
+    if (['closed', 'won', 'closed won'].includes(cleanStage.toLowerCase()) && String(oldStage || '').toLowerCase() !== cleanStage.toLowerCase()
+        && await dealPriceService.tablesReady(client) && await dealPriceService.hasPendingRequest(client, req.params.id, tenant_id)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ status: 'error', code: 'PRICE_APPROVAL_PENDING', message: 'A price approval request is pending for this deal. It cannot be closed until the manager decides.' });
     }
 
     // 2. Update status (and auto-assign if deal was unassigned), plus capture lost_reason / blocker_reason

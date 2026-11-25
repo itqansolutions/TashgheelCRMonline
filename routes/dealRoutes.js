@@ -3,9 +3,16 @@ const router = express.Router();
 const dealsController = require('../controllers/dealsController');
 const authMiddleware = require('../middleware/auth');
 const { requireDealPermission } = require('../middleware/dealPermission');
+const dealPriceController = require('../controllers/dealPriceController');
 
 // Apply authMiddleware to all routes in this file
 router.use(authMiddleware);
+
+// Deal price history and below-unit-price approvals (declared before '/:id' routes)
+router.get('/price-approvals/pending', dealPriceController.listPendingForMe);
+router.post('/price-approvals/:approvalId/approve', dealPriceController.approve);
+router.post('/price-approvals/:approvalId/reject', dealPriceController.reject);
+router.get('/:id/price-history', requireDealPermission('deal.view'), dealPriceController.getPriceHistory);
 
 // @route   GET api/deals
 // @desc    Get all deals
