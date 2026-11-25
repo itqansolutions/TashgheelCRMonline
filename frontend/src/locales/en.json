@@ -802,7 +802,8 @@
       "from": "from",
       "to": "to",
       "by": "by",
-      "pendingSaved": "The price is lower than the unit price, so it was sent to the manager for approval. The deal price did not change."
+      "pendingSaved": "The price is lower than the unit price, so it was sent to the manager for approval. The deal price did not change.",
+      "notePlaceholder": "Optional note for the decision"
     }
   },
   "finance": {

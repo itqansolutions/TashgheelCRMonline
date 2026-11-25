@@ -27,6 +27,7 @@ export default function DealPricePanel({ dealId, refreshKey = 0, onDecided }) {
   const { t } = useLanguage();
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
 
   const load = useCallback(() => {
     if (!dealId) return;
@@ -38,7 +39,8 @@ export default function DealPricePanel({ dealId, refreshKey = 0, onDecided }) {
     if (!data?.pending || busy) return;
     setBusy(true);
     try {
-      await api.post(`/deals/price-approvals/${data.pending.id}/${kind}`, {});
+      await api.post(`/deals/price-approvals/${data.pending.id}/${kind}`, { note: note.trim() || undefined });
+      setNote('');
       toast.success(t(kind === 'approve' ? 'deals.price.approved' : 'deals.price.rejected', ''));
       load();
       if (onDecided) onDecided();
@@ -68,9 +70,20 @@ export default function DealPricePanel({ dealId, refreshKey = 0, onDecided }) {
             {t('deals.price.requestedBy', '')}: {p.requested_by_name || '-'} · {t('deals.price.approver', '')}: {p.approver_name || t('deals.price.adminPool', '')}
           </div>
           {data.can_decide && (
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button type="button" className="btn btn-primary" disabled={busy} onClick={() => decide('approve')}>{t('deals.price.approve', '')}</button>
-              <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => decide('reject')}>{t('deals.price.reject', '')}</button>
+            <div style={{ marginTop: 10 }}>
+              <input type="text" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300}
+                placeholder={t('deals.price.notePlaceholder', '')} aria-label={t('deals.price.notePlaceholder', '')}
+                style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #fdba74', fontSize: 13, background: '#fff', boxSizing: 'border-box' }} />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+                <button type="button" disabled={busy} onClick={() => decide('approve')}
+                  style={{ flex: '1 1 140px', minHeight: 44, borderRadius: 10, border: 'none', background: '#15803d', color: '#fff', fontWeight: 800, fontSize: 14, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1 }}>
+                  {t('deals.price.approve', '')}
+                </button>
+                <button type="button" disabled={busy} onClick={() => decide('reject')}
+                  style={{ flex: '1 1 140px', minHeight: 44, borderRadius: 10, border: '1.5px solid #b91c1c', background: '#fff', color: '#b91c1c', fontWeight: 800, fontSize: 14, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1 }}>
+                  {t('deals.price.reject', '')}
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -79,7 +92,7 @@ export default function DealPricePanel({ dealId, refreshKey = 0, onDecided }) {
         <div style={{ fontWeight: 800, marginBottom: 6 }}>{t('deals.price.historyTitle', '')}</div>
         {changes.length === 0 && <div style={{ opacity: 0.7 }}>{t('deals.price.noHistory', '')}</div>}
         {changes.map(c => (
-          <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '3px 0', borderTop: '1px dashed #e2e8f0' }}>
+          <div key={c.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 4, padding: '4px 0', borderTop: '1px dashed #e2e8f0', overflowWrap: 'anywhere' }}>
             <span>
               {t(`deals.price.source_${c.source}`, c.source)}
               {c.old_value !== null && c.old_value !== undefined && <> · {t('deals.price.from', '')} <Num>{fmt(c.old_value)}</Num></>} {t('deals.price.to', '')} <Num>{fmt(c.new_value)}</Num>
@@ -91,7 +104,7 @@ export default function DealPricePanel({ dealId, refreshKey = 0, onDecided }) {
           <div style={{ marginTop: 8, fontWeight: 800 }}>{t('deals.price.requestsTitle', '')}</div>
         )}
         {(data.approvals || []).filter(a => a.status !== 'pending').map(a => (
-          <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '3px 0', borderTop: '1px dashed #e2e8f0' }}>
+          <div key={a.id} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 4, padding: '4px 0', borderTop: '1px dashed #e2e8f0', overflowWrap: 'anywhere' }}>
             <span><Num>{fmt(a.requested_value)}</Num> · {t(`deals.price.status${a.status.charAt(0).toUpperCase()}${a.status.slice(1)}`, a.status)}</span>
             <span style={{ opacity: 0.75 }}>{a.requested_by_name || '-'} · <Num>{cairo(a.requested_at)}</Num></span>
           </div>
