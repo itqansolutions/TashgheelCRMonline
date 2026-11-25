@@ -206,6 +206,13 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
 
 
     let warehouseValidated = false;
+    // If an invoice for this Sales Order already took the stock out, the delivery must not deduct it a second time.
+    const invoiceAlreadyDeducted = (await client.query(
+      `SELECT 1 FROM stock_movements sm JOIN invoices i ON sm.reference_id = i.id::text
+       WHERE sm.reference_type = 'invoice' AND sm.type = 'out' AND sm.tenant_id::text = $1::text
+         AND i.sales_order_id::text = $2::text AND (i.status IS NULL OR i.status != 'cancelled') LIMIT 1`,
+      [String(tenantId), String(dn.sales_order_id)]
+    )).rows.length > 0;
 
     for (const item of items) {
       // The product lock serializes deliveries for this SKU while the warehouse ledger is checked.
@@ -238,7 +245,7 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
         warehouseValidated = true;
       }
 
-      if (isInventoryItem) {
+      if (isInventoryItem && !invoiceAlreadyDeducted) {
         // Check the source warehouse ledger, rather than the company-wide products.current_qty.
         const stockRes = await client.query(`
         SELECT COALESCE(SUM(
@@ -291,8 +298,8 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
 
         await client.query('UPDATE delivery_note_items SET unit_cost = $1 WHERE id = $2', [currentUnitCost, item.id]);
 
-        // Record outbound stock movement for physical inventory only.
-        await client.query(`
+        // Record outbound stock movement for physical inventory only (skipped when the invoice already deducted it).
+        if (!invoiceAlreadyDeducted) await client.query(`
         INSERT INTO stock_movements
           (type, product_id, from_warehouse_id, quantity, status, tenant_id, branch_id, reference_type, reference_id, created_by)
         VALUES ('out', $1, $2, $3, 'approved', $4, $5, 'delivery_note', $6, $7)

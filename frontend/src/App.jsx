@@ -208,7 +208,7 @@ function App() {
                   <Route path="purchases/orders" element={<PurchaseOrders />} />
                   <Route path="purchases" element={<Purchases />} />
                   <Route path="inventory/warehouses" element={<Warehouses />} />
-                  <Route path="inventory/keepers" element={<WarehouseKeepers />} />
+                  <Route path="inventory/keepers" element={<Navigate to="/inventory/warehouses" replace />} />
                   <Route path="inventory/transaction-impact" element={<TransactionImpact />} />
                   <Route path="inventory/balances" element={<StockBalances />} />
                   <Route path="inventory/item-card" element={<ItemCard />} />

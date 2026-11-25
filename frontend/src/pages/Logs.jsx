@@ -9,8 +9,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import DataTable from '../components/Common/DataTable';
 import Modal from '../components/Common/Modal';
 import toast from 'react-hot-toast';
+import { useLanguage } from '../context/LanguageContext';
 
 const Logs = () => {
+  const { isRTL } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const [logs, setLogs] = useState([]);
@@ -183,8 +185,8 @@ const Logs = () => {
                         </button>
                     )}
                     <div className="section-header">
-                        <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-main)]">Forensic Audit Feed</h2>
-                        <p className="text-[var(--text-muted)] mt-1 font-medium">Real-time action monitoring and security trace across all system nodes.</p>
+                        <h2 className="text-3xl font-extrabold tracking-tight text-[var(--text-main)]">{isRTL ? 'سجل النشاط والمراجعة' : 'Forensic Audit Feed'}</h2>
+                        <p className="text-[var(--text-muted)] mt-1 font-medium">{isRTL ? 'متابعة لحظية لكل العمليات والأمان على النظام.' : 'Real-time action monitoring and security trace across all system nodes.'}</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">

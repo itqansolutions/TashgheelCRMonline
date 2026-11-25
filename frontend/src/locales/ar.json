@@ -2886,7 +2886,14 @@
       "toastCheckInSuccess": "تم تسجيل الحضور بنجاح!",
       "toastCheckInError": "فشل تسجيل الحضور",
       "toastCheckOutSuccess": "تم تسجيل الانصراف بنجاح!",
-      "toastCheckOutError": "فشل تسجيل الانصراف"
+      "toastCheckOutError": "فشل تسجيل الانصراف",
+      "statuses": {
+        "present": "حاضر",
+        "late": "متأخر",
+        "absent": "غائب"
+      },
+      "mobileRequired": "سجّل حضورك وانصرافك من موبايلك.",
+      "locationRequired": "لازم تسمح بالوصول للموقع."
     },
     "attendanceAdmin": {
       "title": "المحطة المركزية للموارد البشرية",
@@ -2906,7 +2913,16 @@
       "colHrsLogged": "ساعات العمل",
       "colSourceIP": "عنوان IP المصدر",
       "colAction": "عرض",
-      "toastLoadError": "فشل تحميل ملخص حضور الموظفين."
+      "toastLoadError": "فشل تحميل ملخص حضور الموظفين.",
+      "fetchError": "تعذر تحميل ملخص الحضور.",
+      "timeline": "السجل الزمني",
+      "activeSignInsToday": "الحاضرين دلوقتي النهاردة",
+      "completedShifts": "ورديات اتقفلت",
+      "lateArrivals": "حالات التأخير",
+      "totalWorkHours": "إجمالي ساعات العمل",
+      "colSourceIp": "عنوان الـIP",
+      "loadingTerminal": "جاري تحميل بيانات الحضور...",
+      "sessionActive": "الجلسة شغالة"
     },
     "myRequests": {
       "title": "طلباتي وإجازاتي الشخصية",
@@ -2940,7 +2956,22 @@
       "toastLoadError": "فشل تحميل سجل الإجازات.",
       "toastDateError": "تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء!",
       "toastSubmitSuccess": "تم إرسال طلب الإجازة بنجاح، وهو قيد موافقة المدير المباشر.",
-      "toastSubmitError": "فشل إرسال طلب الإجازة."
+      "toastSubmitError": "فشل إرسال طلب الإجازة.",
+      "statuses": {
+        "approved": "موافق عليه",
+        "rejected": "مرفوض",
+        "pending": "في انتظار الموافقة"
+      },
+      "types": {
+        "annual": "إجازة سنوية (مدفوعة)",
+        "sick": "إجازة مرضية",
+        "unpaid": "إجازة شخصية بدون مرتب"
+      },
+      "fetchError": "تعذر تحميل سجل الإجازات.",
+      "endDateBeforeStartDate": "تاريخ النهاية لازم يكون بعد تاريخ البداية!",
+      "submitSuccess": "تم إرسال طلب الإجازة. في انتظار موافقة المدير.",
+      "submitFailed": "تعذر إرسال طلب الإجازة.",
+      "noRecords": "مفيش سجل إجازات."
     },
     "approvalCenter": {
       "title": "مركز الموافقات الإدارية",
@@ -2965,7 +2996,9 @@
       "confirmAction": "هل أنت متأكد من تغيير حالة هذا الطلب إلى {{status}}؟",
       "toastLoadError": "فشل تحميل طلبات الإجازات.",
       "toastActionSuccess": "تم تحديث حالة الطلب إلى {{status}} بنجاح.",
-      "toastActionError": "فشل تغيير حالة الطلب إلى {{status}}."
+      "toastActionError": "فشل تغيير حالة الطلب إلى {{status}}.",
+      "fetchError": "تعذر تحميل طلبات الإجازات.",
+      "noRecords": "مفيش طلبات في الفرع ده."
     },
     "attendanceDevices": {
       "tabRegisteredDevices": "الأجهزة المسجلة ({{count}})",
@@ -3022,7 +3055,36 @@
       "toastBadgeUpdated": "تم تحديث كود البصمة للموظف بنجاح",
       "toastBadgeUpdateError": "فشل تحديث كود البصمة",
       "fieldIpAddress": "عنوان IP المحلي (اختياري)",
-      "placeholderSerialNumber": "مثال: ABC123456، أو اتركه فارغًا للربط التلقائي"
+      "placeholderSerialNumber": "مثال: ABC123456، أو اتركه فارغًا للربط التلقائي",
+      "fetchDevicesError": "تعذر تحميل أجهزة البصمة",
+      "fetchBadgesError": "تعذر تحميل أرقام بطاقات الموظفين",
+      "nameRequired": "اسم الجهاز مطلوب",
+      "deviceUpdatedSuccess": "تم تعديل الجهاز",
+      "deviceAddedSuccess": "تم إضافة الجهاز",
+      "deviceSaveFailed": "تعذر حفظ الجهاز",
+      "deviceDeletedSuccess": "تم حذف الجهاز",
+      "deviceDeleteFailed": "تعذر حذف الجهاز",
+      "badgeUpdatedSuccess": "تم تعديل رقم بطاقة الموظف",
+      "badgeUpdateFailed": "تعذر تعديل رقم البطاقة",
+      "addNewDevice": "إضافة جهاز جديد",
+      "setupInstructionsTitle": "خطوات ربط جهاز ZKTeco (ADMS):",
+      "setupInstructionsText": "من شاشة الجهاز: Menu ثم Comm ثم Cloud Server Settings، اختار Server Mode: ADMS، اكتب دومين التطبيق، واضبط البورت على 443 (HTTPS). الجهاز هيبعت سجلات الحضور تلقائي.",
+      "tabEmployeeBadges": "أرقام بطاقات الموظفين",
+      "noDevicesConfigured": "مفيش أجهزة بصمة متضافة",
+      "noDevicesDesc": "الأجهزة بتتسجل لوحدها أول ما تتصل، أو تقدر تضيفها يدوي",
+      "headquarters": "المقر الرئيسي",
+      "serialNumber": "الرقم التسلسلي:",
+      "autoLinked": "اتربط تلقائي",
+      "ipAddress": "عنوان الـIP:",
+      "totalPushes": "عدد مرات الإرسال:",
+      "neverConnected": "لم يتصل أبدا",
+      "noEmployeesInBranch": "مفيش موظفين في الفرع ده",
+      "colDepartment": "القسم",
+      "colBadgeNumber": "رقم البطاقة (كود المستخدم على الجهاز)",
+      "badgePlaceholder": "مثال: 001",
+      "unassigned": "غير محدد",
+      "setBadgeCode": "تحديد كود البطاقة",
+      "placeholderIpAddress": "مثال: 192.168.1.201"
     },
     "shifts": {
       "tabConfiguredShifts": "الورديات المعرّفة ({{count}})",
@@ -3150,7 +3212,24 @@
       "toastSaved": "تم حفظ تعريف النشاط بنجاح",
       "toastSaveError": "خطأ أثناء حفظ النشاط",
       "toastDeleted": "تم حذف النشاط بنجاح",
-      "toastDeleteError": "فشل حذف النشاط"
+      "toastDeleteError": "فشل حذف النشاط",
+      "fetchError": "تعذر تحميل تعريفات الأنشطة",
+      "nameRequired": "اسم النشاط مطلوب",
+      "updateSuccess": "تم تعديل تعريف النشاط",
+      "addSuccess": "تم إضافة تعريف النشاط",
+      "saveFailed": "حصل خطأ وإحنا بنحفظ النشاط",
+      "deleteSuccess": "تم حذف النشاط",
+      "deleteFailed": "تعذر حذف النشاط",
+      "addActivityBtn": "إضافة نشاط جديد",
+      "noActivitiesDesc": "دوس \"إضافة نشاط جديد\" عشان تعمل أول تعريف نشاط للشركة",
+      "colActivityName": "اسم النشاط",
+      "colPostingBoundaries": "حدود التسجيل (بداية / نهاية)",
+      "colMinMaxRange": "الحد الأدنى والأقصى",
+      "unitHoursBadge": "⏱️ ساعات",
+      "unitDaysBadge": "📅 أيام",
+      "statusInactive": "غير نشط",
+      "placeholderStartPost": "سالب = أيام قبل",
+      "placeholderEndPost": "موجب = أيام بعد"
     },
     "activityBalance": {
       "phoneSelectEmployee": "-- اختر الموظف --",
@@ -3192,7 +3271,22 @@
       "toastSaved": "تم حفظ رصيد النشاط بنجاح",
       "toastSaveError": "فشل حفظ سجل الرصيد",
       "toastDeleted": "تم حذف سجل الرصيد بنجاح",
-      "toastDeleteError": "فشل حذف سجل الرصيد"
+      "toastDeleteError": "فشل حذف سجل الرصيد",
+      "fetchError": "تعذر تحميل أرصدة الأنشطة",
+      "employeeAndTypeRequired": "لازم تختار الموظف ونوع النشاط",
+      "updateSuccess": "تم تعديل رصيد النشاط",
+      "assignSuccess": "تم تخصيص رصيد النشاط",
+      "saveFailed": "تعذر حفظ الرصيد",
+      "deleteSuccess": "تم حذف الرصيد",
+      "deleteFailed": "تعذر حذف الرصيد",
+      "unitHours": "ساعات",
+      "unitDays": "أيام",
+      "filterLabel": "فلتر:",
+      "allEmployees": "كل الموظفين",
+      "allActivities": "كل الأنشطة",
+      "noBalancesAllocated": "مفيش أرصدة أنشطة متخصصة للفترة دي",
+      "noBalancesDesc": "اختار فترة تانية أو خصص أرصدة جديدة للموظفين",
+      "colActivityType": "نوع النشاط"
     },
     "myActivityBalance": {
       "title": "أرصدة إجازاتي وأنشطتي",
@@ -3210,7 +3304,8 @@
       "colNotes": "الملاحظات",
       "loading": "جارٍ التحميل…",
       "noBalances": "لا توجد أرصدة مخصصة لك في هذه الفترة.",
-      "toastLoadError": "فشل تحميل أرصدة الأنشطة الخاصة بك."
+      "toastLoadError": "فشل تحميل أرصدة الأنشطة الخاصة بك.",
+      "fetchError": "تعذر تحميل أرصدة أنشطتك."
     },
     "payrollEngine": {
       "title": "محرك الرواتب والمستحقات",
@@ -3313,7 +3408,25 @@
       "itemNet": "صافي الراتب المستحق",
       "noticeLocked": "تمت مراجعة واعتماد وصرف قسيمة الراتب هذه رسميًا من قبل الموارد البشرية.",
       "noticeDraft": "قسيمة الراتب هذه تخضع حاليًا للتدقيق والحساب المبدئي من قبل الموارد البشرية.",
-      "toastLoadError": "فشل تحميل قسائم الراتب الخاصة بك."
+      "toastLoadError": "فشل تحميل قسائم الراتب الخاصة بك.",
+      "fetchError": "تعذر تحميل كشوف مرتبك.",
+      "latestNetSalary": "آخر صافي مرتب",
+      "basePackage": "المرتب الأساسي",
+      "registeredBaseContract": "حسب العقد المسجل",
+      "loggedWorkHours": "ساعات العمل المسجلة",
+      "hoursSuffix": "ساعة",
+      "calculatedFromTimesheet": "محسوبة من سجل الحضور",
+      "colCycle": "الفترة",
+      "colNetPackage": "صافي المرتب",
+      "colDetails": "التفاصيل",
+      "noPayrollData": "مفيش بيانات مرتبات",
+      "noPayrollDesc": "كشوف مرتبك هتظهر هنا أول ما الموارد البشرية تحسبها.",
+      "statusFinalized": "معتمد",
+      "viewBreakdown": "عرض التفاصيل",
+      "close": "إغلاق",
+      "salaryPeriod": "فترة المرتب",
+      "baseSalaryLabel": "المرتب الأساسي",
+      "netSalaryLabel": "صافي المرتب"
     },
     "contactsEmployees": {
       "title": "إدارة الموظفين والهيكل الإداري",
@@ -3453,7 +3566,10 @@
       "employee": "موظف",
       "lblSalary": "الراتب الأساسي (شهري)",
       "salaryPlaceholder": "مثال: 8000",
-      "salaryHint": "بيتحسب منه الرواتب والخصومات في كشف المرتبات."
+      "salaryHint": "بيتحسب منه الرواتب والخصومات في كشف المرتبات.",
+      "departments": {
+        "general": "عام"
+      }
     }
   },
   "subNav": {

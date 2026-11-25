@@ -17,6 +17,7 @@ const InventoryControl = () => {
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [approveId, setApproveId] = useState(null);
     const [formData, setFormData] = useState({
         type: 'in',
         product_id: '',
@@ -72,7 +73,7 @@ const InventoryControl = () => {
     };
 
     const handleApprove = async (id) => {
-        if (!window.confirm(t('inventory.control.confirmApprove'))) return;
+        setApproveId(null);
         try {
             await api.put(`/inventory/movements/${id}/approve`);
             toast.success(t('inventory.control.appliedSuccess'));
@@ -213,7 +214,7 @@ const InventoryControl = () => {
                                 </td>
                                 <td style={{ textAlign: 'center' }}>
                                     {mov.status === 'pending' && (
-                                        <button onClick={() => handleApprove(mov.id)} style={{ background: '#10b981', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}>
+                                        <button onClick={() => setApproveId(mov.id)} style={{ background: '#10b981', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}>
                                             {t('inventory.control.approve')}
                                         </button>
                                     )}
@@ -247,7 +248,7 @@ const InventoryControl = () => {
                             <label>{t('inventory.control.targetProduct')}</label>
                             <select value={formData.product_id} onChange={(e) => setFormData({...formData, product_id: e.target.value})} required>
                                 <option value="">{t('inventory.control.selectProduct')}</option>
-                                {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
+                                {products.filter(p => p.is_inventory_item !== false).map(p => <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>)}
                             </select>
                         </div>
 
@@ -278,6 +279,12 @@ const InventoryControl = () => {
 
                         </form>
 </Modal>
+                <Modal isOpen={approveId !== null} onClose={() => setApproveId(null)} title={t('inventory.control.confirmApprove')} footer={<>
+                    <button type="button" onClick={() => setApproveId(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}>{t('common.cancel', 'إلغاء')}</button>
+                    <button type="button" className="btn-primary" onClick={() => handleApprove(approveId)}>{t('common.confirm', 'تأكيد')}</button>
+                </>}>
+                    <p style={{ margin: 0 }}>{t('inventory.control.confirmApprove')}</p>
+                </Modal>
             </div>
         </div>
     );

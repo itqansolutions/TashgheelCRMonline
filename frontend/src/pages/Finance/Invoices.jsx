@@ -1,5 +1,6 @@
 import { useBranch } from '../../context/BranchContext';
 import Modal from '../../components/Common/Modal';
+import TreasuryEmptyNotice from '../../components/Finance/TreasuryEmptyNotice';
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
@@ -219,7 +220,7 @@ const FinanceDashboard = () => {
           notes: formData.title,
           total_amount: formData.amount
         });
-        toast.success(t('finance.quotations.createdSuccess'));
+        toast.success(isRTL ? 'تم حفظ عرض السعر كمسودة. اعتمده من قايمة العروض عشان تحوله لفاتورة.' : t('finance.quotations.createdSuccess'), { duration: 6000 });
       } else if (quickActionType === 'Receipt Voucher') {
         const res = await api.post('/finance/vouchers', {
           voucher_type: 'receipt',
@@ -491,11 +492,33 @@ const FinanceDashboard = () => {
                                     <button className="action-btn" onClick={() => navigate(`/finance/quotation-preview/${q.id}`)}>
                                         <Download size={14} /> {t('finance.quotations.print', 'Print')}
                                     </button>
+                                    {['draft', 'sent', ''].includes(String(q.status || '').toLowerCase()) && (
+                                        <button
+                                            className="action-btn"
+                                            style={{ background: '#dcfce7', color: '#166534', border: '1px solid #86efac' }}
+                                            title={isRTL ? 'اعتماد عرض السعر عشان تقدر تحوله لفاتورة' : 'Approve this quotation so it can be invoiced'}
+                                            onClick={async () => {
+                                                try {
+                                                    await api.patch(`/quotations/${q.id}/approve`);
+                                                    toast.success(isRTL ? 'تم اعتماد عرض السعر. تقدر تحوله لفاتورة دلوقتي.' : 'Quotation approved. You can convert it to an invoice now.');
+                                                    fetchData();
+                                                } catch (err) {
+                                                    toast.error(err.response?.data?.message || (isRTL ? 'تعذر اعتماد عرض السعر' : 'Failed to approve quotation'));
+                                                }
+                                            }}
+                                        >
+                                            <CheckCircle size={14} /> {isRTL ? 'اعتماد' : 'Approve'}
+                                        </button>
+                                    )}
                                     <button
                                         className="action-btn"
                                         style={{ background: '#f3e8ff', color: '#7e22ce', border: '1px solid #ddd6fe' }}
                                         title={t('finance.quotations.convertTooltip', 'Convert quotation directly into a sales invoice')}
                                         onClick={async () => {
+                                            if (['draft', 'sent', ''].includes(String(q.status || '').toLowerCase())) {
+                                                toast.error(isRTL ? 'لازم تعتمد عرض السعر الأول (زرار اعتماد) وبعدين تحوله لفاتورة.' : 'Approve the quotation first, then convert it to an invoice.');
+                                                return;
+                                            }
                                             try {
                                                 const res = await api.post(`/invoices/from-quotation/${q.id}`);
                                                 toast.success(t('finance.quotations.convertedSuccess', 'Quotation converted to invoice successfully!'));
@@ -504,7 +527,10 @@ const FinanceDashboard = () => {
                                                     navigate(`/finance/invoice-preview/${res.data.data.id}`);
                                                 }
                                             } catch (err) {
-                                                toast.error(err.response?.data?.message || t('finance.quotations.failedConvert', 'Failed to convert quotation to invoice'));
+                                                const d = err.response?.data;
+                                                toast.error(isRTL && d?.code === 'INSUFFICIENT_STOCK'
+                                                    ? `المخزون مش كفاية للصنف "${d.product_name || ''}". اعمل إدخال مخزون الأول.`
+                                                    : (d?.message || t('finance.quotations.failedConvert', 'Failed to convert quotation to invoice')), { duration: 6000 });
                                             }
                                         }}
                                     >
@@ -965,6 +991,7 @@ const FinanceDashboard = () => {
                           <option value="">{t('finance.paymentModal.selectAccount')}</option>
                           {paymentAccounts.filter(a => a.type === (paymentMethod === 'cash' ? 'cash' : 'bank')).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                       </select>
+                      {paymentAccounts.filter(a => a.type === (paymentMethod === 'cash' ? 'cash' : 'bank')).length === 0 && <TreasuryEmptyNotice type={paymentMethod === 'cash' ? 'cash' : 'bank'} onCreated={() => api.get('/finance/treasury/accounts').then(r => setPaymentAccounts((r.data.data || []).filter(a => a.is_active)))} />}
                   </div>
                   <div style={{ marginBottom: '24px' }}>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>{t('finance.paymentModal.notesReference')}</label>
@@ -1092,6 +1119,7 @@ const FinanceDashboard = () => {
                                           <option value="">{t('finance.paymentModal.selectTreasury', 'Select treasury account')}</option>
                                           {quickTreasuries.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                       </select>
+                                      {quickTreasuries.length === 0 && <TreasuryEmptyNotice type={formData.payment_method === 'cash' ? 'cash' : 'bank'} onCreated={() => api.get('/finance/treasury/accounts').then(r => setQuickAccounts(r.data.data || []))} />}
                                   </div>
                               </div>
 
@@ -1290,6 +1318,7 @@ const FinanceDashboard = () => {
                                           <option value="">{t('finance.paymentModal.selectTreasury', 'Select treasury account')}</option>
                                           {quickTreasuries.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                       </select>
+                                      {quickTreasuries.length === 0 && <TreasuryEmptyNotice type={formData.payment_method === 'cash' ? 'cash' : 'bank'} onCreated={() => api.get('/finance/treasury/accounts').then(r => setQuickAccounts(r.data.data || []))} />}
                               </div>}
                               {quickActionType === 'Expense' && (
                                   <div style={{ marginBottom: '24px' }}>

@@ -65,7 +65,7 @@ exports.createInvoiceFromQuotation = async (req, res) => {
     res.status(statusCode).json({ status: 'success', data: invoice });
   } catch (err) {
     console.error(err.message);
-    res.status(400).json({ status: 'error', message: err.message });
+    res.status(err.status || 400).json({ status: 'error', ...(err.code ? { code: err.code } : {}), message: err.message });
   }
 };
 
@@ -102,7 +102,7 @@ exports.createInvoiceFromDeal = async (req, res) => {
 exports.createInvoiceFromSalesOrder = async (req, res) => {
   const tenant_id = req.user.tenant_id;
   try {
-    const invoice = await salesService.convertSalesOrderToInvoice(req.params.orderId, tenant_id);
+    const invoice = await salesService.convertSalesOrderToInvoice(req.params.orderId, tenant_id, null, req.user.id);
 
     // Log Billing Event
     logAction({ req, action: ACTIONS.BILLING, entityType: 'Invoice', entityId: invoice.id, details: { source: 'sales_order', sourceId: req.params.orderId } });
@@ -110,7 +110,7 @@ exports.createInvoiceFromSalesOrder = async (req, res) => {
     res.status(201).json({ status: 'success', message: 'Invoice created successfully from Sales Order', data: invoice });
   } catch (err) {
     console.error('[createInvoiceFromSalesOrder]', err.message);
-    res.status(400).json({ status: 'error', message: err.message });
+    res.status(err.status || 400).json({ status: 'error', ...(err.code ? { code: err.code } : {}), message: err.message });
   }
 };
 
@@ -217,6 +217,7 @@ exports.deleteInvoice = async (req, res) => {
       // finance_vouchers table or column may not exist in pre-migration state
     }
 
+    await require('../services/invoiceStockService').restoreForInvoice(db, { invoiceId: req.params.id, tenantId: tenant_id, branchId: branch_id, userId: req.user.id });
     const result = await db.query(
       'DELETE FROM invoices WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *',
       [req.params.id, tenant_id, branch_id]

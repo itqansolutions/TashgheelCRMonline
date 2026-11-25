@@ -107,6 +107,17 @@ async function provisionTenant({
                 `UPDATE users SET branch_id = $1 WHERE id = $2`,
                 [String(mainBranchId), user.id]
             );
+            // New tenants only: one default cash treasury so the first collection never dead-ends.
+            try {
+                await db.query(
+                    `INSERT INTO treasury_accounts (name, type, opening_balance, is_default, is_active, tenant_id, branch_id)
+                     SELECT $1, 'cash', 0, true, true, $2::uuid, $3
+                     WHERE NOT EXISTS (SELECT 1 FROM treasury_accounts WHERE tenant_id::text = $2::text)`,
+                    ['الخزينة الرئيسية', tenantId, String(mainBranchId)]
+                );
+            } catch (treasuryErr) {
+                console.warn('[Provisioning] Default treasury seeding notice (non-fatal):', treasuryErr.message);
+            }
         }
     } catch (branchErr) {
         console.warn('[Provisioning] Main branch seeding notice (non-fatal):', branchErr.message);

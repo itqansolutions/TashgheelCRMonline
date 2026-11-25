@@ -212,7 +212,6 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const rawWarehouseItems = [
     { name: 'Products',           labelKey: 'sidebar.products',          icon: <Package size={18} />,        path: '/products' },
     { name: 'Warehouses',         labelKey: 'sidebar.warehouses',        icon: <Building size={18} />,       path: '/inventory/warehouses' },
-    { name: 'Keepers',            labelKey: 'sidebar.keepers',           icon: <ShieldCheck size={18} />,    path: '/inventory/keepers' },
     { name: 'Stock Balances',     labelKey: 'sidebar.stockBalances',     icon: <Scale size={18} />,          path: '/inventory/balances' },
     { name: 'Stock Movements',    labelKey: 'sidebar.stockMovements',    icon: <ArrowLeftRight size={18} />,  path: '/inventory/movements' },
     { name: 'Transaction Impact', labelKey: 'sidebar.transactionImpact', icon: <Activity size={18} />,       path: '/inventory/transaction-impact' },

@@ -486,6 +486,12 @@ exports.createInvoice = async (req, res) => {
             ]);
         }
 
+        // Stock-tracked products leave the warehouse with the invoice (no-op for services / custom lines).
+        await require('../services/invoiceStockService').deductForInvoice(db, {
+            invoiceId: newInvoiceId, tenantId: tenant_id, branchId: branch_id, userId: req.user.id,
+            items: sanitizedItems, warehouseId: req.body.warehouse_id || null
+        });
+
         await db.query('COMMIT');
         logCreate(req, 'Invoice', newInvoiceId, { invoiceNumber, total_amount });
 
@@ -493,6 +499,7 @@ exports.createInvoice = async (req, res) => {
     } catch (err) {
         await db.query('ROLLBACK');
         console.error('createInvoice Error:', err);
+        if (err.status === 409 && err.code) return res.status(409).json({ status: 'error', code: err.code, message: err.message });
         res.status(500).json({ status: 'error', message: err.message || 'Failed to create invoice.' });
     }
 };

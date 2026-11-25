@@ -39,6 +39,7 @@ exports.getMovements = async (req, res) => {
     try {
         const result = await db.query(`
             SELECT m.*, p.name as product_name, p.sku as product_sku, p.unit as product_unit,
+                   COALESCE(p.cost_price, 0) as unit_cost,
                    wf.name as from_warehouse_name, wt.name as to_warehouse_name
             FROM stock_movements m
             JOIN products p ON m.product_id = p.id

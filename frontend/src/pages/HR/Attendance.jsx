@@ -182,7 +182,7 @@ const Attendance = () => {
                         <tr><td colSpan="6" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>{t('hr.attendance.noHistory', 'No attendance history found.')}</td></tr>
                     ) : logs.map((log) => (
                         <tr key={log.id}>
-                            <td style={{ fontWeight: 600 }} className="num-en">{new Date(log.check_in).toLocaleDateString(undefined,{timeZone:timezone})}</td>
+                            <td style={{ fontWeight: 600 }} className="num-en">{new Date(log.check_in).toLocaleDateString('en-GB',{timeZone:timezone})}</td>
                             <td className="num-en">{new Date(log.check_in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit',timeZone:timezone})}</td>
                             <td className="num-en">{log.check_out ? new Date(log.check_out).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit',timeZone:timezone}) : <span style={{ color: '#ef4444' }}>--:--</span>}</td>
                             <td style={{ fontWeight: 700 }} className="num-en">{log.work_hours !== null && log.work_hours !== undefined ? parseFloat(log.work_hours).toFixed(2) : '-'}</td>

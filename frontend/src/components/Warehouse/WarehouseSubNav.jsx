@@ -11,7 +11,6 @@ const WarehouseSubNav = () => {
     { path: '/inventory/warehouses', label: t('inventory.subNav.warehouses'), icon: <Building size={16} /> },
     { path: '/inventory/balances', label: t('inventory.subNav.balances'), icon: <Scale size={16} /> },
     { path: '/inventory/movements', label: t('inventory.subNav.movements'), icon: <ArrowLeftRight size={16} /> },
-    { path: '/inventory/keepers', label: t('inventory.subNav.keepers'), icon: <ShieldCheck size={16} /> },
     { path: '/inventory/item-card', label: t('inventory.subNav.itemCard'), icon: <CreditCard size={16} /> },
     { path: '/inventory/transaction-impact', label: t('inventory.subNav.transactionImpact'), icon: <TrendingUp size={16} /> },
   ];

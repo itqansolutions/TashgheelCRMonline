@@ -107,7 +107,7 @@ exports.convertQuotationToInvoice = async (quotationId, tenant_id, options = {})
     }
 
     // 6. Convert Sales Order to Invoice atomically using the SAME database client
-    const invoice = await exports.convertSalesOrderToInvoice(salesOrder.id, tenant_id, client);
+    const invoice = await exports.convertSalesOrderToInvoice(salesOrder.id, tenant_id, client, userId);
 
     // 7. Update Quotation Status to 'invoiced'
     await client.query(
@@ -132,7 +132,7 @@ exports.convertQuotationToInvoice = async (quotationId, tenant_id, options = {})
  * @param {string} tenant_id
  * @returns {Promise<object>} The new or existing invoice
  */
-exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id, clientOverride = null) => {
+exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id, clientOverride = null, actingUserId = null) => {
   const { ensureInvoicesTable, generateInvoiceNumber } = require('../controllers/financeController');
   if (!clientOverride) {
     await ensureInvoicesTable();
@@ -271,6 +271,20 @@ exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id, clientOverr
          WHERE id = $2 AND tenant_id::text = $3::text`,
         [itemData.newInvoicedTotal, itemData.itemId, String(tenant_id)]
       );
+    }
+
+    // 6b. Stock leaves with the invoice unless a confirmed Delivery Note already moved it.
+    {
+      const dnDone = await client.query(
+        `SELECT 1 FROM delivery_notes WHERE sales_order_id::text = $1::text AND tenant_id::text = $2::text AND status = 'delivered' LIMIT 1`,
+        [String(salesOrderId), String(tenant_id)]
+      );
+      if (dnDone.rows.length === 0) {
+        await require('./invoiceStockService').deductForInvoice(client, {
+          invoiceId: invoice.id, tenantId: tenant_id, branchId: so.branch_id || null, userId: actingUserId,
+          items: itemsToInvoice.map(i => ({ product_id: i.productId, quantity: i.invoiceQty }))
+        });
+      }
     }
 
     // 7. Update Sales Order status

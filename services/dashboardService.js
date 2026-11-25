@@ -254,7 +254,7 @@ async function getGeneralInventoryMetrics(tenantId, hasInventoryAccess) {
                     ), 0) as current_qty
                 FROM products p
                 LEFT JOIN stock_movements m ON p.id = m.product_id AND m.tenant_id::text = p.tenant_id::text AND m.status = 'approved'
-                WHERE p.tenant_id::text = $1::text
+                WHERE p.tenant_id::text = $1::text AND COALESCE(p.is_inventory_item, true) = true
                 GROUP BY p.id, p.name, p.cost_price
             )
             SELECT 

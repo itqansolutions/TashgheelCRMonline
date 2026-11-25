@@ -319,11 +319,11 @@ exports.approveQuotation = async (req, res) => {
   const branch_id = req.branchId || req.user?.branch_id;
   try {
     const result = await db.query(
-      "UPDATE quotations SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text RETURNING *",
+      "UPDATE quotations SET status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND tenant_id::text = $2::text AND branch_id::text = $3::text AND LOWER(COALESCE(status,'draft')) IN ('draft','sent') RETURNING *",
       [req.params.id, tenant_id, branch_id]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ status: 'error', message: 'Quotation not found or unauthorized' });
+      return res.status(404).json({ status: 'error', message: 'Quotation not found, already approved, or no longer open for approval' });
     }
 
     logUpdate(req, 'Quotation', req.params.id, { status: 'draft' }, result.rows[0]);
