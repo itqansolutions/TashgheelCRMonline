@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const quotationsController = require('../controllers/quotationsController');
 const authMiddleware = require('../middleware/auth');
+const roleGuard = require('../middleware/roleGuard');
 
 // Apply authMiddleware to all routes in this file
 router.use(authMiddleware);
@@ -24,7 +25,7 @@ router.post('/', quotationsController.createQuotation);
 // @route   PATCH api/quotations/:id/approve
 // @desc    Approve a quotation
 // @access  Private
-router.patch('/:id/approve', quotationsController.approveQuotation);
+router.patch('/:id/approve', roleGuard(['admin', 'manager']), quotationsController.approveQuotation);
 
 // @route   DELETE api/quotations/:id
 // @desc    Delete quotation

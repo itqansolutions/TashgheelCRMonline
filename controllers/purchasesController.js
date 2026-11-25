@@ -254,6 +254,22 @@ exports.createPurchaseInvoice = async (req, res) => {
             `, [item.unit_price, item.product_id, tenant_id]);
         }
 
+        // 5. Direct purchase invoice (no PO receiving): goods enter the destination warehouse now.
+        //    PO-based supplier invoices are created from already-received PO items and never go through here.
+        const trk = await client.query(
+            `SELECT id FROM products WHERE id = ANY($1::int[]) AND tenant_id::text = $2::text AND COALESCE(is_inventory_item, true) = true`,
+            [pids, String(tenant_id)]
+        );
+        const trackable = new Set(trk.rows.map(r => String(r.id)));
+        for (const item of validItems) {
+            if (!trackable.has(String(item.product_id))) continue;
+            await client.query(
+                `INSERT INTO stock_movements (tenant_id, branch_id, product_id, from_warehouse_id, to_warehouse_id, type, quantity, reference_type, reference_id, status, created_by, approved_by, created_at)
+                 VALUES ($1, $2, $3, NULL, $4, 'in', $5, 'purchase_invoice', $6, 'approved', $7, $7, NOW())`,
+                [String(tenant_id), branch_id ? String(branch_id) : null, item.product_id, warehouse_id, item.quantity, String(invoice.id), req.user.id]
+            );
+        }
+
         await client.query('COMMIT');
 
         res.status(201).json({

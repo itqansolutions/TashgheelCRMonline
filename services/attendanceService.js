@@ -24,8 +24,10 @@ async function lateness(client,user,tenant,day,instant,zone) {
  const r=await client.query(`SELECT s.start_time,s.grace_minutes FROM hr_user_shifts us JOIN hr_shifts s ON s.id=us.shift_id
  WHERE us.user_id=$1 AND us.tenant_id::text=$2::text AND s.tenant_id::text=$2::text AND us.effective_from<=$3::date
  AND (us.effective_to IS NULL OR us.effective_to>=$3::date) AND s.is_active=TRUE ORDER BY us.effective_from DESC LIMIT 1`,[user,tenant,day]);
- let deadline=555;
- if(r.rows.length){const [h,m]=String(r.rows[0].start_time||'09:00').split(':').map(Number);deadline=h*60+m+Number(r.rows[0].grace_minutes||0);}
+ // No shift assigned: lateness cannot be judged, so nothing is flagged (no hidden 09:00 default).
+ if(!r.rows.length) return {late:0,status:'present'};
+ let deadline;
+ {const [h,m]=String(r.rows[0].start_time||'09:00').split(':').map(Number);deadline=h*60+m+Number(r.rows[0].grace_minutes||0);}
  const late=Math.max(0,localParts(instant,zone).minutes-deadline);return {late,status:late?'late':'present'};
 }
 async function transact({tenant,branch,user,mode,instant=new Date(),stamp,ip,locationRequest}) {
@@ -62,4 +64,4 @@ async function transact({tenant,branch,user,mode,instant=new Date(),stamp,ip,loc
   await client.query('COMMIT');return {row:saved.rows[0],timezone:zone,attendance_date:day};
  } catch(e) {await client.query('ROLLBACK');if(locationRequest&&e&&typeof e.code==='string'&&e.code.startsWith('GEO_'))await require('./attendanceRejectLog').recordReject({tenant,branch,user,mode,err:e});throw e;} finally {client.release();}
 }
-module.exports={localParts,timezoneFor,deviceInstant,transact};
+module.exports={localParts,timezoneFor,deviceInstant,transact,lateness};

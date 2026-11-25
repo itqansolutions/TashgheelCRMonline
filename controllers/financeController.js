@@ -637,7 +637,7 @@ const recordPaymentInternal = async ({
 
         // 2. Lock invoice row with FOR UPDATE and verify tenant scoping
         const invRes = await client.query(
-            `SELECT id, total_amount, invoice_number, client_id, customer_id, branch_id
+            `SELECT id, total_amount, invoice_number, client_id, customer_id, branch_id, deal_id
              FROM invoices
              WHERE id = $1 AND tenant_id::text = $2::text
              FOR UPDATE`,
@@ -707,6 +707,26 @@ const recordPaymentInternal = async ({
             `UPDATE invoices SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text`,
             [newStatus, invoice_id, tenant_id]
         );
+
+        // 6b. General sales track only: a lead becomes an active customer on their first fully paid invoice.
+        // Real estate tenants and deal invoices are left alone (their pipeline owns the customer status).
+        if (newStatus === 'paid' && !String(invoice.deal_id || '').trim()) {
+            const custId = invoice.customer_id || invoice.client_id;
+            if (custId) {
+                let isRealEstate = true;
+                try {
+                    const ent = await require('../services/tenantEntitlementService').getTenantEntitlements(tenant_id);
+                    isRealEstate = !!(ent && ent.modules && ent.modules.real_estate);
+                } catch (_) { isRealEstate = true; }
+                if (!isRealEstate) {
+                    await client.query(
+                        `UPDATE customers SET status = 'active', updated_at = CURRENT_TIMESTAMP
+                         WHERE id::text = $1::text AND tenant_id::text = $2::text AND LOWER(COALESCE(status,'')) = 'lead'`,
+                        [String(custId), String(tenant_id)]
+                    );
+                }
+            }
+        }
 
         // 7. Link / Generate receipt voucher
         let voucherData = null;

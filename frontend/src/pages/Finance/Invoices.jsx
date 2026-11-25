@@ -498,7 +498,7 @@ const FinanceDashboard = () => {
                                     <button className="action-btn" onClick={() => navigate(`/finance/quotation-preview/${q.id}`)}>
                                         <Download size={14} /> {t('finance.quotations.print', 'Print')}
                                     </button>
-                                    {['draft', 'sent', ''].includes(String(q.status || '').toLowerCase()) && (
+                                    {['admin', 'manager'].includes(user?.role) && ['draft', 'sent', ''].includes(String(q.status || '').toLowerCase()) && (
                                         <button
                                             className="action-btn"
                                             style={{ background: '#dcfce7', color: '#166534', border: '1px solid #86efac' }}
