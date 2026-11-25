@@ -127,34 +127,52 @@ const h = require('./helpers/pgHarness.cjs');
     r = await call(fin.createInvoiceFromDeal, asReq(admin, {}, { dealId: String(dI) })); assert.equal(r.statusCode, 409, JSON.stringify(r.body)); assert.equal(r.body.code, 'PRICE_APPROVAL_PENDING');
     assert.equal((await q("SELECT pipeline_stage FROM deals WHERE id=$1", [dI])).rows[0].pipeline_stage.toLowerCase() === 'won', false); assert.equal((await q("SELECT count(*)::int n FROM invoices WHERE deal_id=$1", [dI])).rows[0].n, 0);
     log('PASS finance and sales invoice-close writers blocked while pending');
-    // 14. concurrency: a request committed while a close writer waits on the deal row lock must still block the close
-    const racePending = async (label, dealIdx, writer) => {
-      const ur = await mkUnit('R-' + label, 1000000);
-      const dr = (await call(deals.createDeal, asReq(admin, { title: 'race-' + label, client_id: cust, unit_id: ur, value: 1000000, assigned_team_id: team, assigned_to: rep.id }))).body.data;
-      assert.equal((await q("SELECT count(*)::int n FROM deal_price_approvals WHERE deal_id=$1 AND status='pending'", [dr.id])).rows[0].n, 0);
-      const c1 = await env.pool.connect();
-      try {
-        await c1.query('BEGIN'); await c1.query('SELECT id FROM deals WHERE id=$1 FOR UPDATE', [dr.id]);
-        const racer = writer(dr.id);                                  // starts, waits for the lock (or passes its early check)
-        await new Promise(r => setTimeout(r, 400));
-        const full = (await c1.query('SELECT * FROM deals WHERE id=$1', [dr.id])).rows[0];
-        await priceS.createPriceRequest(c1, { tenantId: T, branchId: B, deal: full, requestedValue: 500000, unitPrice: 1000000, requestedBy: rep.id });
-        await c1.query('COMMIT');
-        const out = await racer;
-        return { out, dr };
-      } finally { c1.release(); }
-    };
+    // 14. concurrency, deterministic: pause each close writer right after its LAST pending-request check, then try to
+    //     take the deal row lock the way a request writer does. With a real transaction the writer still holds the lock, so the
+    //     request writer must stay blocked until the close finishes. Without it (unpatched), the request writer gets through
+    //     while the close is about to commit on a stale "no pending" answer.
     {
       const salesService2 = require('../services/salesService'); const fin2 = require('../controllers/financeController');
-      let x = await racePending('sales', 0, (id) => salesService2.convertDealToInvoice(id, T).then(() => 'invoiced', e => e.code || e.message));
-      assert.equal(x.out, 'PRICE_APPROVAL_PENDING'); assert.equal((await q("SELECT count(*)::int n FROM invoices WHERE deal_id=$1", [x.dr.id])).rows[0].n, 0);
-      x = await racePending('finance', 0, async (id) => { const rs = await call(fin2.createInvoiceFromDeal, asReq(admin, {}, { dealId: String(id) })); return rs.body.code || rs.statusCode; });
-      assert.equal(x.out, 'PRICE_APPROVAL_PENDING'); assert.equal((await q("SELECT count(*)::int n FROM invoices WHERE deal_id=$1", [x.dr.id])).rows[0].n, 0);
-      x = await racePending('put', 0, async (id) => { const rs = await call(deals.updateDeal, asReq(rep, { pipeline_stage: 'Closed' }, { id: String(id) })); return rs.body.code || rs.statusCode; });
-      assert.equal(x.out, 'PRICE_APPROVAL_PENDING'); assert.notEqual((await q("SELECT pipeline_stage FROM deals WHERE id=$1", [x.dr.id])).rows[0].pipeline_stage.toLowerCase(), 'closed');
-      x = await racePending('status', 0, async (id) => { const rs = await call(deals.updateDealStatus, asReq(rep, { pipeline_stage: 'Closed' }, { id: String(id) })); return rs.body.code || rs.statusCode; });
-      assert.equal(x.out, 'PRICE_APPROVAL_PENDING'); assert.notEqual((await q("SELECT pipeline_stage FROM deals WHERE id=$1", [x.dr.id])).rows[0].pipeline_stage.toLowerCase(), 'closed');
-      log('PASS concurrent request vs close: sales invoice, finance invoice, PUT and status all serialize behind the deal lock and stay blocked');
+      const realHas = priceS.hasPendingRequest;
+      const writers = {
+        sales: (id) => salesService2.convertDealToInvoice(id, T).then(() => 'closed', e => e.code || e.message),
+        finance: async (id) => { const rs = await call(fin2.createInvoiceFromDeal, asReq(admin, {}, { dealId: String(id) })); return rs.body.code || rs.statusCode; },
+        put: async (id) => { const rs = await call(deals.updateDeal, asReq(rep, { pipeline_stage: 'Closed' }, { id: String(id) })); return rs.body.code || rs.statusCode; },
+        status: async (id) => { const rs = await call(deals.updateDealStatus, asReq(rep, { pipeline_stage: 'Closed' }, { id: String(id) })); return rs.body.code || rs.statusCode; },
+      };
+      const mkDeal = async (label) => {
+        const ur = await mkUnit('G-' + label, 1000000);
+        return (await call(deals.createDeal, asReq(admin, { title: 'race-' + label, client_id: cust, unit_id: ur, value: 1000000, assigned_team_id: team, assigned_to: rep.id }))).body.data;
+      };
+      for (const name of Object.keys(writers)) {
+        // probe: how many pending checks does this writer make on a clean deal?
+        let calls = 0; priceS.hasPendingRequest = async (...a) => { calls++; return realHas(...a); };
+        await writers[name]((await mkDeal(name + '-probe')).id);
+        assert.ok(calls >= 1, name + ' makes at least one pending check');
+        const target = calls;
+        // real run: gate after the last check
+        const dr = await mkDeal(name);
+        let n = 0, reachedRes, gateRes; const reached = new Promise(r => reachedRes = r); const gate = new Promise(r => gateRes = r);
+        priceS.hasPendingRequest = async (...a) => { const v = await realHas(...a); if (++n === target) { reachedRes(); await gate; } return v; };
+        const closer = writers[name](dr.id);
+        await reached;                                              // closer has seen "no pending" and is about to write
+        const c1 = await env.pool.connect(); let reqSettled = false, reqPromise;
+        try {
+          await c1.query('BEGIN');
+          reqPromise = (async () => {
+            await c1.query('SELECT id FROM deals WHERE id=$1 FOR UPDATE', [dr.id]);
+            const full = (await c1.query('SELECT * FROM deals WHERE id=$1', [dr.id])).rows[0];
+            await priceS.createPriceRequest(c1, { tenantId: T, branchId: B, deal: full, requestedValue: 500000, unitPrice: 1000000, requestedBy: rep.id });
+          })().then(() => { reqSettled = true; }, () => { reqSettled = true; });
+          await new Promise(r => setTimeout(r, 600));
+          assert.equal(reqSettled, false, name + ': request writer must stay blocked while the close holds the deal lock after its pending check');
+        } finally {
+          gateRes(); await closer; await reqPromise; await c1.query('COMMIT').catch(() => {}); c1.release();
+          priceS.hasPendingRequest = realHas;
+        }
+      }
+      priceS.hasPendingRequest = realHas;
+      log('PASS concurrent request vs close: all four close writers hold the deal lock across check and write (request writer blocked at the interleaving point)');
     }
     log('ALL PASS');
   } catch (e) { console.error('FAIL', e); process.exitCode = 1; } finally { await env.stop(); }

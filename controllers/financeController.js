@@ -505,6 +505,8 @@ exports.createInvoiceFromDeal = async (req, res) => {
     const deal_id = req.params.dealId;
 
     // Dedicated connection: BEGIN, the deal row lock, the pending-request check and the writes must share one transaction.
+    // Schema bootstrap uses the pool and takes table-level locks: it must finish before this transaction starts touching invoices.
+    try { await ensureInvoicesTable(); } catch (e) { return res.status(500).json({ status: 'error', message: e.message }); }
     const c = await db.connect();
     try {
         await c.query('BEGIN');
@@ -542,7 +544,7 @@ exports.createInvoiceFromDeal = async (req, res) => {
             }
         }
 
-        const invoiceNumber = await generateInvoiceNumber(tenant_id, branch_id);
+        const invoiceNumber = await generateInvoiceNumber(tenant_id, branch_id, c);
         const invRes = await c.query(`
             INSERT INTO invoices (invoice_number, total_amount, status, tenant_id, branch_id, deal_id, client_id)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
