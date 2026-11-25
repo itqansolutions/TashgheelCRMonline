@@ -313,27 +313,50 @@ const SalesManagement = () => {
         customer_ids: selectedLeadIds,
         target_user_id: assignMode === 'rep' && assignTargetUserId ? parseInt(assignTargetUserId, 10) : undefined,
         team_id: assignMode === 'team' && assignTeamId ? parseInt(assignTeamId, 10) : undefined,
-        distribution_method: assignMode === 'team' ? distributionMethod : 'least_loaded'
+        distribution_method: assignMode === 'team' ? distributionMethod : 'least_loaded',
+        only_if_unassigned: true
       });
 
       const resData = res.data || {};
       const assignedCount = typeof resData.assigned_count === 'number' ? resData.assigned_count : totalAttempted;
 
       if (assignedCount === 0) {
-        const errMsg = resData.message || (isRTL ? 'لم يتم إسناد أي عميل' : 'No leads were assigned');
-        setDistributionResult({
-          type: 'error',
-          message: errMsg,
-          count: 0,
-          total: totalAttempted,
-          targetName: targetLabel,
-          timestamp: new Date().toLocaleTimeString()
-        });
-        toast.error(errMsg);
+        const skippedCount = typeof resData.skipped_count === 'number' ? resData.skipped_count : 0;
+        if (skippedCount > 0) {
+          const infoMsg = isRTL
+            ? `لم يتم إسناد أي عميل؛ ${skippedCount} تم إسنادهم بالفعل إلى مندوب آخر.`
+            : `No leads were assigned; ${skippedCount} already ${skippedCount === 1 ? 'has' : 'have'} an owner.`;
+          setDistributionResult({
+            type: 'info',
+            message: infoMsg,
+            count: 0,
+            total: totalAttempted,
+            targetName: targetLabel,
+            timestamp: new Date().toLocaleTimeString()
+          });
+          toast(infoMsg, { icon: 'ℹ️' });
+          setSelectedLeadIds([]);
+        } else {
+          const errMsg = resData.message || (isRTL ? 'لم يتم إسناد أي عميل' : 'No leads were assigned');
+          setDistributionResult({
+            type: 'error',
+            message: errMsg,
+            count: 0,
+            total: totalAttempted,
+            targetName: targetLabel,
+            timestamp: new Date().toLocaleTimeString()
+          });
+          toast.error(errMsg);
+        }
       } else if (assignedCount < totalAttempted) {
-        const partialMsg = isRTL 
-          ? `تم إسناد ${assignedCount} عميل من أصل ${totalAttempted} إلى ${targetLabel}. قد تكون بعض الحسابات مقيدة بنطاق الفرع.` 
-          : `Partially assigned ${assignedCount} of ${totalAttempted} leads to ${targetLabel}. Some records may belong to a restricted branch scope.`;
+        const skippedCount = typeof resData.skipped_count === 'number' ? resData.skipped_count : 0;
+        const partialMsg = skippedCount > 0
+          ? (isRTL
+            ? `تم إسناد ${assignedCount} عميل من أصل ${totalAttempted} إلى ${targetLabel}. تم تخطي ${skippedCount} (تم إسنادهم بالفعل).`
+            : `Assigned ${assignedCount} of ${totalAttempted} leads to ${targetLabel}. Skipped ${skippedCount} already assigned.`)
+          : (isRTL 
+            ? `تم إسناد ${assignedCount} عميل من أصل ${totalAttempted} إلى ${targetLabel}. قد تكون بعض الحسابات مقيدة بنطاق الفرع.` 
+            : `Partially assigned ${assignedCount} of ${totalAttempted} leads to ${targetLabel}. Some records may belong to a restricted branch scope.`);
         setDistributionResult({
           type: 'partial',
           message: partialMsg,
@@ -836,6 +859,8 @@ const SalesManagement = () => {
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
                     : distributionResult.type === 'partial'
                     ? 'bg-amber-50 border-amber-200 text-amber-900'
+                    : distributionResult.type === 'info'
+                    ? 'bg-sky-50 border-sky-200 text-sky-900'
                     : 'bg-rose-50 border-rose-200 text-rose-900'
                 }`}
               >
@@ -843,6 +868,7 @@ const SalesManagement = () => {
                   {distributionResult.type === 'success' && <CheckCircle2 size={18} className="text-emerald-600 mt-0.5 shrink-0" />}
                   {distributionResult.type === 'partial' && <AlertTriangle size={18} className="text-amber-600 mt-0.5 shrink-0" />}
                   {distributionResult.type === 'error' && <AlertCircle size={18} className="text-rose-600 mt-0.5 shrink-0" />}
+                  {distributionResult.type === 'info' && <Info size={18} className="text-sky-600 mt-0.5 shrink-0" />}
                   <div>
                     <div className="text-xs font-bold flex items-center gap-2">
                       <span>{t('salesManagement.distributionTab.lastOperation', 'Last Operation Result')}</span>

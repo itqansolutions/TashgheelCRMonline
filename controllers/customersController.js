@@ -1103,13 +1103,15 @@ exports.getCustomer360 = async (req, res) => {
 };
 
 // Helper to compute deterministic hash for idempotency integrity check
-function computeAssignmentPayloadHash({ customer_ids, target_user_id, team_id, distribution_method, active_branch_id }) {
+function computeAssignmentPayloadHash({ customer_ids, target_user_id, team_id, distribution_method, active_branch_id, only_if_unassigned }) {
   const normalized = {
     customer_ids: Array.from(new Set(customer_ids.map(Number))).sort((a, b) => a - b),
     target_user_id: target_user_id ? Number(target_user_id) : null,
     team_id: team_id ? Number(team_id) : null,
     distribution_method: team_id ? (distribution_method || 'least_loaded') : null,
-    active_branch_id: active_branch_id ? String(active_branch_id) : null
+    active_branch_id: active_branch_id ? String(active_branch_id) : null,
+    // include the flag only when set so pre-deploy idempotency keys keep their hashes
+    ...(only_if_unassigned === true ? { only_if_unassigned: true } : {})
   };
   return crypto.createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
 }
@@ -1119,7 +1121,8 @@ function computeAssignmentPayloadHash({ customer_ids, target_user_id, team_id, d
 // @access  Private (Admin, Manager, Supervisor)
 exports.bulkAssignLeads = async (req, res) => {
   const tenant_id = req.user.tenant_id;
-  const { customer_ids, target_user_id, team_id, distribution_method = 'least_loaded' } = req.body;
+  const { customer_ids, target_user_id, team_id, distribution_method = 'least_loaded', only_if_unassigned } = req.body;
+  const onlyIfUnassigned = only_if_unassigned === true || only_if_unassigned === 'true';
 
   if (!Array.isArray(customer_ids) || customer_ids.length === 0) {
     return res.status(400).json({ status: 'error', message: 'customer_ids array is required and must not be empty.' });
@@ -1147,7 +1150,8 @@ exports.bulkAssignLeads = async (req, res) => {
     target_user_id,
     team_id,
     distribution_method,
-    active_branch_id
+    active_branch_id,
+    only_if_unassigned: onlyIfUnassigned
   });
 
   const client = db.connect ? await db.connect() : await db.pool.connect();
@@ -1353,17 +1357,24 @@ exports.bulkAssignLeads = async (req, res) => {
     let assignedCount = 0;
     const assignments = [];
     const pendingEvents = [];
+    const skipped = [];
 
     if (target_user_id) {
-      await client.query(
+      const updateRes = await client.query(
         `UPDATE customers 
          SET assigned_to = $1, updated_at = CURRENT_TIMESTAMP 
-         WHERE id = ANY($2::int[]) AND tenant_id::text = $3::text`,
+         WHERE id = ANY($2::int[]) AND tenant_id::text = $3::text${onlyIfUnassigned ? ' AND assigned_to IS NULL' : ''}
+         RETURNING id`,
         [target_user_id, uniqueCustomerIds, tenant_id]
       );
-      assignedCount = uniqueCustomerIds.length;
+      const assignedIds = new Set(updateRes.rows.map(r => r.id));
+      assignedCount = assignedIds.size;
 
       for (const cust of customersRes.rows) {
+        if (!assignedIds.has(cust.id)) {
+          skipped.push({ customer_id: cust.id, name: cust.name });
+          continue;
+        }
         assignments.push({ customer_id: cust.id, assigned_to: target_user_id });
 
         await logActivity(tenant_id, req.user, 'customer', cust.id, 'reassigned', {
@@ -1395,10 +1406,14 @@ exports.bulkAssignLeads = async (req, res) => {
           ? members.sort((a, b) => a.current_load - b.current_load)[0]
           : members[memberIdx % members.length];
 
-        await client.query(
-          `UPDATE customers SET assigned_to = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text`,
+        const memberUpdate = await client.query(
+          `UPDATE customers SET assigned_to = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND tenant_id::text = $3::text${onlyIfUnassigned ? ' AND assigned_to IS NULL' : ''} RETURNING id`,
           [selectedMember.user_id, cust.id, tenant_id]
         );
+        if (memberUpdate.rows.length === 0) {
+          skipped.push({ customer_id: cust.id, name: cust.name });
+          continue;
+        }
         selectedMember.current_load++;
         memberIdx++;
         assignedCount++;
@@ -1429,14 +1444,25 @@ exports.bulkAssignLeads = async (req, res) => {
       }
     }
 
+    let message;
+    if (assignedCount === 0 && skipped.length > 0) {
+      message = `No leads were assigned; ${skipped.length} already ${skipped.length === 1 ? 'has' : 'have'} an owner.`;
+    } else {
+      message = target_user_id
+        ? `Successfully assigned ${assignedCount} leads to ${targetUser.name}.`
+        : `Successfully distributed ${assignedCount} leads across ${members.length} team members.`;
+      if (skipped.length > 0) {
+        message += ` ${skipped.length} skipped (already assigned).`;
+      }
+    }
     const responseBody = {
       status: 'success',
-      message: target_user_id
-        ? `Successfully assigned ${assignedCount} leads to ${targetUser.name}.`
-        : `Successfully distributed ${assignedCount} leads across ${members.length} team members.`,
+      message,
       assigned_count: assignedCount,
       distribution_method: team_id ? distribution_method : 'direct',
-      assignments
+      assignments,
+      skipped_count: skipped.length,
+      skipped
     };
 
     // 8. Atomic Insert of Idempotency Record
