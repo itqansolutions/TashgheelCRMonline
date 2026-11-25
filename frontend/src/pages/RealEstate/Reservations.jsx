@@ -33,7 +33,7 @@ const Reservations = () => {
       const hours = h % 24;
       return {
         text: (
-          <span>
+          <span dir="ltr" className="reservation-time-left" style={{ display: 'inline-block', unicodeBidi: 'isolate' }}>
             <span className="num-en">{days}</span> {t('realEstate.reservations.dayUnit')} <span className="num-en">{hours}</span>h
           </span>
         ),
@@ -43,7 +43,7 @@ const Reservations = () => {
     const mins = Math.floor((ms % 3600000) / 60000);
     return {
       text: (
-        <span>
+        <span dir="ltr" className="reservation-time-left" style={{ display: 'inline-block', unicodeBidi: 'isolate' }}>
           <span className="num-en">{h}</span>h <span className="num-en">{mins}</span>m
         </span>
       ),
@@ -139,10 +139,10 @@ const Reservations = () => {
       render: (_, d) => (
         <div style={{ display: 'flex', gap: '6px', justifyContent: isRTL ? 'flex-start' : 'flex-end' }}>
           <ActionButton color="#16a34a" onClick={() => extend(d.id, 24)}>
-            <span className="num-en">+24</span>h
+            <span dir="ltr" style={{ display: 'inline-block', unicodeBidi: 'isolate' }}><span className="num-en">+24</span>h</span>
           </ActionButton>
           <ActionButton color="#0d9488" onClick={() => extend(d.id, 48)}>
-            <span className="num-en">+48</span>h
+            <span dir="ltr" style={{ display: 'inline-block', unicodeBidi: 'isolate' }}><span className="num-en">+48</span>h</span>
           </ActionButton>
           <ActionButton outline color="#2563eb" onClick={() => navigate('/deals')}>
             {t('realEstate.reservations.btnDeal')}
