@@ -16,6 +16,17 @@ const h = require('./helpers/pgHarness.cjs');
     assert.equal(r.statusCode, 200, JSON.stringify(r.body));
     const ids = (r.body.data || []).map(x => x.id); assert.deepEqual(ids, [free]);
     log('PASS unassigned=true returns only manager_id NULL customers (no integer cast error)');
+    // bulk assign (the hub's execute button): must work against a users table that has no is_active column
+    const usersCols = (await q("SELECT column_name FROM information_schema.columns WHERE table_name='users'")).rows.map(x => x.column_name);
+    log('users has is_active column:', usersCols.includes('is_active'));
+    const D = (await q("INSERT INTO departments(name,tenant_id) VALUES('d',$1) RETURNING id", [T])).rows[0].id;
+    const rep = (await q("INSERT INTO users(name,email,password_hash,role,tenant_id,branch_id,department_id) VALUES('rep','rep@x.io','x','employee',$1,$2,$3) RETURNING *", [T, B, D])).rows[0];
+    const team = (await q("INSERT INTO sales_teams(tenant_id,branch_id,department_id,name,manager_id) VALUES($1,$2,$3,'Team1',$4) RETURNING id", [T, B, D, admin.id])).rows[0].id;
+    await q("INSERT INTO sales_team_members(tenant_id,team_id,user_id) VALUES($1,$2,$3)", [T, team, rep.id]);
+    const r2 = h.mockRes(); await customers.bulkAssignLeads({ user: admin, branchId: B, headers: {}, query: {}, params: {}, body: { customer_ids: [free], team_id: team, distribution_method: 'round_robin' } }, r2);
+    assert.equal(r2.statusCode, 200, JSON.stringify(r2.body)); assert.equal(r2.body.assigned_count, 1);
+    assert.equal(String((await q('SELECT assigned_to FROM customers WHERE id=$1', [free])).rows[0].assigned_to), String(rep.id));
+    log('PASS bulk-assign to a team assigns the lead (no users.is_active dependency)');
     log('ALL PASS');
   } finally { await env.stop(); }
 })().catch(e => { console.error('FAIL', e); process.exit(1); });

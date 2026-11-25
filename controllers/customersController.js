@@ -1219,14 +1219,14 @@ exports.bulkAssignLeads = async (req, res) => {
 
     // 3. Verify Caller Account & Active Branch Authorization
     const callerRes = await client.query(
-      `SELECT id, role, is_active, branch_id 
+      `SELECT id, role, branch_id 
        FROM users 
        WHERE id = $1 AND tenant_id::text = $2::text 
        FOR SHARE`,
       [req.user.id, tenant_id]
     );
 
-    if (callerRes.rows.length === 0 || !callerRes.rows[0].is_active) {
+    if (callerRes.rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(403).json({ status: 'error', message: 'Caller account is inactive or unauthorized.' });
     }
@@ -1249,7 +1249,7 @@ exports.bulkAssignLeads = async (req, res) => {
     // 4. Validate Target Rep (Mode A)
     if (target_user_id) {
       const targetUserRes = await client.query(
-        `SELECT id, name, role, is_active, COALESCE(is_working, true) as is_working, branch_id 
+        `SELECT id, name, role, COALESCE(is_working, true) as is_working, branch_id 
          FROM users 
          WHERE id = $1 AND tenant_id::text = $2::text 
          FOR SHARE`,
@@ -1261,7 +1261,7 @@ exports.bulkAssignLeads = async (req, res) => {
       }
       targetUser = targetUserRes.rows[0];
 
-      if (!targetUser.is_active || !targetUser.is_working) {
+      if (!targetUser.is_working) {
         await client.query('ROLLBACK');
         return res.status(422).json({ status: 'error', message: 'Target sales representative is inactive or not currently working.' });
       }
@@ -1308,7 +1308,6 @@ exports.bulkAssignLeads = async (req, res) => {
         WHERE stm.team_id = $2 
           AND stm.tenant_id::text = $1::text 
           AND stm.is_active = true
-          AND u.is_active = true
           AND COALESCE(u.is_working, true) = true
           AND (
             $3::text IS NULL
@@ -1329,7 +1328,7 @@ exports.bulkAssignLeads = async (req, res) => {
     // 6. Lock Customers in Deterministic Order (ORDER BY id ASC FOR UPDATE)
     const uniqueCustomerIds = Array.from(new Set(customer_ids.map(Number))).sort((a, b) => a - b);
     const customersRes = await client.query(
-      `SELECT id, name, phone, branch_id, assigned_to, department_id, tenant_id 
+      `SELECT id, name, phone, branch_id, assigned_to, tenant_id 
        FROM customers 
        WHERE id = ANY($1::int[]) AND tenant_id::text = $2::text 
        ORDER BY id ASC 
