@@ -96,6 +96,28 @@ const h = require('./helpers/pgHarness.cjs');
     await q("INSERT INTO re_rental_occupancies(id,tenant_id,unit_id,handover_id,ends_on,reminder_lead_days) VALUES(gen_random_uuid(),$1,$2,$3,'2028-01-01',1)", [String(T), U.unit.id, U.ho.id]);
     r = await call(hc.updateHandoverStatus, rq(admin, { status: 'Handed Over', rental_reminder_lead_days: 5 }, { id: U.ho.id })); assert.ok([409].includes(r.statusCode), 'got ' + r.statusCode + JSON.stringify(r.body));
     log('PASS repeated/conflicting handover completion is clean');
+    // no responsible person, no team, no members -> admin/manager fallback (eligible, same tenant/branch only)
+    const offAdmin = await mk('offadmin', 'admin', T, false);
+    const E = await base('E', null, null);
+    r = await call(hc.updateHandoverStatus, rq(admin, { status: 'Handed Over', rental_reminder_lead_days: 0, rental_ends_on: '2027-03-15' }, { id: E.ho.id })); assert.equal(r.statusCode, 200);
+    const eocc = (await q('SELECT id FROM re_rental_occupancies WHERE unit_id=$1', [E.unit.id])).rows[0].id;
+    const er = await svc.resolveRecipients(env.pool, { id: eocc, tenant_id: String(T) });
+    assert.equal(er.source, 'admin_manager_fallback'); assert.deepEqual(er.users.map(u => u.id).sort(), [admin.id, mgr.id].sort());
+    assert.ok(!er.users.some(u => [offAdmin.id, foreign.id, f2.id, emp.id].includes(u.id)), 'not-working, foreign-tenant admins and plain employees never receive');
+    s = await svc.scanDueAlerts(env.pool, { now: '2027-03-15T07:00:00Z' }); assert.equal(s.noRecipients, 0);
+    assert.equal((await q("SELECT count(*)::int n FROM re_rental_alert_deliveries WHERE occupancy_id=$1", [eocc])).rows[0].n, 2);
+    s = await svc.scanDueAlerts(env.pool, { now: '2027-03-15T08:00:00Z' }); assert.equal(s.delivered, 0, 'fallback deliveries dedupe on rescan');
+    log('PASS no-recipient occupancy falls back to eligible admin/manager users, deduped');
+    // true no-recipient guard: no eligible admin/manager at all -> counted, occupancy id logged
+    await q("UPDATE users SET is_working=false WHERE role IN ('admin','manager') AND tenant_id=$1", [T]);
+    const F = await base('F', null, null);
+    r = await call(hc.updateHandoverStatus, rq(admin, { status: 'Handed Over', rental_reminder_lead_days: 0, rental_ends_on: '2027-03-16' }, { id: F.ho.id })); assert.equal(r.statusCode, 200);
+    const focc = (await q('SELECT id FROM re_rental_occupancies WHERE unit_id=$1', [F.unit.id])).rows[0].id;
+    const logs = []; const ol = console.log; console.log = (...a) => { logs.push(a.join(' ')); };
+    try { s = await svc.scanDueAlerts(env.pool, { now: '2027-03-16T07:00:00Z' }); } finally { console.log = ol; }
+    assert.equal(s.noRecipients, 2, 'F plus E (E already delivered but admins now disabled, so still unresolved)'); assert.ok(logs.some(l => l.includes('noRecipientOccupancies=') && l.includes(String(focc))), 'scanner line names the occupancy id: ' + logs.join('|'));
+    await q("UPDATE users SET is_working=true WHERE role IN ('admin','manager') AND tenant_id=$1 AND name<>'offadmin'", [T]);
+    log('PASS true no-recipient case is counted and the occupancy id is logged');
     // scanner survives a rejected connection
     const flaky = { query: (...a) => env.pool.query(...a), connect: async () => { throw new Error('pool exhausted'); } };
     const res = await svc.scanDueAlerts(flaky, { now: '2030-01-01T00:00:00Z' }); assert.ok(res.processed >= 0);

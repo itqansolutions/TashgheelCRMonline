@@ -105,7 +105,13 @@ async function resolveRecipients(queryable, occ) {
         WHERE stm.team_id = $3 AND stm.tenant_id::text = $1::text AND ${eligible}`, [occ.tenant_id, ctx.branch_id, ctx.assigned_team_id]);
     t.rows.forEach(r => out.set(String(r.id), r)); source = 'manager_and_team';
   }
-  if (out.size === 0) source = 'none';
+  if (out.size === 0) {
+    // Last resort so a due alert is never dropped: the tenant's admin/manager staff for the occupancy's branch.
+    const a = await queryable.query(
+      `SELECT u.id, u.name FROM users u WHERE u.role IN ('admin','manager') AND ${eligible}`, [occ.tenant_id, ctx.branch_id]);
+    a.rows.forEach(r => out.set(String(r.id), r));
+    source = out.size ? 'admin_manager_fallback' : 'none';
+  }
   return { users: [...out.values()], source };
 }
 
@@ -117,7 +123,7 @@ async function scanDueAlerts(db, { limit = 200, now = null } = {}) {
   } catch (e) {
     console.warn('[RentalAlerts] Scanner notice:', e.message); return { processed: 0, delivered: 0, noRecipients: 0 };
   }
-  let delivered = 0, noRecipients = 0;
+  let delivered = 0, noRecipients = 0; const noRecipientIds = [];
   for (const { id } of ids) {
     let client;
     try { client = await db.connect(); } catch (e) { console.warn('[RentalAlerts] connection unavailable:', e.message); break; }
@@ -130,7 +136,7 @@ async function scanDueAlerts(db, { limit = 200, now = null } = {}) {
       const occ = lock.rows[0];
       if (!occ) { await client.query('ROLLBACK'); continue; }
       const { users } = await resolveRecipients(client, occ);
-      if (users.length === 0) { noRecipients++; await client.query('COMMIT'); continue; }
+      if (users.length === 0) { noRecipients++; noRecipientIds.push(String(id)); await client.query('COMMIT'); continue; }
       for (const u of users) {
         const ins = await client.query(
           `INSERT INTO re_rental_alert_deliveries (id, tenant_id, occupancy_id, revision, recipient_user_id, recipient_snapshot, kind, due_at)
@@ -154,7 +160,7 @@ async function scanDueAlerts(db, { limit = 200, now = null } = {}) {
       console.warn('[RentalAlerts] occupancy failed:', id, e.message);
     } finally { client.release(); }
   }
-  if (ids.length) console.log(`[RentalAlerts] due=${ids.length} delivered=${delivered} noRecipients=${noRecipients}`);
+  if (ids.length) console.log(`[RentalAlerts] due=${ids.length} delivered=${delivered} noRecipients=${noRecipients}${noRecipientIds.length ? ' noRecipientOccupancies=' + noRecipientIds.join(',') : ''}`);
   return { processed: ids.length, delivered, noRecipients };
 }
 
