@@ -8,6 +8,13 @@
  * - Reuses accessScopeService for hierarchical manager scoping and multi-tenant isolation.
  */
 
+// Stage classification is case-insensitive: real estate uses 'Closed'/'Lost', generic templates 'won'/'lost'.
+const WON_STAGES_SQL = "('won', 'closed', 'closed won', 'closed_won', 'contracted')";
+const LOST_STAGES_SQL = "('lost', 'closed lost', 'closed_lost')";
+const ALL_FINAL_STAGES_SQL = "('won', 'closed', 'closed won', 'closed_won', 'contracted', 'lost', 'closed lost', 'closed_lost', 'cancelled')";
+const stageIn = (col, list) => `LOWER(TRIM(COALESCE(${col}, ''))) IN ${list}`;
+const stageNotIn = (col, list) => `LOWER(TRIM(COALESCE(${col}, ''))) NOT IN ${list}`;
+
 const db = require('../config/db');
 const accessScopeService = require('../services/accessScopeService');
 const salesTargetService = require('../services/salesTargetService');
@@ -103,24 +110,28 @@ exports.getOverview = async (req, res) => {
       FROM deals d
       LEFT JOIN users u ON d.assigned_to = u.id
       WHERE ${dealWhere.join(' AND ')}
-        AND d.pipeline_stage NOT IN ('won', 'lost', 'cancelled')
+        AND ${stageNotIn('d.pipeline_stage', ALL_FINAL_STAGES_SQL)}
         AND d.updated_at < NOW() - INTERVAL '14 days'
       ORDER BY d.updated_at ASC
       LIMIT 10
     `, dealParams).catch(() => ({ rows: [] }));
 
     // d) Lost reasons distribution
-    const lostReasonsRes = await db.query(`
+    // Deals lost through the Cancellation workflow keep their reason in re_cancellations, not custom_fields.
+    const lostReasonSql = (withCancellations) => `
       SELECT 
-        COALESCE(d.custom_fields->>'lost_reason', 'Unspecified') as reason,
+        ${withCancellations ? "COALESCE(NULLIF(d.custom_fields->>'lost_reason', ''), NULLIF(rc.cancellation_reason, ''), 'Unspecified')" : "COALESCE(d.custom_fields->>'lost_reason', 'Unspecified')"} as reason,
         COUNT(*)::int as count,
         COALESCE(SUM(d.value), 0) as lost_value
       FROM deals d
+      ${withCancellations ? "LEFT JOIN re_cancellations rc ON rc.deal_id = d.id AND rc.tenant_id::text = d.tenant_id::text" : ''}
       WHERE ${dealWhere.join(' AND ')}
-        AND d.pipeline_stage = 'lost'
-      GROUP BY COALESCE(d.custom_fields->>'lost_reason', 'Unspecified')
+        AND ${stageIn('d.pipeline_stage', LOST_STAGES_SQL)}
+      GROUP BY 1
       ORDER BY count DESC
-    `, dealParams).catch(() => ({ rows: [] }));
+    `;
+    let lostReasonsRes = await db.query(lostReasonSql(true), dealParams).catch(() => null);
+    if (!lostReasonsRes) lostReasonsRes = await db.query(lostReasonSql(false), dealParams).catch(() => ({ rows: [] }));
 
     // 5. Team Target & Revenue / Collection Aggregation
     let targetSummary = { target_amount: 0, achieved_amount: 0, achievement_rate: 0 };
@@ -177,9 +188,9 @@ exports.getOverview = async (req, res) => {
     // 6. Win Rate & Average Closing Days
     const winRateRes = await db.query(`
       SELECT 
-        COUNT(d.id) FILTER (WHERE d.pipeline_stage = 'won')::int as won_count,
-        COUNT(d.id) FILTER (WHERE d.pipeline_stage = 'lost')::int as lost_count,
-        AVG(EXTRACT(EPOCH FROM (d.updated_at - d.created_at)) / 86400) FILTER (WHERE d.pipeline_stage = 'won')::numeric(10,1) as avg_closing_days
+        COUNT(d.id) FILTER (WHERE ${stageIn('d.pipeline_stage', WON_STAGES_SQL)})::int as won_count,
+        COUNT(d.id) FILTER (WHERE ${stageIn('d.pipeline_stage', LOST_STAGES_SQL)})::int as lost_count,
+        AVG(EXTRACT(EPOCH FROM (d.updated_at - d.created_at)) / 86400) FILTER (WHERE ${stageIn('d.pipeline_stage', WON_STAGES_SQL)})::numeric(10,1) as avg_closing_days
       FROM deals d
       WHERE ${dealWhere.join(' AND ')}
     `, dealParams);
@@ -267,10 +278,10 @@ exports.getTeamPerformance = async (req, res) => {
         b.name as branch_name,
         d.name as department_name,
         -- Deals Counts
-        COUNT(dl.id) FILTER (WHERE dl.pipeline_stage NOT IN ('won', 'lost', 'cancelled'))::int as open_deals,
-        COUNT(dl.id) FILTER (WHERE dl.pipeline_stage = 'won')::int as won_deals,
-        COUNT(dl.id) FILTER (WHERE dl.pipeline_stage = 'lost')::int as lost_deals,
-        COALESCE(SUM(dl.value) FILTER (WHERE dl.pipeline_stage = 'won'), 0) as total_won_value,
+        COUNT(dl.id) FILTER (WHERE ${stageNotIn('dl.pipeline_stage', ALL_FINAL_STAGES_SQL)})::int as open_deals,
+        COUNT(dl.id) FILTER (WHERE ${stageIn('dl.pipeline_stage', WON_STAGES_SQL)})::int as won_deals,
+        COUNT(dl.id) FILTER (WHERE ${stageIn('dl.pipeline_stage', LOST_STAGES_SQL)})::int as lost_deals,
+        COALESCE(SUM(dl.value) FILTER (WHERE ${stageIn('dl.pipeline_stage', WON_STAGES_SQL)}), 0) as total_won_value,
         -- Assigned Customers / Leads
         (SELECT COUNT(*)::int FROM customers c WHERE c.assigned_to = u.id AND c.tenant_id::text = u.tenant_id::text) as total_leads,
         -- Overdue Tasks
