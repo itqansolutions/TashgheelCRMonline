@@ -9,13 +9,15 @@ const h = require('./helpers/pgHarness.cjs');
     const admin = (await q("INSERT INTO users(name,email,password_hash,role,tenant_id,branch_id) VALUES('a','a@x.io','x','admin',$1,$2) RETURNING *", [T, B])).rows[0];
     const colType = (await q("SELECT data_type FROM information_schema.columns WHERE table_name='customers' AND column_name='manager_id'")).rows[0];
     log('customers.manager_id type:', colType && colType.data_type);
-    const mk = async (n, mgr) => (await q("INSERT INTO customers(name,tenant_id,branch_id,assigned_to,manager_id,status) VALUES($1,$2,$3,$4,$5,'lead') RETURNING id", [n, T, B, admin.id, mgr])).rows[0].id;
-    const free = await mk('free', null); await mk('managed', admin.id);
+    const mk = async (n, owner, mgr) => (await q("INSERT INTO customers(name,tenant_id,branch_id,assigned_to,manager_id,status) VALUES($1,$2,$3,$4,$5,'lead') RETURNING id", [n, T, B, owner, mgr])).rows[0].id;
+    const free = await mk('ownerless', null, null);          // case 1: no owner, no manager -> in pool
+    const ownerOnly = await mk('owner-no-manager', admin.id, null); // case 2: owned, manager NULL -> NOT in pool (the 7444 bug)
+    const mgrOnly = await mk('manager-no-owner', null, admin.id);   // case 3: no owner, manager override set -> still ownerless, in pool
     const customers = require('../controllers/customersController');
     const r = h.mockRes(); await customers.getCustomers({ user: admin, branchId: B, query: { unassigned: 'true', limit: '50' }, body: {}, params: {} }, r);
     assert.equal(r.statusCode, 200, JSON.stringify(r.body));
-    const ids = (r.body.data || []).map(x => x.id); assert.deepEqual(ids, [free]);
-    log('PASS unassigned=true returns only manager_id NULL customers (no integer cast error)');
+    const ids = (r.body.data || []).map(x => x.id).sort((a, b) => a - b); assert.deepEqual(ids, [free, mgrOnly].sort((a, b) => a - b)); assert(!ids.includes(ownerOnly));
+    log('PASS unassigned=true means assigned_to IS NULL (3 cases); owned customer with NULL manager is not in the pool');
     // bulk assign (the hub's execute button): must work against a users table that has no is_active column
     const usersCols = (await q("SELECT column_name FROM information_schema.columns WHERE table_name='users'")).rows.map(x => x.column_name);
     log('users has is_active column:', usersCols.includes('is_active'));
@@ -26,6 +28,10 @@ const h = require('./helpers/pgHarness.cjs');
     const r2 = h.mockRes(); await customers.bulkAssignLeads({ user: admin, branchId: B, headers: {}, query: {}, params: {}, body: { customer_ids: [free], team_id: team, distribution_method: 'round_robin' } }, r2);
     assert.equal(r2.statusCode, 200, JSON.stringify(r2.body)); assert.equal(r2.body.assigned_count, 1);
     assert.equal(String((await q('SELECT assigned_to FROM customers WHERE id=$1', [free])).rows[0].assigned_to), String(rep.id));
+    assert.equal((await q('SELECT manager_id FROM customers WHERE id=$1', [free])).rows[0].manager_id, null);
+    const r3 = h.mockRes(); await customers.getCustomers({ user: admin, branchId: B, query: { unassigned: 'true', limit: '50' }, body: {}, params: {} }, r3);
+    assert(!(r3.body.data || []).some(x => x.id === free)); assert.equal((await q('SELECT manager_id FROM customers WHERE id=$1', [mgrOnly])).rows[0].manager_id, admin.id);
+    log('PASS distributed customer leaves the pool, manager_id untouched, unrelated manager override untouched');
     log('PASS bulk-assign to a team assigns the lead (no users.is_active dependency)');
     log('ALL PASS');
   } finally { await env.stop(); }

@@ -196,7 +196,7 @@ exports.getCustomers = async (req, res) => {
       params.push(req.query.manager_id);
   }
   if (req.query.unassigned === 'true') {
-      query += ` AND (c.manager_id IS NULL OR c.manager_id::text = '')`;
+      query += ` AND (c.assigned_to IS NULL OR c.assigned_to::text = '')`;
   }
 
   query += ` ORDER BY c.created_at DESC NULLS LAST, c.id DESC`;
