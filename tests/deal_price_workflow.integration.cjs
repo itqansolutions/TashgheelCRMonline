@@ -23,10 +23,13 @@ const h = require('./helpers/pgHarness.cjs');
     const call = async (fn, req) => { const r = h.mockRes(); await fn(req, r); return r; };
     const val = async (id) => Number((await q('SELECT value FROM deals WHERE id=$1', [id])).rows[0].value);
 
-    // 0. before migration: lower price just saves (workflow skipped, nothing breaks)
+    // 0. before migration: unit-linked deal saves FAIL CLOSED (503), nothing is stored; deals without a unit still save
     const u0 = await mkUnit('U0', 1000000);
     let r = await call(deals.createDeal, asReq(admin, { title: 'pre-migration', client_id: cust, unit_id: u0, value: 900000 }));
-    assert.equal(r.statusCode, 201, JSON.stringify(r.body)); assert.equal(r.body.data.value, '900000.00'); log('PASS before migration the deal save is unaffected');
+    assert.equal(r.statusCode, 503, JSON.stringify(r.body)); assert.equal(r.body.code, 'PRICE_WORKFLOW_UNAVAILABLE');
+    assert.equal((await q("SELECT count(*)::int n FROM deals WHERE title='pre-migration'")).rows[0].n, 0);
+    r = await call(deals.createDeal, asReq(admin, { title: 'no-unit-deal', client_id: cust, value: 5000 })); assert.equal(r.statusCode, 201, JSON.stringify(r.body));
+    log('PASS before migration: unit-linked save fails closed, no-unit deal unaffected');
     await q(fs.readFileSync(path.join(h.root, 'ops/proposals/deal_price_workflow.sql'), 'utf8'));
     await q(fs.readFileSync(path.join(h.root, 'ops/proposals/deal_price_workflow.sql'), 'utf8')); log('PASS migration is idempotent');
 
@@ -98,6 +101,32 @@ const h = require('./helpers/pgHarness.cjs');
     r = await call(deals.createDeal, asReq(admin, { title: 'term', client_id: cust, unit_id: u5, value: 400000, assigned_team_id: team, assigned_to: rep.id })); const dT = r.body.data.id; const pT = (await q("SELECT id FROM deal_price_approvals WHERE deal_id=$1", [dT])).rows[0].id;
     await q("UPDATE deals SET pipeline_stage='Lost' WHERE id=$1", [dT]);
     r = await call(priceC.approve, asReq(teamMgr, {}, { approvalId: pT })); assert.equal(r.statusCode, 409); assert.equal(await val(dT), 1000000); log('PASS terminal deal request not applied');
+    // 11. admin may approve own request; non-admin requester may not
+    const u6 = await mkUnit('U6', 1000000);
+    r = await call(deals.createDeal, asReq(admin, { title: 'admin-self', client_id: cust, unit_id: u6, value: 300000 })); assert.equal(r.statusCode, 201, JSON.stringify(r.body));
+    const sa = (await q("SELECT * FROM deal_price_approvals WHERE deal_id=$1", [r.body.data.id])).rows[0]; assert.equal(sa.approver_route, 'admin'); assert.equal(sa.requested_by, admin.id);
+    r = await call(priceC.approve, asReq(admin, {}, { approvalId: sa.id })); assert.equal(r.statusCode, 200, JSON.stringify(r.body)); assert.equal(await val(sa.deal_id), 300000);
+    const u7 = await mkUnit('U7', 1000000);
+    r = await call(deals.createDeal, asReq(repB, { title: 'rep-self', client_id: cust, unit_id: u7, value: 300000 })); const ra = (await q("SELECT * FROM deal_price_approvals WHERE deal_id=$1", [r.body.data.id])).rows[0];
+    r = await call(priceC.approve, asReq(repB, {}, { approvalId: ra.id })); assert.equal(r.statusCode, 403); assert.equal(await val(ra.deal_id), 1000000);
+    log('PASS admin may self-approve; non-admin requester cannot');
+    // 12. deals with price history/requests cannot be deleted; history stays
+    const before = (await q("SELECT count(*)::int n FROM deal_price_changes WHERE deal_id=$1", [d1])).rows[0].n;
+    r = await call(deals.deleteDeal, asReq(admin, {}, { id: String(d1) })); assert.equal(r.statusCode, 409, JSON.stringify(r.body)); assert.equal(r.body.code, 'PRICE_HISTORY_RETAINED');
+    assert.equal((await q("SELECT count(*)::int n FROM deals WHERE id=$1", [d1])).rows[0].n, 1); assert.equal((await q("SELECT count(*)::int n FROM deal_price_changes WHERE deal_id=$1", [d1])).rows[0].n, before);
+    await assert.rejects(() => q("DELETE FROM deals WHERE id=$1", [d1]), /foreign key|violates/i); log('PASS deletion blocked (API and FK), history retained');
+    // 13. other close writers blocked while pending
+    const u8 = await mkUnit('U8', 1000000);
+    r = await call(deals.createDeal, asReq(admin, { title: 'inv-block', client_id: cust, unit_id: u8, value: 200000, assigned_team_id: team, assigned_to: rep.id })); const dI = r.body.data.id;
+    assert.equal((await q("SELECT count(*)::int n FROM deal_price_approvals WHERE deal_id=$1 AND status='pending'", [dI])).rows[0].n, 1);
+    // harness-only: align deals.unit_id with re_units.id (uuid) so the existing salesService join runs
+    await q('ALTER TABLE deals ALTER COLUMN unit_id TYPE uuid USING unit_id::uuid').catch(() => {});
+    for (const c of ['floor text', 'area numeric', 'type text']) await q('ALTER TABLE re_units ADD COLUMN IF NOT EXISTS ' + c);
+    const salesService = require('../services/salesService'); const fin = require('../controllers/financeController');
+    await assert.rejects(() => salesService.convertDealToInvoice(dI, T), e => { if (e.code !== 'PRICE_APPROVAL_PENDING') console.log('ERRDBG', e.message); return e.code === 'PRICE_APPROVAL_PENDING'; });
+    r = await call(fin.createInvoiceFromDeal, asReq(admin, {}, { dealId: String(dI) })); assert.equal(r.statusCode, 409, JSON.stringify(r.body)); assert.equal(r.body.code, 'PRICE_APPROVAL_PENDING');
+    assert.equal((await q("SELECT pipeline_stage FROM deals WHERE id=$1", [dI])).rows[0].pipeline_stage.toLowerCase() === 'won', false); assert.equal((await q("SELECT count(*)::int n FROM invoices WHERE deal_id=$1", [dI])).rows[0].n, 0);
+    log('PASS finance and sales invoice-close writers blocked while pending');
     log('ALL PASS');
   } catch (e) { console.error('FAIL', e); process.exitCode = 1; } finally { await env.stop(); }
 })();

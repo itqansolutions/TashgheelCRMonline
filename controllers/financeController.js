@@ -531,6 +531,15 @@ exports.createInvoiceFromDeal = async (req, res) => {
             });
         }
 
+        // A pending price-approval request blocks invoicing and closing the deal (invoice marks it won).
+        {
+            const dealPriceService = require('../services/dealPriceService');
+            if (await dealPriceService.tablesReady(db) && await dealPriceService.hasPendingRequest(db, deal.id, tenant_id)) {
+                await db.query('ROLLBACK');
+                return res.status(409).json({ status: 'error', code: 'PRICE_APPROVAL_PENDING', message: 'A price approval request is pending for this deal. It cannot be invoiced or closed until the manager decides.' });
+            }
+        }
+
         const invoiceNumber = await generateInvoiceNumber(tenant_id, branch_id);
         const invRes = await db.query(`
             INSERT INTO invoices (invoice_number, total_amount, status, tenant_id, branch_id, deal_id, client_id)

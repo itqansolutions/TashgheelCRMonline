@@ -344,6 +344,16 @@ exports.convertDealToInvoice = async (dealId, tenant_id) => {
     invoiceNotes = `🏢 ${deal.project_name}\nUnit #${deal.unit_number} — ${deal.unit_type}\nFloor ${deal.floor} • ${deal.area}m²`;
   }
 
+  // A pending price-approval request blocks invoicing and closing the deal.
+  {
+    const dealPriceService = require('./dealPriceService');
+    if (await dealPriceService.tablesReady(db) && await dealPriceService.hasPendingRequest(db, deal.id, tenant_id)) {
+      const err = new Error('A price approval request is pending for this deal. It cannot be invoiced or closed until the manager decides.');
+      err.statusCode = 409; err.code = 'PRICE_APPROVAL_PENDING';
+      throw err;
+    }
+  }
+
   // 3. Create Invoice with tenant context
   const invoiceNumber = `INV-${Date.now()}`;
   const invoiceResult = await db.query(

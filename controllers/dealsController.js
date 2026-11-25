@@ -604,7 +604,12 @@ exports.createDeal = async (req, res) => {
 
       // Price rule: below the unit price needs the manager's approval; the deal is stored at the unit price until then.
       createUnitPrice = null;
-      if (cleanUnitId && await dealPriceService.tablesReady(client)) {
+      if (cleanUnitId && !(await dealPriceService.tablesReady(client))) {
+        // Fail closed: a unit-linked deal must not be saved without the price history and approval rules.
+        await client.query('ROLLBACK');
+        return res.status(503).json({ status: 'error', code: 'PRICE_WORKFLOW_UNAVAILABLE', message: 'Deal price workflow is not available. The deal was not saved.' });
+      }
+      if (cleanUnitId) {
         createUnitPrice = await dealPriceService.getUnitPrice(client, cleanUnitId, tenant_id);
         if (createUnitPrice && cleanValue > 0 && cleanValue < createUnitPrice) {
           createPriceReq = { requestedValue: cleanValue, unitPrice: createUnitPrice };
@@ -943,6 +948,9 @@ exports.updateDeal = async (req, res) => {
     let priceRequest = null;
     let priceUnitPrice = null;
     const priceWorkflowReady = cleanUnitId ? await dealPriceService.tablesReady(db) : false;
+    if (cleanUnitId && !priceWorkflowReady) {
+      return res.status(503).json({ status: 'error', code: 'PRICE_WORKFLOW_UNAVAILABLE', message: 'Deal price workflow is not available. The deal was not saved.' });
+    }
     if (priceWorkflowReady) {
       priceUnitPrice = await dealPriceService.getUnitPrice(db, cleanUnitId, tenant_id);
       if (priceUnitPrice && Number(cleanValue || 0) !== Number(oldData.value || 0) && Number(cleanValue) > 0 && Number(cleanValue) < priceUnitPrice) {
@@ -1389,6 +1397,10 @@ exports.deleteDeal = async (req, res) => {
         code: 'DEAL_LOCKED',
         message: `${lock.reason}. Closed or contracted deals cannot be deleted. Use the Cancellation workflow instead.`
       });
+    }
+
+    if (await dealPriceService.hasHistory(db, existing.rows[0].id, tenant_id)) {
+      return res.status(409).json({ status: 'error', code: 'PRICE_HISTORY_RETAINED', message: 'This deal has price history or price approval records and cannot be deleted, so the record is kept.' });
     }
 
     const result = await db.query(

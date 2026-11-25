@@ -92,7 +92,7 @@ exports.createInvoiceFromDeal = async (req, res) => {
     res.status(201).json({ status: 'success', data: invoice });
   } catch (err) {
     console.error(err.message);
-    res.status(400).json({ status: 'error', message: err.message });
+    res.status(err.code === 'PRICE_APPROVAL_PENDING' ? 409 : 400).json({ status: 'error', ...(err.code === 'PRICE_APPROVAL_PENDING' ? { code: err.code } : {}), message: err.message });
   }
 };
 

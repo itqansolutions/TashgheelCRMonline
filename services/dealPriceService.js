@@ -26,6 +26,13 @@ async function tablesReady(q) {
   return _ready;
 }
 
+async function hasHistory(q, dealId, tenantId) {
+  if (!(await tablesReady(q))) return false;
+  const r = await q.query(`SELECT (EXISTS (SELECT 1 FROM deal_price_changes WHERE deal_id = $1 AND tenant_id::text = $2::text)
+                              OR EXISTS (SELECT 1 FROM deal_price_approvals WHERE deal_id = $1 AND tenant_id::text = $2::text)) AS h`, [dealId, String(tenantId)]);
+  return !!r.rows[0].h;
+}
+
 async function getUnitPrice(q, unitId, tenantId) {
   if (!unitId) return null;
   const r = await q.query('SELECT price FROM re_units WHERE id::text = $1::text AND tenant_id::text = $2::text', [String(unitId), String(tenantId)]);
@@ -112,6 +119,7 @@ async function decide({ approvalId, user, tenantId, decision, note = null }) {
     const a = (await client.query('SELECT * FROM deal_price_approvals WHERE id::text = $1::text AND tenant_id::text = $2::text FOR UPDATE', [String(approvalId), String(tenantId)])).rows[0];
     if (!a) throw new PriceError(404, 'NOT_FOUND', 'Request not found.');
     if (a.status !== 'pending') throw new PriceError(409, 'NOT_PENDING', `Request is already ${a.status}.`);
+    if (a.requested_by && String(a.requested_by) === String(user.id) && user.role !== 'admin') throw new PriceError(403, 'SELF_APPROVAL', 'You cannot decide a price request you made yourself.');
     if (!canDecide(user, a)) throw new PriceError(403, 'NOT_APPROVER', 'Only the designated approver can decide this request.');
     const deal = (await client.query('SELECT id, title, value, pipeline_stage, unit_id, branch_id FROM deals WHERE id = $1 AND tenant_id::text = $2::text FOR UPDATE', [a.deal_id, String(tenantId)])).rows[0];
     if (!deal) throw new PriceError(404, 'NOT_FOUND', 'Deal not found.');
@@ -149,4 +157,4 @@ async function listForDeal(q, dealId, tenantId) {
   return { changes, approvals };
 }
 
-module.exports = { tablesReady, getUnitPrice, resolveApprover, recordPriceChange, createPriceRequest, getPendingRequest, hasPendingRequest, notifyApprover, decide, listForDeal, canDecide, PriceError, isTerminalStage };
+module.exports = { tablesReady, hasHistory, getUnitPrice, resolveApprover, recordPriceChange, createPriceRequest, getPendingRequest, hasPendingRequest, notifyApprover, decide, listForDeal, canDecide, PriceError, isTerminalStage };
