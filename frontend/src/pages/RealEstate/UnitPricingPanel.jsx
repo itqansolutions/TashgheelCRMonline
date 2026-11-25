@@ -1,17 +1,13 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { cairoTime } from '../../utils/cairoTime.mjs';
 import { useLanguage } from '../../context/LanguageContext';
 
 /** Unit price edit, marketing (active/inactive) switch, and price/marketing history timeline. */
 const box = { background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '16px' };
 const inp = { padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit' };
 const btn = (bg) => ({ background: bg, color: 'white', padding: '8px 14px', borderRadius: '8px', fontWeight: 700, fontSize: '12px', border: 0, cursor: 'pointer' });
-const cairoTime = (v) => {
-  const d = new Date(v); if (isNaN(d.getTime())) return '';
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d).map(x => [x.type, x.value]));
-  return `${p.year}-${p.month}-${p.day} ${p.hour === '24' ? '00' : p.hour}:${p.minute}`;
-};
 const fmt = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
 const UnitPricingPanel = ({ unit, onChanged }) => {

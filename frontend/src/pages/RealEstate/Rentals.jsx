@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { cairoTime } from '../../utils/cairoTime.mjs';
 import toast from 'react-hot-toast';
 import { CalendarClock } from 'lucide-react';
 import api from '../../services/api';
@@ -39,7 +40,7 @@ const Rentals = () => {
     { key: 'deal_title', label: t('rentals.colDeal', 'Deal'), render: (v, r) => <span>{v}{r.team_name ? ` · ${r.team_name}` : ''}</span> },
     { key: 'ends_on', label: t('rentals.colEnds', 'Rental ends'), render: fmtDate },
     { key: 'reminder_lead_days', label: t('rentals.colLead', 'Alert days before'), render: (v) => <span className="num-en">{v}</span> },
-    { key: 'alert_due_at', label: t('rentals.colAlert', 'Alert at (Cairo 9:00)'), render: (v) => <span className="num-en">{v ? String(v).replace('T', ' ').slice(0, 16) : '—'}</span> },
+    { key: 'alert_due_at', label: t('rentals.colAlert', 'Alert at (Cairo 9:00)'), render: (v) => <span className="num-en">{v ? cairoTime(v) : '—'}</span> },
     { key: 'alerts_delivered', label: t('rentals.colSent', 'Alerts sent'), render: (v) => <span className="num-en">{v}</span> },
     { key: 'state', label: t('rentals.colState', 'Status'), render: (v) => <Badge color={STATE_COLOR[v]}>{stateLabel(v)}</Badge> },
     {
