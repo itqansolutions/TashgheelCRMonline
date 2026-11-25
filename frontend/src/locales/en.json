@@ -649,6 +649,7 @@
     "nextActionRequired": "Next Action Required",
     "nextActionPlaceholder": "e.g. Call client to discuss proposal",
     "meDefault": "Me (Default)",
+    "dealLockedLost": "This deal is lost/cancelled and can no longer be edited.",
     "dealLockedFinalStage": "This deal is {stage}. Customer, unit, value, owner and commercial terms are locked.",
     "dealLockedContract": "This deal has an active contract ({contractNumber}). Customer, unit, value, owner and commercial terms are locked.",
     "dealLockedReversalHint": "Use \"Cancel Deal & Refund\" to reverse it.",

@@ -114,6 +114,49 @@ async function releaseUnitIfReservedByDeal(queryable, { unitId, dealRow, tenantI
   return { released: upd.rows.length > 0 };
 }
 
+// Lost deals are terminal (read-only against ordinary edits, like won/closed deals).
+// A deal is terminal-lost when its stage is Lost/Closed Lost/Cancelled or it has a
+// re_cancellations row (audited Cancellation workflow). Only used by the edit and stage
+// endpoints; deletion rules are unchanged.
+const TERMINAL_LOST_STAGES = ['lost', 'closed lost', 'cancelled'];
+const isTerminalLostStage = (stage) => TERMINAL_LOST_STAGES.includes(String(stage || '').trim().toLowerCase());
+async function isDealCancelled(queryable, dealId, tenantId) {
+  try {
+    const r = await queryable.query(
+      `SELECT 1 FROM re_cancellations WHERE deal_id::text = $1::text AND tenant_id::text = $2::text LIMIT 1`,
+      [String(dealId), String(tenantId)]
+    );
+    return r.rows.length > 0;
+  } catch (e) {
+    return false; // re_cancellations may not exist for General tenants
+  }
+}
+async function getTerminalLostLock(queryable, deal, tenantId) {
+  if (isTerminalLostStage(deal.pipeline_stage) || await isDealCancelled(queryable, deal.id, tenantId)) {
+    return { locked: true, cancelled: true, reason: 'Deal is Lost/cancelled and read-only' };
+  }
+  return null;
+}
+
+// Idempotent Pending payment registry row for a deal that reached a final stage.
+// Shared by PUT /deals/:id and PATCH /deals/:id/status so both close paths behave the same.
+async function ensurePendingPaymentRecord(queryable, { tenantId, branchId, dealId }) {
+  const dealRes = await queryable.query(
+    'SELECT value, branch_id FROM deals WHERE id::text = $1::text AND tenant_id::text = $2::text',
+    [String(dealId), String(tenantId)]
+  );
+  const deal = dealRes.rows[0];
+  if (!deal) return { created: false };
+  const ins = await queryable.query(
+    `INSERT INTO re_payments_mvp (tenant_id, branch_id, deal_id, total_amount, status)
+     SELECT $1::varchar, $2::varchar, $3::varchar, $4::numeric, 'Pending'
+     WHERE NOT EXISTS (SELECT 1 FROM re_payments_mvp WHERE deal_id::text = $3::text AND tenant_id::text = $1::text)
+     RETURNING id`,
+    [tenantId, deal.branch_id || branchId, dealId, deal.value]
+  );
+  return { created: ins.rows.length > 0 };
+}
+
 async function getDealLockState(queryable, deal, tenantId) {
   if (isFinalStage(deal.pipeline_stage)) {
     return { locked: true, reason: `Deal is ${deal.pipeline_stage}` };
@@ -808,7 +851,10 @@ exports.updateDeal = async (req, res) => {
     }
 
     // ── Deal Lock enforcement ──
-    const lock = await getDealLockState(db, oldData, tenant_id);
+    let lock = await getDealLockState(db, oldData, tenant_id);
+    if (!lock.locked) {
+      lock = (await getTerminalLostLock(db, oldData, tenant_id)) || lock;
+    }
     if (lock.locked) {
       const violations = [];
       if (isLinkingUnit) violations.push('unit');
@@ -821,7 +867,7 @@ exports.updateDeal = async (req, res) => {
       if (stableJson(cleanCustomFields) !== stableJson(oldData.custom_fields)) violations.push('commercial terms');
       const newStage = pipeline_stage ? String(pipeline_stage).trim().toLowerCase() : String(oldData.pipeline_stage || '').toLowerCase();
       const oldStageLc = String(oldData.pipeline_stage || '').toLowerCase();
-      if (newStage !== oldStageLc && (isFinalStage(oldStageLc) || newStage === 'lost')) violations.push('stage');
+      if (newStage !== oldStageLc && (isFinalStage(oldStageLc) || newStage === 'lost' || lock.cancelled)) violations.push('stage');
       if (violations.length > 0) {
         return res.status(409).json({
           status: 'error',
@@ -937,6 +983,10 @@ exports.updateDeal = async (req, res) => {
          WHERE id = $14 AND tenant_id::text = $15::text AND ($16::text IS NULL OR branch_id::text = $16::text OR branch_id IS NULL) RETURNING *`,
         [cleanTitle, cleanValue, effectiveNextStage, cleanClientId, cleanProductId, cleanProjectId, cleanAssignedTo, cleanCustomFields, cleanProbability, cleanExpectedDate, next_action !== undefined ? next_action : (oldData.next_action || ''), cleanSourceType, cleanSourceId, req.params.id, tenant_id, branch_id, cleanUnitId, newTeamId]
       );
+      if (cleanUnitId && String(oldData.pipeline_stage || '') !== String(effectiveNextStage || '') && ['closed', 'won', 'closed won'].includes(String(effectiveNextStage || '').trim().toLowerCase())) {
+        // Same as PATCH /status: a failure here rolls the whole close back (no silent close without the registry row).
+        await ensurePendingPaymentRecord(updClient, { tenantId: tenant_id, branchId: branch_id, dealId: req.params.id });
+      }
       await updClient.query('COMMIT');
     } catch (txErr) {
       await updClient.query('ROLLBACK').catch(() => {});
@@ -1070,8 +1120,11 @@ exports.updateDealStatus = async (req, res) => {
 
     // Deal Lock: a closed/contracted deal cannot leave its final stage or be marked lost here
     if (String(oldStage || '').toLowerCase() !== cleanStage.toLowerCase()) {
-      const lock = await getDealLockState(db, { id: req.params.id, pipeline_stage: oldStage }, tenant_id);
-      if (lock.locked && (isFinalStage(oldStage) || cleanStage.toLowerCase() === 'lost')) {
+      let lock = await getDealLockState(db, { id: req.params.id, pipeline_stage: oldStage }, tenant_id);
+      if (!lock.locked) {
+        lock = (await getTerminalLostLock(client, { id: req.params.id, pipeline_stage: oldStage }, tenant_id)) || lock;
+      }
+      if (lock.locked && (isFinalStage(oldStage) || lock.cancelled || cleanStage.toLowerCase() === 'lost')) {
         await client.query('ROLLBACK');
         return res.status(409).json({
           status: 'error',
@@ -1159,25 +1212,8 @@ exports.updateDealStatus = async (req, res) => {
                 if (result.rows[0]) result.rows[0].custom_fields = nextCf;
               }
           } else if (lowerStage === 'closed' || lowerStage === 'won' || lowerStage === 'closed won') {
-              // Create Payment Registry
-              const dealRes = await client.query(
-                'SELECT value, tenant_id, branch_id FROM deals WHERE id = $1 AND tenant_id::text = $2::text',
-                [req.params.id, tenant_id]
-              );
-              const deal = dealRes.rows[0];
-              
-              if (deal) {
-                const payCheck = await client.query(
-                  'SELECT id FROM re_payments_mvp WHERE deal_id = $1 AND tenant_id::text = $2::text',
-                  [req.params.id, tenant_id]
-                );
-                if (payCheck.rows.length === 0) {
-                    await client.query(`
-                        INSERT INTO re_payments_mvp (tenant_id, branch_id, deal_id, total_amount, status)
-                        VALUES ($1, $2, $3, $4, 'Pending')
-                    `, [tenant_id, deal.branch_id || branch_id, req.params.id, deal.value]);
-                }
-              }
+              // Create Payment Registry (idempotent, shared with PUT /deals/:id)
+              await ensurePendingPaymentRecord(client, { tenantId: tenant_id, branchId: branch_id, dealId: req.params.id });
           } else if (lowerStage === 'lost' || lowerStage === 'closed lost') {
               await releaseUnitIfReservedByDeal(client, {
                 unitId: unit_id,

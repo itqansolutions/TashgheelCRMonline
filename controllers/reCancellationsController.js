@@ -280,6 +280,32 @@ exports.processCancellation = async (req, res) => {
             }
         }
 
+        // 9. Audit trail written in the SAME transaction: it exists if and only if the cancellation committed.
+        const auditIsUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tenant_id);
+        const auditTenant = auditIsUuid ? tenant_id : '00000000-0000-0000-0000-000000000000';
+        const auditUserId = req.user?.id && !isNaN(parseInt(req.user.id, 10)) ? parseInt(req.user.id, 10) : null;
+        const auditIp = req.ip || req.headers?.['x-forwarded-for'] || 'unknown';
+        const auditUa = req.headers?.['user-agent'] || 'unknown';
+        const auditInsert = (entityType, entityId, action, details) => client.query(
+            `INSERT INTO system_logs (user_id, action, entity_type, entity_id, details, ip_address, user_agent, level, tenant_id, branch_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'INFO', $8, $9)`,
+            [auditUserId, action, entityType, parseInt(entityId, 10), JSON.stringify(details), String(auditIp).slice(0, 45), auditUa, auditTenant, branch_id ? String(branch_id) : null]
+        );
+        await auditInsert('Deal', deal.id, 'STAGE_CHANGE', {
+            before: { pipeline_stage: deal.pipeline_stage },
+            after: { pipeline_stage: 'Lost' },
+            cancellation_id: insertRes.rows[0].id,
+            reason: cancellation_reason.trim(),
+            total_paid_amount: totalPaid,
+            deduction_amount: deduction,
+            refundable_amount: refundable,
+            refund_status: refundStatus,
+            contract_cancelled: contract ? contract.id : null,
+            unit_id: deal.unit_id || null,
+            unit_action,
+            unit_status_change: deal.unit_id ? (unit_action === 'dispute' ? 'Under Dispute' : unit_action === 'release' ? 'Available' : 'unchanged') : null
+        });
+
         await client.query('COMMIT');
 
         res.status(201).json({

@@ -96,7 +96,9 @@ const Deals = () => {
   const [reassignReason, setReassignReason] = useState('');
   // Deal Lock (mirrors backend): final stage (Closed/won) or a live contract freezes core commercial fields
   const isFinalDealStage = ['closed', 'won'].includes(String(editingDeal?.pipeline_stage || '').toLowerCase());
-  const isDealLocked = !!editingDeal && (isFinalDealStage || (dealContract && dealContract.status !== 'Cancelled'));
+  // Lost/cancelled deals are terminal and read-only, like won/closed deals (mirrors backend getTerminalLostLock)
+  const isTerminalLostDeal = !!editingDeal && (['lost', 'closed lost', 'cancelled'].includes(String(editingDeal?.pipeline_stage || '').trim().toLowerCase()) || !!cancellationRecord);
+  const isDealLocked = !!editingDeal && (isFinalDealStage || isTerminalLostDeal || (dealContract && dealContract.status !== 'Cancelled'));
 
   // Deal Permissions checks
   const canEditDetails = !editingDeal ? hasDealPermission('deal.edit_details') : hasDealPermission('deal.edit_details');
@@ -106,7 +108,7 @@ const Deals = () => {
   const canExtendSla = hasDealPermission('deal.extend_sla');
 
   const isDetailsDisabled = isDealLocked || (!!editingDeal && !canEditDetails);
-  const isStageDisabled = (isDealLocked && isFinalDealStage) || !canUpdateStage;
+  const isStageDisabled = (isDealLocked && (isFinalDealStage || isTerminalLostDeal)) || !canUpdateStage;
   const isReassignDisabled = isDealLocked || !canReassign;
   const canSaveModal = !editingDeal ? canEditDetails : (canEditDetails || canUpdateStage || canReassign);
 
@@ -655,6 +657,7 @@ const Deals = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.client_id) return toast.error(t('deals.selectCustomerReq', 'Please select a customer'));
+    if (editingDeal && isTerminalLostDeal) return toast.error(t('deals.dealLockedLost', 'This deal is lost/cancelled and can no longer be edited.'));
 
     try {
       if (editingDeal) {
@@ -1173,10 +1176,12 @@ const Deals = () => {
                 {isDealLocked && (
                   <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '8px', background: '#fffbeb', border: '1px solid #fcd34d', color: '#92400e', borderRadius: '10px', padding: '10px 14px', fontSize: '12px', fontWeight: 700 }}>
                     <AlertCircle size={16} />
-                    {isFinalDealStage
+                    {isTerminalLostDeal
+                      ? t('deals.dealLockedLost', 'This deal is lost/cancelled and can no longer be edited.')
+                      : isFinalDealStage
                       ? t('deals.dealLockedFinalStage', 'This deal is {stage}...').replace('{stage}', getStageLabel(editingDeal?.pipeline_stage))
                       : t('deals.dealLockedContract', 'This deal has an active contract ({contractNumber})...').replace('{contractNumber}', dealContract?.contract_number)}
-                    {isRealEstate && ` ${t('deals.dealLockedReversalHint', 'Use "Cancel Deal & Refund" to reverse it.')}`}
+                    {isRealEstate && !isTerminalLostDeal && ` ${t('deals.dealLockedReversalHint', 'Use "Cancel Deal & Refund" to reverse it.')}`}
                   </div>
                 )}
 
@@ -1389,6 +1394,9 @@ const Deals = () => {
                     disabled={isStageDisabled}
                     onChange={(e) => setFormData({...formData, pipeline_stage: e.target.value})}
                   >
+                    {editingDeal && formData.pipeline_stage && !(templateConfig?.pipeline || []).some(st => String(st).toLowerCase() === String(formData.pipeline_stage).toLowerCase()) && (
+                      <option value={formData.pipeline_stage}>{getStageLabel(formData.pipeline_stage)}</option>
+                    )}
                     {(templateConfig?.pipeline || []).map(stage => (
                       <option key={stage} value={stage}>{getStageLabel(stage)}</option>
                     )) || (
