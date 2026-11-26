@@ -394,6 +394,8 @@ exports.createUser = async (req, res) => {
       ? ['/dashboard', '/my-profile', '/contacts/customers', '/contacts/vendors', '/contacts/employees', '/products', '/deals', '/tasks', '/purchases', '/finance', '/erp/accounts', '/erp/journals', '/erp/reports', '/erp/banking', '/erp/closing', '/erp/entries', '/inventory/warehouses', '/inventory/keepers', '/inventory/transaction-impact', '/inventory/balances', '/inventory/item-card', '/inventory/movements', '/sales/salesmen', '/sales/target', '/sales/orders', '/sales/documents', '/sales/price-tiers', '/integrations/einvoice', '/integrations/meta-forms', '/employees', '/hr/my-attendance', '/hr/dashboard', '/hr/approvals', '/hr/payroll', '/hr/activity-definition', '/hr/activity-balance', '/hr/shifts', '/hr/devices', '/hr/my-requests', '/automation', '/automation/rules', '/files', '/reports', '/logs', '/settings', '/settings/company', '/billing']
       : (role === 'manager')
       ? ['/dashboard', '/my-profile', '/contacts/customers', '/contacts/vendors', '/contacts/employees', '/deals', '/tasks', '/files', '/reports', '/hr/my-attendance', '/hr/my-requests', '/hr/dashboard', '/hr/approvals', '/sales/orders', '/sales/salesmen', '/sales/target']
+      : (role === 'hr')
+      ? ['/dashboard', '/my-profile', '/contacts/employees', '/tasks', '/files', '/hr/my-attendance', '/hr/my-requests', '/hr/dashboard', '/hr/approvals', '/hr/payroll', '/hr/shifts', '/hr/devices', '/hr/activity-definition', '/hr/activity-balance']
       : ['/dashboard', '/my-profile', '/contacts/customers', '/deals', '/tasks', '/files', '/hr/my-attendance', '/hr/my-requests'];
 
     const accessValues = defaultPages.map(path => `(${newUser.id}, '${path}', true)`).join(',');

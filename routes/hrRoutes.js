@@ -4,6 +4,7 @@ const hrController = require('../controllers/hrController');
 const authMiddleware = require('../middleware/auth');
 const branchScope = require('../middleware/branchScope');
 const roleGuard = require('../middleware/roleGuard');
+const HR_VIEW = ['admin', 'manager', 'hr']; // HR role: HR-area screens. Payroll generate/finalize stay admin/manager.
 
 // Apply auth and strict branch isolation to ALL HR routes
 router.use(authMiddleware);
@@ -12,7 +13,7 @@ router.use(branchScope);
 const policy=require('../controllers/hrAttendancePolicyController');
 router.get('/attendance-policy',policy.get);
 router.put('/attendance-policy',roleGuard(['admin']),policy.save);
-router.get('/attendance-policy/rejects',roleGuard(['admin']),policy.rejects);
+router.get('/attendance-policy/rejects',roleGuard(HR_VIEW),policy.rejects);
 
 // --- Employee Self-Service ---
 // @route   POST api/hr/attendance/check-in
@@ -26,7 +27,7 @@ router.get('/attendance/my', hrController.getMyAttendance);
 
 // --- Admin / Manager View ---
 // @route   GET api/hr/attendance
-router.get('/attendance', roleGuard(['admin', 'manager']), hrController.getStaffAttendance);
+router.get('/attendance', roleGuard(HR_VIEW), hrController.getStaffAttendance);
 
 // ============================================
 // PHASE 2: LEAVE MANAGEMENT & OPERATIONS
@@ -41,10 +42,10 @@ router.get('/leaves/my', hrController.getMyLeaves);
 
 // --- Admin / Manager Leaves ---
 // @route   GET api/hr/leaves
-router.get('/leaves', roleGuard(['admin', 'manager']), hrController.getAllLeaves);
+router.get('/leaves', roleGuard(HR_VIEW), hrController.getAllLeaves);
 
 // @route   PUT api/hr/leaves/:id/status
-router.put('/leaves/:id/status', roleGuard(['admin', 'manager']), hrController.updateLeaveStatus);
+router.put('/leaves/:id/status', roleGuard(HR_VIEW), hrController.updateLeaveStatus);
 
 // ============================================
 // PHASE 3: PAYROLL ENGINE
@@ -57,7 +58,7 @@ router.get('/payroll/my', hrController.getMyPayrolls);
 router.post('/payroll/generate', roleGuard(['admin', 'manager']), hrController.generatePayroll);
 
 // @route   GET api/hr/payroll
-router.get('/payroll', roleGuard(['admin', 'manager']), hrController.getPayrolls);
+router.get('/payroll', roleGuard(HR_VIEW), hrController.getPayrolls);
 
 // @route   PUT api/hr/payroll/:id/finalize
 router.put('/payroll/:id/finalize', roleGuard(['admin', 'manager']), hrController.finalizePayroll);

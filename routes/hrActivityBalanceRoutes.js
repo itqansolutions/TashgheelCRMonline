@@ -13,9 +13,9 @@ router.use(authMiddleware);
 router.get('/my', getMyActivityBalances);
 
 // HR management of employee balances (HR → Activity Balance)
-router.get('/', roleGuard(['admin', 'manager']), getActivityBalances);
-router.post('/', roleGuard(['admin', 'manager']), createActivityBalance);
-router.put('/:id', roleGuard(['admin', 'manager']), updateActivityBalance);
-router.delete('/:id', roleGuard(['admin', 'manager']), deleteActivityBalance);
+router.get('/', roleGuard(['admin', 'manager', 'hr']), getActivityBalances);
+router.post('/', roleGuard(['admin', 'manager', 'hr']), createActivityBalance);
+router.put('/:id', roleGuard(['admin', 'manager', 'hr']), updateActivityBalance);
+router.delete('/:id', roleGuard(['admin', 'manager', 'hr']), deleteActivityBalance);
 
 module.exports = router;

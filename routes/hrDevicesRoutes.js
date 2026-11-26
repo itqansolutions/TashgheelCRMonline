@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/auth');
 const roleGuard = require('../middleware/roleGuard');
-const manageHR = roleGuard(['admin', 'manager']);
+const manageHR = roleGuard(['admin', 'manager', 'hr']);
 const {
   getDevices, createDevice, updateDevice, deleteDevice,
   getBadgeNumbers, updateBadgeNumber, claimDevice, getDeviceRecentAttendance

@@ -3503,6 +3503,7 @@
       "lblRole": "الدور في النظام",
       "roleEmployee": "موظف",
       "roleManager": "مدير",
+      "roleHr": "الموارد البشرية (HR)",
       "roleAdmin": "مسؤول نظام",
       "lblActiveEmployee": "موظف نشط",
       "lblInactiveEmployee": "غير نشط / موقوف",

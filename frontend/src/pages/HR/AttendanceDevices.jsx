@@ -1,6 +1,7 @@
 import Modal from '../../components/Common/Modal';
 import { useBranch } from '../../context/BranchContext';
 import AttendanceAreaSettings from '../../components/HR/AttendanceAreaSettings';
+import AttendanceRejectsCard from '../../components/HR/AttendanceRejectsCard';
 import { useAuth } from '../../context/AuthContext';
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
@@ -431,6 +432,7 @@ const AttendanceDevices = () => {
         </Modal>
       </div>
     {user?.role==='admin' && <AttendanceAreaSettings key={currentBranch?.id} />}
+    {['admin','manager','hr'].includes(user?.role) && <AttendanceRejectsCard branchKey={currentBranch?.id} />}
 </div>
   );
 };

@@ -500,6 +500,7 @@ const EmployeeModal = ({ emp, departments, jobTitles, onClose, onSave }) => {
                   <select value={form.role} onChange={e => set('role', e.target.value)} style={inputStyle}>
                     <option value="employee">{t('hr.contactsEmployees.roleEmployee')}</option>
                     <option value="manager">{t('hr.contactsEmployees.roleManager')}</option>
+                    <option value="hr">{t('hr.contactsEmployees.roleHr')}</option>
                     <option value="admin">{t('hr.contactsEmployees.roleAdmin')}</option>
                   </select>
                 </div>

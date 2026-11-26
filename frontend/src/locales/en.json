@@ -3377,6 +3377,7 @@
       "lblRole": "Role",
       "roleEmployee": "Employee",
       "roleManager": "Manager",
+      "roleHr": "HR",
       "roleAdmin": "System Admin",
       "lblActiveEmployee": "Active Employee",
       "lblInactiveEmployee": "Inactive",

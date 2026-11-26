@@ -10,7 +10,7 @@ router.use(authMiddleware);
 // @route   GET api/departments
 // @desc    Get all departments
 // @access  Private (All authenticated users within tenant)
-router.get('/', authorize(['admin', 'manager', 'supervisor', 'employee', 'sales', 'agent', 'user']), departmentsController.getDepartments);
+router.get('/', authorize(['admin', 'manager', 'hr', 'supervisor', 'employee', 'sales', 'agent', 'user']), departmentsController.getDepartments);
 
 // @route   POST api/departments
 // @desc    Create department

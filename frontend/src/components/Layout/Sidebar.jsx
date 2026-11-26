@@ -118,7 +118,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     ...(hasHr ? [
       { name: 'My Attendance',    labelKey: 'sidebar.myAttendance',    icon: <Clock size={16} />,        path: '/my-attendance' },
       { name: 'My Requests',      labelKey: 'sidebar.myRequests',      icon: <FileText size={16} />,     path: '/my-requests' },
-      { name: 'Approvals',        labelKey: 'sidebar.approvals',       icon: <ShieldCheck size={16} />,  path: '/approvals', roleGuard: ['admin', 'manager'] },
+      { name: 'Approvals',        labelKey: 'sidebar.approvals',       icon: <ShieldCheck size={16} />,  path: '/approvals', roleGuard: ['admin', 'manager', 'hr'] },
       { name: 'My Payroll',       labelKey: 'sidebar.myPayroll',       icon: <DollarSign size={16} />,   path: '/my-payroll' },
       { name: 'Activity Balance', labelKey: 'sidebar.activityBalance', icon: <Wallet size={16} />,       path: '/activity-balance' },
     ] : []),
@@ -257,12 +257,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   // 8. HR ITEMS
   // -------------------------------------------------------------
   const rawHrItems = [
-    { name: 'Dashboard for HR',    labelKey: 'sidebar.hrDashboard',       icon: <UserCheck size={18} />, path: '/hr/dashboard', roleGuard: ['admin', 'manager'] },
-    { name: 'Payroll',             labelKey: 'sidebar.payroll',           icon: <DollarSign size={18} />, path: '/hr/payroll', roleGuard: ['admin', 'manager'] },
-    { name: 'Activity Definition', labelKey: 'sidebar.activityDefinition', icon: <FileText size={18} />,   path: '/hr/activity-definition', roleGuard: ['admin', 'manager'] },
-    { name: 'Activity Balance',    labelKey: 'sidebar.activityBalance',    icon: <Scale size={18} />,      path: '/hr/activity-balance', roleGuard: ['admin', 'manager'] },
-    { name: 'Shifts',              labelKey: 'sidebar.shifts',             icon: <Calendar size={18} />,   path: '/hr/shifts', roleGuard: ['admin', 'manager'] },
-    { name: 'Attendance Device',   labelKey: 'sidebar.devices',            icon: <Clock size={18} />,      path: '/hr/devices', roleGuard: ['admin', 'manager'] }
+    { name: 'Dashboard for HR',    labelKey: 'sidebar.hrDashboard',       icon: <UserCheck size={18} />, path: '/hr/dashboard', roleGuard: ['admin', 'manager', 'hr'] },
+    { name: 'Payroll',             labelKey: 'sidebar.payroll',           icon: <DollarSign size={18} />, path: '/hr/payroll', roleGuard: ['admin', 'manager', 'hr'] },
+    { name: 'Activity Definition', labelKey: 'sidebar.activityDefinition', icon: <FileText size={18} />,   path: '/hr/activity-definition', roleGuard: ['admin', 'manager', 'hr'] },
+    { name: 'Activity Balance',    labelKey: 'sidebar.activityBalance',    icon: <Scale size={18} />,      path: '/hr/activity-balance', roleGuard: ['admin', 'manager', 'hr'] },
+    { name: 'Shifts',              labelKey: 'sidebar.shifts',             icon: <Calendar size={18} />,   path: '/hr/shifts', roleGuard: ['admin', 'manager', 'hr'] },
+    { name: 'Attendance Device',   labelKey: 'sidebar.devices',            icon: <Clock size={18} />,      path: '/hr/devices', roleGuard: ['admin', 'manager', 'hr'] }
   ];
 
   const hrItems = hasHr
