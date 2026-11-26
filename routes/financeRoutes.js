@@ -78,6 +78,10 @@ router.get('/income', financeController.getIncome);
 // @desc    Get financial KPI summary
 router.get('/summary', financeController.getSummary);
 
+// @route   GET api/finance/re-receivables
+// @desc    Real estate receivables (read-only, separate from sales)
+router.get('/re-receivables', financeController.getReReceivables);
+
 // ==========================================
 // CUSTOMER ACCOUNTS — Phase 2
 // ==========================================

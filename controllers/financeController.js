@@ -1,5 +1,17 @@
 const { resolveCollectionTreasury } = require('../services/resolveCollectionTreasury');
 const { collectionSource } = require('../services/collectionSource');
+
+// Operating expenses = expenses table + payroll payout vouchers (posted at actual payout, party employee, ref PAYROLL-...).
+// Payroll never writes to the expenses table, so treasury (which counts all active payment vouchers) never double counts.
+const PAYROLL_VOUCHER_FILTER = `fv.voucher_type = 'payment' AND fv.party_type = 'employee' AND fv.reference_no LIKE 'PAYROLL-%' AND COALESCE(fv.status, 'active') != 'cancelled'`;
+const EXPENSES_WITH_PAYROLL = `(
+    SELECT e0.id::text AS id, e0.amount, e0.category, e0.expense_date::date AS expense_date, e0.tenant_id::text AS tenant_id,
+           e0.branch_id::text AS branch_id, e0.treasury_account_id
+    FROM expenses e0
+    UNION ALL
+    SELECT 'pv-' || fv.id::text, fv.amount, 'Salaries', fv.voucher_date::date, fv.tenant_id::text, fv.branch_id::text, fv.treasury_account_id
+    FROM finance_vouchers fv WHERE ${PAYROLL_VOUCHER_FILTER}
+)`;
 const db = require('../config/db');
 const { logCreate, logUpdate, logDelete, logAction, ACTIONS, LOG_LEVELS } = require('../services/loggerService');
 const notificationQueueService = require('../services/notificationQueueService');
@@ -1667,10 +1679,21 @@ exports.getExpenses = async (req, res) => {
 
     try {
         const result = await db.query(
-            `SELECT * FROM expenses 
-             WHERE tenant_id::text = $1::text 
-               AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL) 
-             ORDER BY expense_date DESC`,
+            `SELECT * FROM (
+                SELECT e.id::text AS id, e.title::text AS title, e.amount, e.category::text AS category, e.expense_date::date AS expense_date,
+                       e.payment_method::text AS payment_method, e.treasury_account_id, e.recorded_by, e.tenant_id::text AS tenant_id,
+                       e.branch_id::text AS branch_id, e.created_at, 'expense' AS source FROM expenses e
+                WHERE e.tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
+                UNION ALL
+                SELECT ('pv-' || fv.id::text) AS id, ('مرتب - ' || COALESCE(fv.party_name, ''))::text AS title, fv.amount, 'Salaries'::text AS category,
+                       fv.voucher_date::date AS expense_date, fv.payment_method::text AS payment_method, fv.treasury_account_id, NULL::int AS recorded_by,
+                       fv.tenant_id::text AS tenant_id, fv.branch_id::text AS branch_id, fv.created_at, 'payroll' AS source
+                FROM finance_vouchers fv
+                WHERE fv.tenant_id::text = $1::text
+                  AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
+                  AND ${PAYROLL_VOUCHER_FILTER}
+             ) x ORDER BY expense_date DESC`,
             [tenant_id, branch_id ? String(branch_id) : null]
         );
         res.json({ status: 'success', data: result.rows });
@@ -1759,7 +1782,7 @@ exports.getSummary = async (req, res) => {
 
         const expenseRes = await db.query(
             `SELECT COALESCE(SUM(amount), 0) as total_expenses 
-             FROM expenses 
+             FROM ${EXPENSES_WITH_PAYROLL} ex
              WHERE tenant_id::text = $1::text 
                AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)`,
             [tenant_id, branch_id ? String(branch_id) : null]
@@ -1866,6 +1889,8 @@ exports.getCustomerAccounts = async (req, res) => {
 
                 COUNT(i.id)                                                 AS invoice_count,
 
+                COALESCE(MAX(re_agg.re_outstanding), 0)                     AS re_outstanding,
+
                 -- Account status: 'overdue' > 'outstanding' > 'clear'
                 CASE
                     WHEN COALESCE(SUM(CASE WHEN i.status != 'paid' AND i.due_date IS NOT NULL AND i.due_date < CURRENT_DATE THEN i.total_amount - COALESCE(p_agg.paid, 0) ELSE 0 END), 0) > 0 THEN 'overdue'
@@ -1893,6 +1918,15 @@ exports.getCustomerAccounts = async (req, res) => {
                 GROUP BY inv.id, inv.client_id, inv.customer_id
             ) p_agg ON p_agg.invoice_id = i.id
             LEFT JOIN (
+                SELECT rc.customer_id::text AS customer_id,
+                       COALESCE(SUM(ri.amount), 0) AS re_total,
+                       COALESCE(SUM(GREATEST(ri.amount - ri.paid_amount, 0)), 0) AS re_outstanding
+                FROM re_contracts rc JOIN re_installments ri ON ri.contract_id = rc.id
+                WHERE rc.tenant_id::text = $1::text AND rc.status NOT IN ('Draft', 'Cancelled')
+                  AND ($2::text IS NULL OR rc.branch_id::text = $2::text OR rc.branch_id IS NULL)
+                GROUP BY rc.customer_id
+            ) re_agg ON re_agg.customer_id = c.id::text
+            LEFT JOIN (
                 SELECT
                     fv.customer_id,
                     COALESCE(SUM(fv.amount), 0) AS on_account_paid,
@@ -1902,6 +1936,7 @@ exports.getCustomerAccounts = async (req, res) => {
                   AND ($2::text IS NULL OR fv.branch_id::text = $2::text OR fv.branch_id IS NULL)
                   AND fv.voucher_type = 'receipt'
                   AND fv.invoice_id IS NULL
+                  AND fv.installment_id IS NULL AND fv.contract_id IS NULL AND NOT EXISTS (SELECT 1 FROM re_payments_mvp rpm WHERE rpm.deal_id::text = fv.deal_id::text AND rpm.tenant_id::text = fv.tenant_id::text)
                   AND (COALESCE(fv.status, 'active') != 'cancelled')
                 GROUP BY fv.customer_id
             ) v_agg ON v_agg.customer_id::text = c.id::text
@@ -1911,7 +1946,7 @@ exports.getCustomerAccounts = async (req, res) => {
               AND ($2::text IS NULL OR i.branch_id::text = $2::text OR i.branch_id IS NULL)
 
             GROUP BY c.id, c.name, c.phone, c.email
-            HAVING (COALESCE(SUM(i.total_amount), 0) > 0 OR COALESCE(MAX(v_agg.on_account_paid), 0) > 0)
+            HAVING (COALESCE(SUM(i.total_amount), 0) > 0 OR COALESCE(MAX(v_agg.on_account_paid), 0) > 0 OR COALESCE(MAX(re_agg.re_total), 0) > 0)
 
             ORDER BY outstanding DESC, total_invoiced DESC
         `, [tenant_id, branch_id ? String(branch_id) : null]);
@@ -1930,9 +1965,10 @@ exports.getCustomerAccounts = async (req, res) => {
             acc.totalOverdue       += parseFloat(row.overdue       || 0);
             acc.totalInvoiced      += parseFloat(row.total_invoiced || 0);
             acc.totalPaid          += parseFloat(row.total_paid     || 0);
+            acc.reReceivables      += parseFloat(row.re_outstanding || 0);
             if (parseFloat(row.outstanding || 0) > 0) acc.customersWithOutstanding++;
             return acc;
-        }, { totalReceivables: 0, totalOverdue: 0, totalInvoiced: 0, totalPaid: 0, customersWithOutstanding: 0 });
+        }, { totalReceivables: 0, totalOverdue: 0, totalInvoiced: 0, totalPaid: 0, reReceivables: 0, customersWithOutstanding: 0 });
 
         // Due this month = outstanding invoices with due_date in current calendar month
         const monthRes = await db.query(`
@@ -2047,6 +2083,7 @@ exports.getCustomerStatement = async (req, res) => {
               AND fv.customer_id::text = $3::text
               AND fv.voucher_type = 'receipt'
               AND fv.invoice_id IS NULL
+              AND fv.installment_id IS NULL AND fv.contract_id IS NULL AND NOT EXISTS (SELECT 1 FROM re_payments_mvp rpm WHERE rpm.deal_id::text = fv.deal_id::text AND rpm.tenant_id::text = fv.tenant_id::text)
               AND (COALESCE(fv.status, 'active') != 'cancelled')
         `;
         const onAccParams = [tenant_id, branch_id ? String(branch_id) : null, customer_id];
@@ -2068,12 +2105,54 @@ exports.getCustomerStatement = async (req, res) => {
             ORDER BY fv.voucher_date ASC
         `, onAccParams);
 
+        // 3C. Real estate contracts of this customer (read-only): installments = debit, installment/contract receipts = credit.
+        const reContractsRes = await db.query(`
+            SELECT id, contract_number, deal_id FROM re_contracts
+            WHERE tenant_id::text = $1::text AND customer_id::text = $3::text AND status NOT IN ('Draft', 'Cancelled')
+              AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
+        `, [tenant_id, branch_id ? String(branch_id) : null, customer_id]);
+        let reRows = [];
+        let reSummary = { total_due: 0, total_paid: 0, outstanding: 0, overdue: 0 };
+        if (reContractsRes.rows.length) {
+            const cIds = reContractsRes.rows.map(r => String(r.id));
+            const dealIds = reContractsRes.rows.map(r => r.deal_id).filter(d => d != null).map(String);
+            const cNum = Object.fromEntries(reContractsRes.rows.map(r => [String(r.id), r.contract_number]));
+            const instRes = await db.query(`
+                SELECT id, contract_id, installment_number, installment_type, due_date, amount, paid_amount FROM re_installments
+                WHERE tenant_id::text = $1::text AND contract_id::text = ANY($2::text[])
+                ORDER BY due_date ASC, installment_number ASC
+            `, [tenant_id, cIds]);
+            const recRes = await db.query(`
+                SELECT fv.voucher_date::date AS txn_date, fv.voucher_number, fv.amount, fv.payment_method, fv.id, fv.contract_id
+                FROM finance_vouchers fv
+                WHERE fv.tenant_id::text = $1::text AND fv.voucher_type = 'receipt' AND fv.invoice_id IS NULL
+                  AND (COALESCE(fv.status, 'active') != 'cancelled')
+                  AND (fv.contract_id::text = ANY($2::text[]) OR fv.installment_id::text = ANY($3::text[]) OR fv.deal_id::text = ANY($4::text[]))
+                ORDER BY fv.voucher_date ASC
+            `, [tenant_id, cIds, instRes.rows.map(r => String(r.id)), dealIds]);
+            const inRange = d => (!date_from || String(d).slice(0, 10) >= date_from) && (!date_to || String(d).slice(0, 10) <= date_to);
+            const today = new Date().toISOString().slice(0, 10);
+            instRes.rows.forEach(r => {
+                const amt = parseFloat(r.amount) || 0, paid = parseFloat(r.paid_amount) || 0;
+                reSummary.total_due += amt; reSummary.total_paid += paid;
+                if (paid < amt && String(r.due_date).slice(0, 10) < today) reSummary.overdue += amt - paid;
+                if (inRange(r.due_date)) reRows.push({ txn_date: r.due_date, txn_type: 'RE Installment', reference: `${cNum[String(r.contract_id)] || ''} #${r.installment_number}`,
+                    debit: amt, credit: 0, source_id: r.id, source: 're' });
+            });
+            recRes.rows.forEach(r => {
+                if (inRange(r.txn_date)) reRows.push({ txn_date: r.txn_date, txn_type: 'RE Receipt', reference: r.voucher_number, debit: 0,
+                    credit: parseFloat(r.amount) || 0, payment_method: r.payment_method, source_id: r.id, source: 're' });
+            });
+            reSummary.outstanding = Math.max(0, reSummary.total_due - reSummary.total_paid);
+        }
+
         // 4. Merge & sort chronologically, compute running balance
         const allTxns = [
             ...invoicesRes.rows.map(r => ({ ...r, debit: parseFloat(r.debit), credit: 0 })),
             ...paymentsRes.rows.map(r => ({ ...r, debit: 0, credit: parseFloat(r.credit) })),
             ...onAccVouchersRes.rows.map(r => ({ ...r, debit: 0, credit: parseFloat(r.credit) })),
-        ].sort((a, b) => new Date(a.txn_date) - new Date(b.txn_date) || (a.txn_type === 'Invoice' ? -1 : 1));
+            ...reRows,
+        ].sort((a, b) => new Date(a.txn_date) - new Date(b.txn_date) || ((b.debit > 0 ? 1 : 0) - (a.debit > 0 ? 1 : 0)));
 
         let runningBalance = 0;
         const statement = allTxns.map(txn => {
@@ -2110,6 +2189,8 @@ exports.getCustomerStatement = async (req, res) => {
               AND customer_id::text = $3::text
               AND voucher_type = 'receipt'
               AND invoice_id IS NULL
+              AND installment_id IS NULL AND contract_id IS NULL
+              AND NOT EXISTS (SELECT 1 FROM re_payments_mvp rpm WHERE rpm.deal_id::text = finance_vouchers.deal_id::text AND rpm.tenant_id::text = finance_vouchers.tenant_id::text)
               AND (COALESCE(status, 'active') != 'cancelled')
         `, [tenant_id, branch_id ? String(branch_id) : null, customer_id]);
 
@@ -2128,6 +2209,11 @@ exports.getCustomerStatement = async (req, res) => {
                 total_paid:      totalPaid,
                 outstanding:     outstanding,
                 overdue:         overdue,
+                re_total_due:    reSummary.total_due,
+                re_total_paid:   reSummary.total_paid,
+                re_outstanding:  reSummary.outstanding,
+                re_overdue:      reSummary.overdue,
+                total_balance:   outstanding + reSummary.outstanding,
             },
             statement,
         });
@@ -2781,7 +2867,7 @@ exports.getFinancialReports = async (req, res) => {
             SELECT
                 COUNT(e.id)::int           AS total_expenses_count,
                 COALESCE(SUM(e.amount), 0) AS total_expenses
-            FROM expenses e
+            FROM ${EXPENSES_WITH_PAYROLL} e
             WHERE e.tenant_id::text = $1::text
               AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
               ${expenseDateFilter}
@@ -2794,7 +2880,7 @@ exports.getFinancialReports = async (req, res) => {
                 COALESCE(e.category, 'General') AS category,
                 COUNT(*)::int                   AS count,
                 COALESCE(SUM(e.amount), 0)      AS total_amount
-            FROM expenses e
+            FROM ${EXPENSES_WITH_PAYROLL} e
             WHERE e.tenant_id::text = $1::text
               AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
               ${expenseDateFilter}
@@ -2807,7 +2893,7 @@ exports.getFinancialReports = async (req, res) => {
                 TO_CHAR(e.expense_date, 'YYYY-MM') AS period,
                 COUNT(*)::int                      AS count,
                 COALESCE(SUM(e.amount), 0)         AS total_amount
-            FROM expenses e
+            FROM ${EXPENSES_WITH_PAYROLL} e
             WHERE e.tenant_id::text = $1::text
               AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
               ${expenseDateFilter}
@@ -2959,7 +3045,7 @@ exports.getFinancialReports = async (req, res) => {
                       ${paymentDateFilter}
                 ), 0) AS total_inflow,
                 COALESCE((
-                    SELECT SUM(e.amount) FROM expenses e
+                    SELECT SUM(e.amount) FROM ${EXPENSES_WITH_PAYROLL} e
                     WHERE e.treasury_account_id = ta.id
                       AND e.tenant_id::text = ta.tenant_id::text
                       AND ($2::text IS NULL OR e.branch_id::text = $2::text OR e.branch_id IS NULL)
@@ -3236,3 +3322,37 @@ exports.recordPaymentInternal = recordPaymentInternal;
 
 
 
+
+
+// @desc    Real estate receivables: scheduled installments minus collected. Read-only, separate from sales (invoices).
+// @route   GET /api/finance/re-receivables
+exports.getReReceivables = async (req, res) => {
+    const tenant_id = req.user.tenant_id;
+    let branch_id = req.branchId || req.user?.branch_id || null;
+    if (branch_id === 'null' || branch_id === 'undefined' || !String(branch_id || '').trim()) branch_id = null;
+    try {
+        const result = await db.query(`
+            SELECT rc.id, rc.contract_number, rc.status, rc.customer_id, c.name AS customer_name,
+                   COALESCE(SUM(ri.amount), 0)                                             AS total_scheduled,
+                   COALESCE(SUM(ri.paid_amount), 0)                                        AS collected,
+                   COALESCE(SUM(GREATEST(ri.amount - ri.paid_amount, 0)), 0)               AS outstanding,
+                   COALESCE(SUM(CASE WHEN ri.due_date < CURRENT_DATE THEN GREATEST(ri.amount - ri.paid_amount, 0) ELSE 0 END), 0) AS overdue,
+                   MIN(CASE WHEN ri.paid_amount < ri.amount THEN ri.due_date END)          AS next_due_date
+            FROM re_contracts rc
+            JOIN re_installments ri ON ri.contract_id = rc.id
+            LEFT JOIN customers c ON c.id::text = rc.customer_id::text
+            WHERE rc.tenant_id::text = $1::text AND rc.status NOT IN ('Draft', 'Cancelled')
+              AND ($2::text IS NULL OR rc.branch_id::text = $2::text OR rc.branch_id IS NULL)
+            GROUP BY rc.id, rc.contract_number, rc.status, rc.customer_id, c.name
+            ORDER BY outstanding DESC, rc.contract_number ASC
+        `, [tenant_id, branch_id ? String(branch_id) : null]);
+        const rows = result.rows.map(r => ({ ...r, total_scheduled: +r.total_scheduled, collected: +r.collected, outstanding: +r.outstanding, overdue: +r.overdue }));
+        const totals = rows.reduce((a, r) => ({ total_scheduled: a.total_scheduled + r.total_scheduled, collected: a.collected + r.collected,
+            outstanding: a.outstanding + r.outstanding, overdue: a.overdue + r.overdue, contracts: a.contracts + 1 }),
+            { total_scheduled: 0, collected: 0, outstanding: 0, overdue: 0, contracts: 0 });
+        res.json({ status: 'success', data: { totals, contracts: rows } });
+    } catch (err) {
+        console.error('getReReceivables Error:', err.message);
+        res.status(500).json({ status: 'error', message: 'Failed to retrieve real estate receivables' });
+    }
+};

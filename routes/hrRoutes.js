@@ -63,4 +63,10 @@ router.get('/payroll', roleGuard(HR_VIEW), hrController.getPayrolls);
 // @route   PUT api/hr/payroll/:id/finalize
 router.put('/payroll/:id/finalize', roleGuard(['admin', 'manager']), hrController.finalizePayroll);
 
+// @route   POST api/hr/payroll/payout  (whole month sheet; posts voucher + treasury movement)
+router.post('/payroll/payout', roleGuard(['admin', 'manager']), hrController.payoutPayroll);
+
+// @route   POST api/hr/payroll/payouts/:id/reverse
+router.post('/payroll/payouts/:id/reverse', roleGuard(['admin', 'manager']), hrController.reversePayrollPayout);
+
 module.exports = router;

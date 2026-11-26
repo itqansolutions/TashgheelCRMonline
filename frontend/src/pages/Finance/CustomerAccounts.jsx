@@ -265,9 +265,12 @@ const StatementDrawer = ({ customerId, onClose }) => {
                     </td>
                     <td style={{ padding: '10px 12px' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 700,
-                        color: txn.txn_type === 'Invoice' ? '#6366f1' : '#10b981' }}>
-                        {txn.txn_type === 'Invoice' ? <FileText size={12} /> : <ArrowDownLeft size={12} />}
-                        {txn.txn_type === 'Invoice' ? t('finance.customerAccounts.drawer.table.invoice') : t('finance.customerAccounts.drawer.table.receipt')}
+                        color: (txn.txn_type === 'Invoice' || txn.txn_type === 'RE Installment') ? '#6366f1' : '#10b981' }}>
+                        {(txn.txn_type === 'Invoice' || txn.txn_type === 'RE Installment') ? <FileText size={12} /> : <ArrowDownLeft size={12} />}
+                        {txn.txn_type === 'Invoice' ? t('finance.customerAccounts.drawer.table.invoice')
+                          : txn.txn_type === 'RE Installment' ? (isRTL ? 'قسط عقاري' : 'RE installment')
+                          : txn.txn_type === 'RE Receipt' ? (isRTL ? 'تحصيل عقاري' : 'RE receipt')
+                          : t('finance.customerAccounts.drawer.table.receipt')}
                       </span>
                     </td>
                     <td style={{ padding: '10px 12px', fontWeight: 700, fontFamily: 'monospace' }}>
@@ -292,11 +295,19 @@ const StatementDrawer = ({ customerId, onClose }) => {
                   <tr style={{ background: 'rgba(0,0,0,0.02)', borderTop: '2px solid var(--glass-border)' }}>
                     <td colSpan={3} style={{ padding: '12px', fontWeight: 800 }}>{t('finance.customerAccounts.drawer.table.closingBalance')}</td>
                     <td colSpan={3} style={{ padding: '12px', textAlign: isRTL ? 'left' : 'right', fontWeight: 900, fontSize: '16px',
-                      color: summary?.outstanding > 0 ? '#ef4444' : '#10b981' }}>
-                      <span className="num-en">{fmt(summary?.outstanding)}</span> {t('common.currency', 'EGP')}
-                      {summary?.outstanding > 0 ? ` ${t('finance.customerAccounts.drawer.table.due')}` : ` — ${t('finance.customerAccounts.drawer.table.settled')}`}
+                      color: (summary?.total_balance ?? summary?.outstanding) > 0 ? '#ef4444' : '#10b981' }}>
+                      <span className="num-en">{fmt(summary?.total_balance ?? summary?.outstanding)}</span> {t('common.currency', 'EGP')}
+                      {(summary?.total_balance ?? summary?.outstanding) > 0 ? ` ${t('finance.customerAccounts.drawer.table.due')}` : ` — ${t('finance.customerAccounts.drawer.table.settled')}`}
                     </td>
                   </tr>
+                  {(summary?.re_total_due > 0) && (
+                    <tr>
+                      <td colSpan={6} style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                        {isRTL ? 'فواتير مستحقة' : 'Invoices due'}: <span className="num-en">{fmt(summary.outstanding)}</span>
+                        {' | '}{isRTL ? 'مستحقات عقارات' : 'Real estate dues'}: <span className="num-en">{fmt(summary.re_outstanding)}</span>
+                      </td>
+                    </tr>
+                  )}
                 </tfoot>
               )}
             </table></div>
@@ -410,6 +421,7 @@ const CustomerAccounts = () => {
             { label: t('finance.customerAccounts.kpi.overdue'),                   value: kpi.totalOverdue,             color: '#ef4444', icon: <AlertTriangle size={18} /> },
             { label: t('finance.customerAccounts.kpi.dueThisMonth'),            value: kpi.dueThisMonth,             color: '#f59e0b', icon: <Clock size={18} /> },
             { label: t('finance.customerAccounts.kpi.customersWithOutstanding'), value: kpi.customersWithOutstanding,  color: '#3b82f6', icon: <Users size={18} />, isCount: true },
+            { label: isRTL ? 'مستحقات العقارات' : 'Real estate receivables',     value: kpi.reReceivables || 0,       color: '#0ea5e9', icon: <FileText size={18} /> },
           ].map(card => (
             <div key={card.label} style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '12px', padding: '16px 18px', boxShadow: 'var(--shadow-sm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
@@ -486,6 +498,7 @@ const CustomerAccounts = () => {
                   { key: 'totalInvoiced', label: t('finance.customerAccounts.table.totalInvoiced'), numeric: true },
                   { key: 'totalPaid',     label: t('finance.customerAccounts.table.totalPaid'),     numeric: true },
                   { key: 'outstanding',   label: t('finance.customerAccounts.table.outstanding'),   numeric: true },
+                  { key: 'reOutstanding', label: isRTL ? 'مستحقات العقارات' : 'RE dues',            numeric: true },
                   { key: 'overdue',       label: t('finance.customerAccounts.table.overdue'),       numeric: true },
                   { key: 'lastActivity',  label: t('finance.customerAccounts.table.lastActivity'),  numeric: false },
                   { key: 'status',        label: t('finance.customerAccounts.table.status'),        numeric: false },
@@ -537,6 +550,9 @@ const CustomerAccounts = () => {
                   </td>
                   <td style={{ padding: '13px 16px', textAlign: isRTL ? 'left' : 'right', fontWeight: 700, color: parseFloat(c.outstanding) > 0 ? '#f59e0b' : 'var(--text-muted)' }}>
                     <span className="num-en">{fmt(c.outstanding)}</span>
+                  </td>
+                  <td style={{ padding: '13px 16px', textAlign: isRTL ? 'left' : 'right', fontWeight: 700, color: parseFloat(c.re_outstanding) > 0 ? '#0ea5e9' : 'var(--text-muted)' }}>
+                    {parseFloat(c.re_outstanding) > 0 ? <span className="num-en">{fmt(c.re_outstanding)}</span> : '—'}
                   </td>
                   <td style={{ padding: '13px 16px', textAlign: isRTL ? 'left' : 'right', fontWeight: 700, color: parseFloat(c.overdue) > 0 ? '#ef4444' : 'var(--text-muted)' }}>
                     {parseFloat(c.overdue) > 0 ? <span className="num-en">{fmt(c.overdue)}</span> : '—'}

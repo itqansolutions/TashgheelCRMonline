@@ -44,6 +44,7 @@ const FinanceDashboard = () => {
   const [invoices, setInvoices] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [reReceivables, setReReceivables] = useState(null);
   const [receiptVouchers, setReceiptVouchers] = useState([]);
   const [paymentVouchers, setPaymentVouchers] = useState([]);
   const [summaryStats, setSummaryStats] = useState(null);
@@ -145,6 +146,7 @@ const FinanceDashboard = () => {
     setSummaryLoading(true); setSummaryError(false); setSummaryStats(null);
     try {
       const res = await api.get('/finance/summary');
+      api.get('/finance/re-receivables').then(r => setReReceivables(r.data?.data?.totals || null)).catch(() => setReReceivables(null));
       if (request !== summaryId.current) return;
       if (!hasNumbers(res.data?.data, ['totalInvoiced', 'totalIncome', 'totalOutstanding', 'totalExpenses', 'netCashflow'])) throw new Error('Invalid summary');
       setSummaryStats(res.data.data);
@@ -740,6 +742,8 @@ const FinanceDashboard = () => {
                     { label: t('finance.kpi.outstanding', 'Outstanding'), value: summaryStats?.totalOutstanding || 0, color: '#f59e0b', sub: t('finance.kpi.unpaidPartial', 'Unpaid / partially paid') },
                     { label: t('finance.kpi.expenses', 'Expenses'), value: summaryStats?.totalExpenses || 0, color: '#ef4444', sub: t('finance.kpi.allExpenses', 'All recorded expenses') },
                     { label: t('finance.kpi.netCashflow', 'Net Cashflow'), value: summaryStats?.netCashflow || 0, color: (summaryStats?.netCashflow || 0) >= 0 ? '#3b82f6' : '#ef4444', sub: t('finance.kpi.collectedMinusExpenses', 'Collected minus expenses') },
+                    ...(reReceivables && reReceivables.contracts > 0 ? [{ label: isRTL ? 'مستحقات العقارات' : 'Real estate receivables', value: reReceivables.outstanding || 0, color: '#0ea5e9',
+                      sub: isRTL ? `أقساط العقود غير المحصلة (${money(reReceivables.collected)} محصل من ${money(reReceivables.total_scheduled)}) - منفصلة عن المبيعات` : `Unpaid contract installments (${money(reReceivables.collected)} collected of ${money(reReceivables.total_scheduled)}), separate from sales` }] : []),
                   ].map(item => (
                     <div key={item.label} style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '14px', padding: '24px', boxShadow: 'var(--shadow-sm)' }}>
                       <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>{item.label}</div>

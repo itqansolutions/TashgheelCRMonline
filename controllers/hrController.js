@@ -348,10 +348,13 @@ exports.getPayrolls = async (req, res) => {
     const branch_id = req.branchId;
 
     try {
+        await require('../services/payrollPayoutService').ensurePayoutTable();
         const result = await db.query(`
-            SELECT p.*, u.name as employee_name, (SELECT json_agg(i.*) FROM hr_payroll_items i WHERE i.payroll_id = p.id) as details
+            SELECT p.*, u.name as employee_name, (SELECT json_agg(i.*) FROM hr_payroll_items i WHERE i.payroll_id = p.id) as details,
+                   po.id AS payout_id, po.status AS payout_status, po.paid_at, po.voucher_number AS payout_voucher_number
             FROM hr_payroll p
             JOIN users u ON p.user_id = u.id
+            LEFT JOIN hr_payroll_payouts po ON po.payroll_id = p.id AND po.status = 'paid'
             WHERE p.tenant_id::text = $1::text AND p.branch_id::text = $2::text
             ORDER BY p.payroll_year DESC, p.payroll_month DESC
         `, [tenant_id, branch_id]);
@@ -403,5 +406,37 @@ exports.getMyPayrolls = async (req, res) => {
     } catch (err) {
         console.error('getMyPayrolls Error:', err.message);
         res.status(500).json({ status: 'error', message: 'Failed to retrieve your payroll slips.' });
+    }
+};
+
+
+// @desc    Pay out a whole month's finalized payroll sheet (posts to Finance at actual payout)
+// @route   POST /api/hr/payroll/payout
+// @access  Private (Admin/Manager)
+exports.payoutPayroll = async (req, res) => {
+    try {
+        const { month, year, treasury_account_id, payment_method, payment_date } = req.body || {};
+        const out = await require('../services/payrollPayoutService').payoutSheet({
+            tenant_id: req.user.tenant_id, branch_id: req.branchId, user_id: req.user.id,
+            month, year, treasury_account_id, payment_method, payment_date
+        });
+        res.status(201).json({ status: 'success', message: `Payroll paid out: ${out.count} employee(s).`, data: out });
+    } catch (err) {
+        res.status(err.status || 500).json({ status: 'error', message: err.message });
+    }
+};
+
+// @desc    Reverse one payroll payout (voucher cancelled with reason, nothing deleted)
+// @route   POST /api/hr/payroll/payouts/:id/reverse
+// @access  Private (Admin/Manager)
+exports.reversePayrollPayout = async (req, res) => {
+    try {
+        const row = await require('../services/payrollPayoutService').reversePayout({
+            tenant_id: req.user.tenant_id, branch_id: req.branchId, user_id: req.user.id,
+            payout_id: req.params.id, reason: req.body?.reason
+        });
+        res.json({ status: 'success', message: 'Payout reversed.', data: row });
+    } catch (err) {
+        res.status(err.status || 500).json({ status: 'error', message: err.message });
     }
 };

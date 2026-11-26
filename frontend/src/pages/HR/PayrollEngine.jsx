@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, Lock, Eye, AlertTriangle, FileText, Search } from 'lucide-react';
+import { Calculator, Lock, Eye, AlertTriangle, FileText, Search, Banknote, Undo2 } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import Modal from '../../components/Common/Modal';
@@ -19,6 +19,14 @@ const PayrollEngine = () => {
         user_id: '' // Specific employee for MVP or batch (not implemented)
     });
     const [staff, setStaff] = useState([]); // to populate user_id select
+
+    // Payout (post to Finance at actual payout)
+    const [payoutOpen, setPayoutOpen] = useState(false);
+    const [accounts, setAccounts] = useState([]);
+    const [payout, setPayout] = useState({ method: 'cash', treasury_account_id: '', date: new Date().toISOString().slice(0, 10) });
+    const [paying, setPaying] = useState(false);
+    const [reverseTarget, setReverseTarget] = useState(null);
+    const [reverseReason, setReverseReason] = useState('');
 
     // Details Modal State
     const [selectedPayroll, setSelectedPayroll] = useState(null);
@@ -78,6 +86,57 @@ const PayrollEngine = () => {
             setIsDetailsOpen(false); // Close details if open
         } catch (err) {
             toast.error(t('hr.payrollEngine.finalizeFailed', 'Failed to finalize payroll.'));
+        }
+    };
+
+    const sheet = payrolls.filter(p => Number(p.payroll_month) === Number(genData.month) && Number(p.payroll_year) === Number(genData.year));
+    const payable = sheet.filter(p => p.status === 'finalized' && !p.payout_id && Number(p.net_salary) > 0);
+    const hasDraft = sheet.some(p => p.status !== 'finalized');
+    const payableTotal = payable.reduce((a, p) => a + Number(p.net_salary), 0);
+    const typeAccounts = accounts.filter(a => a.is_active !== false && a.type === (payout.method === 'cash' ? 'cash' : 'bank'));
+
+    const openPayout = async () => {
+        if (!payable.length) return toast.error(t('hr.payrollEngine.payoutNothing'));
+        if (hasDraft) return toast.error(t('hr.payrollEngine.draftWarning'));
+        try {
+            const res = await api.get('/finance/treasury/accounts');
+            const list = res.data?.data || [];
+            setAccounts(list);
+            const def = list.find(a => a.type === 'cash' && a.is_default) || list.find(a => a.type === 'cash');
+            setPayout(pv => ({ ...pv, method: 'cash', treasury_account_id: def ? String(def.id) : '' }));
+        } catch (e) { setAccounts([]); }
+        setPayoutOpen(true);
+    };
+
+    const changeMethod = (m) => {
+        const list = accounts.filter(a => a.is_active !== false && a.type === (m === 'cash' ? 'cash' : 'bank'));
+        const def = list.find(a => a.is_default) || list[0];
+        setPayout(pv => ({ ...pv, method: m, treasury_account_id: def ? String(def.id) : '' }));
+    };
+
+    const confirmPayout = async () => {
+        if (paying) return;
+        if (!payout.treasury_account_id) return toast.error(t('hr.payrollEngine.payoutNoTreasury'));
+        setPaying(true);
+        try {
+            await api.post('/hr/payroll/payout', { month: genData.month, year: genData.year, treasury_account_id: payout.treasury_account_id, payment_method: payout.method, payment_date: payout.date });
+            toast.success(t('hr.payrollEngine.payoutDone'));
+            setPayoutOpen(false);
+            fetchPayrolls();
+        } catch (err) {
+            toast.error(err.response?.data?.message || t('hr.payrollEngine.payoutFailed'));
+        } finally { setPaying(false); }
+    };
+
+    const confirmReverse = async () => {
+        if (!reverseReason.trim()) return toast.error(t('hr.payrollEngine.reverseReason'));
+        try {
+            await api.post(`/hr/payroll/payouts/${reverseTarget.payout_id}/reverse`, { reason: reverseReason });
+            toast.success(t('hr.payrollEngine.reverseDone'));
+            setReverseTarget(null); setReverseReason('');
+            fetchPayrolls();
+        } catch (err) {
+            toast.error(err.response?.data?.message || t('hr.payrollEngine.reverseFailed'));
         }
     };
 
@@ -166,6 +225,12 @@ const PayrollEngine = () => {
                     </button>
                 </form>
 
+                <div style={{ display: 'flex', justifyContent: isRTL ? 'flex-start' : 'flex-end', marginBottom: '16px' }}>
+                    <button type="button" className="btn-generate" style={{ background: '#10b981' }} onClick={openPayout}>
+                        <Banknote size={18} /> {t('hr.payrollEngine.payoutButton')}
+                    </button>
+                </div>
+
                 <div className="responsive-table-region" role="region" tabIndex={0}><table className="pr-table">
                     <thead>
                         <tr>
@@ -174,14 +239,15 @@ const PayrollEngine = () => {
                             <th>{t('hr.payrollEngine.colBaseSalary', 'Base Salary')}</th>
                             <th>{t('hr.payrollEngine.colNetPackage', 'Net Package')}</th>
                             <th>{t('hr.payrollEngine.colSystemStatus', 'System Status')}</th>
+                            <th>{t('hr.payrollEngine.colPayout')}</th>
                             <th>{t('hr.payrollEngine.colOperations', 'Operations')}</th>
                         </tr>
                     </thead>
                     <tbody>
                         {loading ? (
-                            <tr><td colSpan="6" style={{ textAlign: 'center', padding: '32px' }}>{t('hr.payrollEngine.loading', 'Loading Financial Ledger...')}</td></tr>
+                            <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px' }}>{t('hr.payrollEngine.loading', 'Loading Financial Ledger...')}</td></tr>
                         ) : payrolls.length === 0 ? (
-                            <tr><td colSpan="6" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>{t('hr.payrollEngine.noPayrollsYet', 'No Payrolls generated yet.')}</td></tr>
+                            <tr><td colSpan="7" style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>{t('hr.payrollEngine.noPayrollsYet', 'No Payrolls generated yet.')}</td></tr>
                         ) : payrolls.map(p => (
                             <tr key={p.id}>
                                 <td style={{ fontWeight: 800 }} className="num-en">{p.payroll_month} / {p.payroll_year}</td>
@@ -190,9 +256,19 @@ const PayrollEngine = () => {
                                 <td style={{ fontWeight: 900, color: 'var(--primary)', fontSize: '18px' }} className="num-en">EGP {parseFloat(p.net_salary).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 <td><StatusBadge status={p.status} /></td>
                                 <td>
+                                    {p.payout_id
+                                        ? <span className="badge badge-success">{t('hr.payrollEngine.statusPaid')} <span className="num-en">{p.payout_voucher_number}</span></span>
+                                        : <span className="badge">{t('hr.payrollEngine.statusUnpaid')}</span>}
+                                </td>
+                                <td>
                                     <button className="btn-action" onClick={() => openDetails(p)}>
                                         <Eye size={14} /> {t('hr.payrollEngine.viewDetails', 'View Details')}
                                     </button>
+                                    {p.payout_id && (
+                                        <button className="btn-action" onClick={() => { setReverseTarget(p); setReverseReason(''); }} style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                                            <Undo2 size={14} /> {t('hr.payrollEngine.reversePayout')}
+                                        </button>
+                                    )}
                                     {p.status === 'draft' && (
                                         <button className="btn-action" onClick={() => handleFinalize(p.id)} style={{ color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
                                             <Lock size={14} /> {t('hr.payrollEngine.finalize', 'Finalize')}
@@ -203,6 +279,51 @@ const PayrollEngine = () => {
                         ))}
                     </tbody>
                 </table></div>
+
+                {payoutOpen && (
+                    <Modal isOpen={payoutOpen} onClose={() => setPayoutOpen(false)} title={t('hr.payrollEngine.payoutTitle')}
+                        footer={<>
+                            <button style={{ background: 'transparent', color: 'var(--text-muted)', border: 'none', padding: '10px 16px', fontWeight: 600, cursor: 'pointer' }} onClick={() => setPayoutOpen(false)}>{t('hr.payrollEngine.close', 'Close')}</button>
+                            <button className="btn-generate" style={{ background: '#10b981' }} disabled={paying || !payout.treasury_account_id} onClick={confirmPayout}>{t('hr.payrollEngine.payoutConfirm')}</button>
+                        </>}>
+                        <div style={{ color: 'black', textAlign: isRTL ? 'right' : 'left', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            <div style={{ fontSize: '13px', color: '#4b5563' }}>{t('hr.payrollEngine.payoutIntro')}</div>
+                            <div className="trace-row"><span>{t('hr.payrollEngine.payoutCount')}</span><span className="num-en">{payable.length}</span></div>
+                            <div className="trace-row grand"><span>{t('hr.payrollEngine.payoutTotal')}</span><span className="num-en" style={{ color: '#4f46e5' }}>{payableTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP</span></div>
+                            <div className="form-group-p">
+                                <label>{t('hr.payrollEngine.payoutMethod')}</label>
+                                <select value={payout.method} onChange={(e) => changeMethod(e.target.value)} style={{ color: 'black' }}>
+                                    <option value="cash">{t('hr.payrollEngine.payoutCash')}</option>
+                                    <option value="bank_transfer">{t('hr.payrollEngine.payoutBank')}</option>
+                                </select>
+                            </div>
+                            <div className="form-group-p">
+                                <label>{t('hr.payrollEngine.payoutTreasury')}</label>
+                                <select value={payout.treasury_account_id} onChange={(e) => setPayout({ ...payout, treasury_account_id: e.target.value })} style={{ color: 'black' }}>
+                                    {typeAccounts.length === 0 && <option value="">{t('hr.payrollEngine.payoutNoTreasury')}</option>}
+                                    {typeAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="form-group-p">
+                                <label>{t('hr.payrollEngine.payoutDate')}</label>
+                                <input type="date" value={payout.date} onChange={(e) => setPayout({ ...payout, date: e.target.value })} className="num-en" />
+                            </div>
+                        </div>
+                    </Modal>
+                )}
+
+                {reverseTarget && (
+                    <Modal isOpen={!!reverseTarget} onClose={() => setReverseTarget(null)} title={t('hr.payrollEngine.reversePayout')}
+                        footer={<>
+                            <button style={{ background: 'transparent', color: 'var(--text-muted)', border: 'none', padding: '10px 16px', fontWeight: 600, cursor: 'pointer' }} onClick={() => setReverseTarget(null)}>{t('hr.payrollEngine.close', 'Close')}</button>
+                            <button className="btn-generate" style={{ background: '#ef4444' }} onClick={confirmReverse}>{t('hr.payrollEngine.reversePayout')}</button>
+                        </>}>
+                        <div style={{ color: 'black', textAlign: isRTL ? 'right' : 'left' }} className="form-group-p">
+                            <label>{t('hr.payrollEngine.reverseReason')}</label>
+                            <input type="text" value={reverseReason} onChange={(e) => setReverseReason(e.target.value)} />
+                        </div>
+                    </Modal>
+                )}
 
                 {/* Details Visualizer Modal */}
                 {isDetailsOpen && selectedPayroll && (
