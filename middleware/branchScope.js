@@ -69,6 +69,7 @@ const branchScope = async (req, res, next) => {
             RETURNING id
           `, [tenantId]);
           resolvedBranchId = newBranchRes.rows[0].id;
+          await require('../services/ensureDefaultTreasury').ensureDefaultTreasury(db, tenantId, resolvedBranchId);
           
           // Auto-assign user to this new branch
           await db.query(`INSERT INTO user_branches (user_id, branch_id) VALUES ($1::text, $2::text) ON CONFLICT DO NOTHING`, [userId, resolvedBranchId]);

@@ -36,6 +36,7 @@ exports.createBranch = async (req, res) => {
       [name, address, phone, tenant_id]
     );
 
+    await require('../services/ensureDefaultTreasury').ensureDefaultTreasury(db, tenant_id, result.rows[0].id);
     logAction({ req, action: ACTIONS.CREATE, entityType: 'Branch', entityId: result.rows[0].id });
 
     res.status(201).json({ status: 'success', data: result.rows[0] });

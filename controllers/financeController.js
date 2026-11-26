@@ -1916,6 +1916,14 @@ exports.getCustomerAccounts = async (req, res) => {
             ORDER BY outstanding DESC, total_invoiced DESC
         `, [tenant_id, branch_id ? String(branch_id) : null]);
 
+        // On-account receipts reduce what is owed, so overdue can never exceed outstanding.
+        result.rows.forEach(row => {
+            const out = parseFloat(row.outstanding || 0);
+            const od = Math.min(parseFloat(row.overdue || 0), out);
+            row.overdue = od;
+            row.account_status = od > 0 ? 'overdue' : (out > 0 ? 'outstanding' : 'clear');
+        });
+
         // KPI totals across all customers
         const kpi = result.rows.reduce((acc, row) => {
             acc.totalReceivables   += parseFloat(row.outstanding   || 0);
@@ -2110,7 +2118,7 @@ exports.getCustomerStatement = async (req, res) => {
         const totalInvoiced = parseFloat(summary.total_invoiced || 0);
         const totalPaid = parseFloat(summary.total_paid || 0) + totalOnAccount;
         const outstanding = Math.max(0, parseFloat(summary.outstanding || 0) - totalOnAccount);
-        const overdue = parseFloat(summary.overdue || 0);
+        const overdue = Math.min(parseFloat(summary.overdue || 0), outstanding);
 
         res.json({
             status: 'success',

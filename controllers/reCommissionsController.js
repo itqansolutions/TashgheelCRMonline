@@ -648,39 +648,22 @@ exports.payCommission = async (req, res) => {
             });
         }
 
-        // Resolve Treasury Account
+        // Resolve treasury exactly like installment collection: explicit account or branch default, else hard-fail.
         let resolvedTreasuryId = null;
         let resolvedTreasuryName = null;
-        if (treasury_account_id) {
-            const taCheck = await client.query(`
-                SELECT id, name, branch_id FROM treasury_accounts
-                WHERE id = $1 AND tenant_id::text = $2::text AND is_active = true
-            `, [treasury_account_id, tenant_id]);
-            if (taCheck.rows.length === 0) {
-                await client.query('ROLLBACK');
-                return res.status(400).json({ status: 'error', message: 'Selected treasury account is invalid or inactive.' });
-            }
-            if (comm.branch_id && taCheck.rows[0].branch_id && String(taCheck.rows[0].branch_id) !== String(comm.branch_id)) {
-                await client.query('ROLLBACK');
-                return res.status(403).json({ status: 'error', message: 'Unauthorized access to the selected treasury account branch.' });
-            }
-            resolvedTreasuryId = taCheck.rows[0].id;
-            resolvedTreasuryName = taCheck.rows[0].name;
-        }
-
-        if (!resolvedTreasuryId) {
-            const accType = (payment_method === 'bank_transfer' || payment_method === 'card' || payment_method === 'check') ? 'bank' : 'cash';
-            const defaultTa = await client.query(`
-                SELECT id, name FROM treasury_accounts
-                WHERE tenant_id::text = $1::text
-                  AND ($2::text IS NULL OR branch_id::text = $2::text OR branch_id IS NULL)
-                  AND type = $3 AND is_default = true AND is_active = true
-                LIMIT 1
-            `, [tenant_id, comm.branch_id ? String(comm.branch_id) : null, accType]);
-            if (defaultTa.rows.length > 0) {
-                resolvedTreasuryId = defaultTa.rows[0].id;
-                resolvedTreasuryName = defaultTa.rows[0].name;
-            }
+        try {
+            const { resolveCollectionTreasury } = require('../services/resolveCollectionTreasury');
+            const treasury = await resolveCollectionTreasury(client, {
+                tenant_id,
+                branch_id: comm.branch_id ? String(comm.branch_id) : null,
+                treasury_account_id,
+                payment_method: payment_method || 'cash'
+            });
+            resolvedTreasuryId = treasury.id;
+            resolvedTreasuryName = treasury.name;
+        } catch (tErr) {
+            await client.query('ROLLBACK');
+            return res.status(tErr.status || 400).json({ status: 'error', message: tErr.message });
         }
 
         const { generateVoucherNumber } = require('../services/voucherNumbering');
