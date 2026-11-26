@@ -1947,7 +1947,7 @@ exports.getCustomerAccounts = async (req, res) => {
               AND i.status != 'paid'
               AND date_trunc('month', i.due_date) = date_trunc('month', CURRENT_DATE)
         `, [tenant_id, branch_id ? String(branch_id) : null]);
-        kpi.dueThisMonth = parseFloat(monthRes.rows[0]?.due_this_month || 0);
+        kpi.dueThisMonth = Math.min(parseFloat(monthRes.rows[0]?.due_this_month || 0), kpi.totalReceivables);
 
         res.json({ status: 'success', data: result.rows, kpi });
     } catch (err) {
