@@ -84,6 +84,8 @@ const FinanceDashboard = () => {
     customer_id: '',
     unit_id: '',
     amount: '',
+    discount_type: 'percent',
+    discount_value: '',
     date: new Date().toISOString().split('T')[0],
     category: 'General',
     title: '',
@@ -209,7 +211,9 @@ const FinanceDashboard = () => {
           unit_id: formData.unit_id || null,
           items: formData.items,
           due_date: formData.date,
-          notes: formData.title || null
+          notes: formData.title || null,
+          discount_type: formData.discount_value ? (formData.discount_type || 'percent') : null,
+          discount_value: formData.discount_value || 0
         });
         toast.success(t('finance.invoices.createdSuccess'));
       } else if (quickActionType === 'Quotation') {
@@ -219,7 +223,9 @@ const FinanceDashboard = () => {
           items: formData.items,
           valid_until: formData.date,
           notes: formData.title,
-          total_amount: formData.amount
+          total_amount: formData.amount,
+          discount_type: formData.discount_value ? (formData.discount_type || 'percent') : null,
+          discount_value: formData.discount_value || 0
         });
         toast.success(isRTL ? 'تم حفظ عرض السعر كمسودة. اعتمده من قايمة العروض عشان تحوله لفاتورة.' : t('finance.quotations.createdSuccess'), { duration: 6000 });
       } else if (quickActionType === 'Receipt Voucher') {
@@ -274,6 +280,8 @@ const FinanceDashboard = () => {
         customer_id: '',
         unit_id: '',
         amount: '',
+        discount_type: 'percent',
+        discount_value: '',
         date: new Date().toISOString().split('T')[0],
         category: 'General',
         title: '',
@@ -1273,6 +1281,20 @@ const FinanceDashboard = () => {
                                           </div>
                                       ))}
                                       <button type="button" onClick={() => setFormData({ ...formData, items: [...formData.items, { product_id: '', item_type: 'service', description: '', quantity: 1, unit_price: 0 }] })} style={{ fontSize: '11px', color: 'var(--primary)', background: 'transparent', border: '1px dashed var(--primary)', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}>{t('finance.quickAction.addItem')}</button>
+                                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap' }}>
+                                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>{isRTL ? 'الخصم' : 'Discount'}</span>
+                                          <select value={formData.discount_type || 'percent'} onChange={e => setFormData({ ...formData, discount_type: e.target.value })} style={{ padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)', fontSize: '12px' }}>
+                                              <option value="percent" style={{color:'black'}}>{isRTL ? 'نسبة %' : 'Percent %'}</option>
+                                              <option value="fixed" style={{color:'black'}}>{isRTL ? 'مبلغ ثابت' : 'Fixed amount'}</option>
+                                          </select>
+                                          <input type="number" min="0" step="any" className="num-en" placeholder="0" value={formData.discount_value || ''} onChange={e => setFormData({ ...formData, discount_value: e.target.value })} style={{ width: '110px', padding: '8px', border: '1px solid var(--glass-border)', borderRadius: '6px', background: 'transparent', color: 'var(--text-main)', fontSize: '12px' }} />
+                                          {(() => {
+                                              const gross = (formData.items || []).reduce((a, c) => a + (c.quantity * c.unit_price), 0);
+                                              const v = parseFloat(formData.discount_value) || 0;
+                                              const d = (formData.discount_type || 'percent') === 'percent' ? gross * v / 100 : v;
+                                              return v > 0 ? <span className="num-en" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{isRTL ? 'الصافي' : 'Net'}: {Math.max(0, gross - d).toLocaleString('en-US', { maximumFractionDigits: 2 })}</span> : null;
+                                          })()}
+                                      </div>
                                   </div>
                               ) : (
                                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>

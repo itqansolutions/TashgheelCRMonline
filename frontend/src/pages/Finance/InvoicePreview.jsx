@@ -380,8 +380,14 @@ const InvoicePreview = () => {
                     <div className="totals-box">
                         <div className="total-row">
                             <span>{t('finance.invoicePreview.subtotal')}</span>
-                            <span className="num-en">{parseFloat(invoice.total_amount).toLocaleString('en-US')} {t('common.currency')}</span>
+                            <span className="num-en">{(parseFloat(invoice.discount_amount) > 0 ? parseFloat(invoice.subtotal_before_discount) : parseFloat(invoice.total_amount)).toLocaleString('en-US')} {t('common.currency')}</span>
                         </div>
+                        {parseFloat(invoice.discount_amount) > 0 && (
+                        <div className="total-row">
+                            <span>{isRTL ? 'الخصم' : 'Discount'}{invoice.discount_type === 'percent' ? ` (${parseFloat(invoice.discount_value)}%)` : ''}</span>
+                            <span className="num-en">- {parseFloat(invoice.discount_amount).toLocaleString('en-US')} {t('common.currency')}</span>
+                        </div>
+                        )}
                         <div className="total-row">
                             <span>{t('finance.invoicePreview.tax')}</span>
                             <span className="num-en">0.00 {t('common.currency')}</span>

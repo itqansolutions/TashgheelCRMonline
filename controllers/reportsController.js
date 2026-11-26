@@ -15,8 +15,11 @@ exports.getTopProducts = async (req, res) => {
                 p.name, 
                 p.category, 
                 COALESCE(SUM(ii.quantity), 0) as total_sold, 
-                COALESCE(SUM(ii.subtotal), 0) as total_revenue
+                COALESCE(SUM(ii.subtotal * CASE WHEN COALESCE(inv.discount_amount, 0) > 0 AND COALESCE(inv.subtotal_before_discount, 0) > 0
+                                                THEN GREATEST(inv.subtotal_before_discount - inv.discount_amount, 0) / inv.subtotal_before_discount
+                                                ELSE 1 END), 0) as total_revenue
             FROM invoice_items ii
+            LEFT JOIN invoices inv ON inv.id = ii.invoice_id
             JOIN products p 
                 ON ii.product_id::text = p.id::text 
                 AND COALESCE(ii.tenant_id::text, $1::text) = p.tenant_id::text

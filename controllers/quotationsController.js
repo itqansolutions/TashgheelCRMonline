@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { logCreate, logUpdate, logDelete } = require('../services/loggerService');
 const { nextSequence } = require('../src/infrastructure/sequencing/DocumentSequencer');
+const { computeDiscount } = require('../services/discountService');
 
 // @desc    Get all quotations
 // @route   GET /api/quotations
@@ -86,7 +87,7 @@ exports.getQuotationById = async (req, res) => {
 // @route   POST /api/quotations
 // @access  Private
 exports.createQuotation = async (req, res) => {
-  const { deal_id, client_id, unit_id, total_amount, valid_until, notes, items } = req.body;
+  const { deal_id, client_id, unit_id, total_amount, valid_until, notes, items, discount_type, discount_value } = req.body;
   const tenant_id = req.user.tenant_id;
   const branch_id = req.branchId || req.user?.branch_id || null;
 
@@ -250,6 +251,17 @@ exports.createQuotation = async (req, res) => {
       }
     }
 
+    // ── 1b. Discount: totals are recomputed on the server; total_amount stored NET ──
+    const grossFromItems = validatedItems.reduce((s, i) => s + i.subtotal, 0);
+    const gross = validatedItems.length > 0 ? grossFromItems : (parseFloat(total_amount) || 0);
+    let disc;
+    try {
+      disc = computeDiscount(gross, discount_type, discount_value);
+    } catch (dErr) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ status: 'error', message: dErr.message });
+    }
+
     // ── 2. Sequential Number Generation (Tenant-wide QUO namespace) ──────────
     const year = new Date().getFullYear();
     const number = await nextSequence(client, {
@@ -262,19 +274,24 @@ exports.createQuotation = async (req, res) => {
     // ── 3. Insert Quotation Header ───────────────────────────────────────────
     const result = await client.query(
       `INSERT INTO quotations
-        (number, deal_id, client_id, unit_id, total_amount, valid_until, notes, tenant_id, branch_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        (number, deal_id, client_id, unit_id, total_amount, valid_until, notes, tenant_id, branch_id,
+         discount_type, discount_value, discount_amount, subtotal_before_discount)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         number,
         deal_id || null,
         client_id || null,
         unit_id || null,
-        total_amount || 0,
+        disc.net,
         valid_until || null,
         notes || null,
         tenant_id,
-        branch_id ? String(branch_id) : null
+        branch_id ? String(branch_id) : null,
+        disc.type,
+        disc.value,
+        disc.amount,
+        disc.gross
       ]
     );
     const quotation = result.rows[0];

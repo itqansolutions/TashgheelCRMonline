@@ -380,7 +380,7 @@ exports.getInvoices = async (req, res) => {
 exports.createInvoice = async (req, res) => {
     const tenant_id = req.user.tenant_id;
     let branch_id = req.branchId || req.user?.branch_id || null;
-    const { customer_id, client_id, deal_id, unit_id, due_date, items, notes } = req.body;
+    const { customer_id, client_id, deal_id, unit_id, due_date, items, notes, discount_type, discount_value } = req.body;
     const effectiveClientId = customer_id || client_id;
 
     await ensureInvoicesTable();
@@ -450,9 +450,13 @@ exports.createInvoice = async (req, res) => {
         const sanitizedDealId = (deal_id && deal_id !== '' && deal_id !== 'null' && deal_id !== 'undefined' && deal_id !== 'N/A' && deal_id !== '#N/A') ? String(deal_id).trim() : null;
         const sanitizedUnitId = (unit_id && unit_id !== '' && unit_id !== 'null' && unit_id !== 'undefined') ? String(unit_id).trim() : null;
 
+        const disc = require('../services/discountService').computeDiscount(total_amount, discount_type, discount_value);
+        total_amount = disc.net; // stored NET (after discount)
+
         const invRes = await db.query(`
-            INSERT INTO invoices (invoice_number, total_amount, due_date, status, tenant_id, branch_id, client_id, customer_id, deal_id, unit_id, notes)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            INSERT INTO invoices (invoice_number, total_amount, due_date, status, tenant_id, branch_id, client_id, customer_id, deal_id, unit_id, notes,
+                                  discount_type, discount_value, discount_amount, subtotal_before_discount)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING *
         `, [
             invoiceNumber, 
@@ -465,7 +469,8 @@ exports.createInvoice = async (req, res) => {
             sanitizedClientId,
             sanitizedDealId, 
             sanitizedUnitId,
-            notes || null
+            notes || null,
+            disc.type, disc.value, disc.amount, disc.gross
         ]);
         
         const newInvoiceId = invRes.rows[0].id;
@@ -499,6 +504,7 @@ exports.createInvoice = async (req, res) => {
     } catch (err) {
         await db.query('ROLLBACK');
         console.error('createInvoice Error:', err);
+        if (err.status === 400) return res.status(400).json({ status: 'error', message: err.message });
         if (err.status === 409 && err.code) return res.status(409).json({ status: 'error', code: err.code, message: err.message, product_name: err.product_name, available: err.available, requested: err.requested });
         res.status(500).json({ status: 'error', message: err.message || 'Failed to create invoice.' });
     }

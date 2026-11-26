@@ -94,6 +94,8 @@ const SalesCycle = () => {
       customer_id: customers.length > 0 ? String(customers[0].id) : '',
       deal_id: '',
       quotation_id: '',
+      discount_type: null,
+      discount_value: 0,
       order_date: new Date().toISOString().split('T')[0],
       expected_delivery: '',
       currency: 'EGP',
@@ -107,7 +109,7 @@ const SalesCycle = () => {
 
   const handleQuotationSelect = (quotationId) => {
     if (!quotationId) {
-      setFormData(prev => ({ ...prev, quotation_id: '' }));
+      setFormData(prev => ({ ...prev, quotation_id: '', discount_type: null, discount_value: 0 }));
       return;
     }
     const quote = quotations.find(q => String(q.id) === String(quotationId));
@@ -123,13 +125,15 @@ const SalesCycle = () => {
         }));
       } else {
         quoteItems = [
-          { product_id: '', description: quote.notes || 'Items from quotation', quantity: 1, unit_price: Number(quote.total_amount || 0), subtotal: Number(quote.total_amount || 0) }
+          { product_id: '', description: quote.notes || 'Items from quotation', quantity: 1, unit_price: Number(quote.subtotal_before_discount || quote.total_amount || 0), subtotal: Number(quote.subtotal_before_discount || quote.total_amount || 0) }
         ];
       }
 
       setFormData(prev => ({
         ...prev,
         quotation_id: String(quote.id),
+        discount_type: quote.discount_type || null,
+        discount_value: Number(quote.discount_value || 0),
         deal_id: quote.deal_id ? String(quote.deal_id) : prev.deal_id,
         customer_id: String(quote.client_id || prev.customer_id),
         notes: `Imported from Quotation #QT-${quote.id}. ${quote.notes || ''}`.trim(),
@@ -727,6 +731,12 @@ const SalesCycle = () => {
                   <div style={{ fontWeight: 800, color: '#10b981', marginTop: '2px' }}>
                     <span className="num-en">{parseFloat(selectedOrder.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span> {currencyLabel}
                   </div>
+                  {parseFloat(selectedOrder.discount_amount) > 0 && (
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                      {isRTL ? 'قبل الخصم' : 'Before discount'}: <span className="num-en">{parseFloat(selectedOrder.subtotal_before_discount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      {' · '}{isRTL ? 'الخصم' : 'Discount'}{selectedOrder.discount_type === 'percent' ? ` ${parseFloat(selectedOrder.discount_value)}%` : ''}: <span className="num-en">-{parseFloat(selectedOrder.discount_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

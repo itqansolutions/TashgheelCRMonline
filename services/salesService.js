@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const SalesOrderService = require('../src/domains/sales/SalesOrderService');
+const { computeDiscount, prorateDiscount } = require('./discountService');
 
 /**
  * Converts a Quotation into an Invoice via the authoritative Sales Order workflow.
@@ -221,14 +222,23 @@ exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id, clientOverr
     const invoiceNumber = await generateInvoiceNumber(tenant_id, so.branch_id, client);
 
     // 5. Insert Invoice Header with sales_order_id
-    const finalAmount = itemsToInvoice.length > 0 ? totalInvoiceAmount : (parseFloat(so.total_amount) || 0);
+    // Discount: carried from the Sales Order, prorated by gross share when the invoice is partial.
+    let soGross = parseFloat(so.subtotal_before_discount);
+    if (!Number.isFinite(soGross) || soGross <= 0) {
+      soGross = itemsRes.rows.reduce((s, it) => s + (parseFloat(it.quantity) || 0) * (parseFloat(it.unit_price) || 0), 0);
+    }
+    const disc = itemsToInvoice.length > 0
+      ? prorateDiscount(so, totalInvoiceAmount, soGross)
+      : computeDiscount(parseFloat(so.total_amount) || 0, null, 0);
+    const finalAmount = itemsToInvoice.length > 0 ? disc.net : (parseFloat(so.total_amount) || 0);
     const invoiceNotes = `Generated from Sales Order #${so.order_number || so.number || so.id}. ${so.notes || ''}`.trim();
 
     const invRes = await client.query(
       `INSERT INTO invoices (
         client_id, customer_id, invoice_number, total_amount, due_date, status,
-        notes, tenant_id, branch_id, deal_id, quotation_id, sales_order_id
-      ) VALUES ($1, $2, $3, $4, CURRENT_DATE + INTERVAL '15 days', 'unpaid', $5, $6, $7, $8, $9, $10)
+        notes, tenant_id, branch_id, deal_id, quotation_id, sales_order_id,
+        discount_type, discount_value, discount_amount, subtotal_before_discount
+      ) VALUES ($1, $2, $3, $4, CURRENT_DATE + INTERVAL '15 days', 'unpaid', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
       [
         so.customer_id,
@@ -240,7 +250,11 @@ exports.convertSalesOrderToInvoice = async (salesOrderId, tenant_id, clientOverr
         so.branch_id || null,
         so.deal_id || null,
         so.quotation_id || null,
-        String(salesOrderId)
+        String(salesOrderId),
+        disc.type,
+        disc.value,
+        disc.amount,
+        itemsToInvoice.length > 0 ? disc.gross : null
       ]
     );
 

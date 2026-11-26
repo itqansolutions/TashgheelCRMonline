@@ -253,6 +253,18 @@ const QuotationPreview = ({ quotation }) => {
                     <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>{parseFloat(quotation.total_amount).toLocaleString('en-US')} {t('common.currency')}</td>
                 </tr>
             )}
+            {parseFloat(quotation.discount_amount) > 0 && (
+              <>
+                <tr>
+                  <td colSpan="3" style={{ textAlign: isRTL ? 'left' : 'right' }}>{isRTL ? 'الإجمالي قبل الخصم' : 'Subtotal'}</td>
+                  <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>{parseFloat(quotation.subtotal_before_discount).toLocaleString('en-US')} {t('common.currency')}</td>
+                </tr>
+                <tr>
+                  <td colSpan="3" style={{ textAlign: isRTL ? 'left' : 'right' }}>{isRTL ? 'الخصم' : 'Discount'}{quotation.discount_type === 'percent' ? ` (${parseFloat(quotation.discount_value)}%)` : ''}</td>
+                  <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>- {parseFloat(quotation.discount_amount).toLocaleString('en-US')} {t('common.currency')}</td>
+                </tr>
+              </>
+            )}
             <tr className="total-row">
               <td colSpan="3" style={{ textAlign: isRTL ? 'left' : 'right' }}>{t('finance.quotationPreview.estimatedTotal')}</td>
               <td className="num-en" style={{ textAlign: isRTL ? 'left' : 'right' }}>{parseFloat(quotation.total_amount).toLocaleString('en-US')} {t('common.currency')}</td>

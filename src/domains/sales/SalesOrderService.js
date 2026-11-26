@@ -11,6 +11,7 @@
 const db = require('../../../config/db');
 const { nextSequence } = require('../../infrastructure/sequencing/DocumentSequencer');
 const TransactionEngine = require('../shared/TransactionEngine');
+const { computeDiscount } = require('../../../services/discountService');
 
 /**
  * Internal helper to create a Sales Order using an existing database transaction client.
@@ -139,6 +140,10 @@ async function _createSalesOrderInternal(client, { tenantId, branchId, data, use
     throw new Error('Exchange rate must be a strictly positive finite number.');
   }
 
+  const disc = computeDiscount(totalAmount, data.discount_type, data.discount_value);
+  const grossAmount = totalAmount;
+  totalAmount = disc.net; // total_amount is stored NET (after discount)
+
   const localValue = totalAmount * exRate;
   if (!Number.isFinite(localValue)) {
     throw new Error('Local currency value exceeds allowable mathematical limits.');
@@ -151,13 +156,15 @@ async function _createSalesOrderInternal(client, { tenantId, branchId, data, use
   // ─────────────────────────────────────────────────────────────────────────────
   const soRes = await client.query(`
     INSERT INTO sales_orders
-      (tenant_id, branch_id, number, customer_id, deal_id, quotation_id, order_date, expected_delivery, status, total_amount, tax_amount, currency, exchange_rate, local_value, notes, assigned_to, created_by)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9, $10, $11, $12, $13, $14, $15, $16)
+      (tenant_id, branch_id, number, customer_id, deal_id, quotation_id, order_date, expected_delivery, status, total_amount, tax_amount, currency, exchange_rate, local_value, notes, assigned_to, created_by,
+       discount_type, discount_value, discount_amount, subtotal_before_discount)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'draft', $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
     RETURNING *
   `, [
     String(tenantId), branchId || null, number, customer_id, deal_id || null, quotation_id || null,
     order_date || new Date(), expected_delivery || null, totalAmount, totalTax,
-    curr, exRate, localValue, notes || null, assigned_to || null, userId
+    curr, exRate, localValue, notes || null, assigned_to || null, userId,
+    disc.type, disc.value, disc.amount, grossAmount
   ]);
 
   const salesOrder = soRes.rows[0];
@@ -285,6 +292,8 @@ async function _convertQuotationToSalesOrderInternal(client, { tenantId, branchI
     customer_id: customerId,
     deal_id: quo.deal_id ? (parseInt(quo.deal_id, 10) || null) : null,
     quotation_id: quo.id,
+    discount_type: quo.discount_type || null,
+    discount_value: quo.discount_value || 0,
     notes: `Converted from Quotation #${quo.number || quo.id}. ${quo.notes || ''}`.trim(),
     items: itemsRes.rows.map(i => ({
       quotation_item_id: i.id,
