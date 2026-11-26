@@ -130,15 +130,49 @@ const Commissions = () => {
     }
   };
 
+  const [payTarget, setPayTarget] = useState(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payTreasury, setPayTreasury] = useState('');
+  const [treasuries, setTreasuries] = useState([]);
+  const [paying, setPaying] = useState(false);
+
   const pay = async (c, unpaid) => {
-    const amt = window.prompt(t('realEstate.commissions.promptPayoutAmount'), unpaid);
-    if (!amt) return;
+    setPayTarget(c);
+    setPayAmount(String(unpaid));
+    setPayTreasury('');
     try {
-      const res = await api.post(`/re-commissions/${c.id}/pay`, { amount: parseFloat(amt), payment_date: new Date().toISOString().split('T')[0] });
+      const res = await api.get('/finance/treasury/accounts');
+      const cash = (res.data?.data || []).filter(a => a.is_active && a.type === 'cash');
+      setTreasuries(cash);
+      const def = cash.find(a => a.is_default) || (cash.length === 1 ? cash[0] : null);
+      if (def) setPayTreasury(String(def.id));
+    } catch (_) {
+      setTreasuries([]);
+    }
+  };
+
+  const submitPay = async () => {
+    const amt = parseFloat(payAmount);
+    if (!amt || amt <= 0) return;
+    if (!payTreasury) {
+      toast.error(isRTL ? 'اختر الخزينة التي سيتم الصرف منها' : 'Select the treasury account to pay from');
+      return;
+    }
+    setPaying(true);
+    try {
+      const res = await api.post(`/re-commissions/${payTarget.id}/pay`, {
+        amount: amt,
+        treasury_account_id: parseInt(payTreasury, 10),
+        payment_method: 'cash',
+        payment_date: new Date().toISOString().split('T')[0]
+      });
       toast.success(res.data.message || t('realEstate.commissions.toastPaySuccess'));
+      setPayTarget(null);
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || t('realEstate.commissions.toastPayError'));
+    } finally {
+      setPaying(false);
     }
   };
 
@@ -218,6 +252,35 @@ const Commissions = () => {
         loading={loading}
         empty={t('realEstate.commissions.empty')}
       />)}
+
+      <Modal variant="form"
+        isOpen={!!payTarget}
+        onClose={() => setPayTarget(null)}
+        title={isRTL ? 'صرف عمولة' : 'Pay commission'}
+        footer={<>
+          <button onClick={() => setPayTarget(null)} style={{ background: '#f1f5f9', padding: '10px 20px', borderRadius: '8px', fontWeight: 600 }}>
+            {t('realEstate.common.cancel')}
+          </button>
+          <button onClick={submitPay} disabled={paying} style={{ background: 'var(--primary)', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 600 }}>
+            {t('realEstate.commissions.btnPay')}
+          </button>
+        </>}
+      >
+        <div style={{ display: 'grid', gap: '14px' }}>
+          <div>
+            <label style={labelStyle}>{t('realEstate.commissions.promptPayoutAmount')}</label>
+            <input type="number" min="0" step="0.01" style={fieldStyle} value={payAmount} onChange={e => setPayAmount(e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>{isRTL ? 'الخزينة' : 'Treasury account'}</label>
+            <select style={fieldStyle} value={payTreasury} onChange={e => setPayTreasury(e.target.value)}>
+              <option value="">{isRTL ? 'اختر الخزينة' : 'Select treasury'}</option>
+              {treasuries.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+            {treasuries.length === 0 && <p style={{ color: '#b45309', fontSize: 13, marginTop: 6 }}>{isRTL ? 'لا توجد خزينة نقدية نشطة. أنشئ واحدة من الإدارة المالية أولا.' : 'No active cash treasury. Create one under Finance first.'}</p>}
+          </div>
+        </div>
+      </Modal>
 
       <Modal variant="form"
         isOpen={formOpen}
