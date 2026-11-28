@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Printer, X, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { useLanguage } from '../../context/LanguageContext';
+import { useData } from '../../context/DataContext';
 
 // Helper function to convert numbers into English words
 function numberToEnglishWords(number, currency = 'EGP') {
@@ -164,6 +165,7 @@ function numberToArabicWords(number, currency = 'جنيه مصري') {
 const VoucherPreviewModal = ({ voucher, onClose }) => {
     const printRef = useRef(null);
     const { t, isRTL } = useLanguage();
+    const { tenant: contextTenant } = useData();
 
     const isReceipt = voucher?.voucher_type === 'receipt';
     const currency = voucher?.currency || t('common.currency', 'EGP');
@@ -305,7 +307,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                         }}>
                             <div>
                                 <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: '#0f172a' }}>
-                                    {voucher.tenant_name || 'Tashgheel Business System'}
+                                    {voucher.tenant_name || contextTenant?.name || 'Tashgheel Business System'}
                                 </h1>
                                 <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>
                                     {voucher.branch_name ? `${t('finance.voucherPreview.branch')} ${voucher.branch_name}` : ''}
