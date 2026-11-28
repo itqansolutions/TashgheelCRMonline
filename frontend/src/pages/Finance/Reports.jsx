@@ -8,7 +8,7 @@ import {
   BarChart3, TrendingUp, TrendingDown, DollarSign,
   Printer, RefreshCw, ChevronRight, FileText, ArrowDownLeft,
   Users, Building2, CheckCircle2,
-  Clock, Layers
+  Clock, Layers, Receipt
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
