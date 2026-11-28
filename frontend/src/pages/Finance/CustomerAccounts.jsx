@@ -14,7 +14,7 @@ import { useLanguage } from '../../context/LanguageContext';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const hasNumbers = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && keys.every(key => (typeof value[key] === 'number' || (typeof value[key] === 'string' && value[key].trim() !== '')) && Number.isFinite(Number(value[key])));
 const fmt = (n) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString((localStorage.getItem('itqan_lang') || localStorage.getItem('lang') || 'ar') === 'ar' ? 'ar-EG-u-nu-latn' : 'en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 const STATUS_CONFIG = {
   overdue:     { bg: '#fef2f2', color: '#dc2626', dot: '#ef4444' },

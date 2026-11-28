@@ -351,7 +351,7 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                   </div>
                   <div>
                     <label style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>{t('customers.source', 'Source')}</label>
-                    <div style={{ fontWeight: 700, color: '#4f46e5', marginTop: '2px' }}>{customer.source_name || t('customers.directOther', 'Direct')}</div>
+                    <div style={{ fontWeight: 700, color: '#4f46e5', marginTop: '2px' }}>{customer.source_name ? (isRTL && customer.source_name === 'Direct' ? 'مباشر' : customer.source_name) : t('customers.directOther', 'Direct')}</div>
                   </div>
                   <div>
                     <label style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>{t('customers.classification', 'Classification')}</label>

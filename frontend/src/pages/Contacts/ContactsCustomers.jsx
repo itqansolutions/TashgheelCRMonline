@@ -504,7 +504,7 @@ const ContactsCustomers = () => {
                     <span className="num-en">{c.reg_no || '—'}</span>
                   </td>
                   <td style={{ padding: '14px 16px', color: '#475569', fontSize: '13px' }}>
-                    <div style={{ fontWeight: 700 }}>{c.source_name || '—'}</div>
+                    <div style={{ fontWeight: 700 }}>{c.source_name ? (isRTL && c.source_name === 'Direct' ? 'مباشر' : c.source_name) : '—'}</div>
                     {c.meta_form_name && (
                       <div style={{ fontSize: '11px', color: '#4f46e5', fontWeight: 700, marginTop: '2px', background: '#eef2ff', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
                         📋 {c.meta_form_name}
@@ -738,7 +738,7 @@ const ContactsCustomers = () => {
                 <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                   <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, marginBottom: '4px' }}>🌐 {t('customers.source', 'Source')}</div>
                   <div style={{ fontSize: '14px', fontWeight: 800, color: '#4f46e5' }}>
-                    {viewingCustomer.source_name || t('customers.directOther', 'Direct')}
+                    {viewingCustomer.source_name ? (isRTL && viewingCustomer.source_name === 'Direct' ? 'مباشر' : viewingCustomer.source_name) : t('customers.directOther', 'Direct')}
                   </div>
                 </div>
 

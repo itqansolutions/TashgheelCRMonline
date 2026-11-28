@@ -389,7 +389,7 @@ const Customers = () => {
       label: t('customers.source', 'Source'),
       render: (val, item) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start' }}>
-          <span style={{ fontWeight: '600' }}>{val || t('customers.directOther', 'Direct / Other')}</span>
+          <span style={{ fontWeight: '600' }}>{val ? (isRTL && val === 'Direct' ? 'مباشر' : val) : t('customers.directOther', 'Direct / Other')}</span>
           {item.meta_form_name && (
             <div style={{ fontSize: '11px', color: '#4f46e5', fontWeight: '700', background: '#eef2ff', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
               📋 {item.meta_form_name}

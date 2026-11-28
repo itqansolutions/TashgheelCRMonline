@@ -1498,7 +1498,7 @@
       "newProduct": "إضافة منتج جديد",
       "catalogTitle": "دليل المنتجات",
       "productName": "اسم المنتج",
-      "sku": "كود الصنف (SKU)",
+      "sku": "كود الصنف",
       "unit": "الوحدة",
       "inventoryType": "طبيعة الصنف",
       "serviceNonStock": "خدمي / غير مخزني",

@@ -600,7 +600,7 @@ const Settings = () => {
                     <div className="form-group">
                       <label>{isRTL ? 'العملة الأساسية' : 'Base Currency'}</label>
                       <select value={tenant.currency || 'EGP'} onChange={(e) => setTenant({...tenant, currency: e.target.value})}>
-                        <option value="EGP">{isRTL ? 'جنيه مصري (EGP)' : 'EGP - Egyptian Pound'}</option>
+                        <option value="EGP">{isRTL ? 'جنيه مصري' : 'EGP - Egyptian Pound'}</option>
                         <option value="USD">{isRTL ? 'دولار أمريكي (USD)' : 'USD - US Dollar'}</option>
                         <option value="EUR">{isRTL ? 'يورو (EUR)' : 'EUR - Euro'}</option>
                         <option value="SAR">{isRTL ? 'ريال سعودي (SAR)' : 'SAR - Saudi Riyal'}</option>
