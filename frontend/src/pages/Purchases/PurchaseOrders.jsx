@@ -1723,7 +1723,7 @@ const PurchaseOrders = () => {
                     <option value="">Select Destination Warehouse...</option>
                     {warehouses.map(w => (
                       <option key={w.id} value={w.id}>
-                        {w.name} {w.code ? `(${w.code})` : ''}
+                        {w.name}
                       </option>
                     ))}
                   </select>

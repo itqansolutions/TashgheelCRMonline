@@ -57,6 +57,15 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Localize Segregation-of-Duties violations (Arabic UI)
+    if (error.response?.status === 403 && error.response.data?.code === 'SOD_VIOLATION') {
+      const lang = localStorage.getItem('itqan_lang') || localStorage.getItem('lang') || 'ar';
+      if (lang === 'ar') {
+        const docs = { delivery_note: 'إذن التسليم', sales_return: 'مرتجع المبيعات', goods_receipt: 'إذن الاستلام', journal_entry: 'قيد اليومية', purchase_order: 'أمر الشراء', invoice: 'الفاتورة' };
+        const doc = docs[error.response.data.document_type] || 'المستند';
+        error.response.data.message = `مخالفة فصل المهام: لا يمكنك اعتماد أو ترحيل ${doc} قمت بإنشائه بنفسك. يجب أن يتم ذلك بواسطة مستخدم آخر.`;
+      }
+    }
     // Handle centralized 403 Permission Denied UX
     if (error.response?.status === 403) {
       const data = error.response.data;

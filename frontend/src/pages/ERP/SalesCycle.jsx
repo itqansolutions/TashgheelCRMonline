@@ -246,7 +246,7 @@ const SalesCycle = () => {
     setDeliveryFormData({
       warehouse_id: warehouses.length > 0 ? String(warehouses[0].id) : '',
       delivery_date: new Date().toISOString().split('T')[0],
-      notes: `Delivery for Sales Order #${order.number || order.order_number || order.id}`,
+      notes: `${isRTL ? 'تسليم لأمر البيع' : 'Delivery for Sales Order'} #${order.number || order.order_number || order.id}`,
       items: orderItems.map(it => ({
         sales_order_item_id: it.id,
         product_id: it.product_id,
@@ -838,7 +838,7 @@ const SalesCycle = () => {
                   >
                     <option value="" disabled>{t('sales.orders.deliverModal.selectSourceWarehouse')}</option>
                     {warehouses.map(w => (
-                      <option key={w.id} value={w.id}>{w.name} ({w.code || 'WH'})</option>
+                      <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
                   </select>
                 </div>

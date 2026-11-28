@@ -277,7 +277,7 @@ const StockBalances = () => {
                   style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1.5px solid #0ea5e9', fontWeight: 700, outline: 'none', background: '#f0f9ff', color: '#0369a1', fontSize: '14px' }}
                 >
                   {warehouses.map(w => (
-                    <option key={w.id} value={w.id}>{w.name} {w.code ? `(${w.code})` : ''}</option>
+                    <option key={w.id} value={w.id}>{w.name}</option>
                   ))}
                 </select>
               </div>
