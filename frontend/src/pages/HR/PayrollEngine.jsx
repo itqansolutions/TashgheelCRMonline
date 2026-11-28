@@ -70,7 +70,11 @@ const PayrollEngine = () => {
         } catch (err) {
             const serverMsg = err.response?.data?.message || '';
             const known = /^No base salary is set/.test(serverMsg) ? t('hr.payrollEngine.noSalary')
-                : /^Base salary is zero/.test(serverMsg) ? t('hr.payrollEngine.zeroSalary') : null;
+                : /^Base salary is zero/.test(serverMsg) ? t('hr.payrollEngine.zeroSalary')
+                : (isRTL && /^Late attendance requires configured shift penalty rules/.test(serverMsg)) ? 'يوجد تأخير في الحضور، يجب إعداد قواعد جزاءات التأخير للوردية أولاً.'
+                : (isRTL && /^Shift penalty rules/.test(serverMsg)) ? 'قواعد جزاءات الوردية غير مكتملة أو متداخلة، راجع إعدادات الوردية.'
+                : (isRTL && /^No configured shift penalty band/.test(serverMsg)) ? 'لا توجد شريحة جزاء في الوردية تغطي مدة التأخير المسجلة.'
+                : null;
             toast.error(known || serverMsg || t('hr.payrollEngine.generateFailed', 'Failed to generate payroll.'));
         } finally {
             setIsGenerating(false);
@@ -252,8 +256,8 @@ const PayrollEngine = () => {
                             <tr key={p.id}>
                                 <td style={{ fontWeight: 800 }} className="num-en">{p.payroll_month} / {p.payroll_year}</td>
                                 <td style={{ fontWeight: 600 }}>{p.employee_name || `${t('hr.contactsEmployees.employee', 'Employee')} ID ${p.user_id}`}</td>
-                                <td style={{ color: '#6b7280' }} className="num-en">EGP {parseFloat(p.base_salary).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                <td style={{ fontWeight: 900, color: 'var(--primary)', fontSize: '18px' }} className="num-en">EGP {parseFloat(p.net_salary).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td style={{ color: '#6b7280' }} className="num-en">{parseFloat(p.base_salary).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {isRTL ? 'ج.م' : 'EGP'}</td>
+                                <td style={{ fontWeight: 900, color: 'var(--primary)', fontSize: '18px' }} className="num-en">{parseFloat(p.net_salary).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {isRTL ? 'ج.م' : 'EGP'}</td>
                                 <td><StatusBadge status={p.status} /></td>
                                 <td>
                                     {p.payout_id
@@ -289,7 +293,7 @@ const PayrollEngine = () => {
                         <div style={{ color: 'black', textAlign: isRTL ? 'right' : 'left', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                             <div style={{ fontSize: '13px', color: '#4b5563' }}>{t('hr.payrollEngine.payoutIntro')}</div>
                             <div className="trace-row"><span>{t('hr.payrollEngine.payoutCount')}</span><span className="num-en">{payable.length}</span></div>
-                            <div className="trace-row grand"><span>{t('hr.payrollEngine.payoutTotal')}</span><span className="num-en" style={{ color: '#4f46e5' }}>{payableTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP</span></div>
+                            <div className="trace-row grand"><span>{t('hr.payrollEngine.payoutTotal')}</span><span className="num-en" style={{ color: '#4f46e5' }}>{payableTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {isRTL ? 'ج.م' : 'EGP'}</span></div>
                             <div className="form-group-p">
                                 <label>{t('hr.payrollEngine.payoutMethod')}</label>
                                 <select value={payout.method} onChange={(e) => changeMethod(e.target.value)} style={{ color: 'black' }}>
@@ -371,7 +375,7 @@ const PayrollEngine = () => {
 
                             <div className="trace-row grand">
                                 <span>{t('hr.payrollEngine.netPayout', 'NET PAYOUT')}</span>
-                                <span style={{ color: '#4f46e5' }} className="num-en">{parseFloat(selectedPayroll.net_salary).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EGP</span>
+                                <span style={{ color: '#4f46e5' }} className="num-en">{parseFloat(selectedPayroll.net_salary).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {isRTL ? 'ج.م' : 'EGP'}</span>
                             </div>
                             
                             {selectedPayroll.status === 'draft' && (

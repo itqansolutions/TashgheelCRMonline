@@ -289,8 +289,19 @@ const SalesCycle = () => {
         pendingDelivery.current=createdDN;
         dispatchDrafts.current.set(String(deliverOrder.id),{draft:createdDN,form:deliveryFormData});
         // 2. Automatically confirm delivery note to execute authoritative Stock OUT
-        await api.put(`/sales/deliveries/${createdDN.id}/confirm`);
-        toast.success(t('sales.orders.toasts.deliveryCreatedAndConfirmed', { number: createdDN.number || '' }));
+        try {
+          await api.put(`/sales/deliveries/${createdDN.id}/confirm`);
+          toast.success(t('sales.orders.toasts.deliveryCreatedAndConfirmed', { number: createdDN.number || '' }));
+        } catch (confirmErr) {
+          if (confirmErr.response?.data?.code === 'SOD_VIOLATION') {
+            // Segregation of duties: the creator cannot confirm. Keep the draft for another user to approve.
+            toast.success(isRTL
+              ? `تم إنشاء إذن التسليم ${createdDN.number || ''} وهو بانتظار اعتماد مستخدم آخر (مركز المستندات)`
+              : `Delivery note ${createdDN.number || ''} created and awaiting approval by another user (Documents Hub)`, { duration: 6000 });
+          } else {
+            throw confirmErr;
+          }
+        }
       } else {
         toast.success(t('sales.orders.toasts.deliveryCreated'));
       }

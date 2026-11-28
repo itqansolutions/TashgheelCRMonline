@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Download, Eye, Plus, Search, Filter, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import SalesSubNav from '../../components/Sales/SalesSubNav';
 import { useLanguage } from '../../context/LanguageContext';
+import { AuthContext } from '../../context/AuthContext';
 
 const Documents = () => {
   const { t, isRTL } = useLanguage();
@@ -13,6 +14,30 @@ const Documents = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('All Types');
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
+  const [pendingDNs, setPendingDNs] = useState([]);
+  const [confirmingId, setConfirmingId] = useState(null);
+
+  const fetchPendingDNs = async () => {
+    try {
+      const res = await api.get('/sales/deliveries');
+      const rows = res.data?.data || [];
+      setPendingDNs(rows.filter(r => r.status === 'draft'));
+    } catch (e) { setPendingDNs([]); }
+  };
+
+  const confirmDN = async (dn) => {
+    if (confirmingId) return;
+    setConfirmingId(dn.id);
+    try {
+      await api.put(`/sales/deliveries/${dn.id}/confirm`);
+      toast.success(isRTL ? `تم اعتماد إذن التسليم ${dn.number}` : `Delivery note ${dn.number} confirmed`);
+      fetchPendingDNs();
+      fetchDocuments();
+    } catch (err) {
+      toast.error(err.response?.data?.message || (isRTL ? 'تعذر اعتماد إذن التسليم' : 'Could not confirm delivery note'));
+    } finally { setConfirmingId(null); }
+  };
 
   const fetchDocuments = async () => {
     setLoading(true);
@@ -28,6 +53,7 @@ const Documents = () => {
 
   useEffect(() => {
     fetchDocuments();
+    fetchPendingDNs();
   }, []);
 
   const filtered = documents.filter(d => {
@@ -104,6 +130,38 @@ const Documents = () => {
             </button>
           </div>
         </div>
+
+        {/* Pending delivery notes awaiting approval (segregation of duties) */}
+        {pendingDNs.length > 0 && (
+          <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '14px', padding: '16px 20px', marginBottom: '20px' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: 800, color: '#92400e' }}>
+              {isRTL ? 'تسليمات بانتظار الاعتماد' : 'Deliveries awaiting approval'} ({pendingDNs.length})
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {pendingDNs.map(dn => {
+                const mine = user && String(dn.created_by) === String(user.id);
+                return (
+                  <div key={dn.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', background: 'white', border: '1px solid #fde68a', borderRadius: '10px', padding: '10px 14px' }}>
+                    <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '14px' }}>
+                      <span className="num-en" style={{ fontFamily: 'monospace', color: '#b45309' }}>{dn.number}</span>
+                      {' · '}{dn.customer_name || ''}{dn.sales_order_number ? <> · {isRTL ? 'أمر البيع' : 'SO'} <span className="num-en">{dn.sales_order_number}</span></> : null}
+                    </div>
+                    {mine ? (
+                      <span style={{ fontSize: '12px', color: '#92400e', fontWeight: 700 }}>
+                        {isRTL ? 'أنشأته أنت، يعتمده مستخدم آخر' : 'Created by you, needs another user to approve'}
+                      </span>
+                    ) : (
+                      <button onClick={() => confirmDN(dn)} disabled={confirmingId === dn.id}
+                        style={{ padding: '8px 16px', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>
+                        {confirmingId === dn.id ? (isRTL ? 'جاري الاعتماد...' : 'Confirming...') : (isRTL ? 'اعتماد التسليم' : 'Confirm delivery')}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Search & Filter Bar */}
         <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #e2e8f0', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
