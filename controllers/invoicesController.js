@@ -65,7 +65,7 @@ exports.createInvoiceFromQuotation = async (req, res) => {
     res.status(statusCode).json({ status: 'success', data: invoice });
   } catch (err) {
     console.error(err.message);
-    res.status(err.status || 400).json({ status: 'error', ...(err.code ? { code: err.code } : {}), message: err.message });
+    res.status(err.status || 400).json({ status: 'error', ...(err.code ? { code: err.code } : {}), ...(err.code === 'INSUFFICIENT_STOCK' ? { product_id: err.product_id, product_name: err.product_name, available: err.available, requested: err.requested } : {}), message: err.message });
   }
 };
 
@@ -110,7 +110,7 @@ exports.createInvoiceFromSalesOrder = async (req, res) => {
     res.status(201).json({ status: 'success', message: 'Invoice created successfully from Sales Order', data: invoice });
   } catch (err) {
     console.error('[createInvoiceFromSalesOrder]', err.message);
-    res.status(err.status || 400).json({ status: 'error', ...(err.code ? { code: err.code } : {}), message: err.message });
+    res.status(err.status || 400).json({ status: 'error', ...(err.code ? { code: err.code } : {}), ...(err.code === 'INSUFFICIENT_STOCK' ? { product_id: err.product_id, product_name: err.product_name, available: err.available, requested: err.requested } : {}), message: err.message });
   }
 };
 
