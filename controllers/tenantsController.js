@@ -54,6 +54,53 @@ exports.updateCustomerVisibility = async (req, res) => {
   }
 };
  
+// @desc    Get inventory costing method for the current tenant ('average' | 'fifo')
+// @route   GET /api/tenants/my/costing-method
+// @access  Private (Admin)
+exports.getCostingMethod = async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ status: 'error', message: 'Not authorized: admins only' });
+  }
+  try {
+    const method = await require('../services/costingService').getMethod(db, req.user.tenant_id);
+    res.json({ status: 'success', data: { costing_method: method } });
+  } catch (err) {
+    console.error('[getCostingMethod]', err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+// @desc    Set inventory costing method. Applies to sales made after the change; past sales keep their recorded cost.
+// @route   PUT /api/tenants/my/costing-method
+// @access  Private (Admin) - Ali 2026-11-28: client chooses in settings, default weighted average
+exports.updateCostingMethod = async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ status: 'error', message: 'Not authorized: admins only' });
+  }
+  const method = String(req.body?.costing_method || '').trim().toLowerCase();
+  if (!['average', 'fifo'].includes(method)) {
+    return res.status(400).json({ status: 'error', code: 'INVALID_METHOD', message: "costing_method must be 'average' or 'fifo'." });
+  }
+  try {
+    const r = await db.query(
+      'UPDATE tenants SET costing_method = $1 WHERE id::text = $2::text RETURNING costing_method',
+      [method, String(req.user.tenant_id)]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Tenant not found' });
+    try {
+      await logAction({
+        tenantId: req.user.tenant_id, userId: req.user.id, action: ACTIONS?.UPDATE || 'UPDATE',
+        entityType: 'tenant_settings', entityId: String(req.user.tenant_id),
+        details: `costing_method set to ${method}`
+      });
+    } catch (e) { /* audit logging must not block the setting change */ }
+    res.json({ status: 'success', data: { costing_method: r.rows[0].costing_method } });
+  } catch (err) {
+    console.error('[updateCostingMethod]', err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
 // @desc    Get current user's tenant details
 // @route   GET /api/tenants/my
 // @access  Private

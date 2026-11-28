@@ -3,6 +3,7 @@
 // Sales-order invoices are NOT handled here: their stock leaves through Delivery Notes.
 const REF = 'invoice';
 const REF_REVERSAL = 'invoice_reversal';
+const costing = require('./costingService');
 const num = (v) => Number(v) || 0;
 
 function stockError(message, code, extra) {
@@ -45,8 +46,9 @@ async function deductForInvoice(q, { invoiceId, tenantId, branchId, userId, item
   const tracked = prods.rows.filter(p => p.is_inventory_item === true);
   if (tracked.length === 0) return { movements: [] };
 
-  const tn = await q.query('SELECT allow_negative_stock FROM tenants WHERE id::text=$1::text', [String(tenantId)]);
+  const tn = await q.query('SELECT allow_negative_stock, costing_method FROM tenants WHERE id::text=$1::text', [String(tenantId)]);
   const allowNegative = !!(tn.rows[0] && tn.rows[0].allow_negative_stock);
+  const costMethod = costing.normalizeMethod(tn.rows[0] && tn.rows[0].costing_method);
 
   const wh = await q.query(
     `SELECT id, name FROM warehouses WHERE tenant_id::text=$1::text AND COALESCE(is_active,TRUE)=TRUE
@@ -74,7 +76,8 @@ async function deductForInvoice(q, { invoiceId, tenantId, branchId, userId, item
       }
       chosen = best.w;
     }
-    plan.push({ product_id: p.id, warehouse_id: chosen.id, quantity: qty, unit_cost: num(p.cost_price) });
+    const unitCost = await costing.unitCostForSale(q, { tenantId, productId: p.id, qty, method: costMethod, fallbackCost: num(p.cost_price) });
+    plan.push({ product_id: p.id, warehouse_id: chosen.id, quantity: qty, unit_cost: unitCost });
   }
 
   const movements = [];

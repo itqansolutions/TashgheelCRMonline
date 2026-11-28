@@ -264,9 +264,9 @@ exports.createPurchaseInvoice = async (req, res) => {
         for (const item of validItems) {
             if (!trackable.has(String(item.product_id))) continue;
             await client.query(
-                `INSERT INTO stock_movements (tenant_id, branch_id, product_id, from_warehouse_id, to_warehouse_id, type, quantity, reference_type, reference_id, status, created_by, approved_by, created_at)
-                 VALUES ($1, $2, $3, NULL, $4, 'in', $5, 'purchase_invoice', $6, 'approved', $7, $7, NOW())`,
-                [String(tenant_id), branch_id ? String(branch_id) : null, item.product_id, warehouse_id, item.quantity, String(invoice.id), req.user.id]
+                `INSERT INTO stock_movements (tenant_id, branch_id, product_id, from_warehouse_id, to_warehouse_id, type, quantity, reference_type, reference_id, status, created_by, approved_by, created_at, unit_cost)
+                 VALUES ($1, $2, $3, NULL, $4, 'in', $5, 'purchase_invoice', $6, 'approved', $7, $7, NOW(), $8)`,
+                [String(tenant_id), branch_id ? String(branch_id) : null, item.product_id, warehouse_id, item.quantity, String(invoice.id), req.user.id, item.unit_price]
             );
         }
 

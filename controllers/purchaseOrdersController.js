@@ -1583,8 +1583,8 @@ exports.receivePurchaseOrderItems = async (req, res) => {
         const smRes = await client.query(
           `INSERT INTO stock_movements (
              tenant_id, branch_id, product_id, from_warehouse_id, to_warehouse_id,
-             type, quantity, reference_type, reference_id, status, created_by, approved_by, created_at
-           ) VALUES ($1, $2, $3, NULL, $4, 'in', $5, 'purchase_order', $6, 'approved', $7, $7, NOW())
+             type, quantity, reference_type, reference_id, status, created_by, approved_by, created_at, unit_cost
+           ) VALUES ($1, $2, $3, NULL, $4, 'in', $5, 'purchase_order', $6, 'approved', $7, $7, NOW(), $8)
            RETURNING id, product_id, quantity, to_warehouse_id`,
           [
             tenantId,
@@ -1593,7 +1593,8 @@ exports.receivePurchaseOrderItems = async (req, res) => {
             targetWarehouseId,
             v.receivedNow,
             String(po.id),
-            req.user.id
+            req.user.id,
+            Math.round(Number(v.poi.unit_price || 0) * (1 - Number(v.poi.discount_pct || 0) / 100) * 10000) / 10000
           ]
         );
         createdMovements.push(smRes.rows[0]);

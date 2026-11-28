@@ -8,6 +8,8 @@ router.get('/my', auth, tenantsController.getMyTenant);
 router.put('/my', auth, tenantsController.updateTenant);
 router.get('/my/customer-visibility', auth, tenantsController.getCustomerVisibility);
 router.put('/my/customer-visibility', auth, tenantsController.updateCustomerVisibility); 
+router.get('/my/costing-method', auth, tenantsController.getCostingMethod);
+router.put('/my/costing-method', auth, tenantsController.updateCostingMethod);
 router.get('/', auth, tenantsController.getTenants); // Super Admin only check inside controller
 router.get('/:id', auth, tenantsController.getTenantById);
 router.put('/:id', auth, tenantsController.updateTenant);

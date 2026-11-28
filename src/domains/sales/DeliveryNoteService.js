@@ -227,7 +227,10 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
         throw new Error(`Product ${item.product_id} is not an inventory item; cannot confirm delivery.`);
       }
       const isInventoryItem = true;
-      const currentUnitCost = Number(product.cost_price ?? product.avg_cost ?? 0);
+      const fallbackUnitCost = Number(product.cost_price ?? product.avg_cost ?? 0);
+      const currentUnitCost = await require('../../../services/costingService').unitCostForSale(client, {
+        tenantId, productId: item.product_id, qty: Number(item.quantity_delivered), fallbackCost: fallbackUnitCost
+      });
 
       if (!dn.warehouse_id) {
         throw new Error('Delivery Note has no source warehouse for its inventory items.');

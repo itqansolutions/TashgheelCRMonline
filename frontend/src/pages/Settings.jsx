@@ -108,6 +108,28 @@ const Settings = () => {
     }
   };
 
+  // Inventory costing method (per-company, admin-only) - Ali 2026-11-28
+  const [costingMethod, setCostingMethod] = useState('average');
+  const [savingCosting, setSavingCosting] = useState(false);
+  const fetchCostingMethod = async () => {
+    try {
+      const res = await api.get('/tenants/my/costing-method');
+      const m = res.data?.data?.costing_method;
+      if (m === 'average' || m === 'fifo') setCostingMethod(m);
+    } catch (err) { /* non-admins do not see this setting */ }
+  };
+  const saveCostingMethod = async (m) => {
+    setSavingCosting(true);
+    try {
+      const res = await api.put('/tenants/my/costing-method', { costing_method: m });
+      const saved = res.data?.data?.costing_method;
+      if (saved === 'average' || saved === 'fifo') setCostingMethod(saved);
+      toast.success(m === 'fifo' ? 'تم التفعيل: الوارد أولاً يصرف أولاً (FIFO)' : 'تم التفعيل: متوسط التكلفة المرجح');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل حفظ طريقة حساب التكلفة');
+    } finally { setSavingCosting(false); }
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
@@ -122,6 +144,7 @@ const Settings = () => {
     fetchNotificationRules();
     fetchDeliveryLogs('', '');
     fetchCustomerVisibility();
+    fetchCostingMethod();
   }, []);
 
   const fetchNotificationRules = async () => {
@@ -1036,6 +1059,32 @@ const Settings = () => {
       {/* Tab 4: Finance & Billing */}
       {activeTab === 'Finance & Billing' && (
         <div className="settings-layout full-width">
+          {user?.role === 'admin' && (
+          <div className="settings-card" style={{ maxWidth: '800px', margin: '0 auto 24px' }} data-testid="costing-method-card">
+            <div className="card-header">
+              <h3><Receipt size={16} color="#a855f7" /> طريقة حساب تكلفة البضاعة المباعة</h3>
+            </div>
+            <div className="card-body">
+              <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '14px', lineHeight: 1.6 }}>
+                بتحدد إزاي النظام يحسب تكلفة الصنف وقت البيع لو اشتريته بأكتر من سعر. التغيير بيسري على المبيعات الجديدة بس، والمبيعات القديمة بتفضل بتكلفتها المسجلة.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {[
+                  { v: 'average', t: 'متوسط التكلفة المرجح (الافتراضي)', d: 'كل شراء بسعر جديد بيعيد حساب متوسط تكلفة القطعة على اللي في المخزن.' },
+                  { v: 'fifo', t: 'الوارد أولاً يصرف أولاً (FIFO)', d: 'البيع بيتحسب بتكلفة أقدم دفعة لسه موجودة في المخزن.' },
+                ].map(o => (
+                  <label key={o.v} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', padding: '12px', borderRadius: '8px', border: `1.5px solid ${costingMethod === o.v ? '#a855f7' : '#e2e8f0'}`, background: costingMethod === o.v ? '#faf5ff' : 'white' }}>
+                    <input type="radio" name="costing_method" checked={costingMethod === o.v} onChange={() => !savingCosting && costingMethod !== o.v && saveCostingMethod(o.v)} disabled={savingCosting} style={{ marginTop: '3px' }} />
+                    <span>
+                      <span style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>{o.t}</span>
+                      <span style={{ display: 'block', fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{o.d}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          )}
           <form onSubmit={handleUpdate} style={{ maxWidth: '800px', margin: '0 auto' }}>
             <div className="settings-card">
               <div className="card-header">
