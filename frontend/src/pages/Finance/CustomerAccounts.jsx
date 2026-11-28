@@ -39,8 +39,8 @@ const Badge = ({ status }) => {
 };
 
 // ─── Aging Chart ──────────────────────────────────────────────────────────────
-const AgingBar = ({ aging }) => {
-  const { t } = useLanguage();
+const AgingBar = ({ aging, netOutstanding }) => {
+  const { t, isRTL } = useLanguage();
   if (!aging) return null;
   const buckets = [
     { label: t('finance.customerAccounts.aging.current'),     value: aging.current,       color: '#22c55e' },
@@ -81,6 +81,18 @@ const AgingBar = ({ aging }) => {
             <span className="num-en">{fmt(aging.total)}</span> {t('common.currency', 'EGP')}
           </span>
         </div>
+        {typeof netOutstanding === 'number' && (aging.total - netOutstanding) > 0.009 && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '6px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{isRTL ? 'يخصم: دفعات مقدمة غير مخصصة لفواتير' : 'Less: unapplied advance payments'}</span>
+              <span style={{ fontSize: '12px', color: '#22c55e' }}>-<span className="num-en">{fmt(aging.total - netOutstanding)}</span> {t('common.currency', 'EGP')}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '4px' }}>
+              <span style={{ fontWeight: 800, fontSize: '13px' }}>{isRTL ? 'صافي الرصيد المستحق' : 'Net balance due'}</span>
+              <span style={{ fontWeight: 900, fontSize: '15px', color: '#ef4444' }}><span className="num-en">{fmt(netOutstanding)}</span> {t('common.currency', 'EGP')}</span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -317,7 +329,7 @@ const StatementDrawer = ({ customerId, onClose }) => {
       )}
 
       {view === 'aging' && (loading ? <div role="status">{t('finance.customerAccounts.drawer.loading')}</div> : drawerError ? <div role="alert"><button onClick={load}>{isRTL ? 'إعادة المحاولة' : 'Retry'}</button></div> : null)}
-      {view === 'aging' && !loading && !drawerError && <AgingBar aging={aging} />}
+      {view === 'aging' && !loading && !drawerError && <AgingBar aging={aging} netOutstanding={data?.summary?.outstanding} />}
     </div>
   );
 };
