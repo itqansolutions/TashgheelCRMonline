@@ -811,7 +811,7 @@ const Settings = () => {
             <div className="settings-card">
               <div className="card-header">
                 <h3><Megaphone size={16} color="#6366f1" /> {isRTL ? 'مصادر العملاء المحتملين' : 'Lead Sources'}</h3>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{sources.length} sources</span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{sources.length} {isRTL ? 'مصدر' : 'sources'}</span>
               </div>
               <div className="card-body">
                 <form className="source-form" onSubmit={handleAddSource}>
@@ -845,7 +845,7 @@ const Settings = () => {
             <div className="settings-card">
               <div className="card-header">
                 <h3><Users size={16} color="#10b981" /> {isRTL ? 'حالات دورة العميل المحتمل' : 'Lead Lifecycle Statuses'}</h3>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{leadStatuses.length} statuses</span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{leadStatuses.length} {isRTL ? 'حالة' : 'statuses'}</span>
               </div>
               <div className="card-body">
                 <form className="source-form" onSubmit={handleAddLeadStatus} style={{ flexWrap: 'wrap' }}>
@@ -864,7 +864,7 @@ const Settings = () => {
                     title={isRTL ? 'لون الحالة' : "Status Color"}
                   />
                   <button type="submit" className="upload-btn" style={{ background: '#10b981', color: 'white', border: 'none' }}>
-                    <Plus size={14} /> Add Status
+                    <Plus size={14} /> {isRTL ? 'إضافة حالة' : 'Add Status'}
                   </button>
                 </form>
 
@@ -889,7 +889,7 @@ const Settings = () => {
             <div className="settings-card">
               <div className="card-header">
                 <h3><Tag size={16} color="#ec4899" /> {isRTL ? 'تصنيفات العملاء' : 'Customer Classifications'}</h3>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{classifications.length} classifications</span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{classifications.length} {isRTL ? 'تصنيف' : 'classifications'}</span>
               </div>
               <div className="card-body">
                 <form className="source-form" onSubmit={handleAddClassification} style={{ flexWrap: 'wrap' }}>
@@ -908,14 +908,14 @@ const Settings = () => {
                     title={isRTL ? 'لون الشارة' : "Badge Color"}
                   />
                   <button type="submit" className="upload-btn" style={{ background: '#ec4899', color: 'white', border: 'none' }}>
-                    <Plus size={14} /> Add Classification
+                    <Plus size={14} /> {isRTL ? 'إضافة تصنيف' : 'Add Classification'}
                   </button>
                 </form>
 
                 <div className="source-list" style={{ border: '1px solid #f1f5f9', borderRadius: '8px', overflow: 'hidden' }}>
                   {classifications.length === 0 ? (
                     <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
-                      No customer classifications created yet. Add custom categories like VIP, B2B, Retail, or Investor.
+                      {isRTL ? 'لا توجد تصنيفات بعد. أضف تصنيفات مثل VIP أو شركات أو تجزئة.' : 'No customer classifications created yet. Add custom categories like VIP, B2B, Retail, or Investor.'}
                     </div>
                   ) : classifications.map(c => (
                     <div key={c.id} className="source-item" style={{ background: '#f8fafc', margin: '4px 0', borderRadius: '6px' }}>
@@ -994,7 +994,7 @@ const Settings = () => {
             <div className="settings-card">
               <div className="card-header">
                 <h3><CheckSquare size={16} color="#6366f1" /> {isRTL ? 'مراحل الصفقات والمهام' : 'Deal & Task Pipeline Stages'}</h3>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{taskStatuses.length} stages</span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{taskStatuses.length} {isRTL ? 'مرحلة' : 'stages'}</span>
               </div>
               <div className="card-body">
                 <form className="source-form" style={{ flexWrap: 'wrap' }} onSubmit={handleAddTaskStatus}>
@@ -1016,7 +1016,7 @@ const Settings = () => {
                     Final Stage
                   </label>
                   <button type="submit" className="upload-btn" style={{ background: '#6366f1', color: 'white', border: 'none' }}>
-                    <Plus size={14} /> Add Stage
+                    <Plus size={14} /> {isRTL ? 'إضافة مرحلة' : 'Add Stage'}
                   </button>
                 </form>
 
