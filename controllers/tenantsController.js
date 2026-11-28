@@ -101,6 +101,51 @@ exports.updateCostingMethod = async (req, res) => {
   }
 };
 
+// @desc    Get / set the tenant default for selling below zero stock
+// @route   GET|PUT /api/tenants/my/negative-stock
+// @access  Private (Admin). A per-product override, when set, still takes precedence.
+exports.getNegativeStock = async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ status: 'error', message: 'Not authorized: admins only' });
+  }
+  try {
+    const r = await db.query('SELECT allow_negative_stock FROM tenants WHERE id::text = $1::text', [String(req.user.tenant_id)]);
+    if (r.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Tenant not found' });
+    res.json({ status: 'success', data: { allow_negative_stock: !!r.rows[0].allow_negative_stock } });
+  } catch (err) {
+    console.error('[getNegativeStock]', err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
+exports.updateNegativeStock = async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ status: 'error', message: 'Not authorized: admins only' });
+  }
+  if (typeof req.body?.allow_negative_stock !== 'boolean') {
+    return res.status(400).json({ status: 'error', code: 'INVALID_VALUE', message: 'allow_negative_stock must be true or false.' });
+  }
+  const value = req.body.allow_negative_stock;
+  try {
+    const r = await db.query(
+      'UPDATE tenants SET allow_negative_stock = $1 WHERE id::text = $2::text RETURNING allow_negative_stock',
+      [value, String(req.user.tenant_id)]
+    );
+    if (r.rows.length === 0) return res.status(404).json({ status: 'error', message: 'Tenant not found' });
+    try {
+      await logAction({
+        tenantId: req.user.tenant_id, userId: req.user.id, action: ACTIONS?.UPDATE || 'UPDATE',
+        entityType: 'tenant_settings', entityId: String(req.user.tenant_id),
+        details: `allow_negative_stock set to ${value}`
+      });
+    } catch (e) { /* audit logging must not block the setting change */ }
+    res.json({ status: 'success', data: { allow_negative_stock: !!r.rows[0].allow_negative_stock } });
+  } catch (err) {
+    console.error('[updateNegativeStock]', err.message);
+    res.status(500).json({ status: 'error', message: 'Server error' });
+  }
+};
+
 // @desc    Get current user's tenant details
 // @route   GET /api/tenants/my
 // @access  Private

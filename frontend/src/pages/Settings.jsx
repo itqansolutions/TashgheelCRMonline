@@ -142,6 +142,26 @@ const Settings = () => {
     } finally { setSavingCosting(false); }
   };
 
+  // Selling below zero stock (tenant default, admin-only)
+  const [allowNegStock, setAllowNegStock] = useState(false);
+  const [savingNegStock, setSavingNegStock] = useState(false);
+  const fetchNegStock = async () => {
+    try {
+      const res = await api.get('/tenants/my/negative-stock');
+      setAllowNegStock(!!res.data?.data?.allow_negative_stock);
+    } catch (err) { /* non-admins do not see this setting */ }
+  };
+  const saveNegStock = async (v) => {
+    setSavingNegStock(true);
+    try {
+      const res = await api.put('/tenants/my/negative-stock', { allow_negative_stock: v });
+      setAllowNegStock(!!res.data?.data?.allow_negative_stock);
+      toast.success(v ? 'تم السماح بالبيع بدون رصيد مخزون' : 'تم منع البيع بدون رصيد مخزون');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'فشل حفظ الإعداد');
+    } finally { setSavingNegStock(false); }
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab');
@@ -157,6 +177,7 @@ const Settings = () => {
     fetchDeliveryLogs('', '');
     fetchCustomerVisibility();
     fetchCostingMethod();
+    fetchNegStock();
   }, []);
 
   const fetchNotificationRules = async () => {
@@ -547,7 +568,7 @@ const Settings = () => {
                       <h4 style={{ fontSize: '13px', fontWeight: '800', margin: '0 0 6px 0', color: '#1e293b' }}>Company Logo</h4>
                       <input type="file" ref={fileInputRef} onChange={handleLogoUpload} style={{ display: 'none' }} accept="image/*" />
                       <button type="button" className="upload-btn" onClick={() => fileInputRef.current.click()} disabled={uploading}>
-                        <Upload size={14} /> {uploading ? 'Uploading...' : 'Upload New Logo'}
+                        <Upload size={14} /> {uploading ? (isRTL ? 'جاري الرفع...' : 'Uploading...') : (isRTL ? 'رفع شعار جديد' : 'Upload New Logo')}
                       </button>
                     </div>
                   </div>
@@ -602,7 +623,7 @@ const Settings = () => {
                 <div className="card-body">
                   <div className="form-grid">
                     <div className="form-group">
-                      <label>Invoice Header Title (عنوان رأس الفاتورة)</label>
+                      <label>{isRTL ? 'عنوان رأس الفاتورة' : 'Invoice Header Title (عنوان رأس الفاتورة)'}</label>
                       <input
                         type="text"
                         value={tenant.invoice_header_title || ''}
@@ -709,7 +730,7 @@ const Settings = () => {
               </div>
 
               <button type="submit" className="btn-save" disabled={saving}>
-                <Save size={18} /> {saving ? 'Saving...' : 'Save Branding & Identity'}
+                <Save size={18} /> {saving ? (isRTL ? 'جاري الحفظ...' : 'Saving...') : (isRTL ? 'حفظ الهوية والعلامة التجارية' : 'Save Branding & Identity')}
               </button>
             </form>
           </div>
@@ -1097,10 +1118,28 @@ const Settings = () => {
             </div>
           </div>
           )}
+          {user?.role === 'admin' && (
+          <div className="settings-card" style={{ maxWidth: '800px', margin: '0 auto 24px' }} data-testid="negative-stock-card">
+            <div className="card-header">
+              <h3><Layers size={16} color="#0ea5e9" /> البيع بالسالب (السماح بالبيع بدون رصيد مخزون)</h3>
+            </div>
+            <div className="card-body">
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={allowNegStock} disabled={savingNegStock} onChange={(e) => saveNegStock(e.target.checked)} style={{ marginTop: '3px' }} data-testid="negative-stock-toggle" />
+                <span>
+                  <span style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>السماح ببيع كمية أكبر من رصيد المخزون</span>
+                  <span style={{ display: 'block', fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: 1.6 }}>
+                    لو الإعداد مقفول (الافتراضي)، النظام بيرفض أي فاتورة بتخلي رصيد الصنف يبقى بالسالب. أي صنف ليه إعداد خاص بيه بيتغلب على الإعداد ده.
+                  </span>
+                </span>
+              </label>
+            </div>
+          </div>
+          )}
           <form onSubmit={handleUpdate} style={{ maxWidth: '800px', margin: '0 auto' }}>
             <div className="settings-card">
               <div className="card-header">
-                <h3><Receipt size={16} color="#10b981" /> Tax Invoice & Billing Policy</h3>
+                <h3><Receipt size={16} color="#10b981" /> {isRTL ? 'سياسة الفاتورة الضريبية والفوترة' : 'Tax Invoice & Billing Policy'}</h3>
               </div>
               <div className="card-body">
                 <div className="form-grid">
@@ -1109,23 +1148,23 @@ const Settings = () => {
                     <input type="text" value={tenant.invoice_header_title || ''} onChange={(e) => setTenant({...tenant, invoice_header_title: e.target.value})} placeholder="فاتورة ضريبية / TAX INVOICE" />
                   </div>
                   <div className="form-group">
-                    <label>Invoice Header Subtitle (العنوان الفرعي للترويسة)</label>
+                    <label>{isRTL ? 'العنوان الفرعي للترويسة' : 'Invoice Header Subtitle (العنوان الفرعي للترويسة)'}</label>
                     <input type="text" value={tenant.invoice_header_subtitle || ''} onChange={(e) => setTenant({...tenant, invoice_header_subtitle: e.target.value})} placeholder="مثال: لحلول الأعمال والتجارة الذكية" />
                   </div>
                   <div className="form-group">
-                    <label>Invoice Number Prefix</label>
+                    <label>{isRTL ? 'بادئة رقم الفاتورة' : 'Invoice Number Prefix'}</label>
                     <input type="text" value={tenant.invoice_prefix || 'INV-'} onChange={(e) => setTenant({...tenant, invoice_prefix: e.target.value})} />
                   </div>
                   <div className="form-group">
-                    <label>Default Value-Added Tax (VAT %)</label>
+                    <label>{isRTL ? 'ضريبة القيمة المضافة الافتراضية (%)' : 'Default Value-Added Tax (VAT %)'}</label>
                     <input type="number" step="0.01" value={tenant.tax_rate || 0} onChange={(e) => setTenant({...tenant, tax_rate: parseFloat(e.target.value) || 0})} />
                   </div>
                   <div className="form-group full">
-                    <label>Invoice Payment Terms & Bank Instructions</label>
+                    <label>{isRTL ? 'شروط الدفع وبيانات الحساب البنكي' : 'Invoice Payment Terms & Bank Instructions'}</label>
                     <textarea style={{ height: '80px' }} value={tenant.terms || ''} onChange={(e) => setTenant({...tenant, terms: e.target.value})} placeholder="Bank Account: CIB / Account: 1000-XXXX / IBAN: EGXX..." />
                   </div>
                   <div className="form-group full">
-                    <label>Invoice Legal Footer Note</label>
+                    <label>{isRTL ? 'ملاحظة قانونية أسفل الفاتورة' : 'Invoice Legal Footer Note'}</label>
                     <textarea style={{ height: '60px' }} value={tenant.invoice_footer || ''} onChange={(e) => setTenant({...tenant, invoice_footer: e.target.value})} placeholder="Goods once sold cannot be returned without original receipt." />
                   </div>
                 </div>
@@ -1133,7 +1172,7 @@ const Settings = () => {
             </div>
 
             <button type="submit" className="btn-save" style={{ background: '#10b981' }} disabled={saving}>
-              <Save size={18} /> {saving ? 'Saving...' : 'Save Finance & Billing Defaults'}
+              <Save size={18} /> {saving ? (isRTL ? 'جاري الحفظ...' : 'Saving...') : (isRTL ? 'حفظ إعدادات المالية والفوترة' : 'Save Finance & Billing Defaults')}
             </button>
           </form>
         </div>
