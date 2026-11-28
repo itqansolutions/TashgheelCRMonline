@@ -50,6 +50,6 @@ async function verifyInstalledCore(client){
  const present=await client.query("SELECT to_regclass('public.whatsapp_ownership_schema_version') IS NOT NULL AS present");
  if(!present.rows[0]?.present)throw Error('CORE_SCHEMA_UNVERIFIED');
  const prior=await client.query('SELECT digest,artifact_fingerprint FROM public.whatsapp_ownership_schema_version WHERE id=1');
- if(prior.rows[0]?.digest!==digest||prior.rows[0]?.artifact_fingerprint!==await fingerprint(client))throw Error('CORE_SCHEMA_UNVERIFIED');
+ const liveFp=await fingerprint(client);if(prior.rows[0]?.digest!==digest||prior.rows[0]?.artifact_fingerprint!==liveFp){console.error('[CoreSchema] digestMatch='+(prior.rows[0]?.digest===digest)+' stored='+prior.rows[0]?.artifact_fingerprint+' live='+liveFp);throw Error('CORE_SCHEMA_UNVERIFIED');}
 }
 module.exports={install,verifyInstalledCore};
