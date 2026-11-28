@@ -39,14 +39,13 @@ async function payoutSheet({ tenant_id, branch_id, user_id, month, year, treasur
               AND p.payroll_month = $3 AND p.payroll_year = $4
             ORDER BY p.id FOR UPDATE OF p`, [tenant_id, branch_id, m, y]);
         if (!slips.rows.length) { const e = new Error('No payroll slips for this month'); e.status = 404; throw e; }
-        const notFinal = slips.rows.filter(s => s.status !== 'finalized');
-        if (notFinal.length) {
-            const e = new Error(`Finalize all payroll slips before payout (${notFinal.length} still draft)`); e.status = 400; throw e;
-        }
+        // Drafts are ignored (never paid, never auto-finalized); only finalized unpaid slips are paid.
+        const finalSlips = slips.rows.filter(s => s.status === 'finalized');
+        if (!finalSlips.length) { const e = new Error('No finalized payroll slips to pay for this month'); e.status = 400; throw e; }
         const paidRows = await client.query(`SELECT payroll_id FROM hr_payroll_payouts WHERE tenant_id = $1 AND status = 'paid' AND payroll_id = ANY($2::int[])`,
-            [String(tenant_id), slips.rows.map(s => s.id)]);
+            [String(tenant_id), finalSlips.map(s => s.id)]);
         const alreadyPaid = new Set(paidRows.rows.map(r => r.payroll_id));
-        const todo = slips.rows.filter(s => !alreadyPaid.has(s.id) && Number(s.net_salary) > 0);
+        const todo = finalSlips.filter(s => !alreadyPaid.has(s.id) && Number(s.net_salary) > 0);
         if (!todo.length) { const e = new Error('Everything for this month is already paid out'); e.status = 409; throw e; }
 
         const treasury = await resolveCollectionTreasury(client, { tenant_id, branch_id: String(branch_id), treasury_account_id, payment_method: payment_method || 'cash' });

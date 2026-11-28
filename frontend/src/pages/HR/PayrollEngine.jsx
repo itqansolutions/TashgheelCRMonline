@@ -112,7 +112,6 @@ const PayrollEngine = () => {
 
     const openPayout = async () => {
         if (!payable.length) return toast.error(t('hr.payrollEngine.payoutNothing'));
-        if (hasDraft) return toast.error(t('hr.payrollEngine.draftWarning'));
         try {
             const res = await api.get('/finance/treasury/accounts');
             const list = res.data?.data || [];
