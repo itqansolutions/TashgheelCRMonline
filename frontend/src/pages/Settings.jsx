@@ -11,6 +11,17 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { getFileUrl } from '../utils/fileUtils';
+import { useLanguage } from '../context/LanguageContext';
+
+const TAB_LABELS_AR = {
+  'Branding & Identity': 'الهوية والعلامة التجارية',
+  'CRM & Leads': 'العملاء المحتملون وCRM',
+  'Sales & Pipeline': 'المبيعات والصفقات',
+  'Finance & Billing': 'المالية والفواتير',
+  'Real Estate Vertical': 'القطاع العقاري',
+  'Automation & Rules': 'الأتمتة والقواعد',
+  'Integrations': 'التكاملات'
+};
 
 const TABS = [
   'Branding & Identity',
@@ -24,6 +35,7 @@ const TABS = [
 
 const Settings = () => {
   const { user } = useAuth();
+  const { isRTL } = useLanguage();
   const { fetchTenant } = useData();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
@@ -510,7 +522,7 @@ const Settings = () => {
                   boxShadow: isActive ? '0 4px 10px rgba(99, 102, 241, 0.25)' : 'none'
                 }}
               >
-                {tab}
+                {isRTL ? (TAB_LABELS_AR[tab] || tab) : tab}
               </button>
             );
           })}
