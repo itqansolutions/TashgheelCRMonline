@@ -11,8 +11,15 @@ import Modal from '../components/Common/Modal';
 import toast from 'react-hot-toast';
 import { useLanguage } from '../context/LanguageContext';
 
+const ACTION_AR = { CREATE: 'إنشاء', UPDATE: 'تعديل', DELETE: 'حذف', LOGIN: 'تسجيل دخول', LOGOUT: 'تسجيل خروج', EXPORT: 'تصدير', APPROVE: 'اعتماد', REJECT: 'رفض' };
+const LEVEL_AR = { INFO: 'معلومة', WARNING: 'تحذير', CRITICAL: 'حرج' };
+const ENTITY_AR = { invoice: 'فاتورة', invoices: 'فواتير', quotation: 'عرض سعر', quotations: 'عروض أسعار', customer: 'عميل', customers: 'عملاء', client: 'عميل', clients: 'عملاء', product: 'منتج', products: 'منتجات', deal: 'صفقة', deals: 'صفقات', voucher: 'سند', finance_voucher: 'سند', payment: 'دفعة', payments: 'دفعات', expense: 'مصروف', expenses: 'مصروفات', user: 'مستخدم', users: 'مستخدمون', employee: 'موظف', employees: 'موظفون', tenant: 'الشركة', tenant_settings: 'إعدادات الشركة', branch: 'فرع', warehouse: 'مخزن', purchase_order: 'أمر شراء', purchase_invoice: 'فاتورة شراء', sales_order: 'أمر بيع', stock_movement: 'حركة مخزون', treasury_account: 'خزينة', task: 'مهمة', tasks: 'مهام', lead: 'عميل محتمل', leads: 'عملاء محتملون', unit: 'وحدة', contract: 'عقد', auth: 'الدخول', session: 'جلسة' };
+
 const Logs = () => {
   const { isRTL } = useLanguage();
+  const actionLabel = (a) => (isRTL ? (ACTION_AR[String(a || '').toUpperCase()] || a) : a);
+  const levelLabel = (l) => (isRTL ? (LEVEL_AR[String(l || '').toUpperCase()] || l) : l);
+  const entityLabel = (e) => (isRTL ? (ENTITY_AR[String(e || '').toLowerCase()] || e) : e);
   const navigate = useNavigate();
   const location = useLocation();
   const [logs, setLogs] = useState([]);
@@ -114,10 +121,10 @@ const Logs = () => {
     return (
       <div className="space-y-2">
         <div className="grid grid-cols-12 gap-4 px-4 py-2 text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">
-            <div className="col-span-3">Attribute</div>
-            <div className="col-span-4">Previous State</div>
+            <div className="col-span-3">{isRTL ? 'الحقل' : 'Attribute'}</div>
+            <div className="col-span-4">{isRTL ? 'القيمة السابقة' : 'Previous State'}</div>
             <div className="col-span-1 text-center">∆</div>
-            <div className="col-span-4">Next State</div>
+            <div className="col-span-4">{isRTL ? 'القيمة الجديدة' : 'Next State'}</div>
         </div>
         <div className="space-y-1">
           {allKeys.map(key => (
@@ -179,7 +186,7 @@ const Logs = () => {
                         <button 
                             onClick={() => navigate('/itqan-crm-hud')} 
                             className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-[var(--border)] text-[var(--text-muted)] hover:text-indigo-600 transition-colors shadow-sm"
-                            title="Back to Cockpit HUD"
+                            title={isRTL ? 'رجوع' : 'Back to Cockpit HUD'}
                         >
                             <ArrowLeft size={20} />
                         </button>
@@ -194,7 +201,7 @@ const Logs = () => {
                         <RefreshCw size={20} className={loading ? 'animate-spin' : ''}/>
                      </button>
                      <button onClick={exportToCSV} className="btn-primary-premium flex items-center gap-2">
-                        <Download size={18}/> Export Dataset
+                        <Download size={18}/> {isRTL ? 'تصدير البيانات' : 'Export Dataset'}
                      </button>
                 </div>
             </div>
@@ -205,7 +212,7 @@ const Logs = () => {
                         <Activity size={26}/>
                     </div>
                     <div>
-                        <p className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest">Captured Events</p>
+                        <p className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest">{isRTL ? 'الأحداث المسجلة' : 'Captured Events'}</p>
                         <h3 className="text-2xl font-black text-[var(--text-main)]">{total}</h3>
                     </div>
                 </div>
@@ -214,8 +221,8 @@ const Logs = () => {
                         <Globe size={26}/>
                     </div>
                     <div>
-                        <p className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest">Monitoring Status</p>
-                        <h3 className="text-2xl font-black text-[var(--text-main)]">Deep Sync</h3>
+                        <p className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest">{isRTL ? 'حالة المراقبة' : 'Monitoring Status'}</p>
+                        <h3 className="text-2xl font-black text-[var(--text-main)]">{isRTL ? 'مزامنة كاملة' : 'Deep Sync'}</h3>
                     </div>
                 </div>
                 <div className="ap-card p-6 flex items-center gap-5">
@@ -223,8 +230,8 @@ const Logs = () => {
                         <Shield size={26}/>
                     </div>
                     <div>
-                        <p className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest">Security Health</p>
-                        <h3 className="text-2xl font-black text-[var(--text-main)]">Optimized</h3>
+                        <p className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-widest">{isRTL ? 'سلامة الأمان' : 'Security Health'}</p>
+                        <h3 className="text-2xl font-black text-[var(--text-main)]">{isRTL ? 'ممتازة' : 'Optimized'}</h3>
                     </div>
                 </div>
             </div>
@@ -232,33 +239,33 @@ const Logs = () => {
             <div className="logs-filters ap-card p-8 mb-10 border-indigo-100 dark:border-indigo-900/20">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
                     <div className="space-y-2 lg:col-span-1">
-                        <label className="ap-label">Operator Node</label>
+                        <label className="ap-label">{isRTL ? 'المستخدم' : 'Operator Node'}</label>
                         <select name="user_id" value={filters.user_id} className="ap-input" onChange={handleFilterChange}>
-                            <option value="">All Intelligence Units</option>
+                            <option value="">{isRTL ? 'كل المستخدمين' : 'All Intelligence Units'}</option>
                             {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                         </select>
                     </div>
                     <div className="space-y-2 lg:col-span-1">
-                        <label className="ap-label">Action Signature</label>
+                        <label className="ap-label">{isRTL ? 'نوع العملية' : 'Action Signature'}</label>
                         <select name="action" value={filters.action} className="ap-input" onChange={handleFilterChange}>
-                            <option value="">All Signatures</option>
-                            <option value="CREATE">CREATE</option>
-                            <option value="UPDATE">UPDATE</option>
-                            <option value="DELETE">DELETE</option>
-                            <option value="LOGIN">LOGIN</option>
+                            <option value="">{isRTL ? 'كل العمليات' : 'All Signatures'}</option>
+                            <option value="CREATE">{actionLabel('CREATE')}</option>
+                            <option value="UPDATE">{actionLabel('UPDATE')}</option>
+                            <option value="DELETE">{actionLabel('DELETE')}</option>
+                            <option value="LOGIN">{actionLabel('LOGIN')}</option>
                         </select>
                     </div>
                     <div className="space-y-2 lg:col-span-1">
-                        <label className="ap-label">Severity Level</label>
+                        <label className="ap-label">{isRTL ? 'مستوى الأهمية' : 'Severity Level'}</label>
                         <select name="level" value={filters.level} className="ap-input" onChange={handleFilterChange}>
-                            <option value="">All severities</option>
-                            <option value="INFO">INFO</option>
-                            <option value="WARNING">WARNING</option>
-                            <option value="CRITICAL">CRITICAL</option>
+                            <option value="">{isRTL ? 'كل المستويات' : 'All severities'}</option>
+                            <option value="INFO">{levelLabel('INFO')}</option>
+                            <option value="WARNING">{levelLabel('WARNING')}</option>
+                            <option value="CRITICAL">{levelLabel('CRITICAL')}</option>
                         </select>
                     </div>
                     <div className="flex gap-2 lg:col-span-2">
-                         <button onClick={fetchLogs} className="btn-primary-premium flex-1 h-[45px] justify-center">Filter Sequence</button>
+                         <button onClick={fetchLogs} className="btn-primary-premium flex-1 h-[45px] justify-center">{isRTL ? 'تصفية' : 'Filter Sequence'}</button>
                          <button onClick={resetFilters} className="w-[45px] h-[45px] bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-xl flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all">
                             <X size={20}/>
                          </button>
@@ -270,11 +277,11 @@ const Logs = () => {
                 <div className="responsive-table-region" role="region" tabIndex={0}><table className="w-full text-left platform-table">
                     <thead>
                         <tr>
-                            <th>Event Horizon</th>
-                            <th>Identity Node</th>
-                            <th>Operation Delta</th>
-                            <th>Security Index</th>
-                            <th className="text-right">Analysis</th>
+                            <th>{isRTL ? 'الوقت' : 'Event Horizon'}</th>
+                            <th>{isRTL ? 'المستخدم' : 'Identity Node'}</th>
+                            <th>{isRTL ? 'العملية' : 'Operation Delta'}</th>
+                            <th>{isRTL ? 'المستوى' : 'Security Index'}</th>
+                            <th className="text-right">{isRTL ? 'التفاصيل' : 'Analysis'}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -283,7 +290,7 @@ const Logs = () => {
                                 <td colSpan="5" className="py-24 text-center">
                                     <div className="flex flex-col items-center justify-center opacity-50">
                                         <RefreshCw className="animate-spin text-[var(--primary)] mb-4" size={32} />
-                                        <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Decoding Metadata...</span>
+                                        <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">{isRTL ? 'جاري التحميل...' : 'Decoding Metadata...'}</span>
                                     </div>
                                 </td>
                             </tr>
@@ -303,21 +310,21 @@ const Logs = () => {
                                                 {log.user_name?.[0] || 'S'}
                                            </div>
                                            <div className="flex flex-col">
-                                               <span className="text-sm font-bold text-[var(--text-main)]">{log.user_name || 'System Context'}</span>
-                                               <span className="text-[10px] font-bold text-[var(--text-muted)] tracking-wider">{log.ip_address || 'Internal'}</span>
+                                               <span className="text-sm font-bold text-[var(--text-main)]">{log.user_name || (isRTL ? 'النظام' : 'System Context')}</span>
+                                               <span className="text-[10px] font-bold text-[var(--text-muted)] tracking-wider">{log.ip_address || (isRTL ? 'داخلي' : 'Internal')}</span>
                                            </div>
                                        </div>
                                     </td>
                                     <td>
                                        <div className="flex items-center gap-3">
-                                           <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-black text-slate-500 uppercase">{log.action}</span>
-                                           <span className="text-xs font-bold text-[var(--text-main)] capitalize">{log.entity_type}</span>
+                                           <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-black text-slate-500 uppercase">{actionLabel(log.action)}</span>
+                                           <span className="text-xs font-bold text-[var(--text-main)] capitalize">{entityLabel(log.entity_type)}</span>
                                        </div>
                                     </td>
                                     <td>
                                        <div className={`log-level-badge ${style.bg} ${style.color} ${style.border}`}>
                                            <div className={`w-1.5 h-1.5 rounded-full ${style.color === 'text-rose-500' ? 'bg-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]' : 'bg-current'} animate-pulse`}></div>
-                                           {log.level}
+                                           {levelLabel(log.level)}
                                        </div>
                                     </td>
                                     <td className="text-right">
@@ -346,8 +353,8 @@ const Logs = () => {
                                 <History size={28} />
                             </div>
                             <div>
-                                <h3 className="text-2xl font-black text-[var(--text-main)] tracking-tight">Deep Scan: Event_{selectedLog.id}</h3>
-                                <p className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Forensic Trace Verification Sequence</p>
+                                <h3 className="text-2xl font-black text-[var(--text-main)] tracking-tight">{isRTL ? `تفاصيل الحدث رقم ${selectedLog.id}` : `Deep Scan: Event_${selectedLog.id}`}</h3>
+                                <p className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">{isRTL ? 'تفاصيل الحدث' : 'Forensic Trace Verification Sequence'}</p>
                             </div>
                         </div>
                         <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-rose-600">
@@ -358,27 +365,27 @@ const Logs = () => {
                     <div className="space-y-10">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                             <div className="ap-card p-5 bg-slate-50 dark:bg-slate-900/40">
-                                <label className="ap-label text-indigo-600">Operator</label>
+                                <label className="ap-label text-indigo-600">{isRTL ? 'المستخدم' : 'Operator'}</label>
                                 <div className="text-sm font-black text-[var(--text-main)] mt-1">{selectedLog.user_name || 'System'}</div>
                             </div>
                             <div className="ap-card p-5 bg-slate-50 dark:bg-slate-900/40">
-                                <label className="ap-label text-indigo-600">IP Node</label>
+                                <label className="ap-label text-indigo-600">{isRTL ? 'عنوان IP' : 'IP Node'}</label>
                                 <div className="text-sm font-black text-[var(--text-main)] mt-1">{selectedLog.ip_address || 'Localhost'}</div>
                             </div>
                             <div className="ap-card p-5 bg-slate-50 dark:bg-slate-900/40">
-                                <label className="ap-label text-indigo-600">Precision Date</label>
+                                <label className="ap-label text-indigo-600">{isRTL ? 'التاريخ والوقت' : 'Precision Date'}</label>
                                 <div className="text-sm font-black text-[var(--text-main)] mt-1">{new Date(selectedLog.created_at).toLocaleDateString()}</div>
                             </div>
                             <div className="ap-card p-5 bg-slate-50 dark:bg-slate-900/40">
-                                <label className="ap-label text-indigo-600">Severity</label>
-                                <div className="text-sm font-black text-rose-500 uppercase mt-1">{selectedLog.level}</div>
+                                <label className="ap-label text-indigo-600">{isRTL ? 'المستوى' : 'Severity'}</label>
+                                <div className="text-sm font-black text-rose-500 uppercase mt-1">{levelLabel(selectedLog.level)}</div>
                             </div>
                         </div>
 
                         <div className="space-y-4">
                             <h4 className="text-sm font-black text-[var(--text-main)] flex items-center gap-3 uppercase tracking-tighter">
                                 <Terminal size={18} className="text-indigo-600" /> 
-                                Mutation Matrix (Delta)
+                                {isRTL ? 'تفاصيل التغيير' : 'Mutation Matrix (Delta)'}
                             </h4>
                             <div className="space-y-3">
                                 {selectedLog.details && (selectedLog.details.before || selectedLog.details.after) ? (
@@ -416,7 +423,7 @@ const Logs = () => {
                             onClick={() => setIsModalOpen(false)} 
                             className="btn-primary-premium w-full justify-center py-4"
                          >
-                            Acknowledge Forensic Report
+                            {isRTL ? 'إغلاق' : 'Acknowledge Forensic Report'}
                         </button>
                     </div>
                 </div>
