@@ -633,7 +633,7 @@ const Settings = () => {
                       <small style={{ fontSize: '11px', color: '#94a3b8' }}>النص الرئيسي الظاهر أعلى الفاتورة (الافتراضي: فاتورة ضريبية)</small>
                     </div>
                     <div className="form-group">
-                      <label>Invoice Header Subtitle / Tagline (العنوان الفرعي للترويسة)</label>
+                      <label>{isRTL ? 'العنوان الفرعي للترويسة' : 'Invoice Header Subtitle / Tagline (العنوان الفرعي للترويسة)'}</label>
                       <input
                         type="text"
                         value={tenant.invoice_header_subtitle || ''}
@@ -1129,7 +1129,7 @@ const Settings = () => {
                 <span>
                   <span style={{ display: 'block', fontWeight: 700, fontSize: '13px', color: '#1e293b' }}>السماح ببيع كمية أكبر من رصيد المخزون</span>
                   <span style={{ display: 'block', fontSize: '12px', color: '#64748b', marginTop: '2px', lineHeight: 1.6 }}>
-                    لو الإعداد مقفول (الافتراضي)، النظام بيرفض أي فاتورة بتخلي رصيد الصنف يبقى بالسالب. أي صنف ليه إعداد خاص بيه بيتغلب على الإعداد ده.
+                    لو الإعداد مقفول (الافتراضي)، النظام بيرفض أي فاتورة بتخلي رصيد الصنف يبقى بالسالب.
                   </span>
                 </span>
               </label>
@@ -1144,7 +1144,7 @@ const Settings = () => {
               <div className="card-body">
                 <div className="form-grid">
                   <div className="form-group">
-                    <label>Invoice Header Title (عنوان رأس الفاتورة)</label>
+                    <label>{isRTL ? 'عنوان رأس الفاتورة' : 'Invoice Header Title (عنوان رأس الفاتورة)'}</label>
                     <input type="text" value={tenant.invoice_header_title || ''} onChange={(e) => setTenant({...tenant, invoice_header_title: e.target.value})} placeholder="فاتورة ضريبية / TAX INVOICE" />
                   </div>
                   <div className="form-group">
