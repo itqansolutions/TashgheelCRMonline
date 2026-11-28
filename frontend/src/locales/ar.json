@@ -860,6 +860,9 @@
       "noInvoices": "لم يتم العثور على فواتير مطابقة.",
       "createdSuccess": "تم إنشاء الفاتورة بنجاح",
       "statuses": {
+        "partially_paid": "سداد جزئي",
+        "cancelled": "ملغاة",
+        "void": "ملغاة",
         "paid": "مدفوعة بالكامل",
         "partial": "سداد جزئي",
         "unpaid": "غير مدفوعة",

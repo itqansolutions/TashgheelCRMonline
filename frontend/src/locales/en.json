@@ -854,6 +854,9 @@
       "noInvoices": "No matching invoices found.",
       "createdSuccess": "Invoice created successfully",
       "statuses": {
+        "partially_paid": "Partially Paid",
+        "cancelled": "Cancelled",
+        "void": "Void",
         "paid": "Paid in Full",
         "partial": "Partially Paid",
         "unpaid": "Unpaid",

@@ -677,7 +677,7 @@ const Customer360Workspace = ({ customerId, initialCustomer, onClose }) => {
                         <div>
                           <span className="num-en" style={{ fontWeight: 800, color: '#dc2626', marginInlineEnd: '8px' }}>{inv.invoice_number || `INV-${inv.id}`}</span>
                           <span style={{ fontSize: '12px', color: '#64748b' }}>
-                            {t('customers.due', 'Due:')} {inv.due_date ? <span className="num-en">{new Date(inv.due_date).toLocaleDateString('en-GB')}</span> : t('customers.immediate', 'Immediate')} • {t('common.status', 'Status')}: {inv.status}
+                            {t('customers.due', 'Due:')} {inv.due_date ? <span className="num-en">{new Date(inv.due_date).toLocaleDateString('en-GB')}</span> : t('customers.immediate', 'Immediate')} • {t('common.status', 'Status')}: {t(`finance.invoices.statuses.${String(inv.status || '').toLowerCase()}`, inv.status)}
                           </span>
                         </div>
                         <div style={{ fontWeight: 800, color: '#0f172a' }}>
