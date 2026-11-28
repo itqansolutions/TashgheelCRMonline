@@ -349,6 +349,20 @@ const FinanceDashboard = () => {
       }
   };
 
+  const handleDeleteInvoice = async (inv) => {
+      const msg = isRTL
+        ? `هتحذف الفاتورة ${inv.invoice_number}؟ الكميات هترجع للمخزن. لو عليها تحصيلات لازم تلغيها الأول.`
+        : `Delete invoice ${inv.invoice_number}? Stock will be returned to the warehouse. Cancel any payments first.`;
+      if (!window.confirm(msg)) return;
+      try {
+          await api.delete(`/invoices/${inv.id}`);
+          toast.success(isRTL ? 'تم حذف الفاتورة وإرجاع الكميات للمخزن.' : 'Invoice deleted and stock restored.');
+          fetchData();
+      } catch (err) {
+          toast.error(err.response?.data?.message || (isRTL ? 'تعذر حذف الفاتورة.' : 'Could not delete the invoice.'));
+      }
+  };
+
   const openCancelVoucherModal = (voucher) => {
       setVoucherToCancel(voucher);
       setCancellationReason('');
@@ -450,6 +464,17 @@ const FinanceDashboard = () => {
                                 {hasFinancialPermission?.('payment.create') && (
                                   <button className="action-btn pay-btn" onClick={() => openPaymentModal(inv)} disabled={inv.status === 'paid'}>
                                       <CreditCard size={14} /> {t('finance.invoices.pay', 'Pay')}
+                                  </button>
+                                )}
+                                {user?.role === 'admin' && !inv.sales_order_id && (
+                                  <button
+                                      className="action-btn"
+                                      data-testid="delete-invoice"
+                                      style={{ color: '#ef4444', borderColor: '#fca5a5' }}
+                                      title={isRTL ? 'حذف الفاتورة' : 'Delete invoice'}
+                                      onClick={() => handleDeleteInvoice(inv)}
+                                  >
+                                      <Trash2 size={14} />
                                   </button>
                                 )}
                                 <button className="action-btn" onClick={() => navigate(`/finance/invoice-preview/${inv.id}`)}>

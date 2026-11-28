@@ -2817,6 +2817,26 @@ exports.getFinancialReports = async (req, res) => {
             GROUP BY i.status
         `, queryParams);
 
+        // 1b. COST OF GOODS SOLD: product cost snapshotted on every stock-out at sale time (invoice / delivery note),
+        //     minus the same snapshot when stock comes back (invoice deleted, sales return). Rows without a snapshot
+        //     (sales made before migration 034) carry no cost and are left out, never estimated.
+        const cogsDateFilter = invoiceDateFilter.replace(/i\.created_at/g, 'sm.created_at');
+        const cogsRes = await db.query(`
+            SELECT
+                COALESCE(SUM(CASE WHEN sm.type = 'out' THEN sm.quantity * sm.unit_cost ELSE 0 END), 0)
+              - COALESCE(SUM(CASE WHEN sm.type = 'in'  THEN sm.quantity * sm.unit_cost ELSE 0 END), 0) AS cogs,
+                COUNT(*) FILTER (WHERE sm.type = 'out')::int AS out_rows
+            FROM stock_movements sm
+            WHERE sm.tenant_id::text = $1::text
+              AND ($2::text IS NULL OR sm.branch_id::text = $2::text OR sm.branch_id IS NULL)
+              AND sm.status = 'approved'
+              AND sm.unit_cost IS NOT NULL
+              AND sm.reference_type IN ('invoice', 'invoice_reversal', 'delivery_note', 'sales_return')
+              ${cogsDateFilter}
+        `, queryParams);
+        const costOfGoodsSold = Math.max(0, parseFloat(cogsRes.rows[0]?.cogs || 0));
+        const grossProfit = parseFloat(invSummary.total_invoiced || 0) - costOfGoodsSold;
+
         // 2. COLLECTIONS (Payments by Method, Trend, & List)
         const collectionsAggRes = await db.query(`
             SELECT
@@ -3090,6 +3110,8 @@ exports.getFinancialReports = async (req, res) => {
             },
             overview: {
                 total_invoiced: parseFloat(invSummary.total_invoiced || 0),
+                cost_of_goods_sold: costOfGoodsSold,
+                gross_profit: grossProfit,
                 total_collected: totalInflow,
                 total_receivables: totalReceivables,
                 total_overdue_receivables: parseFloat(invSummary.total_overdue || 0),

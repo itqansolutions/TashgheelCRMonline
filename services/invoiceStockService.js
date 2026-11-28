@@ -39,7 +39,7 @@ async function deductForInvoice(q, { invoiceId, tenantId, branchId, userId, item
   if (byProduct.size === 0) return { movements: [] };
 
   const prods = await q.query(
-    `SELECT id, name, is_inventory_item FROM products WHERE id::text = ANY($1::text[]) AND tenant_id::text=$2::text`,
+    `SELECT id, name, is_inventory_item, COALESCE(cost_price,0) AS cost_price FROM products WHERE id::text = ANY($1::text[]) AND tenant_id::text=$2::text`,
     [[...byProduct.keys()], String(tenantId)]
   );
   const tracked = prods.rows.filter(p => p.is_inventory_item === true);
@@ -74,15 +74,15 @@ async function deductForInvoice(q, { invoiceId, tenantId, branchId, userId, item
       }
       chosen = best.w;
     }
-    plan.push({ product_id: p.id, warehouse_id: chosen.id, quantity: qty });
+    plan.push({ product_id: p.id, warehouse_id: chosen.id, quantity: qty, unit_cost: num(p.cost_price) });
   }
 
   const movements = [];
   for (const m of plan) {
     const r = await q.query(
-      `INSERT INTO stock_movements (type, product_id, from_warehouse_id, quantity, status, tenant_id, branch_id, reference_type, reference_id, created_by, approved_by)
-       VALUES ('out',$1,$2,$3,'approved',$4,$5,$6,$7,$8,$8) RETURNING id, product_id, quantity, from_warehouse_id`,
-      [m.product_id, m.warehouse_id, m.quantity, String(tenantId), branchId ? String(branchId) : null, REF, String(invoiceId), userId || null]
+      `INSERT INTO stock_movements (type, product_id, from_warehouse_id, quantity, status, tenant_id, branch_id, reference_type, reference_id, created_by, approved_by, unit_cost)
+       VALUES ('out',$1,$2,$3,'approved',$4,$5,$6,$7,$8,$8,$9) RETURNING id, product_id, quantity, from_warehouse_id`,
+      [m.product_id, m.warehouse_id, m.quantity, String(tenantId), branchId ? String(branchId) : null, REF, String(invoiceId), userId || null, m.unit_cost]
     );
     movements.push(r.rows[0]);
   }
@@ -92,7 +92,7 @@ async function deductForInvoice(q, { invoiceId, tenantId, branchId, userId, item
 /** Puts stock back (approved IN movements) for every invoice OUT movement not yet reversed. Used when an invoice is deleted. */
 async function restoreForInvoice(q, { invoiceId, tenantId, branchId, userId }) {
   const outs = await q.query(
-    `SELECT product_id, from_warehouse_id, quantity FROM stock_movements
+    `SELECT product_id, from_warehouse_id, quantity, unit_cost FROM stock_movements
      WHERE reference_type=$1 AND reference_id=$2 AND tenant_id::text=$3::text AND type='out' AND status='approved'`,
     [REF, String(invoiceId), String(tenantId)]
   );
@@ -103,9 +103,9 @@ async function restoreForInvoice(q, { invoiceId, tenantId, branchId, userId }) {
   if (done.rows.length > 0) return { restored: 0 };
   for (const o of outs.rows) {
     await q.query(
-      `INSERT INTO stock_movements (type, product_id, to_warehouse_id, quantity, status, tenant_id, branch_id, reference_type, reference_id, created_by, approved_by)
-       VALUES ('in',$1,$2,$3,'approved',$4,$5,$6,$7,$8,$8)`,
-      [o.product_id, o.from_warehouse_id, o.quantity, String(tenantId), branchId ? String(branchId) : null, REF_REVERSAL, String(invoiceId), userId || null]
+      `INSERT INTO stock_movements (type, product_id, to_warehouse_id, quantity, status, tenant_id, branch_id, reference_type, reference_id, created_by, approved_by, unit_cost)
+       VALUES ('in',$1,$2,$3,'approved',$4,$5,$6,$7,$8,$8,$9)`,
+      [o.product_id, o.from_warehouse_id, o.quantity, String(tenantId), branchId ? String(branchId) : null, REF_REVERSAL, String(invoiceId), userId || null, o.unit_cost == null ? null : o.unit_cost]
     );
   }
   return { restored: outs.rows.length };

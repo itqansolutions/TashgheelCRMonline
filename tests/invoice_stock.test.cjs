@@ -62,3 +62,12 @@ test('restore puts stock back once and is idempotent', async () => {
   assert.strictEqual((await restoreForInvoice(q2, base)).restored, 0);
   assert.strictEqual(q2.inserts.length, 0);
 });
+
+test('stores the product cost on the OUT movement and copies it to the reversal', async () => {
+  const q = mk({ prods: [{ id: 5, name: 'A', is_inventory_item: true, cost_price: '12.5' }], stock: { '1:5': 10 }, outs: [{ product_id: 5, from_warehouse_id: 1, quantity: 3, unit_cost: '12.5' }] });
+  await deductForInvoice(q, { ...base, items: [{ product_id: 5, quantity: 3 }] });
+  assert.strictEqual(q.inserts[0][8], 12.5);
+  const q2 = mk({ prods: [], outs: [{ product_id: 5, from_warehouse_id: 1, quantity: 3, unit_cost: '12.5' }] });
+  await restoreForInvoice(q2, { ...base });
+  assert.strictEqual(q2.inserts[0][8], '12.5');
+});

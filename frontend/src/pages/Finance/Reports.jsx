@@ -273,6 +273,20 @@ const Reports = ({ onSelectCustomer }) => {
                     sub: t('finance.reports.overview.kpi.invoicesIssued', { count: overview?.invoices_count || 0 })
                   },
                   {
+                    label: isRTL ? 'تكلفة البضاعة المباعة' : 'Cost of Goods Sold',
+                    value: overview?.cost_of_goods_sold,
+                    color: '#a855f7',
+                    icon: <Receipt size={18} />,
+                    sub: isRTL ? 'تكلفة المنتجات وقت البيع' : 'Product cost at the time of sale'
+                  },
+                  {
+                    label: isRTL ? 'مجمل الربح' : 'Gross Profit',
+                    value: overview?.gross_profit,
+                    color: (overview?.gross_profit || 0) >= 0 ? '#10b981' : '#dc2626',
+                    icon: <DollarSign size={18} />,
+                    sub: isRTL ? 'المبيعات − تكلفة البضاعة المباعة' : 'Sales − cost of goods sold'
+                  },
+                  {
                     label: t('finance.reports.overview.kpi.totalCollections'),
                     value: overview?.total_collected,
                     color: '#10b981',

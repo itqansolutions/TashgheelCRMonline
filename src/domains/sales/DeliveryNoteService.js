@@ -301,9 +301,9 @@ async function confirmDeliveryNote(tenantId, branchId, deliveryNoteId, userId) {
         // Record outbound stock movement for physical inventory only (skipped when the invoice already deducted it).
         if (!invoiceAlreadyDeducted) await client.query(`
         INSERT INTO stock_movements
-          (type, product_id, from_warehouse_id, quantity, status, tenant_id, branch_id, reference_type, reference_id, created_by)
-        VALUES ('out', $1, $2, $3, 'approved', $4, $5, 'delivery_note', $6, $7)
-        `, [item.product_id, dn.warehouse_id, item.quantity_delivered, String(tenantId), dn.branch_id || branchId || null, dn.id, userId]);
+          (type, product_id, from_warehouse_id, quantity, status, tenant_id, branch_id, reference_type, reference_id, created_by, unit_cost)
+        VALUES ('out', $1, $2, $3, 'approved', $4, $5, 'delivery_note', $6, $7, $8)
+        `, [item.product_id, dn.warehouse_id, item.quantity_delivered, String(tenantId), dn.branch_id || branchId || null, dn.id, userId, currentUnitCost]);
       }
 
       // Update quantity_delivered on sales_order_item

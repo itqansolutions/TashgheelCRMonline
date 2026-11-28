@@ -188,6 +188,18 @@ exports.deleteInvoice = async (req, res) => {
       return res.status(404).json({ status: 'error', message: 'Invoice not found or unauthorized' });
     }
 
+    // An invoice created from a Sales Order has already advanced that order's invoiced quantities.
+    const soLink = await db.query(
+      'SELECT sales_order_id FROM invoices WHERE id = $1 AND tenant_id::text = $2::text',
+      [req.params.id, tenant_id]
+    );
+    if (soLink.rows[0] && soLink.rows[0].sales_order_id) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'This invoice was created from a Sales Order and cannot be deleted. Record a sales return instead.'
+      });
+    }
+
     // 2. Financial Integrity Guard: reject deletion if active payments or vouchers exist
     const paymentsCheck = await db.query(
       `SELECT COUNT(*)::int as count FROM payments 
