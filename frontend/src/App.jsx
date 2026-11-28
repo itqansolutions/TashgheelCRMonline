@@ -99,6 +99,7 @@ import PriceTiers from './pages/Sales/PriceTiers';
 import EInvoice from './pages/Integrations/EInvoice';
 import MetaForms from './pages/Integrations/MetaForms';
 import WhatsAppSettings from './pages/Integrations/WhatsAppSettings';
+import WhatsAppQrLink from './pages/Integrations/WhatsAppQrLink';
 import PropertyFinderSettings from './pages/Integrations/PropertyFinderSettings';
 import WhatsAppCampaigns from './pages/Marketing/WhatsAppCampaigns';
 import WhatsAppChat from './pages/Marketing/WhatsAppChat';
@@ -245,6 +246,14 @@ function App() {
                     element={
                       <ProtectedRoute allowedRoles={['admin']}>
                         <WhatsAppSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="integrations/whatsapp-qr"
+                    element={
+                      <ProtectedRoute allowedRoles={['admin']}>
+                        <WhatsAppQrLink />
                       </ProtectedRoute>
                     }
                   />

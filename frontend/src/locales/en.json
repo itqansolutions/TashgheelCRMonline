@@ -3487,7 +3487,8 @@
       "whatsappCampaigns": "WhatsApp Campaigns",
       "whatsappSettings": "WhatsApp Settings",
       "metaForms": "Meta Lead Ads (Forms)",
-      "einvoice": "ETA E-Invoicing"
+      "einvoice": "ETA E-Invoicing",
+      "whatsappQr": "WhatsApp QR link"
     }
   },
   "vendors": {

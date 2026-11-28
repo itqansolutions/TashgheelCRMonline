@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { FileCheck, Share2, MessageCircle, Send, MessageSquare, Bot } from 'lucide-react';
+import { FileCheck, Share2, MessageCircle, Send, MessageSquare, Bot, QrCode } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
 const IntegrationsSubNav = () => {
@@ -10,6 +10,7 @@ const IntegrationsSubNav = () => {
     { path: '/marketing/whatsapp-chatbots', label: t('subNav.integrations.chatbots'), icon: <Bot size={16} /> },
     { path: '/marketing/whatsapp-campaigns', label: t('subNav.integrations.whatsappCampaigns'), icon: <Send size={16} /> },
     { path: '/integrations/whatsapp', label: t('subNav.integrations.whatsappSettings'), icon: <MessageCircle size={16} /> },
+    { path: '/integrations/whatsapp-qr', label: t('subNav.integrations.whatsappQr'), icon: <QrCode size={16} /> },
     { path: '/integrations/meta-forms', label: t('subNav.integrations.metaForms'), icon: <Share2 size={16} /> },
     { path: '/integrations/einvoice', label: t('subNav.integrations.einvoice'), icon: <FileCheck size={16} /> },
   ];

@@ -161,6 +161,8 @@ const templateGuard = require('./middleware/templateGuard');
 
 app.use('/api/customers', moduleGuard('crm'), customerRoutes);
 app.use('/api/meta', moduleGuard('marketing', 'crm'), metaRoutes);
+// WhatsApp QR linking (unofficial pairing) — isolated second track, admin-only routes.
+app.use('/api/whatsapp/qr', moduleGuard('marketing', 'crm'), require('./routes/whatsappQrRoutes'));
 app.use('/api/whatsapp', moduleGuard('marketing', 'crm'), require('./routes/whatsappRoutes'));
 app.use('/api/billing', billingRoutes);
 app.use('/api/products', moduleGuard('inventory'), productRoutes);
@@ -350,6 +352,7 @@ const startup = startServing({
     require('./services/dealSlaService').startSlaScanner(15);
     require('./services/activityReminderService').startActivityReminderScanner(30);
     require('./services/taskOverdueService').startTaskOverdueScanner(60);
+    require('./services/whatsappQrGateway').startGateway().catch((err) => console.error('[WhatsAppQR] startGateway', err.message));
   },
   listen: () => app.listen(PORT, '0.0.0.0')
 });

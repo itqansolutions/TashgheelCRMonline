@@ -1217,9 +1217,61 @@ exports.sendMessage = async (req, res) => {
     const conv = convRes.rows[0];
     const phoneNumberId = conv.account_phone_number_id || conv.default_phone_id;
     const accessToken = conv.access_token;
+    const isQrLinked = conv.account_connection_type === 'qr_link';
 
-    if (!phoneNumberId || !accessToken) {
+    if (!isQrLinked && (!phoneNumberId || !accessToken)) {
       return res.status(400).json({ status: 'error', message: 'WhatsApp sender number or credentials not configured' });
+    }
+
+    // --- QR-linked (unofficial pairing) numbers: send through the QR gateway ---
+    if (isQrLinked) {
+      if (!conv.account_id) {
+        return res.status(400).json({ status: 'error', code: 'QR_ACCOUNT_MISSING', message: 'This conversation is not bound to a linked WhatsApp number.' });
+      }
+      if (message_type === 'template') {
+        return res.status(400).json({
+          status: 'error',
+          code: 'QR_TEMPLATE_UNSUPPORTED',
+          message: 'Message templates belong to the official Cloud API numbers. On a QR-linked number send a normal text message.'
+        });
+      }
+      const qrText = body ? String(body).trim() : '';
+      if (!qrText) {
+        return res.status(400).json({ status: 'error', message: 'Message text cannot be empty' });
+      }
+      let qrSend;
+      try {
+        qrSend = await require('../services/whatsappQrGateway').sendText({
+          accountId: conv.account_id,
+          toPhone: conv.phone_number,
+          text: qrText
+        });
+      } catch (qrErr) {
+        return res.status(400).json({
+          status: 'error',
+          code: qrErr.code || 'QR_SEND_FAILED',
+          message: qrErr.message || 'Failed to send through the linked WhatsApp number'
+        });
+      }
+      const qrInsert = await db.query(`
+        INSERT INTO whatsapp_messages (
+          conversation_id, tenant_id, account_id, meta_message_id,
+          direction, sender_type, sender_id, message_type, body, status, created_at
+        )
+        VALUES ($1, $2, $3, $4, 'outbound', 'agent', $5, 'text', $6, 'sent', NOW())
+        ON CONFLICT (meta_message_id) DO NOTHING
+        RETURNING *
+      `, [conversationId, tenantId, conv.account_id, qrSend.id, userId, qrText]);
+
+      await db.query(`
+        UPDATE whatsapp_conversations
+        SET last_message_body = $1,
+            last_message_at = NOW(),
+            last_message_direction = 'outbound'
+        WHERE id::text = $2::text
+      `, [qrText, conversationId]);
+
+      return res.json({ status: 'success', data: qrInsert.rows[0] || { body: qrText, direction: 'outbound', status: 'sent' } });
     }
 
     // A disconnected coexistence number can no longer use the Cloud API; fail
@@ -1455,11 +1507,20 @@ exports.startNewChat = async (req, res) => {
     // 4. Send initial message if requested
     let messageRow = null;
     if (template_name || initial_message) {
+      // QR-linked numbers have no Meta templates: a plain first text message is the only option.
+      let effectiveMessageType = message_type;
+      if (resolvedAccountId && !template_name) {
+        const typeRes = await db.query(
+          'SELECT COALESCE(connection_type, \'cloud_api\') AS connection_type FROM whatsapp_accounts WHERE id = $1',
+          [resolvedAccountId]
+        );
+        if (typeRes.rows[0] && typeRes.rows[0].connection_type === 'qr_link') effectiveMessageType = 'text';
+      }
       const mockReq = {
         user: req.user,
         params: { id: conversation.id },
         body: {
-          message_type: template_name ? 'template' : (message_type || 'text'),
+          message_type: template_name ? 'template' : (effectiveMessageType || 'text'),
           template_name,
           language_code,
           body: initial_message || `Hello`

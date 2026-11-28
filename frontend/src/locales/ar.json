@@ -3616,7 +3616,8 @@
       "whatsappCampaigns": "حملات واتساب",
       "whatsappSettings": "إعدادات واتساب",
       "metaForms": "إعلانات ونماذج ميتا",
-      "einvoice": "الفاتورة الإلكترونية (الضرائب)"
+      "einvoice": "الفاتورة الإلكترونية (الضرائب)",
+      "whatsappQr": "ربط واتساب بـQR"
     }
   },
   "vendors": {
