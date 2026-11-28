@@ -881,6 +881,10 @@
       "convertedSuccess": "Quotation converted to invoice successfully!",
       "failedConvert": "Failed to convert quotation to invoice",
       "statuses": {
+        "pending": "Pending Approval",
+        "invoiced": "Invoiced",
+        "converted": "Invoiced",
+        "cancelled": "Cancelled",
         "draft": "Draft",
         "sent": "Sent",
         "approved": "Approved",

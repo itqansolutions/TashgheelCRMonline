@@ -411,7 +411,7 @@ const FinanceDashboard = () => {
 
   const getQuotationStatusBadge = (status) => {
     const s = (status || '').toLowerCase();
-    const isApproved = s === 'approved' || s === 'accepted';
+    const isApproved = ['approved', 'accepted', 'invoiced', 'converted'].includes(s);
     return (
       <span className={`finance-status-badge ${isApproved ? 'badge-success' : 'badge-warning'}`}>
         {t(`finance.quotations.statuses.${s}`, status || 'Draft')}
