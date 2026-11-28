@@ -165,6 +165,7 @@ function numberToArabicWords(number, currency = 'جنيه مصري') {
 const VoucherPreviewModal = ({ voucher, onClose }) => {
     const printRef = useRef(null);
     const { t, isRTL } = useLanguage();
+    const vnum = (n) => (isRTL && n ? String(n).replace(/^RV-/, 'س.ق-').replace(/^PV-/, 'س.ص-') : n);
     const { tenant: contextTenant } = useData();
 
     const isReceipt = voucher?.voucher_type === 'receipt';
@@ -240,7 +241,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                             </span>
                         )}
                         <span className="num-en" style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '14px', fontWeight: 600 }}>
-                            {voucher.voucher_number}
+                            {vnum(voucher.voucher_number)}
                         </span>
                     </div>
 
@@ -338,7 +339,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
                                         fontWeight: 900,
                                         fontSize: '20px'
                                     }}>
-                                        {isReceipt ? 'RV' : 'PV'}
+                                        {isReceipt ? (isRTL ? 'س.ق' : 'RV') : (isRTL ? 'س.ص' : 'PV')}
                                     </div>
                                 )}
                             </div>
@@ -373,7 +374,7 @@ const VoucherPreviewModal = ({ voucher, onClose }) => {
 
                             <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
                                 <div style={{ fontSize: '12px', color: '#64748b' }}>{t('finance.voucherPreview.voucherNo')}</div>
-                                <div className="num-en" style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>{voucher.voucher_number}</div>
+                                <div className="num-en" style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>{vnum(voucher.voucher_number)}</div>
                                 <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
                                     {t('finance.voucherPreview.date')} <span className="num-en">{voucher.voucher_date ? new Date(voucher.voucher_date).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')}</span>
                                 </div>
