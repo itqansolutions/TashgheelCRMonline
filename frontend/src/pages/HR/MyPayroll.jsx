@@ -5,6 +5,17 @@ import toast from 'react-hot-toast';
 import Modal from '../../components/Common/Modal';
 import { useLanguage } from '../../context/LanguageContext';
 
+const payrollItemAr = (item) => {
+    const d = item.description || '';
+    let m = d.match(/^(\d+(?:\.\d+)?) Deduction Days \((\d+(?:\.\d+)?) Mins Late, daily shift bands\)$/);
+    if (m) return `خصم تأخير ${m[1] === '1' ? 'يوم واحد' : m[1] + ' أيام'} (${m[2]} دقيقة تأخير، شرائح الوردية)`;
+    m = d.match(/^(\d+(?:\.\d+)?) Days Unpaid Leave$/);
+    if (m) return `إجازة بدون أجر (${m[1]} ${m[1] === '1' ? 'يوم' : 'أيام'})`;
+    return d;
+};
+const PAYROLL_TYPE_AR = { penalty_late: 'خصم تأخير', leave_unpaid: 'إجازة بدون أجر', overtime: 'وقت إضافي', bonus: 'مكافأة' };
+
+
 const fmt = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const MyPayroll = () => {
@@ -188,7 +199,7 @@ const MyPayroll = () => {
               {selectedPayroll.details && selectedPayroll.details[0] !== null && selectedPayroll.details.map(item => (
                 <div key={item.id} className={`trace-row ${item.amount < 0 ? 'negative' : 'positive'}`}>
                   <span style={{ fontSize: '13px' }}>
-                    {item.description} <span style={{ opacity: 0.6 }} className="num-en">({item.type ? item.type.replace('_', ' ') : ''})</span>
+                    {isRTL ? payrollItemAr(item) : item.description} <span style={{ opacity: 0.6 }} className="num-en">({item.type ? (isRTL ? (PAYROLL_TYPE_AR[item.type] || item.type.replace('_', ' ')) : item.type.replace('_', ' ')) : ''})</span>
                   </span>
                   <span style={{ fontWeight: 700 }} className="num-en">
                     {item.amount > 0 ? '+' : ''}EGP {fmt(item.amount)}
