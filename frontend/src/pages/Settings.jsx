@@ -1009,11 +1009,11 @@ const Settings = () => {
                   <input type="number" placeholder={isRTL ? 'الترتيب' : "Order"} value={newTaskStatus.order_index} onChange={(e) => setNewTaskStatus({...newTaskStatus, order_index: parseInt(e.target.value) || 0})} style={{ width: '70px', padding: '10px', borderRadius: '8px', border: '1.5px solid #e2e8f0' }} title="Display Order" />
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}>
                     <input type="checkbox" checked={newTaskStatus.can_make_deal} onChange={(e) => setNewTaskStatus({...newTaskStatus, can_make_deal: e.target.checked})} />
-                    Deal Enabled
+                    {isRTL ? 'تسمح بالصفقات' : 'Deal Enabled'}
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#475569' }}>
                     <input type="checkbox" checked={newTaskStatus.is_final} onChange={(e) => setNewTaskStatus({...newTaskStatus, is_final: e.target.checked})} />
-                    Final Stage
+                    {isRTL ? 'مرحلة نهائية' : 'Final Stage'}
                   </label>
                   <button type="submit" className="upload-btn" style={{ background: '#6366f1', color: 'white', border: 'none' }}>
                     <Plus size={14} /> {isRTL ? 'إضافة مرحلة' : 'Add Stage'}
@@ -1027,7 +1027,7 @@ const Settings = () => {
                     <div key={s.id} className="source-item" style={{ background: '#f8fafc', margin: '4px 0', borderRadius: '6px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                         <span className="status-badge" style={{ background: s.color || '#64748b' }}>{s.name}</span>
-                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Order: {s.order_index}</span>
+                        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{isRTL ? 'الترتيب' : 'Order'}: {s.order_index}</span>
                         {s.can_make_deal && <span style={{ fontSize: '11px', background: '#dbeafe', color: '#1e40af', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>{isRTL ? 'تسمح بالصفقات' : 'Deals Enabled'}</span>}
                         {s.is_final && <span style={{ fontSize: '11px', background: '#d1fae5', color: '#065f46', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>{isRTL ? 'مرحلة نهائية (كسب/خسارة)' : 'Final Won/Lost'}</span>}
                       </div>
@@ -1495,13 +1495,13 @@ const Settings = () => {
                     <Building2 size={18} color="#0284c7" /> Property Finder Integration (Egypt Portal)
                   </h3>
                   <span style={{ fontSize: '11px', fontWeight: 600, padding: '4px 10px', background: '#e0f2fe', color: '#0369a1', borderRadius: '12px' }}>
-                    Enterprise Real Estate
+                    {isRTL ? 'للقطاع العقاري (Enterprise)' : 'Enterprise Real Estate'}
                   </span>
                 </div>
               </div>
               <div className="card-body">
                 <p style={{ fontSize: '13px', color: '#475569', marginBottom: '16px', lineHeight: '1.5' }}>
-                  Connect your Property Finder account to import existing listings, publish eligible units, synchronize prices & statuses bidirectionally, and receive customer inquiries directly into your Tashgheel CRM sales pipeline.
+                  {isRTL ? 'اربط حساب Property Finder لاستيراد الإعلانات الحالية ونشر الوحدات المؤهلة ومزامنة الأسعار والحالات في الاتجاهين واستقبال استفسارات العملاء مباشرة في مسار المبيعات.' : 'Connect your Property Finder account to import existing listings, publish eligible units, synchronize prices & statuses bidirectionally, and receive customer inquiries directly into your Tashgheel CRM sales pipeline.'}
                 </p>
                 <button
                   type="button"
@@ -1511,7 +1511,7 @@ const Settings = () => {
                     color: 'white', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px'
                   }}
                 >
-                  Configure Property Finder Connection <ChevronRight size={16} />
+                  {isRTL ? 'إعداد الربط مع Property Finder' : 'Configure Property Finder Connection'} <ChevronRight size={16} />
                 </button>
               </div>
             </div>
