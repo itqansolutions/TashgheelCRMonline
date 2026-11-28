@@ -24,8 +24,7 @@ const migrate = async () => {
                 is_main BOOLEAN DEFAULT false,
                 timezone VARCHAR(50) DEFAULT 'Africa/Cairo',
                 currency VARCHAR(10) DEFAULT 'EGP',
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                CONSTRAINT chk_main_branch_protection CHECK (is_main = false OR name = 'Main Branch')
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
 
             -- User Access Join Table
