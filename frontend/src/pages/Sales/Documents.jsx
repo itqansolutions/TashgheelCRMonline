@@ -72,6 +72,24 @@ const Documents = () => {
 
   const currencyLabel = t('common.currency', 'EGP');
 
+  const titleAr = (title) => {
+    if (!isRTL || !title) return title;
+    return title
+      .replace(/^Quotation - /, 'عرض سعر - ')
+      .replace(/^Commercial Invoice - /, 'فاتورة تجارية - ')
+      .replace(/^Sales Order - /, 'أمر بيع - ')
+      .replace(/^Delivery Note - /, 'إذن تسليم - ')
+      .replace(/^Sales Return - /, 'مرتجع مبيعات - ');
+  };
+  const STATUS_AR = {
+    draft: 'مسودة', pending: 'قيد الانتظار', approved: 'معتمد', invoiced: 'تمت الفوترة', unpaid: 'غير مدفوعة', partial: 'مدفوعة جزئياً',
+    paid: 'مدفوعة', confirmed: 'مؤكد', delivered: 'تم التسليم', completed: 'مكتمل', cancelled: 'ملغي', canceled: 'ملغي', rejected: 'مرفوض',
+    sent: 'تم الإرسال', expired: 'منتهي', overdue: 'متأخرة', open: 'مفتوح', closed: 'مغلق', converted: 'تم التحويل', accepted: 'مقبول', void: 'ملغاة', returned: 'مرتجع'
+  };
+  const statusLabel = (st) => {
+    if (!st) return '';
+    return isRTL ? (STATUS_AR[String(st).toLowerCase()] || st) : String(st).toUpperCase();
+  };
   const formatDocType = (type) => {
     if (type === 'Quotation') return t('sales.documents.quotations');
     if (type === 'Sales Order') return t('sales.documents.salesOrders');
@@ -221,7 +239,7 @@ const Documents = () => {
                       <span className="num-en">{d.doc_no}</span>
                     </td>
                     <td style={{ padding: '14px 18px', fontWeight: 800, color: '#1e293b' }}>
-                      {d.title}
+                      {titleAr(d.title)}
                     </td>
                     <td style={{ padding: '14px 18px' }}>
                       <span style={{
@@ -245,7 +263,7 @@ const Documents = () => {
                         background: d.status === 'paid' || d.status === 'confirmed' || d.status === 'delivered' || d.status === 'completed' ? '#dcfce7' : '#fef3c7',
                         color: d.status === 'paid' || d.status === 'confirmed' || d.status === 'delivered' || d.status === 'completed' ? '#15803d' : '#b45309'
                       }}>
-                        {d.status?.toUpperCase()}
+                        {statusLabel(d.status)}
                       </span>
                     </td>
                     <td style={{ padding: '14px 18px', fontSize: '12px', color: '#94a3b8' }}>
