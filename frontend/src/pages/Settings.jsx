@@ -1492,7 +1492,7 @@ const Settings = () => {
               <div className="card-header" style={{ borderBottom: '1px solid #e0f2fe' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                   <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0369a1', margin: 0 }}>
-                    <Building2 size={18} color="#0284c7" /> Property Finder Integration (Egypt Portal)
+                    <Building2 size={18} color="#0284c7" /> {isRTL ? 'ربط Property Finder (بوابة مصر)' : 'Property Finder Integration (Egypt Portal)'}
                   </h3>
                   <span style={{ fontSize: '11px', fontWeight: 600, padding: '4px 10px', background: '#e0f2fe', color: '#0369a1', borderRadius: '12px' }}>
                     {isRTL ? 'للقطاع العقاري (Enterprise)' : 'Enterprise Real Estate'}
